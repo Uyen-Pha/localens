@@ -1,10 +1,31 @@
 {
+  "brand": "LocalLens",
   "home": {
     "title": "Discover Ho Chi Minh City through local eyes.",
     "subtitle": "Authentic cultural experiences, thoughtfully planned for you."
   },
   "navigation": {
+    "primary": "Primary navigation",
     "explore": "Explore",
-    "planTrip": "Plan my trip"
+    "fixedTours": "Fixed tours",
+    "planTrip": "Plan my trip",
+    "signIn": "Sign in",
+    "skipToContent": "Skip to content"
+  },
+  "language": {
+    "label": "Language",
+    "options": {
+      "en": "English",
+      "vi": "Tiếng Việt"
+    }
+  },
+  "footer": {
+    "summary": "Cultural experiences in Ho Chi Minh City, seen through local eyes.",
+    "copyright": "© LocalLens"
+  },
+  "serviceStatus": {
+    "available": "Available",
+    "degraded": "Limited service",
+    "unavailable": "Unavailable"
   }
 }

@@ -18,7 +18,7 @@ export default async function LocaleHomePage({
   const dictionary = getDictionary(locale);
 
   return (
-    <main>
+    <section>
       <h1>{dictionary.home.title}</h1>
       <p>{dictionary.home.subtitle}</p>
       <nav aria-label={dictionary.navigation.explore}>
@@ -29,6 +29,6 @@ export default async function LocaleHomePage({
           {dictionary.navigation.planTrip}
         </Link>
       </nav>
-    </main>
+    </section>
   );
 }
