@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   canonicalizeItinerary,
@@ -194,6 +194,53 @@ describe("async itinerary fingerprint", () => {
     changedResult.rationale = "ignored";
 
     await expect(fingerprintItinerary(changedInput, changedResult, hash)).resolves.toBe(baseline);
+  });
+
+  it("ignores invalid arbitrary extras while validating known whitelist fields", () => {
+    const input = fingerprintInput();
+    const result = fingerprintResult();
+    const baseline = canonicalizeItinerary(input, result);
+    const inputWithInvalidExtra = input as EngineInput & { extra: unknown };
+    const resultWithInvalidExtra = result as ItineraryResult & { extra: unknown };
+    inputWithInvalidExtra.extra = Symbol("ignored");
+    resultWithInvalidExtra.extra = new Date("not-a-date");
+
+    expect(canonicalizeItinerary(inputWithInvalidExtra, resultWithInvalidExtra)).toBe(baseline);
+  });
+
+  it("rejects malformed known values before serialization and never calls the hasher", async () => {
+    const input = fingerprintInput();
+    const cases: Array<[string, (result: ItineraryResult) => void]> = [
+      ["ranking source symbol", (result) => { (result as unknown as { rankingSource: unknown }).rankingSource = Symbol("ranking"); }],
+      ["ranking source enum", (result) => { (result as unknown as { rankingSource: unknown }).rankingSource = "other"; }],
+      ["item field object", (result) => { (result.items[0] as unknown as { placeId: unknown }).placeId = {}; }],
+      ["item field array", (result) => { (result.items[0] as unknown as { visitDurationMinutes: unknown }).visitDurationMinutes = []; }],
+      ["totals field object", (result) => { (result.totals as unknown as { score: unknown }).score = {}; }],
+      ["unsafe finite score", (result) => { result.totals.score = Number.MAX_SAFE_INTEGER + 1; }],
+      ["fractional score", (result) => { result.totals.score = 1.5; }],
+      ["NaN score", (result) => { result.totals.score = Number.NaN; }],
+      ["infinite score", (result) => { result.totals.score = Number.POSITIVE_INFINITY; }],
+      ["negative bigint money", (result) => { (result as unknown as { budgetVnd: bigint }).budgetVnd = BigInt("-1"); }],
+      ["undefined optional snapshot", (result) => { (result.snapshotIds as unknown as { fx: unknown }).fx = undefined; }],
+      ["known array wrong type", (result) => { (result as unknown as { items: unknown }).items = {}; }],
+    ];
+
+    for (const [label, mutate] of cases) {
+      const result = fingerprintResult();
+      mutate(result);
+      expect(() => canonicalizeItinerary(input, result), label).toThrow(TypeError);
+
+      const sha256 = vi.fn(async () => new Uint8Array(32));
+      await expect(fingerprintItinerary(input, result, sha256), label).rejects.toThrow(TypeError);
+      expect(sha256, `${label} must not invoke SHA-256`).not.toHaveBeenCalled();
+    }
+
+    const inputWithWrongArray = clone(input);
+    (inputWithWrongArray.request as unknown as { areas: unknown }).areas = "district-1";
+    const sha256 = vi.fn(async () => new Uint8Array(32));
+    expect(() => canonicalizeItinerary(inputWithWrongArray, fingerprintResult())).toThrow(TypeError);
+    await expect(fingerprintItinerary(inputWithWrongArray, fingerprintResult(), sha256)).rejects.toThrow(TypeError);
+    expect(sha256).not.toHaveBeenCalled();
   });
 
   it("rejects a provider digest unless it is exactly 32 bytes", async () => {
