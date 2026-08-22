@@ -31,38 +31,88 @@ const MAX_PLACE_COST = Math.floor(MAX_SAFE / 20);
 const MAX_TRAVEL_COST = Math.floor(MAX_SAFE / 8);
 
 const isoDateTimePattern =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|([+-])(\d{2}):(\d{2}))$/;
 const canonicalUtcPattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+const canonicalHcmOutputPattern =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):00\+07:00$/;
 const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const decimalPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,8})?$/;
 
-function isRealCalendarDate(value: string): boolean {
-  if (!datePattern.test(value)) return false;
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) {
+    return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
+  }
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+function isValidCalendarDateParts(
+  year: number,
+  month: number,
+  day: number,
+): boolean {
   return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
+    month >= 1 &&
+    month <= 12 &&
+    day >= 1 &&
+    day <= daysInMonth(year, month)
   );
 }
 
+function isRealCalendarDate(value: string): boolean {
+  if (!datePattern.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  return isValidCalendarDateParts(year, month, day);
+}
+
 function isValidOffset(value: string): boolean {
-  if (!isoDateTimePattern.test(value)) return false;
-  const offsetMatch = value.match(/([+-])(\d{2}):(\d{2})$/);
-  if (offsetMatch) {
-    const hours = Number(offsetMatch[2]);
-    const minutes = Number(offsetMatch[3]);
-    if (hours > 23 || minutes > 59) return false;
+  const match = value.match(isoDateTimePattern);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hours = Number(match[4]);
+  const minutes = Number(match[5]);
+  const seconds = Number(match[6]);
+  if (
+    !isValidCalendarDateParts(year, month, day) ||
+    hours > 23 ||
+    minutes > 59 ||
+    seconds > 59
+  ) {
+    return false;
+  }
+  if (match[9] !== undefined) {
+    const offsetHours = Number(match[10]);
+    const offsetMinutes = Number(match[11]);
+    if (offsetHours > 23 || offsetMinutes > 59) return false;
   }
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp);
 }
 
 function isCanonicalUtc(value: string): boolean {
-  return canonicalUtcPattern.test(value) && Number.isFinite(Date.parse(value));
+  return (
+    canonicalUtcPattern.test(value) &&
+    isValidOffset(value) &&
+    value.endsWith("Z")
+  );
+}
+
+function isCanonicalHcmOutput(value: string): boolean {
+  const match = value.match(canonicalHcmOutputPattern);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hours = Number(match[4]);
+  const minutes = Number(match[5]);
+  return (
+    isValidCalendarDateParts(year, month, day) &&
+    hours <= 23 &&
+    minutes <= 59
+  );
 }
 
 function minutesOf(value: string): number {
@@ -87,6 +137,37 @@ function hasOverlappingWindows(
   return intervals.some((interval, index) => {
     const previous = intervals[index - 1];
     return previous !== undefined && interval[0] < previous[1];
+  });
+}
+
+function hasOverlappingWeeklyWindows(
+  windows: readonly {
+    weekday: number;
+    opensAt: string;
+    closesAt: string;
+  }[],
+): boolean {
+  const weekMinutes = 7 * 24 * 60;
+  const segments: Array<[number, number]> = [];
+  for (const window of windows) {
+    const opensAt = minutesOf(window.opensAt);
+    const closesAt = minutesOf(window.closesAt);
+    const duration =
+      closesAt > opensAt
+        ? closesAt - opensAt
+        : closesAt + 24 * 60 - opensAt;
+    const start = window.weekday * 24 * 60 + opensAt;
+    const end = start + duration;
+    if (end <= weekMinutes) {
+      segments.push([start, end]);
+    } else {
+      segments.push([start, weekMinutes], [0, end - weekMinutes]);
+    }
+  }
+  segments.sort(([startA], [startB]) => startA - startB);
+  return segments.some((segment, index) => {
+    const previous = segments[index - 1];
+    return previous !== undefined && segment[0] < previous[1];
   });
 }
 
@@ -246,20 +327,12 @@ export const placeCandidateSchema = z
         path: ["guideLanguages"],
       });
     }
-    const weekdays = new Map<number, typeof value.openingHours>();
-    for (const window of value.openingHours) {
-      const current = weekdays.get(window.weekday) ?? [];
-      current.push(window);
-      weekdays.set(window.weekday, current);
-    }
-    for (const [weekday, windows] of weekdays) {
-      if (hasOverlappingWindows(windows)) {
-        context.addIssue({
-          code: "custom",
-          message: "opening windows cannot overlap",
-          path: ["openingHours", weekday],
-        });
-      }
+    if (hasOverlappingWeeklyWindows(value.openingHours)) {
+      context.addIssue({
+        code: "custom",
+        message: "opening windows cannot overlap",
+        path: ["openingHours"],
+      });
     }
     const dates = value.openingExceptions.map((exception) => exception.localDate);
     if (!unique(dates)) {
@@ -378,10 +451,10 @@ export const openingIntervalSchema = z
 export const itineraryItemSchema = z
   .object({
     placeId: idSchema,
-    startAt: z.string().refine((value) => /\+07:00$/.test(value), {
+    startAt: z.string().refine(isCanonicalHcmOutput, {
       message: "itinerary times must use +07:00",
     }),
-    endAt: z.string().refine((value) => /\+07:00$/.test(value), {
+    endAt: z.string().refine(isCanonicalHcmOutput, {
       message: "itinerary times must use +07:00",
     }),
     visitDurationMinutes: safeInteger.min(15).max(480),
@@ -406,7 +479,7 @@ export const itineraryTotalsSchema = z
 
 export const itineraryResultSchema = z
   .object({
-    normalizedStartAt: z.string().refine((value) => /\+07:00$/.test(value), {
+    normalizedStartAt: z.string().refine(isCanonicalHcmOutput, {
       message: "itinerary times must use +07:00",
     }),
     budgetVnd: nonNegativeSafeInteger,

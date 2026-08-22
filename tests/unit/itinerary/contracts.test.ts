@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  itineraryResultSchema,
   parseEngineInput,
   type EngineInput,
   type ItineraryRequest,
@@ -184,6 +185,93 @@ describe("itinerary domain contracts", () => {
     source.asOfUtc = "2026-09-05T01:00:00+07:00";
 
     expectInvalid(source, "asOfUtc");
+  });
+
+  it("rejects normalized calendar dates in every input timestamp field", () => {
+    const invalidStart = clone(itineraryFixture);
+    invalidStart.request.startAt = "2026-02-30T01:00:00Z";
+    expectInvalid(invalidStart, "startAt");
+
+    const invalidAsOf = clone(itineraryFixture);
+    invalidAsOf.asOfUtc = "2026-02-30T01:00:00Z";
+    expectInvalid(invalidAsOf, "asOfUtc");
+
+    const invalidFxObservation = clone(itineraryFixture);
+    invalidFxObservation.fx!.observedAtUtc = "2026-02-30T01:00:00Z";
+    expectInvalid(invalidFxObservation, "observedAtUtc");
+
+    const invalidTravelVerification = clone(itineraryFixture);
+    invalidTravelVerification.travel.edges[0].verifiedAt =
+      "2026-02-30T18:00:00+07:00";
+    expectInvalid(invalidTravelVerification, "verifiedAt");
+  });
+
+  it("requires full canonical HCMC timestamps for itinerary results", () => {
+    const validResult = {
+      normalizedStartAt: "2026-09-05T08:00:00+07:00",
+      budgetVnd: 2_000_000,
+      rankingSource: "deterministic" as const,
+      items: [
+        {
+          placeId: "place-banh-mi",
+          startAt: "2026-09-05T08:00:00+07:00",
+          endAt: "2026-09-05T08:45:00+07:00",
+          visitDurationMinutes: 45,
+          travelMinutesBefore: 0,
+          transitionBufferMinutesBefore: 0 as const,
+          travelCostVndBefore: 0,
+          placeCostVnd: 360_000,
+          score: 5_001,
+        },
+      ],
+      totals: {
+        durationMinutes: 45,
+        visitMinutes: 45,
+        travelMinutes: 0,
+        transitionBufferMinutes: 0,
+        groupCostVnd: 360_000,
+        score: 5_001,
+      },
+      snapshotIds: {
+        catalog: "catalog-v1-2026-09-05",
+        travel: "travel-v1-2026-09-05",
+        fx: null,
+      },
+    };
+
+    expect(itineraryResultSchema.safeParse(validResult).success).toBe(true);
+
+    const malformed = structuredClone(validResult);
+    malformed.normalizedStartAt = "not-a-date+07:00";
+    expect(itineraryResultSchema.safeParse(malformed).success).toBe(false);
+
+    const missingSeconds = structuredClone(validResult);
+    missingSeconds.items[0].startAt = "2026-09-05T08:00+07:00";
+    expect(itineraryResultSchema.safeParse(missingSeconds).success).toBe(false);
+
+    const invalidDate = structuredClone(validResult);
+    invalidDate.items[0].endAt = "2026-02-30T08:45:00+07:00";
+    expect(itineraryResultSchema.safeParse(invalidDate).success).toBe(false);
+  });
+
+  it("rejects overnight opening overlap from Friday into Saturday", () => {
+    const source = clone(itineraryFixture);
+    source.catalog.places[0].openingHours = [
+      { weekday: 5, opensAt: "22:00", closesAt: "02:00" },
+      { weekday: 6, opensAt: "01:00", closesAt: "03:00" },
+    ];
+
+    expectInvalid(source, "openingHours");
+  });
+
+  it("rejects overnight opening overlap across the Sunday-to-Monday boundary", () => {
+    const source = clone(itineraryFixture);
+    source.catalog.places[0].openingHours = [
+      { weekday: 0, opensAt: "23:00", closesAt: "02:00" },
+      { weekday: 1, opensAt: "01:00", closesAt: "03:00" },
+    ];
+
+    expectInvalid(source, "openingHours");
   });
 
   it("rejects more than 5,000 catalog places", () => {
