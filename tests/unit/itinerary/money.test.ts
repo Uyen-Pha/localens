@@ -23,11 +23,17 @@ const clone = <T>(value: T): T => structuredClone(value);
 
 const validRate = parseFxRate("25000.12345678");
 
-function expectError(result: { ok: boolean; error?: { code: string; retryable: boolean } }, code: string) {
-  expect(result.ok).toBe(false);
-  if (!result.ok) {
-    expect(result.error).toMatchObject({ code, retryable: false });
-  }
+function expectError(
+  result: { ok: boolean; error?: unknown },
+  code: string,
+  messageKey = code === "USD_DISABLED"
+    ? "itinerary.usd_disabled"
+    : "itinerary.money.invalid",
+) {
+  expect(result).toEqual({
+    ok: false,
+    error: { code, messageKey, retryable: false },
+  });
 }
 
 function expectRate(result: ReturnType<typeof parseFxRate>): { numerator: bigint; denominator: bigint } {
@@ -63,6 +69,8 @@ describe("itinerary money arithmetic", () => {
     });
     expectError(sumVnd([Number.MAX_SAFE_INTEGER, 1]), "INVALID_ITINERARY_INPUT");
     expectError(sumVnd([1, -1]), "INVALID_ITINERARY_INPUT");
+    expectError(sumVnd([Number.NaN]), "INVALID_ITINERARY_INPUT");
+    expectError(sumVnd([Number.POSITIVE_INFINITY]), "INVALID_ITINERARY_INPUT");
   });
 });
 
@@ -85,6 +93,7 @@ describe("precise FX rate arithmetic", () => {
     for (const value of ["0", "-1", "+1", "01", "1.", "1.123456789", ""]) {
       expectError(parseFxRate(value), "INVALID_ITINERARY_INPUT");
     }
+    expectError(parseFxRate("9".repeat(100_000)), "INVALID_ITINERARY_INPUT");
   });
 
   it("floors USD cents to VND using the exact rational rate", () => {
@@ -117,6 +126,27 @@ describe("precise FX rate arithmetic", () => {
       "INVALID_ITINERARY_INPUT",
     );
     expectError(usdCentsToVndFloor(-1, highRate), "INVALID_ITINERARY_INPUT");
+  });
+
+  it("rejects malformed BigInt rate shapes before arithmetic", () => {
+    const malformedRates = [
+      { numerator: BigInt("1"), denominator: 1 as unknown as bigint },
+      { numerator: BigInt("0"), denominator: BigInt("1") },
+      { numerator: BigInt("1"), denominator: BigInt("0") },
+      { numerator: BigInt("-1"), denominator: BigInt("1") },
+      null,
+    ];
+
+    for (const rate of malformedRates) {
+      expectError(
+        usdCentsToVndFloor(1, rate as never),
+        "INVALID_ITINERARY_INPUT",
+      );
+      expectError(
+        vndToUsdCentsCeil(1, rate as never),
+        "INVALID_ITINERARY_INPUT",
+      );
+    }
   });
 
   it("keeps a VND/USD round trip on the safe side of the original amount", () => {
@@ -169,6 +199,25 @@ describe("budget FX snapshot normalization", () => {
     });
   });
 
+  it("keeps seconds and milliseconds exact at the freshness boundary", () => {
+    const request = clone(usdItineraryFixture.request);
+    const fx = {
+      ...validFx,
+      observedAtUtc: "2026-09-05T01:00:00.999Z",
+    };
+
+    expect(
+      normalizeBudgetToVnd(request, fx, "2026-09-12T01:00:00.999Z"),
+    ).toEqual({
+      ok: true,
+      value: { budgetVnd: 2_500_000, fxSnapshotId: validFx.id },
+    });
+    expectError(
+      normalizeBudgetToVnd(request, fx, "2026-09-12T01:00:01.000Z"),
+      "USD_DISABLED",
+    );
+  });
+
   it("disables USD one minute after the seven-day freshness boundary", () => {
     const request = clone(usdItineraryFixture.request);
     const result = normalizeBudgetToVnd(
@@ -195,6 +244,23 @@ describe("budget FX snapshot normalization", () => {
     );
   });
 
+  it("rejects impossible calendar dates in the USD timestamps", () => {
+    const request = clone(usdItineraryFixture.request);
+
+    expectError(
+      normalizeBudgetToVnd(request, validFx, "2026-02-30T01:00:00Z"),
+      "INVALID_ITINERARY_INPUT",
+    );
+    expectError(
+      normalizeBudgetToVnd(
+        request,
+        { ...validFx, observedAtUtc: "2026-02-30T01:00:00Z" },
+        observedAtUtc,
+      ),
+      "INVALID_ITINERARY_INPUT",
+    );
+  });
+
   it("rejects an invalid FX rate instead of using floating-point coercion", () => {
     const request = clone(usdItineraryFixture.request);
     const invalidFx = { ...validFx, vndPerUsd: "25000.123456789" };
@@ -203,6 +269,42 @@ describe("budget FX snapshot normalization", () => {
       normalizeBudgetToVnd(request, invalidFx, observedAtUtc),
       "INVALID_ITINERARY_INPUT",
     );
+  });
+
+  it("rejects malformed FX objects and IDs at the runtime boundary", () => {
+    const request = clone(usdItineraryFixture.request);
+    const malformedFxValues: unknown[] = [
+      null,
+      {},
+      { ...validFx, id: "" },
+      { ...validFx, id: "   " },
+      { ...validFx, id: "x".repeat(161) },
+      { ...validFx, id: 42 },
+      { ...validFx, vndPerUsd: undefined },
+      { ...validFx, observedAtUtc: undefined },
+    ];
+
+    for (const fx of malformedFxValues) {
+      expectError(
+        normalizeBudgetToVnd(request, fx as FxSnapshot, observedAtUtc),
+        "INVALID_ITINERARY_INPUT",
+      );
+    }
+  });
+
+  it("returns the trimmed FX snapshot ID used by contract normalization", () => {
+    const request = clone(usdItineraryFixture.request);
+
+    expect(
+      normalizeBudgetToVnd(
+        request,
+        { ...validFx, id: "  fx-test  " },
+        observedAtUtc,
+      ),
+    ).toEqual({
+      ok: true,
+      value: { budgetVnd: 2_500_000, fxSnapshotId: "fx-test" },
+    });
   });
 
   it("does not exceed the public safe-integer boundary for USD budgets", () => {

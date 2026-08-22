@@ -7,6 +7,10 @@ import type {
   ItineraryRequest,
   Result,
 } from "@/lib/domain/itinerary/contracts";
+import {
+  fxSnapshotSchema,
+  isCanonicalUtc,
+} from "@/lib/domain/itinerary/contracts";
 
 export type FxRate = { numerator: bigint; denominator: bigint };
 
@@ -14,9 +18,7 @@ const HUNDRED = BigInt("100");
 const ONE = BigInt("1");
 const ZERO = BigInt("0");
 const FX_MAX_AGE_MS = 168 * 60 * 60 * 1000;
-const DECIMAL_RATE_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d{1,8})?$/;
-const CANONICAL_UTC_PATTERN =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+const DECIMAL_RATE_PATTERN = /^(?:0|[1-9]\d{0,11})(?:\.\d{1,8})?$/;
 
 function invalidMoney(): { ok: false; error: DomainError } {
   return {
@@ -52,14 +54,6 @@ function isFxRate(value: unknown): value is FxRate {
     typeof candidate.denominator === "bigint" &&
     candidate.numerator > ZERO &&
     candidate.denominator > ZERO
-  );
-}
-
-function isCanonicalUtc(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    CANONICAL_UTC_PATTERN.test(value) &&
-    Number.isFinite(Date.parse(value))
   );
 }
 
@@ -146,21 +140,18 @@ export function normalizeBudgetToVnd(
   if (request.budget.currency !== "USD") return invalidMoney();
 
   if (fx === undefined) return usdDisabled();
-  if (
-    typeof fx !== "object" ||
-    fx === null ||
-    !isCanonicalUtc(asOfUtc) ||
-    !isCanonicalUtc(fx.observedAtUtc)
-  ) {
+  const parsedFx = fxSnapshotSchema.safeParse(fx);
+  if (!parsedFx.success || !isCanonicalUtc(asOfUtc)) {
     return invalidMoney();
   }
 
+  const normalizedFx = parsedFx.data;
   const asOfMs = Date.parse(asOfUtc);
-  const observedMs = Date.parse(fx.observedAtUtc);
+  const observedMs = Date.parse(normalizedFx.observedAtUtc);
   if (asOfMs < observedMs) return invalidMoney();
   if (asOfMs - observedMs > FX_MAX_AGE_MS) return usdDisabled();
 
-  const parsedRate = parseFxRate(fx.vndPerUsd);
+  const parsedRate = parseFxRate(normalizedFx.vndPerUsd);
   if (!parsedRate.ok) return parsedRate;
 
   const converted = usdCentsToVndFloor(
@@ -171,6 +162,6 @@ export function normalizeBudgetToVnd(
 
   return {
     ok: true,
-    value: { budgetVnd: converted.value, fxSnapshotId: fx.id },
+    value: { budgetVnd: converted.value, fxSnapshotId: normalizedFx.id },
   };
 }

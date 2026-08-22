@@ -38,7 +38,9 @@ const canonicalHcmOutputPattern =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):00\+07:00$/;
 const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-const decimalPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,8})?$/;
+// Matches numeric(20,8): at most twelve integer digits and eight fractional
+// digits, with the same canonical leading-zero policy used by money parsing.
+const decimalPattern = /^(?:0|[1-9]\d{0,11})(?:\.\d{1,8})?$/;
 
 function daysInMonth(year: number, month: number): number {
   if (month === 2) {
@@ -92,7 +94,7 @@ function isValidOffset(value: string): boolean {
   return Number.isFinite(timestamp);
 }
 
-function isCanonicalUtc(value: string): boolean {
+export function isCanonicalUtc(value: string): boolean {
   return (
     canonicalUtcPattern.test(value) &&
     isValidOffset(value) &&

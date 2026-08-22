@@ -180,6 +180,20 @@ describe("itinerary domain contracts", () => {
     expectInvalid(beforeFx, "asOfUtc");
   });
 
+  it("enforces the FX numeric(20,8) precision boundary", () => {
+    const tooManyIntegerDigits = clone(usdItineraryFixture);
+    tooManyIntegerDigits.fx!.vndPerUsd = "1234567890123";
+    expectInvalid(tooManyIntegerDigits, "fx.vndPerUsd");
+
+    const tooManyFractionDigits = clone(usdItineraryFixture);
+    tooManyFractionDigits.fx!.vndPerUsd = "1.123456789";
+    expectInvalid(tooManyFractionDigits, "fx.vndPerUsd");
+
+    const giantRate = clone(usdItineraryFixture);
+    giantRate.fx!.vndPerUsd = "9".repeat(100_000);
+    expectInvalid(giantRate, "fx.vndPerUsd");
+  });
+
   it("rejects an invalid canonical as-of timestamp", () => {
     const source = clone(itineraryFixture);
     source.asOfUtc = "2026-09-05T01:00:00+07:00";
