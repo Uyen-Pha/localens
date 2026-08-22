@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   ServiceStatus,
+  type ServiceStatusProps,
   type ServiceStatusState,
 } from "@/components/ui/service-status";
 
@@ -13,6 +14,13 @@ const labels: Record<ServiceStatusState, string> = {
 };
 
 afterEach(cleanup);
+
+function acceptServiceStatusProps(props: ServiceStatusProps) {
+  return props;
+}
+
+// @ts-expect-error A service status must receive translated labels for every state.
+acceptServiceStatusProps({ state: "available" });
 
 describe("ServiceStatus", () => {
   it.each([
@@ -42,5 +50,11 @@ describe("ServiceStatus", () => {
       expect(screen.getByRole("status")).toHaveTextContent(labels[state]);
       unmount();
     }
+  });
+
+  it("does not announce the available state as a status", () => {
+    render(<ServiceStatus state="available" labels={labels} />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

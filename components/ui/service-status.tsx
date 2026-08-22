@@ -8,16 +8,11 @@ export type ServiceStatusState = (typeof SERVICE_STATUS_STATES)[number];
 
 export type ServiceStatusProps = {
   state: ServiceStatusState;
-  labels?: Record<ServiceStatusState, string>;
-  label?: string;
+  labels: Record<ServiceStatusState, string>;
 };
 
-export function ServiceStatus({
-  state,
-  labels,
-  label,
-}: ServiceStatusProps) {
-  const visibleLabel = label ?? labels?.[state] ?? state;
+export function ServiceStatus({ state, labels }: ServiceStatusProps) {
+  const visibleLabel = labels[state];
   const isAnnounced = state !== "available";
 
   return (
