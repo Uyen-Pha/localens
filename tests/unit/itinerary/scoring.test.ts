@@ -53,6 +53,32 @@ describe("itinerary scoring", () => {
     });
   });
 
+  it("rejects sparse filtered and ranked arrays instead of skipping holes", () => {
+    const sparseFiltered = new Array(2) as string[];
+    sparseFiltered[0] = "a";
+    const sparseRanked = new Array(1) as string[];
+
+    expect(buildRankOrder(sparseFiltered)).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ITINERARY_INPUT" },
+    });
+    expect(buildRankOrder(["a"], sparseRanked)).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ITINERARY_INPUT" },
+    });
+  });
+
+  it("normalizes padded IDs and rejects control delimiters", () => {
+    expect(buildRankOrder([" place-a ", "place-b"], [" place-a "])).toEqual({
+      ok: true,
+      value: ["place-a", "place-b"],
+    });
+    expect(buildRankOrder(["place\u0000a"])).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ITINERARY_INPUT" },
+    });
+  });
+
   it("sorts paths by score, cost, finish, and joined IDs in that order", () => {
     const base = { score: 10, groupCostVnd: 100, finishEpochMinute: 500 };
     expect(comparePaths({ ...base, placeIds: ["z"] }, { ...base, placeIds: ["a"] })).toBeGreaterThan(0);

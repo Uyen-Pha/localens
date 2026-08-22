@@ -1,5 +1,6 @@
 import {
   engineInputSchema,
+  placeCandidateSchema,
   type EngineInput,
   type ItineraryItem,
   type ItineraryResult,
@@ -98,6 +99,28 @@ function sortCandidates(candidates: readonly PlaceCandidate[]): PlaceCandidate[]
   return [...candidates].sort((left, right) =>
     left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
   );
+}
+
+function isDenseArray(value: unknown): value is readonly unknown[] {
+  if (!Array.isArray(value)) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.prototype.hasOwnProperty.call(value, index)) return false;
+  }
+  return true;
+}
+
+function stableSerialize(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableSerialize(item)).join(",")}]`;
+  }
+  if (typeof value === "object" && value !== null) {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableSerialize(record[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 function pathIsValid(path: PathState, context: SchedulerContext): boolean {
@@ -262,43 +285,62 @@ function createContext(
   rankOrder: readonly string[],
   budgetVnd: number,
 ): Result<SchedulerContext> {
-  if (!engineInputSchema.safeParse(input).success) return invalidScheduler();
-  if (!Array.isArray(filtered) || filtered.length === 0) return noFeasible();
+  const parsedInput = engineInputSchema.safeParse(input);
+  if (!parsedInput.success) return invalidScheduler();
+  const canonicalInput = parsedInput.data;
+  if (!Array.isArray(filtered)) return invalidScheduler("filtered");
+  if (!isDenseArray(filtered)) return invalidScheduler("filtered");
+  if (filtered.length === 0) return noFeasible();
   if (!Number.isSafeInteger(budgetVnd) || budgetVnd < 0) return invalidScheduler("budgetVnd");
 
-  const candidates = sortCandidates(filtered);
+  const catalogById = new Map(
+    canonicalInput.catalog.places.map((place) => [place.id, place]),
+  );
+  const selectedCandidates: PlaceCandidate[] = [];
   const candidateById = new Map<string, PlaceCandidate>();
   const placeCosts = new Map<string, number>();
-  for (const candidate of candidates) {
+  for (const suppliedCandidate of filtered) {
+    const parsedCandidate = placeCandidateSchema.safeParse(suppliedCandidate);
+    if (!parsedCandidate.success) return invalidScheduler("filtered");
+    const candidate = parsedCandidate.data;
+    const canonicalCandidate = catalogById.get(candidate.id);
+    if (
+      canonicalCandidate === undefined ||
+      stableSerialize(candidate) !== stableSerialize(canonicalCandidate)
+    ) {
+      return invalidScheduler("filtered");
+    }
     if (candidateById.has(candidate.id)) return invalidScheduler("filtered");
-    // A scheduler call is a trusted internal boundary, but malformed values
-    // must still become a stable Result rather than escaping as a throw.
-    if (!candidate || typeof candidate.id !== "string") return invalidScheduler("filtered");
-    candidateById.set(candidate.id, candidate);
-    const cost = multiplyVnd(candidate.priceVndPerPerson, input.request.partySize);
+    selectedCandidates.push(canonicalCandidate);
+    candidateById.set(candidate.id, canonicalCandidate);
+    const cost = multiplyVnd(canonicalCandidate.priceVndPerPerson, canonicalInput.request.partySize);
     if (!cost.ok) return invalidScheduler("filtered");
     placeCosts.set(candidate.id, cost.value);
   }
 
+  const candidates = sortCandidates(selectedCandidates);
   const orderResult = buildRankOrder(candidates.map((candidate) => candidate.id), rankOrder);
   if (!orderResult.ok || orderResult.value.length !== candidates.length) {
     return invalidScheduler("rankOrder");
   }
-  if (orderResult.value.some((id, index) => id !== rankOrder[index])) {
+  const normalizedRankOrder = isDenseArray(rankOrder)
+    ? rankOrder.map((id) => (typeof id === "string" ? id.trim() : id))
+    : [];
+  if (orderResult.value.some((id, index) => id !== normalizedRankOrder[index])) {
     return invalidScheduler("rankOrder");
   }
   const rankIndexes = new Map(orderResult.value.map((id, index) => [id, index]));
 
-  const start = normalizeToHcmMinute(input.request.startAt);
+  const start = normalizeToHcmMinute(canonicalInput.request.startAt);
   if (!start.ok) return invalidScheduler("request.start");
-  const latestEndEpochMinute = start.value + input.request.durationMinutes;
+  const latestEndEpochMinute = start.value + canonicalInput.request.durationMinutes;
   if (!Number.isSafeInteger(latestEndEpochMinute)) return invalidScheduler("request.duration");
 
-  const travel = indexTravelSnapshot(input.travel);
+  const travel = indexTravelSnapshot(canonicalInput.travel);
   if (!travel.ok) return invalidScheduler("travel");
 
   const lockedIndexes = new Map<string, number>();
-  for (const [index, id] of input.request.lockedStopIds.entries()) {
+  for (const [index, id] of canonicalInput.request.lockedStopIds.entries()) {
     lockedIndexes.set(id, index);
     if (!candidateById.has(id)) return noFeasible();
   }
@@ -306,7 +348,7 @@ function createContext(
   return {
     ok: true,
     value: {
-      input,
+      input: canonicalInput,
       candidates,
       candidateById,
       placeCosts,
@@ -314,8 +356,8 @@ function createContext(
       travelIndex: travel.value,
       startEpochMinute: start.value,
       latestEndEpochMinute,
-      paceCap: Math.min(paceCap(input.request.pace), GLOBAL_STOP_CAP),
-      lockedIds: input.request.lockedStopIds,
+      paceCap: Math.min(paceCap(canonicalInput.request.pace), GLOBAL_STOP_CAP),
+      lockedIds: canonicalInput.request.lockedStopIds,
       lockedIndexes,
       budgetVnd,
     },

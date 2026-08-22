@@ -205,7 +205,14 @@ export const priorityWeightSchema = z.union([
   z.literal(5),
 ]);
 
-const idSchema = z.string().trim().min(1).max(160);
+const idSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(160)
+  .refine((value) => !/[\u0000-\u001F\u007F]/.test(value), {
+    message: "IDs cannot contain control characters",
+  });
 const isoOffsetSchema = z.string().refine(isValidOffset, {
   message: "must be an ISO 8601 timestamp with an explicit offset",
 });

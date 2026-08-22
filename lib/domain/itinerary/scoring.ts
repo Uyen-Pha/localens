@@ -31,10 +31,23 @@ const invalidRanking = <T>(): Result<T> => ({
 });
 
 function validIdList(value: unknown): value is readonly string[] {
-  return (
-    Array.isArray(value) &&
-    value.every((id) => typeof id === "string" && id.trim().length > 0)
-  );
+  if (!Array.isArray(value)) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.prototype.hasOwnProperty.call(value, index)) return false;
+    const id = value[index];
+    if (
+      typeof id !== "string" ||
+      id.trim().length === 0 ||
+      /[\u0000-\u001F\u007F]/.test(id)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function normalizeIds(value: readonly string[]): string[] {
+  return value.map((id) => id.trim());
 }
 
 /**
@@ -48,23 +61,25 @@ export function buildRankOrder(
 ): Result<string[]> {
   if (!validIdList(filteredIds)) return invalidRanking();
 
-  const filteredSet = new Set(filteredIds);
-  if (filteredSet.size !== filteredIds.length) return invalidRanking();
+  const normalizedFilteredIds = normalizeIds(filteredIds);
+  const filteredSet = new Set(normalizedFilteredIds);
+  if (filteredSet.size !== normalizedFilteredIds.length) return invalidRanking();
 
   const supplied = rankedSubset === undefined ? [] : rankedSubset;
   if (!validIdList(supplied)) return invalidRanking();
+  const normalizedSupplied = normalizeIds(supplied);
 
   const seen = new Set<string>();
-  for (const id of supplied) {
+  for (const id of normalizedSupplied) {
     if (!filteredSet.has(id) || seen.has(id)) return invalidRanking();
     seen.add(id);
   }
 
-  const omitted = filteredIds
+  const omitted = normalizedFilteredIds
     .filter((id) => !seen.has(id))
     .slice()
     .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
-  return { ok: true, value: [...supplied, ...omitted] };
+  return { ok: true, value: [...normalizedSupplied, ...omitted] };
 }
 
 /** The deterministic candidate score; rank indexes are intentionally zero based. */

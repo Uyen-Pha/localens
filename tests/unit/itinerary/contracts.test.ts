@@ -70,6 +70,16 @@ describe("itinerary domain contracts", () => {
     expectInvalid(duplicateLocks, "request.lockedStopIds");
   });
 
+  it("rejects control delimiters from catalog and request IDs", () => {
+    const catalogControl = clone(itineraryFixture);
+    catalogControl.catalog.places[0].id = "place\u0000banh-mi";
+    expectInvalid(catalogControl, "catalog.places");
+
+    const lockControl = clone(itineraryFixture);
+    lockControl.request.lockedStopIds = ["place\u0001banh-mi"];
+    expectInvalid(lockControl, "lockedStopIds");
+  });
+
   it("rejects unknown keys at every external object boundary", () => {
     const source = clone(itineraryFixture);
     (source.request as unknown as Record<string, unknown>).unexpected = true;

@@ -127,6 +127,7 @@ describe("scheduleItinerary", () => {
     const ranking = buildRankOrder(candidates.map((candidate) => candidate.id));
     expect(ranking.ok).toBe(true);
     if (!ranking.ok) return;
+    input.catalog.places = candidates;
 
     for (const [pace, expected] of [["relaxed", 3], ["balanced", 5], ["active", 8]] as const) {
       input.request.pace = pace;
@@ -160,6 +161,95 @@ describe("scheduleItinerary", () => {
     });
   });
 
+  it("distinguishes malformed, sparse, and empty filtered collections", () => {
+    const { filtered, rankOrder } = candidatesFor();
+    const invalidCollection = scheduleItinerary(
+      itineraryFixture,
+      null as unknown as typeof filtered,
+      rankOrder,
+      2_000_000,
+      "deterministic",
+    );
+    expect(invalidCollection).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ITINERARY_INPUT" },
+    });
+
+    const sparse = new Array(filtered.length + 1) as typeof filtered;
+    sparse[0] = filtered[0];
+    const sparseResult = scheduleItinerary(
+      itineraryFixture,
+      sparse,
+      rankOrder,
+      2_000_000,
+      "deterministic",
+    );
+    expect(sparseResult).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ITINERARY_INPUT" },
+    });
+
+    const emptyResult = scheduleItinerary(
+      itineraryFixture,
+      [],
+      [],
+      2_000_000,
+      "deterministic",
+    );
+    expect(emptyResult).toMatchObject({
+      ok: false,
+      error: { code: "NO_FEASIBLE_ITINERARY" },
+    });
+  });
+
+  it("uses canonical catalog facts and rejects external or same-ID forged candidates", () => {
+    const { filtered, rankOrder } = candidatesFor();
+    const external = { ...filtered[0], id: "external-fake" };
+    const externalResult = scheduleItinerary(
+      itineraryFixture,
+      [external],
+      ["external-fake"],
+      2_000_000,
+      "deterministic",
+    );
+    expect(externalResult).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ITINERARY_INPUT" },
+    });
+
+    const forged = { ...filtered[0], priceVndPerPerson: 0, visitDurationMinutes: 15 };
+    const forgedResult = scheduleItinerary(
+      itineraryFixture,
+      [forged],
+      rankOrder,
+      2_000_000,
+      "deterministic",
+    );
+    expect(forgedResult).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ITINERARY_INPUT" },
+    });
+  });
+
+  it("normalizes padded filtered and rank IDs while scheduling canonical catalog facts", () => {
+    const { filtered } = candidatesFor();
+    const padded = { ...filtered[0], id: ` ${filtered[0].id} ` };
+    const result = scheduleItinerary(
+      itineraryFixture,
+      [padded],
+      [` ${filtered[0].id} `],
+      2_000_000,
+      "deterministic",
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.items[0].placeId).toBe(filtered[0].id);
+      expect(result.value.items[0].placeCostVnd).toBe(360_000);
+      expect(result.value.items[0].visitDurationMinutes).toBe(45);
+    }
+  });
+
   it("uses DFS to recover a locked route whose low-ranked bridge was pruned by the beam", () => {
     const input = clone(itineraryFixture);
     input.request.lockedStopIds = ["lock-a", "lock-b"];
@@ -185,6 +275,7 @@ describe("scheduleItinerary", () => {
     const lockA = place("lock-a");
     const lockB = place("lock-b");
     const filtered = [...distractors, bridge, lockA, lockB];
+    input.catalog.places = filtered;
     input.travel.edges = [
       {
         fromPlaceId: "lock-a",
@@ -247,6 +338,7 @@ describe("scheduleItinerary", () => {
     const lockA = place("lock-a");
     const lockB = place("lock-b");
     const filtered = [...unlocked, lockA, lockB];
+    input.catalog.places = filtered;
     input.travel.edges = unlocked.flatMap((from) => unlocked
       .filter((to) => to.id !== from.id)
       .map((to) => ({
