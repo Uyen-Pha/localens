@@ -82,8 +82,14 @@ function requireObject(value: unknown, path: string): ProjectionObject {
   return value;
 }
 
-function requireArray(value: unknown, path: string): readonly unknown[] {
+function requireDenseArray(value: unknown, path: string, maximum?: number): readonly unknown[] {
   if (!Array.isArray(value)) fail(path, "must be an array");
+  if (maximum !== undefined && value.length > maximum) fail(path, "has an invalid length");
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.prototype.hasOwnProperty.call(value, index)) {
+      fail(path, "must be a dense array");
+    }
+  }
   return value;
 }
 
@@ -143,7 +149,8 @@ function requireCanonicalHcmTimestamp(value: unknown, path: string): string {
   const year = Number(timestamp.slice(0, 4));
   const month = Number(timestamp.slice(5, 7));
   const day = Number(timestamp.slice(8, 10));
-  const date = new Date(Date.UTC(year, month - 1, day));
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
   if (
     date.getUTCFullYear() !== year ||
     date.getUTCMonth() !== month - 1 ||
@@ -179,8 +186,8 @@ function requireStringArray(
   maximum: number,
   sort: boolean,
 ): string[] {
-  const array = requireArray(value, path);
-  if (array.length < minimum || array.length > maximum) fail(path, "has an invalid length");
+  const array = requireDenseArray(value, path, maximum);
+  if (array.length < minimum) fail(path, "has an invalid length");
   const normalized = array.map((item, index) => requireId(item, `${path}[${index}]`));
   if (new Set(normalized).size !== normalized.length) fail(path, "contains duplicate identifiers");
   return sort ? normalized.sort(compareLexicographically) : normalized;
@@ -199,7 +206,10 @@ function canonicalJson(value: unknown): string {
   if (typeof value === "undefined" || typeof value === "symbol" || typeof value === "function" || typeof value === "bigint") {
     throw new TypeError("Invalid itinerary fingerprint material: unsupported value");
   }
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (Array.isArray(value)) {
+    const dense = requireDenseArray(value, "canonical");
+    return `[${dense.map(canonicalJson).join(",")}]`;
+  }
   if (!isPlainObject(value)) throw new TypeError("Invalid itinerary fingerprint material: object must be plain");
 
   const keys = Object.keys(value).sort(compareLexicographically);
@@ -223,7 +233,9 @@ function projectItem(item: unknown): ProjectionObject {
 }
 
 function projectItems(items: unknown): unknown {
-  return Array.isArray(items) ? items.map(projectItem) : items;
+  return Array.isArray(items)
+    ? requireDenseArray(items, "items", 8).map(projectItem)
+    : items;
 }
 
 function projectTotals(totals: unknown): ProjectionObject {
@@ -324,8 +336,7 @@ function normalizeProjection(projection: ProjectionObject): CanonicalObject {
     fx: snapshotIds.fx === null ? null : requireId(snapshotIds.fx, "snapshotIds.fx"),
   };
 
-  const items = requireArray(projection.items, "items");
-  if (items.length > 8) fail("items", "has an invalid length");
+  const items = requireDenseArray(projection.items, "items", 8);
   const normalizedItems = items.map((item, index) => {
     const value = requireObject(item, `items[${index}]`);
     assertKeys(value, ITEM_KEYS, `items[${index}]`);

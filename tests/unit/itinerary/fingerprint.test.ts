@@ -135,6 +135,26 @@ describe("canonical itinerary fingerprint material", () => {
     expect(canonical).toContain('"areas":["đường-1"]');
     expect(new TextEncoder().encode(canonical)).toContain(0xc4);
   });
+
+  it("accepts contract-valid HCMC years from 0000 through 9999 and rejects invalid leap dates", () => {
+    const input = fingerprintInput();
+    const validYears = [
+      "0000-02-29T00:00:00+07:00",
+      "0099-02-28T00:00:00+07:00",
+      "0096-02-29T00:00:00+07:00",
+      "9999-12-31T23:59:00+07:00",
+    ];
+
+    for (const normalizedStartAt of validYears) {
+      const result = fingerprintResult();
+      result.normalizedStartAt = normalizedStartAt;
+      expect(() => canonicalizeItinerary(input, result), normalizedStartAt).not.toThrow();
+    }
+
+    const invalid = fingerprintResult();
+    invalid.normalizedStartAt = "0099-02-29T00:00:00+07:00";
+    expect(() => canonicalizeItinerary(input, invalid)).toThrow(TypeError);
+  });
 });
 
 describe("async itinerary fingerprint", () => {
@@ -241,6 +261,32 @@ describe("async itinerary fingerprint", () => {
     expect(() => canonicalizeItinerary(inputWithWrongArray, fingerprintResult())).toThrow(TypeError);
     await expect(fingerprintItinerary(inputWithWrongArray, fingerprintResult(), sha256)).rejects.toThrow(TypeError);
     expect(sha256).not.toHaveBeenCalled();
+  });
+
+  it("rejects sparse whitelist arrays before mapping or sorting and never calls the hasher", async () => {
+    const cases: Array<[string, (input: EngineInput, result: ItineraryResult) => void]> = [
+      ["areas", (input) => { (input.request as unknown as { areas: unknown }).areas = new Array(1); }],
+      ["dietary requirements", (input) => { (input.request as unknown as { dietaryRequirements: unknown }).dietaryRequirements = new Array(1); }],
+      ["mobility requirements", (input) => { (input.request as unknown as { mobilityRequirements: unknown }).mobilityRequirements = new Array(1); }],
+      ["locked stops", (input) => { (input.request as unknown as { lockedStopIds: unknown }).lockedStopIds = new Array(1); }],
+      ["items", (_input, result) => { (result as unknown as { items: unknown }).items = new Array(1); }],
+      ["items with later entry", (_input, result) => {
+        const sparseItems = new Array(2);
+        sparseItems[1] = fingerprintResult().items[0];
+        (result as unknown as { items: unknown }).items = sparseItems;
+      }],
+    ];
+
+    for (const [label, mutate] of cases) {
+      const input = fingerprintInput();
+      const result = fingerprintResult();
+      mutate(input, result);
+      expect(() => canonicalizeItinerary(input, result), label).toThrow(TypeError);
+
+      const sha256 = vi.fn(async () => new Uint8Array(32));
+      await expect(fingerprintItinerary(input, result, sha256), label).rejects.toThrow(TypeError);
+      expect(sha256, `${label} must not invoke SHA-256`).not.toHaveBeenCalled();
+    }
   });
 
   it("rejects a provider digest unless it is exactly 32 bytes", async () => {
