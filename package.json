@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "preview:static": "node scripts/static-preview-server.mjs",
     "build": "next build",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",

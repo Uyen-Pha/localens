@@ -4,6 +4,7 @@ const port = Number(process.env.PLAYWRIGHT_PORT ?? 3100);
 const localBaseURL = `http://127.0.0.1:${port}`;
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? localBaseURL;
 const hasBaseURLOverride = Boolean(process.env.PLAYWRIGHT_BASE_URL);
+const useStaticPreview = process.env.PLAYWRIGHT_STATIC === "1";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -27,7 +28,9 @@ export default defineConfig({
     ? {}
     : {
         webServer: {
-          command: `pnpm dev --hostname 127.0.0.1 --port ${port}`,
+          command: useStaticPreview
+            ? `node scripts/static-preview-server.mjs --port ${port}`
+            : `pnpm dev --hostname 127.0.0.1 --port ${port}`,
           url: `${localBaseURL}/en/`,
           reuseExistingServer: false,
           timeout: 120_000,

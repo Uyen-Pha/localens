@@ -8,6 +8,7 @@ export function createBrowserSupabaseClient(env: PublicEnv) {
     env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     {
       auth: {
+        flowType: "pkce",
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,

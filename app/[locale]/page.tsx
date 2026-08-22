@@ -1,8 +1,29 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import {
+  getHomeJsonLd,
+  getLocalizedHomeMetadata,
+  getPublicSiteUrl,
+  serializeJsonLd,
+} from "@/lib/seo/metadata";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+
+  if (!isLocale(locale)) {
+    notFound();
+  }
+
+  return getLocalizedHomeMetadata(locale, getPublicSiteUrl());
+}
 
 export default async function LocaleHomePage({
   params,
@@ -16,19 +37,26 @@ export default async function LocaleHomePage({
   }
 
   const dictionary = getDictionary(locale);
+  const jsonLd = serializeJsonLd(getHomeJsonLd(locale, getPublicSiteUrl()));
 
   return (
-    <section>
-      <h1>{dictionary.home.title}</h1>
-      <p>{dictionary.home.subtitle}</p>
-      <nav aria-label={dictionary.navigation.explore}>
-        <Link href={`/${locale}/explore/`}>
-          {dictionary.navigation.explore}
-        </Link>
-        <Link href={`/${locale}/plan/`}>
-          {dictionary.navigation.planTrip}
-        </Link>
-      </nav>
-    </section>
+    <>
+      <section>
+        <h1>{dictionary.home.title}</h1>
+        <p>{dictionary.home.subtitle}</p>
+        <nav aria-label={dictionary.navigation.explore}>
+          <Link href={`/${locale}/explore/`}>
+            {dictionary.navigation.explore}
+          </Link>
+          <Link href={`/${locale}/plan/`}>
+            {dictionary.navigation.planTrip}
+          </Link>
+        </nav>
+      </section>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd }}
+      />
+    </>
   );
 }

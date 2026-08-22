@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { SiteHeader } from "@/components/layout/site-header";
+import { getEquivalentLocalePath } from "@/components/i18n/locale-switcher";
 
 const labels = {
   brand: "LocalLens",
@@ -22,6 +23,14 @@ const labels = {
 };
 
 describe("SiteHeader", () => {
+  it("preserves the exact opaque search string when switching locale", () => {
+    const search = "?plan=opaque%2F%2B&filter=a+b&filter=%E2%9C%93";
+
+    expect(getEquivalentLocalePath("/en/planner/", "vi", search)).toBe(
+      `/vi/planner/${search}`,
+    );
+  });
+
   it("renders an accessible primary navigation with a path-preserving language link", () => {
     render(
       <SiteHeader

@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import "../globals.css";
@@ -8,11 +7,6 @@ import { SiteHeader } from "@/components/layout/site-header";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { notFound } from "next/navigation";
-
-export const metadata: Metadata = {
-  title: "LocalLens",
-  description: "Cultural experiences in Ho Chi Minh City.",
-};
 
 export const dynamicParams = false;
 
