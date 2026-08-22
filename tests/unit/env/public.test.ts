@@ -36,4 +36,14 @@ describe("public environment contract", () => {
       }),
     ).toThrow();
   });
+
+  it("accepts mixed-case HTTP(S) schemes for app and Supabase URLs", () => {
+    const source = {
+      ...validSource,
+      NEXT_PUBLIC_APP_URL: "HtTpS://localens.example.com",
+      NEXT_PUBLIC_SUPABASE_URL: "HTTPS://project.supabase.co",
+    };
+
+    expect(parsePublicEnv(source)).toEqual(source);
+  });
 });
