@@ -82,6 +82,17 @@ The engine sequence is fixed:
 5. Run the authoritative validator.
 6. Attempt one deterministic repair, then persist an immutable revision.
 
+Input datetimes are ISO 8601 values with an explicit offset and are normalized
+to `Asia/Ho_Chi_Minh`. Place duration comes from the versioned catalog.
+Travel rows provide directed minutes and cost; the scheduler adds a fixed
+10-minute transition contingency. Service must start at or after opening and
+finish at or before closing. Overnight hours are split into two dated
+intervals. Locked stops retain their relative order. The scheduler evaluates
+at most eight stops, keeps at most 50 partial candidates, and breaks equal
+scores by lower group cost, earlier finish, then lexicographic stop ID. An
+infeasible request returns `NO_FEASIBLE_ITINERARY`. Repair may drop or reorder
+only unlocked stops and the validator always runs again after repair.
+
 Hard constraints cover group budget, total duration including travel and
 buffer, normal and special opening hours, overlap, locked stops, and mandatory
 dietary/mobility support. Catalog support values are `supported`,
@@ -98,6 +109,23 @@ Guest access tokens are random, stored only as hashes, expire after 24 hours,
 and can be claimed once in a database transaction. Gemini never receives raw
 PII, payment data, authentication IDs, or free-form special-request text.
 
+An anonymous recommendation returns the raw guest token exactly once and the
+database stores only its hash bound to the plan ID. The browser keeps the raw
+token in `sessionStorage` and sends it through the `X-Guest-Token` header; it
+never appears in a URL. Refinement requires either that header or an owner JWT.
+Gemini quota reservations are atomic and count every attempted model call,
+including timeout, HTTP 429, and malformed output. A separate planner compute
+limit of 30 requests per hour for both IP and device buckets protects the free
+database; exceeding it returns a retryable rate-limit error rather than calling
+either engine. Quota dates use UTC and database time is authoritative.
+
+Each revision records catalog, travel-time, and FX snapshot identifiers.
+Filtering, validation, and persistence use the same snapshots. Refinement uses
+compare-and-swap on the base revision; only one concurrent request can advance
+it. Gemini has an eight-second timeout and returns only allowlisted candidate
+IDs plus rationales of at most 240 characters. Unknown and duplicate IDs make
+the AI result invalid and trigger deterministic ranking.
+
 ## Data and state
 
 Core data groups are identity, catalog and translations, opening hours and
@@ -111,6 +139,11 @@ cents and a stored `vnd_per_usd` snapshot. Quotes and bookings snapshot names,
 prices, currency, FX, and policy. A rate up to seven days old is acceptable;
 otherwise USD checkout is disabled and the UI offers VND.
 
+`vnd_per_usd` is stored as `numeric(20,8)`. USD budget cents convert to VND
+with floor division so the itinerary never exceeds the customer's stated
+budget. VND checkout converts to USD cents with ceiling division. Floating
+point arithmetic is forbidden for money.
+
 State transitions are explicit:
 
 - Request: `draft -> pending_review -> changes_requested -> pending_review`,
@@ -120,6 +153,8 @@ State transitions are explicit:
   failure exits are `payment_failed`, `expired`, and `cancelled`. A completed
   Stripe event after an inactive hold becomes `payment_review`, never an
   automatic confirmation.
+- Payment review: `payment_review -> confirmed | cancelled`; only an admin
+  reconciliation action may leave this state.
 - Guide assignment: `assigned -> accepted -> completed`. Reassignment closes
   the old record before creating a new one.
 
@@ -131,15 +166,22 @@ State transitions are explicit:
 - `submit-custom-request(planId, revision)`
 - `review-custom-request(requestId, decision, note)`
 - `create-custom-quote(requestId, quote)`
-- `create-booking(departureId | quoteId, partySize)`
-- `create-checkout-session(bookingId, locale)`
+- `start-checkout(departureId | quoteId, partySize, locale, idempotencyKey)`
 - `stripe-webhook(rawBody)`
 - `publish-seo(contentVersion)`
+- `finalize-seo-publish(releaseId, buildId, artifactHash)`
 - `get-fx-rate()`
 
 Every function returns errors as
 `{ code, messageKey, fieldErrors?, retryable, correlationId }`.
 Stale itinerary refinement returns HTTP 409 with `STALE_REVISION`.
+
+Public reads use typed PostgREST projections: published catalog and localized
+content, live departure availability, owner plan/revisions, owner custom
+request/quote, owner booking/payment status, and sanitized assigned booking for
+guides. RLS remains authoritative for every read. The auth callback accepts
+only relative allowlisted return paths, defaults to `/en/`, and rejects scheme,
+host, protocol-relative, encoded traversal, admin, and guide destinations.
 
 ## Authorization and security
 
@@ -148,16 +190,37 @@ published catalog data. Customers only access their own plans, requests,
 quotes, and bookings. Guides only access assigned booking summaries and
 whitelisted assignment status transitions. Admin manages catalog, content,
 departures, quotes, roles, assignments, and audit records. Signup cannot set a
-role; admin and guide accounts are provisioned manually. Service-role keys are
+role; admin and guide accounts are provisioned manually. Customers authenticate
+with email/password or Google OAuth. Email confirmation may be disabled only in
+the explicitly labeled demo environment. Service-role keys are
 restricted to Edge Functions. Logs redact tokens and PII. Public functions use
 CORS allowlists, body limits, input schemas, HMAC IP hashing, and replay-safe
 idempotency.
 
+Turnstile validation checks success, expected action, and allowlisted hostname.
+Invalid, expired, duplicate, or unavailable validation fails closed; service
+outage returns a retryable error and never bypasses the challenge. The verifier,
+clock, UUID source, Gemini client, Stripe client, and FX client are injectable
+at their boundaries so CI never calls live services.
+
 Capacity hold creation locks the departure and commits atomically. Stripe
-Checkout expires at the same 30-minute deadline. The webhook reads the raw
+Checkout is started through one public operation: `start-checkout` locks and
+accepts the quote when applicable, snapshots price/FX/policy, creates the
+booking and a 35-minute database hold, then immediately creates a card-only
+Stripe Test Session expiring after 30 minutes. The five-minute database cushion
+allows delayed webhooks without reopening capacity. If Stripe session creation
+fails, the hold is released. A repeated idempotency key with the same request
+hash returns the same booking/session; a different hash returns
+`IDEMPOTENCY_CONFLICT`. Custom quotes have no departure capacity, but the same
+operation prevents multiple active payment sessions for one quote.
+
+The webhook reads the raw
 body, verifies the Stripe signature, records unique event and session IDs,
 checks booking ID, amount, currency, and active hold, and makes fulfillment
 idempotent. Duplicate valid events return HTTP 200 without side effects.
+Events with `livemode=true` are rejected. The MVP enables only the `card`
+payment method and handles `checkout.session.completed` and
+`checkout.session.expired`.
 
 ## SEO and content publication
 
@@ -171,6 +234,14 @@ Content versions transition `draft -> publishing -> published | failed`.
 Only one candidate can publish. The build validates complete English and
 Vietnamese copy, source, verification date, and image attribution before
 export. A failed build leaves the previous Cloudflare deployment active.
+
+`publish-seo` creates and locks one immutable release, then calls the protected
+Cloudflare deploy hook. The build reads that release with a public, RLS-limited
+projection; it never receives a service-role key. After successful static
+export, the build calls `finalize-seo-publish` using a dedicated build secret,
+release ID, build ID, and artifact hash. Invalid or stale finalization fails
+closed. Build or validation failure marks the release `failed`; the previously
+published release remains active and can be rebuilt.
 
 ## Quality gates
 
