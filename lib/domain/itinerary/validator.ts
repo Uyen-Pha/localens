@@ -15,6 +15,15 @@ export interface ValidationIssue {
   placeId?: string;
 }
 
+/**
+ * The only reduced validation universe permitted by the repair path. The
+ * caller must provide the exact remaining candidate IDs; normal validation
+ * intentionally has no reduced-candidate behavior.
+ */
+export interface ValidationScope {
+  candidateIds: readonly string[];
+}
+
 type IssueLocation = Pick<ValidationIssue, "itemIndex" | "placeId">;
 
 class IssueCollector {
@@ -111,32 +120,75 @@ function addExactNumberIssue(
   }
 }
 
+function isDenseArray(value: unknown): value is readonly unknown[] {
+  if (!Array.isArray(value)) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.prototype.hasOwnProperty.call(value, index)) return false;
+  }
+  return true;
+}
+
+function scopedCandidates(
+  collector: IssueCollector,
+  scope: unknown,
+  authoritativeCandidates: readonly PlaceCandidate[],
+): PlaceCandidate[] {
+  if (scope === undefined) return [...authoritativeCandidates];
+
+  try {
+    if (!isObject(scope) || !isDenseArray(scope.candidateIds)) {
+      collector.add("rank_scope");
+      return [];
+    }
+    const ids = scope.candidateIds;
+    if (ids.length === 0 || !ids.every((id) => typeof id === "string" && id.length > 0)) {
+      collector.add("rank_scope");
+      return [];
+    }
+    const authoritativeIds = new Set(authoritativeCandidates.map((candidate) => candidate.id));
+    const requestedIds = new Set<string>();
+    for (const id of ids) {
+      if (typeof id !== "string" || requestedIds.has(id) || !authoritativeIds.has(id)) {
+        collector.add("rank_scope");
+        return [];
+      }
+      requestedIds.add(id);
+    }
+    return authoritativeCandidates.filter((candidate) => requestedIds.has(candidate.id));
+  } catch {
+    collector.add("rank_scope");
+    return [];
+  }
+}
+
 function validateRankOrder(
   collector: IssueCollector,
   rankOrder: unknown,
   candidates: readonly PlaceCandidate[],
 ): Map<string, number> | null {
-  if (!Array.isArray(rankOrder) || !rankOrder.every((id) => typeof id === "string")) {
+  if (!isDenseArray(rankOrder)) {
     collector.add("rank_order");
     return null;
   }
-  const candidateIds = candidates.map((place) => place.id);
-  const expected = new Set(candidateIds);
-  const seen = new Set<string>();
-  // A normal engine pass supplies the complete filtered order. One-pass
-  // repair intentionally supplies the complete order of its reduced
-  // remaining-candidate collection, so a shorter order is valid when every
-  // supplied ID is still a filtered candidate and no ID is duplicated.
-  let valid = true;
-  for (const id of rankOrder) {
-    if (!expected.has(id) || seen.has(id)) valid = false;
-    seen.add(id);
-  }
-  if (!valid) {
+  try {
+    const candidateIds = candidates.map((place) => place.id);
+    const expected = new Set(candidateIds);
+    const seen = new Set<string>();
+    let valid = rankOrder.length === candidateIds.length;
+    for (const id of rankOrder) {
+      if (typeof id !== "string" || !expected.has(id) || seen.has(id)) valid = false;
+      if (typeof id === "string") seen.add(id);
+    }
+    if (seen.size !== expected.size) valid = false;
+    if (!valid) {
+      collector.add("rank_order");
+      return null;
+    }
+    return new Map(rankOrder.map((id, index) => [id as string, index]));
+  } catch {
     collector.add("rank_order");
     return null;
   }
-  return new Map(rankOrder.map((id, index) => [id, index]));
 }
 
 function validateResultShape(
@@ -165,6 +217,7 @@ function validateInner(
   resultValue: unknown,
   rankOrder: unknown,
   collector: IssueCollector,
+  scope: unknown,
 ): void {
   const result = validateResultShape(resultValue, collector);
   if (result === null) return;
@@ -189,11 +242,12 @@ function validateInner(
   const candidateResult = expectedBudget === null
     ? null
     : filterCandidates(input, expectedBudget);
-  const filteredCandidates = candidateResult?.ok === true ? candidateResult.value : [];
+  const authoritativeCandidates = candidateResult?.ok === true ? candidateResult.value : [];
+  const filteredCandidates = scopedCandidates(collector, scope, authoritativeCandidates);
   const candidatesById = new Map(input.catalog.places.map((place) => [place.id, place]));
   const filteredById = new Map(filteredCandidates.map((place) => [place.id, place]));
   const rankIndexes = validateRankOrder(collector, rankOrder, filteredCandidates);
-  const rankedCandidateCount = rankIndexes?.size ?? filteredCandidates.length;
+  const rankedCandidateCount = filteredCandidates.length;
 
   const expectedFxId = budgetResult.ok ? budgetResult.value.fxSnapshotId : null;
   if (!isObject(result.snapshotIds)) {
@@ -354,10 +408,11 @@ export function validateItinerary(
   input: EngineInput,
   result: unknown,
   rankOrder: readonly string[],
+  scope?: ValidationScope,
 ): { valid: true } | { valid: false; issues: ValidationIssue[] } {
   const collector = new IssueCollector();
   try {
-    validateInner(input, result, rankOrder, collector);
+    validateInner(input, result, rankOrder, collector, scope);
   } catch {
     collector.add(RESULT_MALFORMED);
   }

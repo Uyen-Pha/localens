@@ -9,26 +9,11 @@ import { normalizeBudgetToVnd } from "@/lib/domain/itinerary/money";
 import { buildRankOrder } from "@/lib/domain/itinerary/scoring";
 import { scheduleItinerary } from "@/lib/domain/itinerary/scheduler";
 import { validateItinerary } from "@/lib/domain/itinerary/validator";
-import {
-  deriveRepairExclusions,
-  deriveRemainingRankOrder,
-  repairItinerary,
-} from "@/lib/domain/itinerary/repair";
+import { repairItinerary } from "@/lib/domain/itinerary/repair";
 
 const invalidInput = <T>(issue = "engine"): Result<T> => ({
   ok: false,
   error: domainError("INVALID_ITINERARY_INPUT", "itinerary.engine.invalid", [issue]),
-});
-
-const invalidResult = <T>(issues: readonly { key: string }[]): Result<T> => ({
-  ok: false,
-  error: domainError(
-    "INVALID_ITINERARY_RESULT",
-    "itinerary.result.invalid",
-    issues
-      .map((issue) => issue.key)
-      .filter((key, index, keys) => keys.indexOf(key) === index),
-  ),
 });
 
 function isValidRankingSource(value: unknown): value is "ai" | "deterministic" {
@@ -73,15 +58,6 @@ export function createItinerary(
 
     const repaired = repairItinerary(parsed.value, scheduled.value, validation.issues, ranked.value);
     if (!repaired.ok) return repaired;
-
-    const excluded = deriveRepairExclusions(
-      validation.issues,
-      parsed.value.request.lockedStopIds,
-      filtered.value,
-    );
-    const repairedRankOrder = deriveRemainingRankOrder(ranked.value, excluded);
-    const repairedValidation = validateItinerary(parsed.value, repaired.value, repairedRankOrder);
-    if (!repairedValidation.valid) return invalidResult(repairedValidation.issues);
     return repaired;
   } catch {
     return invalidInput();

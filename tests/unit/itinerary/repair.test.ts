@@ -33,7 +33,19 @@ function repairSetup() {
     normalizedStartAt: "2026-09-05T08:00:00+07:00",
     budgetVnd: budget.value.budgetVnd,
     rankingSource: "deterministic",
-    items: [],
+    items: [
+      {
+        placeId: "place-market",
+        startAt: "2026-09-05T08:00:00+07:00",
+        endAt: "2026-09-05T08:30:00+07:00",
+        visitDurationMinutes: 30,
+        travelMinutesBefore: 0,
+        transitionBufferMinutesBefore: 0,
+        travelCostVndBefore: 0,
+        placeCostVnd: 160_000,
+        score: 0,
+      },
+    ],
     totals: {
       durationMinutes: 0,
       visitMinutes: 0,
@@ -56,7 +68,7 @@ describe("repairItinerary", () => {
     const setup = repairSetup();
     const before = clone(setup);
     const issues: ValidationIssue[] = [
-      { key: "item.score", itemIndex: 1, placeId: "place-market" },
+      { key: "item.score", itemIndex: 0, placeId: "place-market" },
     ];
 
     const repaired = repairItinerary(
@@ -71,12 +83,20 @@ describe("repairItinerary", () => {
       expect(repaired.value.items.map((item) => item.placeId)).not.toContain("place-market");
       expect(repaired.value.items.map((item) => item.placeId)).toContain("place-banh-mi");
       const remainingRankOrder = setup.rankOrder.filter((id) => id !== "place-market");
-      expect(validateItinerary(setup.input, repaired.value, remainingRankOrder)).toEqual({ valid: true });
+      expect(validateItinerary(setup.input, repaired.value, remainingRankOrder)).toMatchObject({
+        valid: false,
+        issues: expect.arrayContaining([{ key: "rank_order" }]),
+      });
+      expect(validateItinerary(setup.input, repaired.value, remainingRankOrder, {
+        candidateIds: remainingRankOrder,
+      })).toEqual({ valid: true });
 
       const forged = clone(repaired.value);
       forged.items[0].score = 0;
       forged.totals.score = 0;
-      const invalid = validateItinerary(setup.input, forged, remainingRankOrder);
+      const invalid = validateItinerary(setup.input, forged, remainingRankOrder, {
+        candidateIds: remainingRankOrder,
+      });
       expect(invalid.valid).toBe(false);
       if (!invalid.valid) expect(invalid.issues.some((issue) => issue.key === "item.score")).toBe(true);
     }
@@ -85,11 +105,13 @@ describe("repairItinerary", () => {
 
   it("never excludes a locked item even when the validator names it", () => {
     const setup = repairSetup();
+    const invalidResult = clone(setup.invalid);
+    invalidResult.items[0].placeId = "place-banh-mi";
     const issues: ValidationIssue[] = [
       { key: "item.duration", itemIndex: 0, placeId: "place-banh-mi" },
     ];
 
-    const repaired = repairItinerary(setup.input, setup.invalid, issues, setup.rankOrder);
+    const repaired = repairItinerary(setup.input, invalidResult, issues, setup.rankOrder);
 
     expect(repaired.ok).toBe(true);
     if (repaired.ok) {
@@ -99,9 +121,10 @@ describe("repairItinerary", () => {
 
   it("does not let unknown or duplicate issue IDs escape the safe Result boundary", () => {
     const setup = repairSetup();
+    const emptyInvalidResult = { ...setup.invalid, items: [] };
     const repaired = repairItinerary(
       setup.input,
-      setup.invalid,
+      emptyInvalidResult,
       [
         { key: "candidate.membership", placeId: "unknown@example.com" },
         { key: "candidate.membership", placeId: "place-market" },
@@ -111,7 +134,20 @@ describe("repairItinerary", () => {
     );
 
     expect(repaired.ok).toBe(true);
-    if (repaired.ok) expect(repaired.value.items.map((item) => item.placeId)).not.toContain("place-market");
+    if (repaired.ok) expect(repaired.value.items[0]?.score).toBe(5_004);
+  });
+
+  it("ignores a forged issue whose index and place ID do not match the invalid result", () => {
+    const setup = repairSetup();
+    const repaired = repairItinerary(
+      setup.input,
+      setup.invalid,
+      [{ key: "item.score", itemIndex: 0, placeId: "place-history" }],
+      setup.rankOrder,
+    );
+
+    expect(repaired.ok).toBe(true);
+    if (repaired.ok) expect(repaired.value.items[0]?.score).toBe(5_004);
   });
 
   it("returns stable domain errors for adversarial runtime arguments", () => {

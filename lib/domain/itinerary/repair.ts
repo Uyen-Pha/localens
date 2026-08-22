@@ -11,8 +11,31 @@ import { buildRankOrder } from "@/lib/domain/itinerary/scoring";
 import { scheduleItinerary } from "@/lib/domain/itinerary/scheduler";
 import {
   validateItinerary,
+  type ValidationScope,
   type ValidationIssue,
 } from "@/lib/domain/itinerary/validator";
+
+const REMEDIABLE_ISSUE_KEYS: ReadonlySet<string> = new Set([
+  "candidate.membership",
+  "candidate.area",
+  "candidate.type",
+  "candidate.language",
+  "candidate.dietary_support",
+  "candidate.mobility_support",
+  "candidate.sellability",
+  "items.duplicate",
+  "budget.exceeded",
+  "item.place_cost",
+  "item.score",
+  "item.duration",
+  "item.time",
+  "opening_hours",
+  "travel.missing",
+  "travel.minutes",
+  "travel.buffer",
+  "travel.cost",
+  "travel.transition",
+]);
 
 const invalidInput = <T>(issue = "repair"): Result<T> => ({
   ok: false,
@@ -44,24 +67,53 @@ function isValidRankOrder(value: unknown): value is readonly string[] {
   return ids.every((id) => typeof id === "string" && id.trim().length > 0);
 }
 
-function issuePlaceIds(issues: unknown): string[] {
+function issuePlaceIds(
+  invalidResult: unknown,
+  issues: unknown,
+): string[] {
   if (!isDenseArray(issues)) return [];
+  let resultItems: readonly unknown[];
+  try {
+    if (
+      typeof invalidResult !== "object" ||
+      invalidResult === null ||
+      !isDenseArray((invalidResult as { items?: unknown }).items)
+    ) return [];
+    resultItems = (invalidResult as { items: readonly unknown[] }).items;
+  } catch {
+    return [];
+  }
+
   const ids: string[] = [];
   for (const issue of issues) {
     if (typeof issue !== "object" || issue === null) continue;
     try {
+      const key = (issue as { key?: unknown }).key;
+      const itemIndex = (issue as { itemIndex?: unknown }).itemIndex;
       const placeId = (issue as { placeId?: unknown }).placeId;
-      if (typeof placeId === "string" && placeId.trim().length > 0 && !ids.includes(placeId)) {
+      if (
+        typeof key !== "string" ||
+        !REMEDIABLE_ISSUE_KEYS.has(key) ||
+        !Number.isSafeInteger(itemIndex) ||
+        (itemIndex as number) < 0 ||
+        (itemIndex as number) >= resultItems.length ||
+        typeof placeId !== "string"
+      ) continue;
+      const item = resultItems[itemIndex as number];
+      if (typeof item !== "object" || item === null) continue;
+      const resultPlaceId = (item as { placeId?: unknown }).placeId;
+      if (typeof resultPlaceId === "string" && resultPlaceId === placeId && !ids.includes(placeId)) {
         ids.push(placeId);
       }
     } catch {
-      // A hostile issue object is simply not an exclusion candidate.
+      // A hostile issue or result item is simply not an exclusion candidate.
     }
   }
   return ids;
 }
 
 export function deriveRepairExclusions(
+  invalidResult: unknown,
   issues: unknown,
   lockedStopIds: readonly string[],
   filteredCandidates: readonly PlaceCandidate[],
@@ -69,7 +121,7 @@ export function deriveRepairExclusions(
   const locked = new Set(lockedStopIds);
   const candidateIds = new Set(filteredCandidates.map((candidate) => candidate.id));
   return new Set(
-    issuePlaceIds(issues).filter((id) => candidateIds.has(id) && !locked.has(id)),
+    issuePlaceIds(invalidResult, issues).filter((id) => candidateIds.has(id) && !locked.has(id)),
   );
 }
 
@@ -88,6 +140,16 @@ function canonicalRankOrder(
   if (!result.ok || result.value.length !== filtered.length) return invalidInput("rankOrder");
   if (result.value.some((id, index) => id !== supplied[index]?.trim())) return invalidInput("rankOrder");
   return result;
+}
+
+function rankingSourceOf(value: unknown): "ai" | "deterministic" {
+  try {
+    if (typeof value === "object" && value !== null &&
+      (value as { rankingSource?: unknown }).rankingSource === "ai") return "ai";
+  } catch {
+    // Malformed prior results do not change the safe deterministic fallback.
+  }
+  return "deterministic";
 }
 
 export function repairItinerary(
@@ -113,6 +175,7 @@ export function repairItinerary(
     if (!originalOrder.ok) return originalOrder;
 
     const excluded = deriveRepairExclusions(
+      _invalidResult,
       issues,
       parsed.value.request.lockedStopIds,
       filtered.value,
@@ -131,14 +194,14 @@ export function repairItinerary(
       remainingCandidates,
       remainingRankOrder,
       budget.value.budgetVnd,
-      _invalidResult && typeof _invalidResult === "object" && "rankingSource" in _invalidResult &&
-        (_invalidResult as { rankingSource?: unknown }).rankingSource === "ai"
-        ? "ai"
-        : "deterministic",
+      rankingSourceOf(_invalidResult),
     );
     if (!scheduled.ok) return scheduled;
 
-    const validation = validateItinerary(parsed.value, scheduled.value, remainingRankOrder);
+    const scope: ValidationScope = {
+      candidateIds: remainingCandidates.map((candidate) => candidate.id),
+    };
+    const validation = validateItinerary(parsed.value, scheduled.value, remainingRankOrder, scope);
     if (!validation.valid) return invalidResult(validation.issues);
     return scheduled;
   } catch {

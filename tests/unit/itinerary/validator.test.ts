@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { validateItinerary } from "@/lib/domain/itinerary/validator";
 import { itineraryFixture } from "@/tests/fixtures/itinerary/catalog.v1";
 import type { ItineraryResult } from "@/lib/domain/itinerary/contracts";
+import { filterCandidates } from "@/lib/domain/itinerary/candidate-filter";
+import { buildRankOrder } from "@/lib/domain/itinerary/scoring";
 
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -52,6 +54,67 @@ describe("validateItinerary", () => {
     expect(validateItinerary(itineraryFixture, validResult(), ["place-banh-mi"])).toEqual({
       valid: true,
     });
+  });
+
+  it("keeps default rank coverage strict and uses the full filtered count for scores", () => {
+    const input = clone(itineraryFixture);
+    input.request.lockedStopIds = [];
+    input.request.dietaryRequirements = [];
+    input.request.mobilityRequirements = [];
+    input.catalog.places.forEach((place) => {
+      place.guideLanguages = ["en"];
+      place.dietarySupport = {};
+      place.mobilitySupport = {};
+    });
+    const filtered = filterCandidates(input, 2_000_000);
+    expect(filtered.ok).toBe(true);
+    if (!filtered.ok) return;
+    const rank = buildRankOrder(filtered.value.map((place) => place.id));
+    expect(rank.ok).toBe(true);
+    if (!rank.ok) return;
+
+    const result = validResult();
+    const defaultValidation = validateItinerary(input, result, rank.value);
+    expect(defaultValidation.valid).toBe(false);
+    if (!defaultValidation.valid) {
+      expect(defaultValidation.issues.some((issue) => issue.key === "item.score")).toBe(true);
+      expect(defaultValidation.issues.some((issue) => issue.key === "totals.score")).toBe(true);
+    }
+
+    const partialRank = rank.value.slice(0, -1);
+    const partialValidation = validateItinerary(input, result, partialRank);
+    expect(partialValidation.valid).toBe(false);
+    if (!partialValidation.valid) expect(partialValidation.issues.some((issue) => issue.key === "rank_order")).toBe(true);
+  });
+
+  it("rejects malformed or non-authoritative validation scopes without fail-open", () => {
+    const result = validResult();
+    const malformed = validateItinerary(itineraryFixture, result, ["place-banh-mi"], {
+      candidateIds: ["not-in-catalog"],
+    });
+    expect(malformed.valid).toBe(false);
+    if (!malformed.valid) expect(malformed.issues.some((issue) => issue.key === "rank_scope")).toBe(true);
+
+    const duplicate = validateItinerary(itineraryFixture, result, ["place-banh-mi"], {
+      candidateIds: ["place-banh-mi", "place-banh-mi"],
+    });
+    expect(duplicate.valid).toBe(false);
+    if (!duplicate.valid) expect(duplicate.issues.some((issue) => issue.key === "rank_scope")).toBe(true);
+
+    const throwingRank = [] as unknown as string[];
+    Object.defineProperty(throwingRank, "0", {
+      get() {
+        throw new Error("hostile rank getter");
+      },
+      enumerable: true,
+    });
+    throwingRank.length = 1;
+    const hostile = validateItinerary(itineraryFixture, result, throwingRank);
+    expect(hostile.valid).toBe(false);
+    if (!hostile.valid) {
+      expect(hostile.issues.some((issue) => issue.key === "rank_order")).toBe(true);
+      expect(hostile.issues.some((issue) => issue.key === "result.malformed")).toBe(false);
+    }
   });
 
   it("is total for null, malformed, and adversarial result values", () => {
