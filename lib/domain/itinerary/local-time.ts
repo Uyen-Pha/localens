@@ -1,4 +1,3 @@
-import { domainError } from "@/lib/domain/itinerary/errors";
 import type { Result } from "@/lib/domain/itinerary/contracts";
 
 const HCM_OFFSET_MINUTES = 7 * 60;
@@ -21,7 +20,11 @@ function daysInMonth(year: number, month: number): number {
 function invalidTime(): Result<number> {
   return {
     ok: false,
-    error: domainError("INVALID_ITINERARY_INPUT", "itinerary.local_time.invalid"),
+    error: {
+      code: "INVALID_ITINERARY_INPUT",
+      messageKey: "itinerary.local_time.invalid",
+      retryable: false,
+    },
   };
 }
 
@@ -70,10 +73,25 @@ export function normalizeToHcmMinute(value: unknown): Result<number> {
   const epochMilliseconds = date.getTime() - offsetMinutes * 60_000;
   if (!Number.isFinite(epochMilliseconds)) return invalidTime();
 
+  const normalizedEpochMinute = Math.ceil(
+    epochMilliseconds / MILLISECONDS_PER_MINUTE,
+  );
+  if (!isSupportedHcmEpochMinute(normalizedEpochMinute)) return invalidTime();
+
   return {
     ok: true,
-    value: Math.ceil(epochMilliseconds / MILLISECONDS_PER_MINUTE),
+    value: normalizedEpochMinute,
   };
+}
+
+export function isSupportedHcmEpochMinute(epochMinute: number): boolean {
+  if (!Number.isSafeInteger(epochMinute)) return false;
+  const date = new Date(
+    epochMinute * MILLISECONDS_PER_MINUTE +
+      HCM_OFFSET_MINUTES * MILLISECONDS_PER_MINUTE,
+  );
+  const year = date.getUTCFullYear();
+  return Number.isFinite(date.getTime()) && year >= 0 && year <= 9999;
 }
 
 export function formatHcmMinute(epochMinute: number): string {
@@ -81,13 +99,14 @@ export function formatHcmMinute(epochMinute: number): string {
     throw new RangeError("epoch minute must be a safe integer");
   }
 
+  if (!isSupportedHcmEpochMinute(epochMinute)) {
+    throw new RangeError("epoch minute is outside the supported HCMC date range");
+  }
+
   const date = new Date(
     epochMinute * MILLISECONDS_PER_MINUTE +
       HCM_OFFSET_MINUTES * MILLISECONDS_PER_MINUTE,
   );
-  if (!Number.isFinite(date.getTime())) {
-    throw new RangeError("epoch minute is outside the supported date range");
-  }
 
   const pad = (part: number, width: number) => String(part).padStart(width, "0");
   return `${pad(date.getUTCFullYear(), 4)}-${pad(date.getUTCMonth() + 1, 2)}-${pad(

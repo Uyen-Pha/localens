@@ -5,17 +5,16 @@ import type {
   PlaceCandidate,
   Result,
 } from "@/lib/domain/itinerary/contracts";
+import { placeCandidateSchema } from "@/lib/domain/itinerary/contracts";
 import {
   formatHcmMinute,
+  isSupportedHcmEpochMinute,
   normalizeToHcmMinute,
   MINUTES_PER_DAY,
 } from "@/lib/domain/itinerary/local-time";
 
 const INVALID_KEY = "itinerary.opening_hours.invalid";
-const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const datePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
-const MAX_SUPPORTED_EPOCH_MINUTE =
-  Math.floor(8_640_000_000_000_000 / 60_000) - 7 * 60;
 
 const invalidOpening = <T>(): Result<T> => ({
   ok: false,
@@ -25,21 +24,6 @@ const invalidOpening = <T>(): Result<T> => ({
 function minutesOf(value: string): number {
   const [hours, minutes] = value.split(":").map(Number);
   return hours * 60 + minutes;
-}
-
-function isValidTimeWindow(window: unknown): window is {
-  opensAt: string;
-  closesAt: string;
-} {
-  if (!window || typeof window !== "object") return false;
-  const candidate = window as { opensAt?: unknown; closesAt?: unknown };
-  return (
-    typeof candidate.opensAt === "string" &&
-    typeof candidate.closesAt === "string" &&
-    timePattern.test(candidate.opensAt) &&
-    timePattern.test(candidate.closesAt) &&
-    candidate.opensAt !== candidate.closesAt
-  );
 }
 
 function isValidCalendarDate(value: unknown): value is string {
@@ -69,8 +53,11 @@ function weekdayOf(localDate: string): number {
   return date.getUTCDay();
 }
 
-function previousLocalDate(localDateStartEpochMinute: number): string {
-  return formatHcmMinute(localDateStartEpochMinute - MINUTES_PER_DAY).slice(0, 10);
+function previousLocalDate(localDateStartEpochMinute: number): string | null {
+  const previousEpochMinute = localDateStartEpochMinute - MINUTES_PER_DAY;
+  return isSupportedHcmEpochMinute(previousEpochMinute)
+    ? formatHcmMinute(previousEpochMinute).slice(0, 10)
+    : null;
 }
 
 function exceptionFor(
@@ -92,41 +79,7 @@ function sourceKey(
 }
 
 function validatePlace(place: unknown): place is PlaceCandidate {
-  if (!place || typeof place !== "object") return false;
-  const candidate = place as Partial<PlaceCandidate>;
-  if (!Array.isArray(candidate.openingHours) || !Array.isArray(candidate.openingExceptions)) {
-    return false;
-  }
-  for (const window of candidate.openingHours) {
-    if (
-      !window ||
-      typeof window !== "object" ||
-      typeof window.weekday !== "number" ||
-      !Number.isInteger(window.weekday) ||
-      window.weekday < 0 ||
-      window.weekday > 6 ||
-      !isValidTimeWindow(window)
-    ) {
-      return false;
-    }
-  }
-  const dates = new Set<string>();
-  for (const exception of candidate.openingExceptions) {
-    if (
-      !exception ||
-      typeof exception !== "object" ||
-      !isValidCalendarDate(exception.localDate) ||
-      dates.has(exception.localDate) ||
-      typeof exception.closed !== "boolean" ||
-      !Array.isArray(exception.windows) ||
-      (exception.closed && exception.windows.length > 0) ||
-      exception.windows.some((window) => !isValidTimeWindow(window))
-    ) {
-      return false;
-    }
-    dates.add(exception.localDate);
-  }
-  return true;
+  return placeCandidateSchema.safeParse(place).success;
 }
 
 function hasOverlappingWindows(
@@ -168,7 +121,9 @@ function carryIntervalForWindow(
 ): OpeningInterval | null {
   const opensAt = minutesOf(window.opensAt);
   const closesAt = minutesOf(window.closesAt);
-  if (closesAt >= opensAt) return null;
+  if (closesAt >= opensAt || closesAt === 0) {
+    return null;
+  }
   return {
     startEpochMinute: dateStartEpochMinute,
     endEpochMinute: dateStartEpochMinute + closesAt,
@@ -195,13 +150,18 @@ export function getOpeningIntervals(
     if (hasOverlappingWindows(exception.windows)) return invalidOpening();
     return {
       ok: true,
-      value: exception.windows.map((window, index) =>
-        intervalForWindow(
-          dateStartEpochMinute,
-          window,
-          sourceKey("exception", localDate, index),
-        ),
-      ),
+      value: exception.windows
+        .map((window, index) =>
+          intervalForWindow(
+            dateStartEpochMinute,
+            window,
+            sourceKey("exception", localDate, index),
+          ),
+        )
+        .filter(
+          (interval) => interval.startEpochMinute < interval.endEpochMinute,
+        )
+        .sort(compareOpeningIntervals),
     };
   }
 
@@ -222,8 +182,9 @@ export function getOpeningIntervals(
   }
 
   const previousDate = previousLocalDate(dateStartEpochMinute);
-  const previousException = exceptionFor(place, previousDate);
-  if (previousException === null || !previousException.closed) {
+  const previousException =
+    previousDate === null ? null : exceptionFor(place, previousDate);
+  if (previousDate !== null && (previousException === null || !previousException.closed)) {
     if (previousException !== null) {
       if (hasOverlappingWindows(previousException.windows)) return invalidOpening();
       for (const [index, window] of previousException.windows.entries()) {
@@ -252,8 +213,25 @@ export function getOpeningIntervals(
     }
   }
 
-  intervals.sort((left, right) => left.startEpochMinute - right.startEpochMinute);
+  intervals.sort(compareOpeningIntervals);
   return { ok: true, value: intervals };
+}
+
+function compareOpeningIntervals(
+  left: OpeningInterval,
+  right: OpeningInterval,
+): number {
+  const sourceOrder =
+    left.sourceWindowKey < right.sourceWindowKey
+      ? -1
+      : left.sourceWindowKey > right.sourceWindowKey
+        ? 1
+        : 0;
+  return (
+    left.startEpochMinute - right.startEpochMinute ||
+    left.endEpochMinute - right.endEpochMinute ||
+    sourceOrder
+  );
 }
 
 export function findEarliestVisitStart(
@@ -268,13 +246,13 @@ export function findEarliestVisitStart(
     !Number.isSafeInteger(latestEndEpochMinute) ||
     !Number.isSafeInteger(durationMinutes) ||
     durationMinutes <= 0 ||
-    Math.abs(earliestEpochMinute) > MAX_SUPPORTED_EPOCH_MINUTE ||
-    Math.abs(latestEndEpochMinute) > MAX_SUPPORTED_EPOCH_MINUTE
+    durationMinutes > 720 ||
+    latestEndEpochMinute < earliestEpochMinute ||
+    latestEndEpochMinute - earliestEpochMinute > 720 ||
+    !isSupportedHcmEpochMinute(earliestEpochMinute) ||
+    !isSupportedHcmEpochMinute(latestEndEpochMinute)
   ) {
     return invalidOpening();
-  }
-  if (latestEndEpochMinute < earliestEpochMinute) {
-    return { ok: true, value: null };
   }
 
   const firstDate = formatHcmMinute(earliestEpochMinute).slice(0, 10);

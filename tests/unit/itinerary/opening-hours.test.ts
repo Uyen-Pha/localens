@@ -7,7 +7,10 @@ import {
   getOpeningIntervals,
 } from "@/lib/domain/itinerary/opening-hours";
 import { normalizeToHcmMinute } from "@/lib/domain/itinerary/local-time";
-import type { PlaceCandidate } from "@/lib/domain/itinerary/contracts";
+import {
+  placeCandidateSchema,
+  type PlaceCandidate,
+} from "@/lib/domain/itinerary/contracts";
 import { itineraryFixture } from "@/tests/fixtures/itinerary/catalog.v1";
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -115,6 +118,65 @@ describe("opening hours in HCMC minutes", () => {
     });
   });
 
+  it("sorts exception fragments before finding the earliest visit", () => {
+    const place = placeWithHours(
+      [],
+      [
+        {
+          localDate: "2026-09-05",
+          closed: false,
+          windows: [
+            { opensAt: "12:00", closesAt: "13:00" },
+            { opensAt: "09:00", closesAt: "10:00" },
+          ],
+        },
+      ],
+    );
+
+    expect(getOpeningIntervals(place, "2026-09-05")).toEqual({
+      ok: true,
+      value: [
+        {
+          startEpochMinute: localMinute("2026-09-05T09:00:00"),
+          endEpochMinute: localMinute("2026-09-05T10:00:00"),
+          sourceWindowKey: "exception:2026-09-05:1",
+        },
+        {
+          startEpochMinute: localMinute("2026-09-05T12:00:00"),
+          endEpochMinute: localMinute("2026-09-05T13:00:00"),
+          sourceWindowKey: "exception:2026-09-05:0",
+        },
+      ],
+    });
+    expect(
+      findEarliestVisitStart(
+        place,
+        localMinute("2026-09-05T08:00:00"),
+        localMinute("2026-09-05T14:00:00"),
+        30,
+      ),
+    ).toEqual({ ok: true, value: localMinute("2026-09-05T09:00:00") });
+  });
+
+  it("omits a zero-length carry fragment for an overnight close at midnight", () => {
+    const place = placeWithHours([
+      { weekday: 6, opensAt: "23:00", closesAt: "00:00" },
+    ]);
+
+    expect(getOpeningIntervals(place, "2026-09-06")).toEqual({
+      ok: true,
+      value: [],
+    });
+    expect(
+      findEarliestVisitStart(
+        place,
+        localMinute("2026-09-05T23:00:00"),
+        localMinute("2026-09-06T00:00:00"),
+        60,
+      ),
+    ).toEqual({ ok: true, value: localMinute("2026-09-05T23:00:00") });
+  });
+
   it("suppresses prior-day overnight carry-over when the next date is closed", () => {
     const place = placeWithHours(
       [{ weekday: 5, opensAt: "23:00", closesAt: "02:00" }],
@@ -163,5 +225,36 @@ describe("opening hours in HCMC minutes", () => {
         30,
       ),
     ).toEqual({ ok: true, value: null });
+  });
+
+  it("rejects reversed, overlong, and invalid-duration search horizons", () => {
+    const place = placeWithHours([]);
+    const earliest = localMinute("2026-09-05T08:00:00");
+
+    for (const result of [
+      findEarliestVisitStart(place, earliest, earliest - 1, 30),
+      findEarliestVisitStart(place, earliest, earliest + 721, 30),
+      findEarliestVisitStart(place, earliest, earliest + 60, 721),
+    ]) {
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("INVALID_ITINERARY_INPUT");
+      }
+    }
+  });
+
+  it("reuses the strict place schema for runtime validation", () => {
+    const withExtraField = clone(placeWithHours([])) as PlaceCandidate &
+      Record<string, unknown>;
+    withExtraField.unexpected = true;
+    expect(placeCandidateSchema.safeParse(withExtraField).success).toBe(false);
+    expect(getOpeningIntervals(withExtraField, "2026-09-05").ok).toBe(false);
+
+    const crossWeekOverlap = placeWithHours([
+      { weekday: 0, opensAt: "23:00", closesAt: "02:00" },
+      { weekday: 1, opensAt: "01:00", closesAt: "03:00" },
+    ]);
+    expect(placeCandidateSchema.safeParse(crossWeekOverlap).success).toBe(false);
+    expect(getOpeningIntervals(crossWeekOverlap, "2026-09-07").ok).toBe(false);
   });
 });
