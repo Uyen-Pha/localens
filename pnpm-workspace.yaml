@@ -2,3 +2,9 @@ packages:
   - "."
 allowBuilds:
   unrs-resolver: true
+peerDependencyRules:
+  allowedVersions:
+    "eslint-plugin-import>eslint": "10.9.0"
+    "eslint-plugin-jsx-a11y>eslint": "10.9.0"
+    "eslint-plugin-react>eslint": "10.9.0"
+    "tsconfck>typescript": "6.0.3"
