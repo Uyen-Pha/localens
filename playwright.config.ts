@@ -28,8 +28,8 @@ export default defineConfig({
     : {
         webServer: {
           command: `pnpm dev --hostname 127.0.0.1 --port ${port}`,
-          url: localBaseURL,
-          reuseExistingServer: !process.env.CI,
+          url: `${localBaseURL}/en/`,
+          reuseExistingServer: false,
           timeout: 120_000,
         },
       }),
