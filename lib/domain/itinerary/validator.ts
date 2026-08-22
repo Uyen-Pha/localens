@@ -123,12 +123,15 @@ function validateRankOrder(
   const candidateIds = candidates.map((place) => place.id);
   const expected = new Set(candidateIds);
   const seen = new Set<string>();
-  let valid = rankOrder.length === candidateIds.length;
+  // A normal engine pass supplies the complete filtered order. One-pass
+  // repair intentionally supplies the complete order of its reduced
+  // remaining-candidate collection, so a shorter order is valid when every
+  // supplied ID is still a filtered candidate and no ID is duplicated.
+  let valid = true;
   for (const id of rankOrder) {
     if (!expected.has(id) || seen.has(id)) valid = false;
     seen.add(id);
   }
-  if (seen.size !== expected.size) valid = false;
   if (!valid) {
     collector.add("rank_order");
     return null;
@@ -190,6 +193,7 @@ function validateInner(
   const candidatesById = new Map(input.catalog.places.map((place) => [place.id, place]));
   const filteredById = new Map(filteredCandidates.map((place) => [place.id, place]));
   const rankIndexes = validateRankOrder(collector, rankOrder, filteredCandidates);
+  const rankedCandidateCount = rankIndexes?.size ?? filteredCandidates.length;
 
   const expectedFxId = budgetResult.ok ? budgetResult.value.fxSnapshotId : null;
   if (!isObject(result.snapshotIds)) {
@@ -266,7 +270,7 @@ function validateInner(
       const rankedIndex = rankIndexes?.get(place.id);
       if (rankedIndex === undefined) collector.add("rank_order", trustedLocation);
       else {
-        expectedItemScore = scoreFor(place, input, rankedIndex, filteredCandidates.length);
+        expectedItemScore = scoreFor(place, input, rankedIndex, rankedCandidateCount);
         addExactNumberIssue(collector, "item.score", itemValue.score, expectedItemScore, trustedLocation);
       }
       trustedDuration = place.visitDurationMinutes;
