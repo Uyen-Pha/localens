@@ -214,7 +214,6 @@ function validateInner(
   if (!travelIndexResult.ok) collector.add("travel.snapshot");
 
   const lockedIds = input.request.lockedStopIds;
-  const itemIds: string[] = [];
   const positions = new Map<string, number>();
   let totalVisit = 0;
   let totalTravel = 0;
@@ -223,6 +222,7 @@ function validateInner(
   const transitionCosts: number[] = [];
   let totalScore = 0;
   let previousEnd: number | null = null;
+  let previousTrustedPlaceId: string | null = null;
   let finalEnd = normalizedStart;
   const requestEnd = normalizedStart === null ? null : normalizedStart + input.request.durationMinutes;
 
@@ -231,17 +231,20 @@ function validateInner(
     const location = issueLocation(index);
     if (!isObject(itemValue)) {
       collector.add(RESULT_MALFORMED, location);
+      previousTrustedPlaceId = null;
       continue;
     }
     const placeId = itemValue.placeId;
     const place = typeof placeId === "string" ? candidatesById.get(placeId) : undefined;
     const filteredPlace = typeof placeId === "string" ? filteredById.get(placeId) : undefined;
     const trustedLocation = issueLocation(index, place);
+    const isUniqueTrustedPlace = place !== undefined && filteredPlace !== undefined && !positions.has(place.id);
+    let trustedDuration: number | null = null;
+    let expectedItemScore: number | null = null;
     if (typeof placeId !== "string" || !place) {
       collector.add("candidate.membership", location);
     } else {
       if (!filteredPlace) collector.add("candidate.membership", issueLocation(index, place));
-      itemIds.push(placeId);
       if (positions.has(placeId)) collector.add("items.duplicate", trustedLocation);
       else positions.set(placeId, index);
 
@@ -257,28 +260,34 @@ function validateInner(
       else {
         addExactNumberIssue(collector, "item.place_cost", itemValue.placeCostVnd, expectedPlaceCost.value, trustedLocation);
         if (expectedBudget !== null && expectedPlaceCost.value > expectedBudget) collector.add("budget.exceeded", trustedLocation);
-        placeCosts.push(expectedPlaceCost.value);
+        if (isUniqueTrustedPlace) placeCosts.push(expectedPlaceCost.value);
       }
 
       const rankedIndex = rankIndexes?.get(place.id);
       if (rankedIndex === undefined) collector.add("rank_order", trustedLocation);
-      else addExactNumberIssue(collector, "item.score", itemValue.score, scoreFor(place, input, rankedIndex, filteredCandidates.length), trustedLocation);
+      else {
+        expectedItemScore = scoreFor(place, input, rankedIndex, filteredCandidates.length);
+        addExactNumberIssue(collector, "item.score", itemValue.score, expectedItemScore, trustedLocation);
+      }
+      trustedDuration = place.visitDurationMinutes;
     }
 
     const start = getCanonicalMinute(itemValue.startAt);
     const end = getCanonicalMinute(itemValue.endAt);
     const duration = itemValue.visitDurationMinutes;
-    const durationMinutes = isSafeNonNegativeInteger(duration) ? duration : -1;
     if (start === null || end === null) {
       collector.add("item.time", trustedLocation);
+      previousTrustedPlaceId = null;
       continue;
     }
-    if (!isSafeNonNegativeInteger(duration) || end - start !== duration) collector.add("item.duration", trustedLocation);
+    if (trustedDuration === null || end - start !== trustedDuration || duration !== trustedDuration) {
+      collector.add("item.duration", trustedLocation);
+    }
     if (normalizedStart !== null && start < normalizedStart) collector.add("request.start", trustedLocation);
     if (requestEnd !== null && end > requestEnd) collector.add("request.duration", trustedLocation);
     if (previousEnd !== null && start < previousEnd) collector.add("timeline.overlap", trustedLocation);
-    if (place && requestEnd !== null && end <= requestEnd && start >= normalizedStart! && durationMinutes > 0) {
-      const earliest = findEarliestVisitStart(place, start, requestEnd, durationMinutes);
+    if (place && trustedDuration !== null && requestEnd !== null && end <= requestEnd && start >= normalizedStart! && trustedDuration > 0) {
+      const earliest = findEarliestVisitStart(place, start, requestEnd, trustedDuration);
       if (!earliest.ok || earliest.value !== start) collector.add("opening_hours", trustedLocation);
     }
 
@@ -290,10 +299,9 @@ function validateInner(
       if (transitionBuffer !== 0) collector.add("travel.buffer", trustedLocation);
       if (travelCost !== 0) collector.add("travel.cost", trustedLocation);
     } else {
-      const previousPlaceId = itemIds[index - 1];
       const currentPlaceId = typeof placeId === "string" ? placeId : "";
-      const edge = travelIndex && previousPlaceId && currentPlaceId
-        ? getTransition(travelIndex, previousPlaceId, currentPlaceId)
+      const edge = travelIndex && previousTrustedPlaceId && currentPlaceId && isUniqueTrustedPlace
+        ? getTransition(travelIndex, previousTrustedPlaceId, currentPlaceId)
         : null;
       if (!edge) {
         collector.add("travel.missing", trustedLocation);
@@ -308,10 +316,9 @@ function validateInner(
       }
     }
 
-    if (isSafeNonNegativeInteger(duration)) totalVisit += duration;
-    if (isSafeNonNegativeInteger(travelMinutes)) totalTravel += index === 0 ? 0 : 0;
-    if (isSafeNonNegativeInteger(transitionBuffer) && index === 0) totalBuffer += 0;
-    if (isSafeNonNegativeInteger(itemValue.score)) totalScore += itemValue.score;
+    if (isUniqueTrustedPlace && trustedDuration !== null) totalVisit += trustedDuration;
+    if (expectedItemScore !== null && isUniqueTrustedPlace) totalScore += expectedItemScore;
+    previousTrustedPlaceId = isUniqueTrustedPlace ? place!.id : null;
     previousEnd = end;
     finalEnd = end;
   }
