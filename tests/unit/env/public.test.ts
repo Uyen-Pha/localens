@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { parsePublicEnv } from "@/lib/env/public";
 
@@ -45,5 +46,14 @@ describe("public environment contract", () => {
     };
 
     expect(parsePublicEnv(source)).toEqual(source);
+  });
+
+  it("reports malformed URLs as ZodError", () => {
+    expect(() =>
+      parsePublicEnv({
+        ...validSource,
+        NEXT_PUBLIC_APP_URL: "not a url",
+      }),
+    ).toThrow(z.ZodError);
   });
 });
