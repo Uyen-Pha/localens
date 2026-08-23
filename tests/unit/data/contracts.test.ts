@@ -3,6 +3,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CHECKOUT_CURRENCY_VALUES,
+  CURRENCY_VALUES,
+  DATA_CONTRACT_LITERALS,
+  RANKING_SOURCE_VALUES,
+  STRIPE_CHECKOUT_MODE,
   parseDbSafeInteger,
   toDbBigint,
   type AssignmentStatus,
@@ -22,6 +27,7 @@ import {
   type TourStatus,
   type TourVersionStatus,
   type WebhookEventStatus,
+  type StripeCheckoutSessionInput,
 } from "@/lib/domain/data/contracts";
 
 describe("database data contracts", () => {
@@ -84,6 +90,62 @@ describe("database data contracts", () => {
     expect(invalidLocale).toBe("fr");
   });
 
+  it("exports every registered runtime literal without extras", () => {
+    expect(DATA_CONTRACT_LITERALS.role).toEqual(["customer", "guide", "admin"]);
+    expect(DATA_CONTRACT_LITERALS.locale).toEqual(["en", "vi"]);
+    expect(DATA_CONTRACT_LITERALS.placeStatus).toEqual(["draft", "published", "archived"]);
+    expect(DATA_CONTRACT_LITERALS.tourStatus).toEqual(["draft", "published", "archived"]);
+    expect(DATA_CONTRACT_LITERALS.tourVersionStatus).toEqual(["draft", "published", "retired"]);
+    expect(DATA_CONTRACT_LITERALS.departureStatus).toEqual(["scheduled", "sold_out", "cancelled", "completed"]);
+    expect(DATA_CONTRACT_LITERALS.snapshotStatus).toEqual(["building", "published", "retired"]);
+    expect(DATA_CONTRACT_LITERALS.requestStatus).toEqual(["draft", "pending_review", "changes_requested", "approved", "rejected"]);
+    expect(DATA_CONTRACT_LITERALS.quoteStatus).toEqual(["active", "checkout_pending", "accepted", "expired", "revoked"]);
+    expect(DATA_CONTRACT_LITERALS.holdStatus).toEqual(["active", "consumed", "released", "expired"]);
+    expect(DATA_CONTRACT_LITERALS.bookingStatus).toEqual(["pending_payment", "payment_processing", "confirmed", "payment_failed", "payment_review", "expired", "cancelled", "completed"]);
+    expect(DATA_CONTRACT_LITERALS.paymentStatus).toEqual(["pending", "paid", "failed", "review"]);
+    expect(DATA_CONTRACT_LITERALS.webhookEventStatus).toEqual(["received", "processed", "ignored", "failed", "conflict"]);
+    expect(DATA_CONTRACT_LITERALS.assignmentStatus).toEqual(["assigned", "accepted", "completed", "closed"]);
+    expect(DATA_CONTRACT_LITERALS.contentStatus).toEqual(["draft", "publishing", "published", "failed"]);
+    expect(DATA_CONTRACT_LITERALS.rankingSource).toEqual(["ai", "deterministic"]);
+    expect(DATA_CONTRACT_LITERALS.currency).toEqual(["VND", "USD"]);
+    expect(DATA_CONTRACT_LITERALS.checkoutCurrency).toEqual(["vnd", "usd"]);
+    expect(DATA_CONTRACT_LITERALS.auditEventType).toEqual([
+      "role_provisioned", "role_revoked", "plan_claimed", "request_submitted",
+      "request_changes_requested", "request_approved", "request_rejected", "quote_created",
+      "quote_checkout_started", "quote_accepted", "quote_reactivated", "quote_expired", "quote_revoked",
+      "checkout_started", "checkout_session_recorded", "checkout_compensated", "booking_status_changed",
+      "webhook_processed", "webhook_ignored", "webhook_failed", "webhook_conflict", "payment_reconciled",
+      "guide_assigned", "guide_reassigned", "guide_accepted", "guide_completed", "content_publish_started",
+      "content_published", "content_publish_failed",
+    ]);
+    expect(CURRENCY_VALUES).toEqual(["VND", "USD"]);
+    expect(CHECKOUT_CURRENCY_VALUES).toEqual(["vnd", "usd"]);
+    expect(RANKING_SOURCE_VALUES).toEqual(["ai", "deterministic"]);
+    expect(STRIPE_CHECKOUT_MODE).toBe("payment");
+  });
+
+  it("exports the exact card-only Stripe checkout session shape", () => {
+    const session: StripeCheckoutSessionInput = {
+      mode: "payment",
+      payment_method_types: ["card"],
+      expires_at: 1_000,
+      client_reference_id: "booking-1",
+      metadata: { booking_id: "booking-1", attempt_id: "attempt-1" },
+      line_items: [{
+        price_data: {
+          currency: "vnd",
+          unit_amount: 1_000,
+          product_data: { name: "LocalLens" },
+        },
+        quantity: 1,
+      }],
+      success_url: "https://example.test/success",
+      cancel_url: "https://example.test/cancel",
+    };
+    expect(session.payment_method_types).toEqual(["card"]);
+    expect(session.mode).toBe("payment");
+  });
+
   it("parses canonical nonnegative safe integers from all supported inputs", () => {
     expect(parseDbSafeInteger("0")).toEqual({ ok: true, value: 0 });
     expect(parseDbSafeInteger(String(Number.MAX_SAFE_INTEGER))).toEqual({
@@ -124,6 +186,18 @@ describe("database data contracts", () => {
         error: { code: "UNSAFE_DB_INTEGER", messageKey: "data.integer.unsafe" },
       });
     }
+  });
+
+  it("bounds canonical decimal strings before attempting bigint conversion", () => {
+    const giant = "9".repeat(1_000_000);
+    expect(parseDbSafeInteger(giant)).toEqual({
+      ok: false,
+      error: { code: "UNSAFE_DB_INTEGER", messageKey: "data.integer.unsafe" },
+    });
+    expect(toDbBigint(giant)).toEqual({
+      ok: false,
+      error: { code: "UNSAFE_DB_INTEGER", messageKey: "data.integer.unsafe" },
+    });
   });
 
   it("keeps the public adapter error shapes exact and value-free", () => {

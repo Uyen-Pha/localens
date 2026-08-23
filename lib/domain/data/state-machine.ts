@@ -4,22 +4,25 @@ export type StateMachineName =
   | "hold"
   | "booking"
   | "payment"
-  | "webhook"
   | "webhook_event"
   | "assignment"
   | "content";
 
 type Transition = readonly [from: string, to: string];
 
-const transitions: Record<StateMachineName, readonly Transition[]> = {
-  request: [
+function frozenTransitions(rows: readonly Transition[]): readonly Transition[] {
+  return Object.freeze(rows.map(([from, to]) => Object.freeze([from, to] as const)));
+}
+
+export const STATE_MACHINE_TRANSITIONS: Readonly<Record<StateMachineName, readonly Transition[]>> = Object.freeze({
+  request: frozenTransitions([
     ["draft", "pending_review"],
     ["pending_review", "changes_requested"],
     ["pending_review", "approved"],
     ["pending_review", "rejected"],
     ["changes_requested", "pending_review"],
-  ],
-  quote: [
+  ]),
+  quote: frozenTransitions([
     ["active", "checkout_pending"],
     ["active", "expired"],
     ["active", "revoked"],
@@ -27,13 +30,13 @@ const transitions: Record<StateMachineName, readonly Transition[]> = {
     ["checkout_pending", "active"],
     ["checkout_pending", "expired"],
     ["checkout_pending", "revoked"],
-  ],
-  hold: [
+  ]),
+  hold: frozenTransitions([
     ["active", "consumed"],
     ["active", "released"],
     ["active", "expired"],
-  ],
-  booking: [
+  ]),
+  booking: frozenTransitions([
     ["pending_payment", "payment_processing"],
     ["pending_payment", "expired"],
     ["pending_payment", "cancelled"],
@@ -46,46 +49,38 @@ const transitions: Record<StateMachineName, readonly Transition[]> = {
     ["confirmed", "cancelled"],
     ["payment_review", "confirmed"],
     ["payment_review", "cancelled"],
-  ],
-  payment: [
+  ]),
+  payment: frozenTransitions([
     ["pending", "paid"],
     ["pending", "failed"],
     ["pending", "review"],
     ["review", "paid"],
     ["review", "failed"],
-  ],
-  webhook: [
+  ]),
+  webhook_event: frozenTransitions([
     ["received", "processed"],
     ["received", "ignored"],
     ["received", "failed"],
     ["received", "conflict"],
-  ],
-  webhook_event: [
-    ["received", "processed"],
-    ["received", "ignored"],
-    ["received", "failed"],
-    ["received", "conflict"],
-  ],
-  assignment: [
+  ]),
+  assignment: frozenTransitions([
     ["assigned", "accepted"],
     ["assigned", "closed"],
     ["accepted", "completed"],
     ["accepted", "closed"],
-  ],
-  content: [
+  ]),
+  content: frozenTransitions([
     ["draft", "publishing"],
     ["publishing", "published"],
     ["publishing", "failed"],
-  ],
-};
-
-export const STATE_MACHINE_TRANSITIONS = transitions;
+  ]),
+});
 
 export function canTransition(
   machine: string,
   from: string,
   to: string,
 ): boolean {
-  const machineTransitions = transitions[machine as StateMachineName];
+  const machineTransitions = STATE_MACHINE_TRANSITIONS[machine as StateMachineName];
   return machineTransitions?.some(([source, target]) => source === from && target === to) ?? false;
 }

@@ -75,6 +75,56 @@ export type AuditEventType =
   | "content_published"
   | "content_publish_failed";
 
+export const ROLE_VALUES = ["customer", "guide", "admin"] as const;
+export const LOCALE_VALUES = ["en", "vi"] as const;
+export const PLACE_STATUS_VALUES = ["draft", "published", "archived"] as const;
+export const TOUR_STATUS_VALUES = ["draft", "published", "archived"] as const;
+export const TOUR_VERSION_STATUS_VALUES = ["draft", "published", "retired"] as const;
+export const DEPARTURE_STATUS_VALUES = ["scheduled", "sold_out", "cancelled", "completed"] as const;
+export const SNAPSHOT_STATUS_VALUES = ["building", "published", "retired"] as const;
+export const REQUEST_STATUS_VALUES = ["draft", "pending_review", "changes_requested", "approved", "rejected"] as const;
+export const QUOTE_STATUS_VALUES = ["active", "checkout_pending", "accepted", "expired", "revoked"] as const;
+export const HOLD_STATUS_VALUES = ["active", "consumed", "released", "expired"] as const;
+export const BOOKING_STATUS_VALUES = ["pending_payment", "payment_processing", "confirmed", "payment_failed", "payment_review", "expired", "cancelled", "completed"] as const;
+export const PAYMENT_STATUS_VALUES = ["pending", "paid", "failed", "review"] as const;
+export const WEBHOOK_EVENT_STATUS_VALUES = ["received", "processed", "ignored", "failed", "conflict"] as const;
+export const ASSIGNMENT_STATUS_VALUES = ["assigned", "accepted", "completed", "closed"] as const;
+export const CONTENT_STATUS_VALUES = ["draft", "publishing", "published", "failed"] as const;
+export const RANKING_SOURCE_VALUES = ["ai", "deterministic"] as const;
+export const CURRENCY_VALUES = ["VND", "USD"] as const;
+export const CHECKOUT_CURRENCY_VALUES = ["vnd", "usd"] as const;
+export const AUDIT_EVENT_TYPE_VALUES = [
+  "role_provisioned", "role_revoked", "plan_claimed", "request_submitted",
+  "request_changes_requested", "request_approved", "request_rejected", "quote_created",
+  "quote_checkout_started", "quote_accepted", "quote_reactivated", "quote_expired", "quote_revoked",
+  "checkout_started", "checkout_session_recorded", "checkout_compensated", "booking_status_changed",
+  "webhook_processed", "webhook_ignored", "webhook_failed", "webhook_conflict", "payment_reconciled",
+  "guide_assigned", "guide_reassigned", "guide_accepted", "guide_completed", "content_publish_started",
+  "content_published", "content_publish_failed",
+] as const;
+
+export const DATA_CONTRACT_LITERALS = Object.freeze({
+  role: ROLE_VALUES,
+  locale: LOCALE_VALUES,
+  placeStatus: PLACE_STATUS_VALUES,
+  tourStatus: TOUR_STATUS_VALUES,
+  tourVersionStatus: TOUR_VERSION_STATUS_VALUES,
+  departureStatus: DEPARTURE_STATUS_VALUES,
+  snapshotStatus: SNAPSHOT_STATUS_VALUES,
+  requestStatus: REQUEST_STATUS_VALUES,
+  quoteStatus: QUOTE_STATUS_VALUES,
+  holdStatus: HOLD_STATUS_VALUES,
+  bookingStatus: BOOKING_STATUS_VALUES,
+  paymentStatus: PAYMENT_STATUS_VALUES,
+  webhookEventStatus: WEBHOOK_EVENT_STATUS_VALUES,
+  assignmentStatus: ASSIGNMENT_STATUS_VALUES,
+  contentStatus: CONTENT_STATUS_VALUES,
+  rankingSource: RANKING_SOURCE_VALUES,
+  currency: CURRENCY_VALUES,
+  checkoutCurrency: CHECKOUT_CURRENCY_VALUES,
+  auditEventType: AUDIT_EVENT_TYPE_VALUES,
+});
+
 export type DataContractErrorCode = "INVALID_DB_INTEGER" | "UNSAFE_DB_INTEGER";
 export interface DataContractError {
   code: DataContractErrorCode;
@@ -119,6 +169,10 @@ export function parseDbSafeInteger(
 ): Result<number, DataContractError> {
   if (typeof value === "string") {
     if (!CANONICAL_UNSIGNED_INTEGER.test(value)) return invalidInteger();
+    const maxSafeDecimal = String(Number.MAX_SAFE_INTEGER);
+    if (value.length > maxSafeDecimal.length || (value.length === maxSafeDecimal.length && value > maxSafeDecimal)) {
+      return unsafeInteger();
+    }
     const parsed = BigInt(value);
     if (parsed > MAX_SAFE_DB_INTEGER) return unsafeInteger();
     return { ok: true, value: Number(parsed) };
@@ -275,6 +329,24 @@ export interface StartCheckoutResult {
   holdExpiresAt: string;
   state: "created" | "resumed";
 }
+export interface StripeCheckoutSessionInput {
+  mode: "payment";
+  payment_method_types: ["card"];
+  expires_at: number;
+  client_reference_id: string;
+  metadata: { booking_id: string; attempt_id: string };
+  line_items: Array<{
+    price_data: {
+      currency: CheckoutCurrency;
+      unit_amount: number;
+      product_data: { name: string };
+    };
+    quantity: 1;
+  }>;
+  success_url: string;
+  cancel_url: string;
+}
+export const STRIPE_CHECKOUT_MODE = "payment" as const;
 export interface RecordCheckoutSessionInput {
   bookingId: string;
   attemptId: string;

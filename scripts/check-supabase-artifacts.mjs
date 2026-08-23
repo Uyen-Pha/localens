@@ -5,95 +5,184 @@ import { join, resolve } from "node:path";
 const MIGRATION_NAME = /^(\d{14})(?:[_-].*)?\.sql$/i;
 const TEMPLATE_TOKEN = /\{\{[^}\r\n]+\}\}|\$\{[^}\r\n]+\}|<%[=-]?[\s\S]*?%>/;
 const RAW_SECRET = /\b(?:sk_(?:live|test)_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|AIza[0-9A-Za-z_-]{20,})\b/i;
-const SECRET_ASSIGNMENT = /\b(?:SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|STRIPE_SECRET_KEY|GEMINI_API_KEY|TURNSTILE_SECRET|RAW_GUEST_TOKEN|PASSWORD)\b\s*[:=]\s*(['"]?)(?!\{\{|\$\{|\[|<)[A-Za-z0-9+/_.=-]{12,}\1/i;
+const SECRET_ASSIGNMENT = /\b(?:SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|GEMINI_API_KEY|TURNSTILE_SECRET|HMAC_PEPPER|RAW_GUEST_TOKEN|PASSWORD)\b\s*[:=]\s*(?!null\b|undefined\b)(?:'[^']*'|"[^"]*"|[A-Za-z0-9+/_.=-]+)/i;
+const IDENTIFIER = `(?:"(?:[^"]|"")*"|[A-Za-z_][A-Za-z0-9_$]*)`;
+const PUBLIC_TABLE = new RegExp(`\\bCREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(${IDENTIFIER})\\s*\\.\\s*(${IDENTIFIER})`, "gi");
+const ENABLE_RLS = new RegExp(`\\bALTER\\s+TABLE\\s+(?:ONLY\\s+)?(${IDENTIFIER})\\s*\\.\\s*(${IDENTIFIER})\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY\\b`, "gi");
 
 function maskRange(text, start, end) {
-  const fragment = text.slice(start, end);
-  return fragment.replace(/[^\r\n]/g, " ");
+  return text.slice(start, end).replace(/[^\r\n]/g, " ");
 }
 
-function maskCommentsAndDollarBodies(text) {
-  let output = "";
+function isIdentifierCharacter(value) {
+  return value !== undefined && /[A-Za-z0-9_$]/.test(value);
+}
+
+function lexSql(text) {
+  const tokens = [];
+  const errors = [];
   let index = 0;
+  const push = (type, start, end) => tokens.push({ type, text: text.slice(start, end), start, end });
+
   while (index < text.length) {
-    if (text.startsWith("--", index)) {
-      const end = text.indexOf("\n", index + 2);
-      const final = end === -1 ? text.length : end;
-      output += maskRange(text, index, final);
-      index = final;
+    const start = index;
+    const current = text[index];
+    const next = text[index + 1];
+
+    if (current === "-" && next === "-") {
+      index += 2;
+      while (index < text.length && text[index] !== "\n") index += 1;
+      push("comment", start, index);
       continue;
     }
-    if (text.startsWith("/*", index)) {
-      const end = text.indexOf("*/", index + 2);
-      const final = end === -1 ? text.length : end + 2;
-      output += maskRange(text, index, final);
-      index = final;
+
+    if (current === "/" && next === "*") {
+      index += 2;
+      let depth = 1;
+      while (index < text.length && depth > 0) {
+        if (text[index] === "/" && text[index + 1] === "*") {
+          depth += 1;
+          index += 2;
+        } else if (text[index] === "*" && text[index + 1] === "/") {
+          depth -= 1;
+          index += 2;
+        } else {
+          index += 1;
+        }
+      }
+      push("comment", start, index);
+      if (depth !== 0) errors.push("unterminated block comment");
       continue;
     }
-    if (text[index] === "$") {
-      const match = text.slice(index).match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/);
-      if (match) {
-        const delimiter = match[0];
+
+    if (current === "$") {
+      const delimiterMatch = text.slice(index).match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/);
+      if (delimiterMatch && !isIdentifierCharacter(text[index - 1])) {
+        const delimiter = delimiterMatch[0];
         const bodyStart = index + delimiter.length;
         const close = text.indexOf(delimiter, bodyStart);
-        if (close !== -1) {
-          const final = close + delimiter.length;
-          output += maskRange(text, index, final);
-          index = final;
-          continue;
+        if (close === -1) {
+          push("dollar", start, text.length);
+          errors.push(`unterminated dollar-quoted body ${delimiter}`);
+          index = text.length;
+        } else {
+          const end = close + delimiter.length;
+          push("dollar", start, end);
+          index = end;
         }
+        continue;
       }
     }
-    output += text[index];
+
+    const escapedString = (current === "E" || current === "e") && next === "'" && !isIdentifierCharacter(text[index - 1]);
+    if (current === "'" || escapedString) {
+      const stringStart = escapedString ? index : start;
+      let cursor = escapedString ? index + 2 : index + 1;
+      let closed = false;
+      while (cursor < text.length) {
+        if (escapedString && text[cursor] === "\\") {
+          cursor += 2;
+          continue;
+        }
+        if (text[cursor] === "'" && text[cursor + 1] === "'") {
+          cursor += 2;
+          continue;
+        }
+        if (text[cursor] === "'") {
+          cursor += 1;
+          closed = true;
+          break;
+        }
+        cursor += 1;
+      }
+      push("string", stringStart, cursor);
+      if (!closed) errors.push("unterminated string literal");
+      index = cursor;
+      continue;
+    }
+
+    if (current === '"') {
+      let cursor = index + 1;
+      let closed = false;
+      while (cursor < text.length) {
+        if (text[cursor] === '"' && text[cursor + 1] === '"') {
+          cursor += 2;
+          continue;
+        }
+        if (text[cursor] === '"') {
+          cursor += 1;
+          closed = true;
+          break;
+        }
+        cursor += 1;
+      }
+      push("identifier", start, cursor);
+      if (!closed) errors.push("unterminated quoted identifier");
+      index = cursor;
+      continue;
+    }
+
+    push("code", start, start + 1);
     index += 1;
   }
-  return output;
+
+  return { tokens, errors };
 }
 
-function maskSql(text) {
-  const withoutCommentsAndBodies = maskCommentsAndDollarBodies(text);
-  let output = "";
-  let index = 0;
-  while (index < withoutCommentsAndBodies.length) {
-    const current = withoutCommentsAndBodies[index];
-    if (current === "'") {
-      let end = index + 1;
-      while (end < withoutCommentsAndBodies.length) {
-        if (withoutCommentsAndBodies[end] === "'" && withoutCommentsAndBodies[end + 1] === "'") {
-          end += 2;
-          continue;
-        }
-        if (withoutCommentsAndBodies[end] === "'") {
-          end += 1;
-          break;
-        }
-        end += 1;
-      }
-      output += maskRange(withoutCommentsAndBodies, index, end);
-      index = end;
+function maskedSql(tokens, maskedTypes) {
+  return tokens.map((token) => maskedTypes.has(token.type) ? maskRange(token.text, 0, token.text.length) : token.text).join("");
+}
+
+function commentsMaskedOnly(tokens) {
+  return tokens.map((token) => {
+    if (token.type === "comment") return maskRange(token.text, 0, token.text.length);
+    if (token.type !== "dollar") return token.text;
+    const delimiter = token.text.match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/)?.[0];
+    if (!delimiter || !token.text.endsWith(delimiter)) return token.text;
+    const body = token.text.slice(delimiter.length, -delimiter.length);
+    const nested = lexSql(body);
+    return delimiter + commentsMaskedOnly(nested.tokens) + delimiter;
+  }).join("");
+}
+
+function splitStatements(tokens) {
+  const statements = [];
+  let current = "";
+  for (const token of tokens) {
+    if (token.type === "comment" || token.type === "string" || token.type === "dollar") {
+      current += " ";
       continue;
     }
-    if (current === '"') {
-      let end = index + 1;
-      while (end < withoutCommentsAndBodies.length) {
-        if (withoutCommentsAndBodies[end] === '"' && withoutCommentsAndBodies[end + 1] === '"') {
-          end += 2;
-          continue;
-        }
-        if (withoutCommentsAndBodies[end] === '"') {
-          end += 1;
-          break;
-        }
-        end += 1;
-      }
-      output += maskRange(withoutCommentsAndBodies, index, end);
-      index = end;
-      continue;
+    if (token.type === "code" && token.text === ";") {
+      if (current.trim()) statements.push(current.trim());
+      current = "";
+    } else {
+      current += token.text;
     }
-    output += current;
-    index += 1;
   }
-  return output;
+  if (current.trim()) statements.push(current.trim());
+  return statements;
+}
+
+function isBeginWrapper(statement) {
+  return /^BEGIN(?:\s+(?:WORK|TRANSACTION))?$/i.test(statement);
+}
+
+function isCommitWrapper(statement) {
+  return /^COMMIT(?:\s+(?:WORK|TRANSACTION))?(?:\s+AND\s+(?:NO\s+)?CHAIN)?$/i.test(statement);
+}
+
+function normalizeIdentifier(identifier) {
+  if (identifier.startsWith('"') && identifier.endsWith('"')) return identifier.slice(1, -1).replaceAll('""', '"');
+  return identifier;
+}
+
+function isPublicSchema(identifier) {
+  return normalizeIdentifier(identifier).toLowerCase() === "public";
+}
+
+function tableKey(schema, table) {
+  return `${normalizeIdentifier(schema).toLowerCase()}.${normalizeIdentifier(table).toLowerCase()}`;
 }
 
 function migrationFiles(root) {
@@ -101,7 +190,11 @@ function migrationFiles(root) {
   if (!existsSync(directory)) return [];
   return readdirSync(directory, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".sql"))
-    .map((entry) => ({ name: entry.name, path: join(directory, entry.name) }));
+    .map((entry) => {
+      const match = entry.name.match(MIGRATION_NAME);
+      return { name: entry.name, path: join(directory, entry.name), timestamp: match?.[1] ?? null };
+    })
+    .sort((left, right) => (left.timestamp ?? "~").localeCompare(right.timestamp ?? "~") || left.name.localeCompare(right.name));
 }
 
 function isValidUtcTimestamp(value) {
@@ -117,43 +210,44 @@ function isValidUtcTimestamp(value) {
 }
 
 function checkMigrationNames(files, errors) {
-  const timestamps = [];
+  const seen = new Set();
   for (const file of files) {
-    const match = file.name.match(MIGRATION_NAME);
-    if (!match) continue;
-    if (!isValidUtcTimestamp(match[1])) {
+    if (!file.timestamp) {
+      errors.push(`${file.name}: every migration must have a 14-digit UTC timestamp filename`);
+      continue;
+    }
+    if (!isValidUtcTimestamp(file.timestamp)) {
       errors.push(`${file.name}: migration timestamp is not a valid UTC date/time`);
       continue;
     }
-    timestamps.push({ timestamp: match[1], name: file.name });
-  }
-  const seen = new Set();
-  for (const item of timestamps) {
-    if (seen.has(item.timestamp)) errors.push(`${item.name}: duplicate migration timestamp ${item.timestamp}`);
-    seen.add(item.timestamp);
-  }
-  for (let index = 1; index < timestamps.length; index += 1) {
-    if (timestamps[index - 1].timestamp >= timestamps[index].timestamp) {
-      errors.push(`migration timestamps must be strictly ordered; ${timestamps[index - 1].name} precedes ${timestamps[index].name}`);
-    }
+    if (seen.has(file.timestamp)) errors.push(`${file.name}: duplicate migration timestamp ${file.timestamp}`);
+    seen.add(file.timestamp);
   }
 }
 
 function checkSqlFile(file, errors) {
   const source = readFileSync(file.path, "utf8");
-  const topLevel = maskSql(source);
-  if (!/\bBEGIN\b/i.test(topLevel)) errors.push(`${file.name}: missing top-level BEGIN`);
-  if (!/\bCOMMIT\b/i.test(topLevel)) errors.push(`${file.name}: missing top-level COMMIT`);
+  const { tokens, errors: lexicalErrors } = lexSql(source);
+  for (const error of lexicalErrors) errors.push(`${file.name}: ${error}`);
 
-  const publicTables = [...topLevel.matchAll(/\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?public"?\s*\.\s*)"?([A-Za-z_][A-Za-z0-9_]*)"?/gi)].map((match) => match[1]);
-  for (const table of publicTables) {
-    const rls = new RegExp(`\\bALTER\\s+TABLE\\s+(?:ONLY\\s+)?(?:"?public"?\\s*\\.\\s*)"?${table}"?\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY\\b`, "i");
-    if (!rls.test(topLevel)) errors.push(`${file.name}: public.${table} is missing ENABLE ROW LEVEL SECURITY`);
+  const structure = maskedSql(tokens, new Set(["comment", "string", "dollar"]));
+  const statements = splitStatements(tokens);
+  if (!statements[0] || !isBeginWrapper(statements[0])) errors.push(`${file.name}: missing first top-level BEGIN wrapper`);
+  if (!statements.at(-1) || !isCommitWrapper(statements.at(-1))) errors.push(`${file.name}: missing last top-level COMMIT wrapper`);
+
+  const tables = [];
+  for (const match of structure.matchAll(PUBLIC_TABLE)) {
+    if (isPublicSchema(match[1])) tables.push(tableKey(match[1], match[2]));
+  }
+  const rls = [];
+  for (const match of structure.matchAll(ENABLE_RLS)) {
+    if (isPublicSchema(match[1])) rls.push(tableKey(match[1], match[2]));
   }
 
-  const secretScan = maskCommentsAndDollarBodies(source);
+  const secretScan = commentsMaskedOnly(tokens);
   if (TEMPLATE_TOKEN.test(secretScan)) errors.push(`${file.name}: unresolved template token`);
   if (RAW_SECRET.test(secretScan) || SECRET_ASSIGNMENT.test(secretScan)) errors.push(`${file.name}: forbidden raw secret pattern`);
+  return { tables, rls };
 }
 
 function checkRequiredSeed(root, errors) {
@@ -179,7 +273,17 @@ export function scanSupabaseArtifacts({ root = process.cwd(), requireSeed = fals
   const errors = [];
   const files = migrationFiles(resolvedRoot);
   checkMigrationNames(files, errors);
-  for (const file of files) checkSqlFile(file, errors);
+  const publicTables = new Set();
+  const rlsTables = new Set();
+  for (const file of files) {
+    const facts = checkSqlFile(file, errors);
+    facts.tables.forEach((table) => publicTables.add(table));
+    facts.rls.forEach((table) => rlsTables.add(table));
+  }
+  for (const table of publicTables) {
+    if (!rlsTables.has(table)) errors.push(`public.${table.split(".")[1]} is missing ENABLE ROW LEVEL SECURITY`);
+  }
+
   if (requireSeed) {
     checkRequiredSeed(resolvedRoot, errors);
     const seedPath = join(resolvedRoot, "supabase", "seed.sql");
@@ -192,11 +296,10 @@ function parseArgs(argv) {
   let root = process.cwd();
   let requireSeed = false;
   for (let index = 0; index < argv.length; index += 1) {
-    const argument = argv[index];
-    if (argument === "--root") {
+    if (argv[index] === "--root") {
       root = argv[index + 1] ?? root;
       index += 1;
-    } else if (argument === "--require-seed") {
+    } else if (argv[index] === "--require-seed") {
       requireSeed = true;
     }
   }
@@ -204,12 +307,13 @@ function parseArgs(argv) {
 }
 
 export function main(argv = process.argv.slice(2)) {
-  const result = scanSupabaseArtifacts(parseArgs(argv));
+  const options = parseArgs(argv);
+  const result = scanSupabaseArtifacts(options);
   if (!result.ok) {
     for (const error of result.errors) console.error(`[db:static] ${error}`);
     return 1;
   }
-  console.log(`[db:static] checked ${result.files.length} migration file(s); seed ${parseArgs(argv).requireSeed ? "required" : "optional"}`);
+  console.log(`[db:static] checked ${result.files.length} migration file(s); seed ${options.requireSeed ? "required" : "optional"}`);
   return 0;
 }
 

@@ -2,7 +2,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { canTransition, type StateMachineName } from "@/lib/domain/data/state-machine";
+import {
+  STATE_MACHINE_TRANSITIONS,
+  canTransition,
+  type StateMachineName,
+} from "@/lib/domain/data/state-machine";
 
 describe("database state machines", () => {
   const cases: Array<[StateMachineName, string, string]> = [
@@ -67,7 +71,36 @@ describe("database state machines", () => {
     ["content", "published", "failed"],
     ["request", "not-a-state", "approved"],
     ["unknown", "draft", "published"],
+    ["webhook", "received", "processed"],
   ] as const)("rejects %s: %s -> %s", (machine, from, to) => {
     expect(canTransition(machine as StateMachineName, from, to)).toBe(false);
+  });
+
+  it("keeps the transition registry deeply immutable and exhaustive", () => {
+    expect(Object.isFrozen(STATE_MACHINE_TRANSITIONS)).toBe(true);
+    for (const transitions of Object.values(STATE_MACHINE_TRANSITIONS)) {
+      expect(Object.isFrozen(transitions)).toBe(true);
+      for (const transition of transitions) expect(Object.isFrozen(transition)).toBe(true);
+    }
+
+    const statuses: Record<StateMachineName, readonly string[]> = {
+      request: ["draft", "pending_review", "changes_requested", "approved", "rejected"],
+      quote: ["active", "checkout_pending", "accepted", "expired", "revoked"],
+      hold: ["active", "consumed", "released", "expired"],
+      booking: ["pending_payment", "payment_processing", "confirmed", "payment_failed", "payment_review", "expired", "cancelled", "completed"],
+      payment: ["pending", "paid", "failed", "review"],
+      webhook_event: ["received", "processed", "ignored", "failed", "conflict"],
+      assignment: ["assigned", "accepted", "completed", "closed"],
+      content: ["draft", "publishing", "published", "failed"],
+    };
+
+    for (const [machine, allowedTransitions] of Object.entries(STATE_MACHINE_TRANSITIONS) as Array<[StateMachineName, readonly (readonly [string, string])[]]>) {
+      const allowed = new Set(allowedTransitions.map(([from, to]) => `${from}\u0000${to}`));
+      for (const from of statuses[machine]) {
+        for (const to of statuses[machine]) {
+          expect(canTransition(machine, from, to)).toBe(allowed.has(`${from}\u0000${to}`));
+        }
+      }
+    }
   });
 });
