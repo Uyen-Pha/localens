@@ -53,9 +53,10 @@ exchanges the Supabase PKCE code and redirects using stored locale/return URL.
 ### Fixed tour
 
 Browse public tour and departure data, select a departure, authenticate,
-create an atomic 30-minute capacity hold, enter Stripe Test Checkout, wait for
-the webhook, and display the confirmed booking. Admin can assign a guide only
-after confirmation.
+create an atomic 35-minute database capacity hold, enter a 30-minute Stripe
+Test Checkout Session, wait for the webhook, and display the confirmed booking.
+The five-minute database cushion handles delayed webhooks; admin can assign a
+guide only after confirmation.
 
 ### Personalized tour
 
@@ -148,15 +149,19 @@ State transitions are explicit:
 
 - Request: `draft -> pending_review -> changes_requested -> pending_review`,
   or `pending_review -> approved | rejected`.
-- Quote: `active -> accepted | expired | revoked`.
+- Quote: `active -> checkout_pending | expired | revoked`;
+  `checkout_pending -> accepted | active | expired | revoked`. Acceptance,
+  expiry, and revocation recheck the 48-hour validity under a database lock;
+  only checkout compensation may return an unexpired quote to `active`.
 - Booking: `pending_payment -> payment_processing -> confirmed -> completed`;
   failure exits are `payment_failed`, `expired`, and `cancelled`. A completed
   Stripe event after an inactive hold becomes `payment_review`, never an
   automatic confirmation.
 - Payment review: `payment_review -> confirmed | cancelled`; only an admin
   reconciliation action may leave this state.
-- Guide assignment: `assigned -> accepted -> completed`. Reassignment closes
-  the old record before creating a new one.
+- Guide assignment: `assigned -> accepted | closed` and
+  `accepted -> completed | closed`. Reassignment closes the old record before
+  creating a new one.
 
 ## Public service contracts
 
@@ -204,15 +209,19 @@ clock, UUID source, Gemini client, Stripe client, and FX client are injectable
 at their boundaries so CI never calls live services.
 
 Capacity hold creation locks the departure and commits atomically. Stripe
-Checkout is started through one public operation: `start-checkout` locks and
-accepts the quote when applicable, snapshots price/FX/policy, creates the
-booking and a 35-minute database hold, then immediately creates a card-only
-Stripe Test Session expiring after 30 minutes. The five-minute database cushion
-allows delayed webhooks without reopening capacity. If Stripe session creation
-fails, the hold is released. A repeated idempotency key with the same request
-hash returns the same booking/session; a different hash returns
-`IDEMPOTENCY_CONFLICT`. Custom quotes have no departure capacity, but the same
-operation prevents multiple active payment sessions for one quote.
+Checkout is orchestrated through one public `start-checkout` operation. Its
+database transaction snapshots price/FX/policy, creates the booking and a
+35-minute hold, and moves an applicable quote from `active` to
+`checkout_pending`. The Edge Function then creates a card-only Stripe Test
+Session expiring after 30 minutes with the attempt's durable provider
+idempotency key. Recording that session atomically moves the booking to
+`payment_processing` and the quote to `accepted`; provider failure releases the
+hold and returns an unexpired quote to `active`. The five-minute database
+cushion allows delayed webhooks without reopening capacity. A repeated client
+idempotency key with the same request hash resumes the same booking/session; a
+different hash returns `IDEMPOTENCY_CONFLICT`. Custom quotes have no departure
+capacity, but the same operation prevents multiple sellable checkout attempts
+for one quote.
 
 The webhook reads the raw
 body, verifies the Stripe signature, records unique event and session IDs,
