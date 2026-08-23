@@ -2,8 +2,17 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { recommendItinerary } from "@/lib/application/itinerary/recommend";
-import type { RankRequest, RankResponse } from "@/lib/application/itinerary/ranking-port";
+import {
+  recommendItinerary,
+  type TimeoutSignalHandle,
+  type TimeoutSignalFactory,
+} from "@/lib/application/itinerary/recommend";
+import type {
+  Ranker,
+  RankRequest,
+  RankResponse,
+} from "@/lib/application/itinerary/ranking-port";
+import { createItinerary } from "@/lib/domain/itinerary/engine";
 import { itineraryFixture } from "@/tests/fixtures/itinerary/catalog.v1";
 
 function sourceWithMultipleCandidates() {
@@ -27,6 +36,31 @@ function deterministicSource() {
     request: {
       ...sourceWithMultipleCandidates().request,
       lockedStopIds: ["place-banh-mi"],
+    },
+  };
+}
+
+function manualTimeoutFactory() {
+  const controller = new AbortController();
+  let cancelCount = 0;
+  let requestedTimeout = 0;
+  const factory: TimeoutSignalFactory = (timeoutMs): TimeoutSignalHandle => {
+    requestedTimeout = timeoutMs;
+    return {
+      signal: controller.signal,
+      cancel: () => {
+        cancelCount += 1;
+      },
+    };
+  };
+  return {
+    controller,
+    factory,
+    get cancelCount() {
+      return cancelCount;
+    },
+    get requestedTimeout() {
+      return requestedTimeout;
     },
   };
 }
@@ -152,6 +186,153 @@ describe("recommendItinerary", () => {
     if (result.ok) expect(result.value.messageKey).toBe("itinerary.ai_aborted");
   });
 
+  it("settles on timeout when a provider ignores abort and resolves late", async () => {
+    vi.useFakeTimers();
+    let resolveLate!: (response: RankResponse) => void;
+    const ranker = vi.fn(() => new Promise<RankResponse>((resolve) => {
+      resolveLate = resolve;
+    }));
+
+    const pending = recommendItinerary(deterministicSource(), { ranker });
+    await vi.advanceTimersByTimeAsync(8_000);
+    const timedOut = await pending;
+
+    expect(timedOut).toMatchObject({
+      ok: true,
+      value: {
+        degraded: true,
+        messageKey: "itinerary.ai_aborted",
+        rationales: {},
+      },
+    });
+    resolveLate({
+      orderedIds: ["place-banh-mi"],
+      rationales: { "place-banh-mi": "late" },
+    });
+    await Promise.resolve();
+    expect(timedOut).toMatchObject({
+      ok: true,
+      value: { messageKey: "itinerary.ai_aborted", rationales: {} },
+    });
+  });
+
+  it("observes a late provider rejection after timeout without an unhandled rejection", async () => {
+    vi.useFakeTimers();
+    let rejectLate!: (reason: unknown) => void;
+    const ranker = vi.fn(() => new Promise<RankResponse>((_resolve, reject) => {
+      rejectLate = reject;
+    }));
+    let unhandled = false;
+    const onUnhandled = () => {
+      unhandled = true;
+    };
+    process.on("unhandledRejection", onUnhandled);
+
+    try {
+      const pending = recommendItinerary(deterministicSource(), { ranker });
+      await vi.advanceTimersByTimeAsync(8_000);
+      const timedOut = await pending;
+      rejectLate(new Error("late provider failure"));
+      await vi.runAllTicks();
+
+      expect(timedOut).toMatchObject({
+        ok: true,
+        value: { messageKey: "itinerary.ai_aborted", rationales: {} },
+      });
+      expect(unhandled).toBe(false);
+    } finally {
+      process.removeListener("unhandledRejection", onUnhandled);
+    }
+  });
+
+  it("converts caller abort after provider start and ignores a late provider result", async () => {
+    const caller = new AbortController();
+    let resolveLate!: (response: RankResponse) => void;
+    const ranker = vi.fn(() => new Promise<RankResponse>((resolve) => {
+      resolveLate = resolve;
+    }));
+
+    const pending = recommendItinerary(deterministicSource(), {
+      ranker,
+      signal: caller.signal,
+    });
+    expect(ranker).toHaveBeenCalledTimes(1);
+    caller.abort();
+    const aborted = await pending;
+
+    expect(aborted).toMatchObject({
+      ok: true,
+      value: { messageKey: "itinerary.ai_aborted", rationales: {} },
+    });
+    resolveLate({
+      orderedIds: ["place-banh-mi"],
+      rationales: { "place-banh-mi": "late" },
+    });
+    await Promise.resolve();
+    expect(aborted).toMatchObject({
+      ok: true,
+      value: { messageKey: "itinerary.ai_aborted", rationales: {} },
+    });
+  });
+
+  it("handles caller and timeout aborts racing without double completion", async () => {
+    const caller = new AbortController();
+    const timeout = manualTimeoutFactory();
+    const ranker = vi.fn(() => new Promise<RankResponse>(() => undefined));
+
+    const pending = recommendItinerary(deterministicSource(), {
+      ranker,
+      signal: caller.signal,
+      timeoutSignalFactory: timeout.factory,
+    });
+    caller.abort();
+    timeout.controller.abort();
+    const result = await pending;
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { messageKey: "itinerary.ai_aborted", rationales: {} },
+    });
+    expect(timeout.cancelCount).toBe(1);
+    expect(timeout.requestedTimeout).toBe(8_000);
+  });
+
+  it.each(["success", "invalid", "provider reject", "caller abort", "timeout"] as const)(
+    "cancels the injected timeout exactly once on %s",
+    async (outcome) => {
+      const timeout = manualTimeoutFactory();
+      const caller = new AbortController();
+      let ranker: Ranker;
+      if (outcome === "success") {
+        ranker = async () => ({
+          orderedIds: ["place-banh-mi"],
+          rationales: { "place-banh-mi": "ok" },
+        });
+      } else if (outcome === "invalid") {
+        ranker = async () => ({ orderedIds: [], rationales: {} });
+      } else if (outcome === "provider reject") {
+        ranker = async () => {
+          throw new Error("provider failure");
+        };
+      } else {
+        ranker = () => new Promise<RankResponse>(() => undefined);
+      }
+
+      const pending = recommendItinerary(deterministicSource(), {
+        ranker,
+        signal: caller.signal,
+        timeoutSignalFactory: timeout.factory,
+      });
+      if (outcome === "caller abort") caller.abort();
+      if (outcome === "timeout") timeout.controller.abort();
+      const result = await pending;
+
+      expect(result.ok).toBe(true);
+      expect(timeout.cancelCount).toBe(1);
+      expect(timeout.requestedTimeout).toBe(8_000);
+    },
+  );
+
   it("preserves deterministic domain errors and skips the provider", async () => {
     const staleUsd = {
       ...deterministicSource(),
@@ -170,5 +351,25 @@ describe("recommendItinerary", () => {
       ok: false,
       error: expect.objectContaining({ code: "USD_DISABLED" }),
     });
+  });
+
+  it("returns a deterministic preflight error unchanged without invoking the provider", async () => {
+    const impossible = {
+      ...deterministicSource(),
+      request: {
+        ...deterministicSource().request,
+        budget: { currency: "VND" as const, amountMinor: 0 },
+      },
+    };
+    const expected = createItinerary(impossible);
+    const ranker = vi.fn(async () => ({
+      orderedIds: ["place-banh-mi"],
+      rationales: { "place-banh-mi": "must not run" },
+    }));
+
+    const result = await recommendItinerary(impossible, { ranker });
+
+    expect(ranker).not.toHaveBeenCalled();
+    expect(result).toEqual(expected);
   });
 });
