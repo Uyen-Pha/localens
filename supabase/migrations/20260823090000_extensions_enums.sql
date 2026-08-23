@@ -166,4 +166,22 @@ CREATE TYPE public.audit_event_type AS ENUM (
   'content_publish_failed'
 );
 
+-- Audit metadata is a closed scalar vocabulary. Values are constrained by key
+-- in the identity migration; this enum prevents arbitrary JSON-like keys.
+CREATE TYPE public.audit_metadata_key AS ENUM (
+  'role',
+  'source',
+  'status',
+  'state',
+  'decision',
+  'provider',
+  'currency',
+  'count',
+  'revision',
+  'attempt_no',
+  'amount_minor',
+  'replayed',
+  'is_demo'
+);
+
 COMMIT;

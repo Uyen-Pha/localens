@@ -1,93 +1,190 @@
--- INTEGRATION-DEFERRED: this pgTAP suite is intentionally checked in before the
--- container-backed Supabase gate. It must run only after `supabase db reset`
--- provides auth.users, anon/authenticated roles, and the pgTAP extension.
+-- This suite is integration-deferred only because this machine has no local
+-- PostgreSQL/Supabase runtime. It is executable in `supabase test db --local`
+-- after a reset that provides auth.users, anon/authenticated roles, and pgTAP.
 BEGIN;
 
-SELECT plan(50);
+SELECT plan(70);
 
--- Schema, tables, and exact enum vocabularies.
+-- Fixed IDs keep the behavior checks deterministic and rollback-safe.
+RESET ROLE;
+DELETE FROM auth.users
+WHERE id IN (
+  '00000000-0000-0000-0000-000000000001'::uuid,
+  '00000000-0000-0000-0000-000000000002'::uuid,
+  '00000000-0000-0000-0000-000000000003'::uuid,
+  '00000000-0000-0000-0000-000000000004'::uuid
+);
+
+-- Hostile signup metadata is intentionally present in every row. The trigger
+-- must use only NEW.id and create one customer profile/role atomically.
+INSERT INTO auth.users (
+  id, aud, role, email, encrypted_password,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+)
+VALUES
+  ('00000000-0000-0000-0000-000000000001'::uuid, 'authenticated', 'authenticated', 'identity-1@example.invalid', '', '{}'::jsonb, jsonb_build_object('role', 'admin', 'is_admin', true), now(), now()),
+  ('00000000-0000-0000-0000-000000000002'::uuid, 'authenticated', 'authenticated', 'identity-2@example.invalid', '', '{}'::jsonb, jsonb_build_object('role', 'guide'), now(), now()),
+  ('00000000-0000-0000-0000-000000000003'::uuid, 'authenticated', 'authenticated', 'identity-3@example.invalid', '', '{}'::jsonb, jsonb_build_object('role', 'admin'), now(), now()),
+  ('00000000-0000-0000-0000-000000000004'::uuid, 'authenticated', 'authenticated', 'identity-4@example.invalid', '', '{}'::jsonb, jsonb_build_object('role', 'guide'), now(), now())
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO private.user_roles (user_id, role)
+VALUES ('00000000-0000-0000-0000-000000000001'::uuid, 'admin'::public.app_role)
+ON CONFLICT (user_id, role) DO NOTHING;
+
+INSERT INTO public.guide_profiles (user_id, display_name, language)
+VALUES ('00000000-0000-0000-0000-000000000004'::uuid, 'Guide Four', 'en'::public.locale)
+ON CONFLICT (user_id) DO NOTHING;
+
+-- Schema, enums, and tables.
 SELECT ok(to_regnamespace('private') IS NOT NULL, 'private schema exists');
 SELECT ok(to_regclass('public.profiles') IS NOT NULL, 'profiles table exists');
 SELECT ok(to_regclass('public.guide_profiles') IS NOT NULL, 'guide_profiles table exists');
 SELECT ok(to_regclass('private.user_roles') IS NOT NULL, 'private user_roles table exists');
 SELECT ok(to_regclass('private.audit_events') IS NOT NULL, 'private audit_events table exists');
-SELECT is(
-  (SELECT string_agg(e.enumlabel, '|' ORDER BY e.enumsortorder)
-   FROM pg_catalog.pg_enum AS e
-   JOIN pg_catalog.pg_type AS t ON t.oid = e.enumtypid
-   JOIN pg_catalog.pg_namespace AS n ON n.oid = t.typnamespace
-   WHERE n.nspname = 'public' AND t.typname = 'app_role'),
-  'customer|guide|admin',
-  'app_role enum is exact'
-);
-SELECT is(
-  (SELECT string_agg(e.enumlabel, '|' ORDER BY e.enumsortorder)
-   FROM pg_catalog.pg_enum AS e
-   JOIN pg_catalog.pg_type AS t ON t.oid = e.enumtypid
-   JOIN pg_catalog.pg_namespace AS n ON n.oid = t.typnamespace
-   WHERE n.nspname = 'public' AND t.typname = 'audit_event_type'),
-  'role_provisioned|role_revoked|plan_claimed|request_submitted|request_changes_requested|request_approved|request_rejected|quote_created|quote_checkout_started|quote_accepted|quote_reactivated|quote_expired|quote_revoked|checkout_started|checkout_session_recorded|checkout_compensated|booking_status_changed|webhook_processed|webhook_ignored|webhook_failed|webhook_conflict|payment_reconciled|guide_assigned|guide_reassigned|guide_accepted|guide_completed|content_publish_started|content_published|content_publish_failed',
-  'audit_event_type enum is exhaustive'
-);
+SELECT is((SELECT string_agg(e.enumlabel, '|' ORDER BY e.enumsortorder) FROM pg_catalog.pg_enum AS e JOIN pg_catalog.pg_type AS t ON t.oid = e.enumtypid JOIN pg_catalog.pg_namespace AS n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typname = 'app_role'), 'customer|guide|admin', 'app_role enum is exact');
+SELECT is((SELECT string_agg(e.enumlabel, '|' ORDER BY e.enumsortorder) FROM pg_catalog.pg_enum AS e JOIN pg_catalog.pg_type AS t ON t.oid = e.enumtypid JOIN pg_catalog.pg_namespace AS n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typname = 'audit_event_type'), 'role_provisioned|role_revoked|plan_claimed|request_submitted|request_changes_requested|request_approved|request_rejected|quote_created|quote_checkout_started|quote_accepted|quote_reactivated|quote_expired|quote_revoked|checkout_started|checkout_session_recorded|checkout_compensated|booking_status_changed|webhook_processed|webhook_ignored|webhook_failed|webhook_conflict|payment_reconciled|guide_assigned|guide_reassigned|guide_accepted|guide_completed|content_publish_started|content_published|content_publish_failed', 'audit_event_type enum is exhaustive');
+SELECT is((SELECT string_agg(e.enumlabel, '|' ORDER BY e.enumsortorder) FROM pg_catalog.pg_enum AS e JOIN pg_catalog.pg_type AS t ON t.oid = e.enumtypid JOIN pg_catalog.pg_namespace AS n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typname = 'audit_metadata_key'), 'role|source|status|state|decision|provider|currency|count|revision|attempt_no|amount_minor|replayed|is_demo', 'audit metadata keys are exact');
 
--- RLS and FORCE RLS choices are explicit for every public identity table and
--- for the private tables whose named NOBYPASSRLS owners write through definers.
+-- RLS and FORCE RLS are explicit for public identity tables and private
+-- tables touched by the named NOBYPASSRLS owners.
 SELECT ok((SELECT c.relrowsecurity FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'profiles'), 'profiles has RLS');
-SELECT ok((SELECT c.relrowsecurity FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'guide_profiles'), 'guide_profiles has RLS');
-SELECT ok((SELECT c.relrowsecurity FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'private' AND c.relname = 'user_roles'), 'user_roles has RLS');
-SELECT ok((SELECT c.relrowsecurity FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'private' AND c.relname = 'audit_events'), 'audit_events has RLS');
 SELECT ok((SELECT c.relforcerowsecurity FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'profiles'), 'profiles is FORCE RLS');
+SELECT ok((SELECT c.relrowsecurity FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'guide_profiles'), 'guide_profiles has RLS');
 SELECT ok((SELECT c.relforcerowsecurity FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'guide_profiles'), 'guide_profiles is FORCE RLS');
+SELECT ok((SELECT c.relrowsecurity FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'private' AND c.relname = 'user_roles'), 'user_roles has RLS');
 SELECT ok((SELECT c.relforcerowsecurity FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'private' AND c.relname = 'user_roles'), 'user_roles is FORCE RLS');
+SELECT ok((SELECT c.relrowsecurity FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'private' AND c.relname = 'audit_events'), 'audit_events has RLS');
 SELECT ok((SELECT c.relforcerowsecurity FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'private' AND c.relname = 'audit_events'), 'audit_events is FORCE RLS');
 
--- Signup success/failure, duplicate trigger execution, hostile metadata, and
--- exact forced-RLS owner policies are represented by catalog/body assertions;
--- the two-session behavior remains integration-deferred.
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger AS tr JOIN pg_catalog.pg_class AS c ON c.oid = tr.tgrelid JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'auth' AND c.relname = 'users' AND tr.tgname = 'on_auth_user_created' AND NOT tr.tgenabled = 'D'), 'auth signup trigger is enabled');
+-- Owner role hardening and least-privilege grant surface.
+SELECT ok((SELECT bool_and(NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolinherit AND NOT rolcanlogin AND NOT rolreplication AND NOT rolbypassrls) FROM pg_catalog.pg_roles WHERE rolname IN ('localens_auth_trigger_owner', 'localens_identity_rpc_owner', 'localens_admin_rpc_owner', 'localens_audit_guard_owner')), 'all definer owners are hardened NOLOGIN NOBYPASSRLS roles');
+SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members AS m WHERE m.roleid IN (SELECT oid FROM pg_catalog.pg_roles WHERE rolname IN ('localens_auth_trigger_owner', 'localens_identity_rpc_owner', 'localens_admin_rpc_owner', 'localens_audit_guard_owner')) OR m.member IN (SELECT oid FROM pg_catalog.pg_roles WHERE rolname IN ('localens_auth_trigger_owner', 'localens_identity_rpc_owner', 'localens_admin_rpc_owner', 'localens_audit_guard_owner'))), 'definer owners have no memberships');
+SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_namespace AS ns WHERE ns.nspname = 'public' AND ns.nspacl::text LIKE '%localens_audit_guard_owner%'), 'audit guard has no direct public schema grant');
+SELECT ok(NOT has_table_privilege('localens_admin_rpc_owner', 'public.guide_profiles', 'SELECT'), 'admin summary owner has no unused guide table grant');
+SELECT ok(NOT has_table_privilege('localens_audit_guard_owner', 'private.user_roles', 'SELECT'), 'audit guard has no role-table grant');
+SELECT ok(NOT has_schema_privilege('localens_auth_trigger_owner', 'auth', 'USAGE'), 'auth trigger owner has no auth schema privilege');
+SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_default_acl AS d JOIN pg_catalog.pg_namespace AS n ON n.oid = d.defaclnamespace WHERE n.nspname = 'private' AND d.defaclacl::text ~ '(anon|authenticated|PUBLIC)'), 'private default privileges exclude API roles and PUBLIC');
+SELECT ok(has_table_privilege('localens_auth_trigger_owner', 'public.profiles', 'SELECT') AND has_table_privilege('localens_auth_trigger_owner', 'public.profiles', 'INSERT'), 'auth trigger owner has profile SELECT and INSERT');
+SELECT ok(has_table_privilege('localens_auth_trigger_owner', 'private.user_roles', 'SELECT') AND has_table_privilege('localens_auth_trigger_owner', 'private.user_roles', 'INSERT'), 'auth trigger owner has role SELECT and INSERT');
+SELECT ok(NOT has_table_privilege('localens_auth_trigger_owner', 'public.profiles', 'UPDATE'), 'auth trigger owner has no profile UPDATE');
+SELECT ok(NOT has_table_privilege('localens_identity_rpc_owner', 'private.user_roles', 'UPDATE'), 'identity RPC owner has no role UPDATE');
+
+-- Definer properties, owner policies, and append-only trigger shape.
+SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger AS tr JOIN pg_catalog.pg_class AS c ON c.oid = tr.tgrelid JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'auth' AND c.relname = 'users' AND tr.tgname = 'on_auth_user_created' AND tr.tgenabled <> 'D'), 'auth signup trigger is enabled');
 SELECT ok((SELECT p.prosecdef FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'handle_new_auth_user'), 'auth trigger is SECURITY DEFINER');
-SELECT ok((SELECT p.proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'handle_new_auth_user'), 'auth trigger pins an empty search_path');
-SELECT is((SELECT pg_catalog.pg_get_userbyid(p.proowner) FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'handle_new_auth_user'), 'localens_auth_trigger_owner', 'auth trigger has a named owner');
-SELECT ok((SELECT pg_catalog.pg_get_functiondef(p.oid) LIKE '%ON CONFLICT (id) DO NOTHING%' FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'handle_new_auth_user'), 'signup profile insert is idempotent');
-SELECT ok((SELECT pg_catalog.pg_get_functiondef(p.oid) LIKE '%ON CONFLICT (user_id, role) DO NOTHING%' FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'handle_new_auth_user'), 'signup customer role insert is idempotent');
-SELECT ok((SELECT pg_catalog.pg_get_functiondef(p.oid) NOT LIKE '%raw_user_meta_data%' FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'handle_new_auth_user'), 'hostile signup role metadata is ignored');
+SELECT ok((SELECT p.proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'handle_new_auth_user'), 'auth trigger pins empty search_path');
+SELECT is((SELECT pg_catalog.pg_get_userbyid(p.proowner) FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'handle_new_auth_user'), 'localens_auth_trigger_owner', 'auth trigger has named owner');
+SELECT ok((SELECT pg_catalog.pg_get_functiondef(p.oid) NOT LIKE '%raw_user_meta_data%' AND pg_catalog.pg_get_functiondef(p.oid) LIKE '%ON CONFLICT (id) DO NOTHING%' AND pg_catalog.pg_get_functiondef(p.oid) LIKE '%ON CONFLICT (user_id, role) DO NOTHING%' FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'handle_new_auth_user'), 'signup trigger ignores hostile metadata and is duplicate-safe');
+SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'profiles' AND policyname = 'profiles_auth_trigger_select'), 'auth trigger profile SELECT policy exists');
+SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'private' AND tablename = 'user_roles' AND policyname = 'user_roles_auth_trigger_select'), 'auth trigger role SELECT policy exists');
+SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger AS tr JOIN pg_catalog.pg_class AS c ON c.oid = tr.tgrelid JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'private' AND c.relname = 'audit_events' AND tr.tgname = 'audit_events_append_only_truncate' AND (tr.tgtype & 32) <> 0), 'audit TRUNCATE trigger exists');
+SELECT ok(NOT has_table_privilege('anon', 'private.user_roles', 'SELECT') AND NOT has_table_privilege('authenticated', 'private.user_roles', 'SELECT'), 'API roles cannot read private roles');
+SELECT ok(NOT has_table_privilege('anon', 'private.audit_events', 'INSERT') AND NOT has_table_privilege('authenticated', 'private.audit_events', 'INSERT'), 'API roles cannot append private audit rows');
 
--- Role provisioning derives auth.uid, rejects self elevation, and audits the
--- successful insert atomically. Duplicate grants do not add a second audit row.
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'provision_role'), 'provision_role exists');
-SELECT ok((SELECT p.prosecdef FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'provision_role'), 'provision_role is SECURITY DEFINER');
-SELECT ok((SELECT p.proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'provision_role'), 'provision_role pins an empty search_path');
-SELECT is((SELECT pg_catalog.pg_get_userbyid(p.proowner) FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'provision_role'), 'localens_identity_rpc_owner', 'provision_role has a named owner');
-SELECT ok((SELECT pg_catalog.pg_get_functiondef(p.oid) LIKE '%auth.uid()%' FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'provision_role'), 'provision_role derives actor from auth.uid');
-SELECT ok((SELECT pg_catalog.pg_get_functiondef(p.oid) LIKE '%actor_user_id = target_user_id%' FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'provision_role'), 'provision_role rejects self elevation');
-SELECT ok((SELECT pg_catalog.pg_get_functiondef(p.oid) LIKE '%role = ''admin''::public.app_role%' FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'provision_role'), 'provision_role requires an admin role');
-SELECT ok((SELECT pg_catalog.pg_get_functiondef(p.oid) LIKE '%ON CONFLICT (user_id, role) DO NOTHING%' FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'provision_role'), 'duplicate role grants use explicit conflict handling');
-SELECT ok((SELECT pg_catalog.pg_get_functiondef(p.oid) LIKE '%private.audit_events%' FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'provision_role'), 'provision_role writes the scalar audit table');
+-- Signup behavior: the trigger uses only the auth row id, not hostile metadata.
+SELECT is((SELECT count(*)::integer FROM public.profiles WHERE id = '00000000-0000-0000-0000-000000000001'::uuid), 1, 'signup creates one customer profile');
+SELECT is((SELECT count(*)::integer FROM private.user_roles WHERE user_id = '00000000-0000-0000-0000-000000000001'::uuid AND role = 'customer'::public.app_role), 1, 'signup creates one customer role');
+SELECT is((SELECT count(*)::integer FROM private.user_roles WHERE user_id = '00000000-0000-0000-0000-000000000001'::uuid AND role = 'admin'::public.app_role), 1, 'explicit admin role is separate from hostile signup metadata');
 
--- Admins receive a sanitized named projection, not private table access.
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'admin_user_summary'), 'admin_user_summary exists');
-SELECT ok((SELECT p.prosecdef FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'admin_user_summary'), 'admin_user_summary is SECURITY DEFINER');
-SELECT ok((SELECT p.proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'admin_user_summary'), 'admin_user_summary pins an empty search_path');
-SELECT is((SELECT pg_catalog.pg_get_userbyid(p.proowner) FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'admin_user_summary'), 'localens_admin_rpc_owner', 'admin_user_summary has a named owner');
-SELECT ok((SELECT pg_catalog.pg_get_function_result(p.oid) LIKE '%user_id uuid%' AND pg_catalog.pg_get_function_result(p.oid) LIKE '%role public.app_role%' FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'admin_user_summary'), 'admin summary return columns are sanitized and explicit');
-SELECT ok(NOT has_function_privilege('anon', 'public.admin_user_summary()', 'EXECUTE'), 'anon cannot execute admin summary');
-SELECT ok(has_function_privilege('authenticated', 'public.admin_user_summary()', 'EXECUTE'), 'authenticated has only the named admin summary execute grant');
-SELECT ok(NOT has_table_privilege('anon', 'private.user_roles', 'SELECT'), 'anon cannot read private roles');
-SELECT ok(NOT has_table_privilege('authenticated', 'private.user_roles', 'SELECT'), 'authenticated cannot read private roles');
+-- Replaying the same auth insert is a no-op and leaves exactly one profile/role.
+INSERT INTO auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+VALUES ('00000000-0000-0000-0000-000000000001'::uuid, 'authenticated', 'authenticated', 'identity-1@example.invalid', '', '{}'::jsonb, jsonb_build_object('role', 'guide'), now(), now())
+ON CONFLICT (id) DO NOTHING;
+SELECT is((SELECT count(*)::integer FROM public.profiles WHERE id = '00000000-0000-0000-0000-000000000001'::uuid), 1, 'duplicate signup keeps one profile');
+SELECT is((SELECT count(*)::integer FROM private.user_roles WHERE user_id = '00000000-0000-0000-0000-000000000001'::uuid AND role = 'customer'::public.app_role), 1, 'duplicate signup keeps one customer role');
 
--- Customer/guide reads and NOBYPASSRLS owner writes are named policies.
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'profiles' AND policyname = 'profiles_customer_select'), 'customer profile policy is owner scoped');
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'guide_profiles' AND policyname = 'guide_profiles_guide_select'), 'guide profile policy is owner scoped');
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'profiles' AND policyname = 'profiles_auth_trigger_insert'), 'auth trigger has a FORCE RLS insert policy');
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'private' AND tablename = 'user_roles' AND policyname = 'user_roles_identity_rpc_insert'), 'role RPC has a FORCE RLS insert policy');
-SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'private' AND tablename = 'user_roles' AND roles && ARRAY['anon', 'authenticated']::name[] AND cmd IN ('INSERT', 'UPDATE', 'DELETE')), 'API roles have no role DML policies');
-SELECT ok(NOT has_table_privilege('anon', 'private.audit_events', 'INSERT'), 'anon cannot append private audit rows');
+-- The named NOBYPASSRLS auth owner can perform both ON CONFLICT operations.
+SET LOCAL ROLE localens_auth_trigger_owner;
+INSERT INTO public.profiles (id) VALUES ('00000000-0000-0000-0000-000000000002'::uuid) ON CONFLICT (id) DO NOTHING;
+INSERT INTO private.user_roles (user_id, role) VALUES ('00000000-0000-0000-0000-000000000002'::uuid, 'customer'::public.app_role) ON CONFLICT (user_id, role) DO NOTHING;
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM public.profiles WHERE id = '00000000-0000-0000-0000-000000000002'::uuid), 1, 'auth owner profile operation survives FORCE RLS');
+SELECT is((SELECT count(*)::integer FROM private.user_roles WHERE user_id = '00000000-0000-0000-0000-000000000002'::uuid AND role = 'customer'::public.app_role), 1, 'auth owner role operation survives FORCE RLS');
 
--- Audit rows are append-only and their guard is hardened as a named definer.
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger AS tr JOIN pg_catalog.pg_class AS c ON c.oid = tr.tgrelid JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'private' AND c.relname = 'audit_events' AND tr.tgname = 'audit_events_append_only'), 'audit rows have an append-only trigger');
-SELECT ok((SELECT p.prosecdef FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'reject_audit_mutation'), 'append-only guard is SECURITY DEFINER');
-SELECT ok((SELECT p.proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'reject_audit_mutation'), 'append-only guard pins an empty search_path');
-SELECT is((SELECT pg_catalog.pg_get_userbyid(p.proowner) FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'private' AND p.proname = 'reject_audit_mutation'), 'localens_audit_guard_owner', 'append-only guard has a named owner');
+-- Customer own-vs-cross-user reads and client write denial.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000002', 'role', 'authenticated')::text, true);
+SELECT is((SELECT count(*)::integer FROM public.profiles WHERE id = '00000000-0000-0000-0000-000000000002'::uuid), 1, 'customer reads own profile');
+SELECT is((SELECT count(*)::integer FROM public.profiles WHERE id IN ('00000000-0000-0000-0000-000000000001'::uuid, '00000000-0000-0000-0000-000000000003'::uuid)), 0, 'customer cannot read cross-user profiles');
+SELECT throws_ok($$INSERT INTO public.profiles (id) VALUES ('00000000-0000-0000-0000-000000000003'::uuid)$$, '42501', NULL, 'customer cannot insert profiles');
+SELECT throws_ok($$UPDATE public.profiles SET display_name = 'cross-user' WHERE id = '00000000-0000-0000-0000-000000000001'::uuid$$, '42501', NULL, 'customer cannot update profiles');
+SELECT throws_ok($$UPDATE public.guide_profiles SET display_name = 'cross-user' WHERE user_id = '00000000-0000-0000-0000-000000000004'::uuid$$, '42501', NULL, 'customer cannot update guide profiles');
+RESET ROLE;
 
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000004', 'role', 'authenticated')::text, true);
+SELECT is((SELECT count(*)::integer FROM public.guide_profiles WHERE user_id = '00000000-0000-0000-0000-000000000004'::uuid), 1, 'guide reads own guide profile');
+SELECT is((SELECT count(*)::integer FROM public.guide_profiles WHERE user_id = '00000000-0000-0000-0000-000000000002'::uuid), 0, 'guide cannot read another guide profile');
+RESET ROLE;
+
+-- Role provisioning derives the actor from auth.uid, requires admin, rejects
+-- self elevation, and audits only the first insert.
+SET LOCAL ROLE localens_identity_rpc_owner;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000001', 'role', 'authenticated')::text, true);
+SELECT private.provision_role('00000000-0000-0000-0000-000000000003'::uuid, 'guide'::public.app_role);
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM private.user_roles WHERE user_id = '00000000-0000-0000-0000-000000000003'::uuid AND role = 'guide'::public.app_role), 1, 'admin can provision a guide role');
+SELECT is((SELECT count(*)::integer FROM private.audit_events WHERE event_type = 'role_provisioned'::public.audit_event_type AND target_id = '00000000-0000-0000-0000-000000000003'), 1, 'first role provision writes one audit event');
+
+SET LOCAL ROLE localens_identity_rpc_owner;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+SELECT private.provision_role('00000000-0000-0000-0000-000000000003'::uuid, 'guide'::public.app_role);
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM private.audit_events WHERE event_type = 'role_provisioned'::public.audit_event_type AND target_id = '00000000-0000-0000-0000-000000000003'), 1, 'duplicate role provision does not duplicate its audit');
+
+SET LOCAL ROLE localens_identity_rpc_owner;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+SELECT throws_ok($$SELECT private.provision_role('00000000-0000-0000-0000-000000000003'::uuid, 'admin'::public.app_role)$$, '42501', NULL, 'unauthorized actor cannot provision a role');
+RESET ROLE;
+
+-- Closed metadata keys and per-key scalar domains reject PII, tokens, device
+-- identifiers, arbitrary values, wrong scalar types, and unsafe numbers.
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_text) VALUES ('role_provisioned'::public.audit_event_type, 'test', 'meta-email', 'role'::public.audit_metadata_key, 'evil@example.invalid')$$, '23514', NULL, 'audit metadata rejects email values');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_text) VALUES ('role_provisioned'::public.audit_event_type, 'test', 'meta-token', 'token'::public.audit_metadata_key, 'opaque')$$, '22P02', NULL, 'audit metadata rejects token keys');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_text) VALUES ('role_provisioned'::public.audit_event_type, 'test', 'meta-device', 'device_id'::public.audit_metadata_key, 'opaque')$$, '22P02', NULL, 'audit metadata rejects device keys');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_text) VALUES ('role_provisioned'::public.audit_event_type, 'test', 'meta-arbitrary', 'source'::public.audit_metadata_key, 'arbitrary')$$, '23514', NULL, 'audit metadata rejects arbitrary text');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_boolean) VALUES ('role_provisioned'::public.audit_event_type, 'test', 'meta-type', 'role'::public.audit_metadata_key, true)$$, '23514', NULL, 'audit metadata rejects wrong scalar types');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_number) VALUES ('role_provisioned'::public.audit_event_type, 'test', 'meta-negative', 'count'::public.audit_metadata_key, -1)$$, '23514', NULL, 'audit metadata rejects negative numbers');
+
+SET LOCAL ROLE localens_identity_rpc_owner;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+SELECT throws_ok($$SELECT private.provision_role('00000000-0000-0000-0000-000000000001'::uuid, 'admin'::public.app_role)$$, '42501', NULL, 'admin cannot self-elevate');
+RESET ROLE;
+
+-- Sanitized admin summary is callable only by an admin JWT.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000001', 'role', 'authenticated')::text, true);
+SELECT is((SELECT count(*)::integer FROM public.admin_user_summary() WHERE user_id = '00000000-0000-0000-0000-000000000001'::uuid), 2, 'admin summary returns only explicit role rows');
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+SELECT throws_ok($$SELECT count(*) FROM public.admin_user_summary()$$, '42501', NULL, 'non-admin cannot execute admin summary');
+RESET ROLE;
+
+-- Append-only behavior is tested with the migration session role so failure is
+-- caused by the trigger, not merely by a client grant denial.
+SELECT throws_ok($$UPDATE private.audit_events SET target_id = 'changed' WHERE target_id = '00000000-0000-0000-0000-000000000003'$$, '42501', NULL, 'audit UPDATE is rejected');
+SELECT throws_ok($$DELETE FROM private.audit_events WHERE target_id = '00000000-0000-0000-0000-000000000003'$$, '42501', NULL, 'audit DELETE is rejected');
+SELECT throws_ok($$TRUNCATE private.audit_events$$, '42501', NULL, 'audit TRUNCATE is rejected');
+
+-- Identity owner INSERT and admin owner SELECT exercise FORCE RLS policies.
+SET LOCAL ROLE localens_identity_rpc_owner;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+SELECT private.provision_role('00000000-0000-0000-0000-000000000004'::uuid, 'guide'::public.app_role);
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM private.user_roles WHERE user_id = '00000000-0000-0000-0000-000000000004'::uuid AND role = 'guide'::public.app_role), 1, 'identity owner can write roles under FORCE RLS');
+
+SET LOCAL ROLE localens_admin_rpc_owner;
+SELECT is((SELECT count(*)::integer FROM public.profiles), 4, 'admin owner can read profiles under FORCE RLS');
+SELECT is((SELECT count(*)::integer FROM private.user_roles), 7, 'admin owner can read roles under FORCE RLS');
+RESET ROLE;
+
+RESET request.jwt.claim.sub;
+RESET request.jwt.claims;
 SELECT * FROM finish();
 ROLLBACK;
