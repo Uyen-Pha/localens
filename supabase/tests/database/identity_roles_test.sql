@@ -3,7 +3,7 @@
 -- after a reset that provides auth.users, anon/authenticated roles, and pgTAP.
 BEGIN;
 
-SELECT plan(70);
+SELECT plan(89);
 
 -- Fixed IDs keep the behavior checks deterministic and rollback-safe.
 RESET ROLE;
@@ -12,7 +12,8 @@ WHERE id IN (
   '00000000-0000-0000-0000-000000000001'::uuid,
   '00000000-0000-0000-0000-000000000002'::uuid,
   '00000000-0000-0000-0000-000000000003'::uuid,
-  '00000000-0000-0000-0000-000000000004'::uuid
+  '00000000-0000-0000-0000-000000000004'::uuid,
+  '00000000-0000-0000-0000-000000000005'::uuid
 );
 
 -- Hostile signup metadata is intentionally present in every row. The trigger
@@ -44,6 +45,7 @@ SELECT ok(to_regclass('private.user_roles') IS NOT NULL, 'private user_roles tab
 SELECT ok(to_regclass('private.audit_events') IS NOT NULL, 'private audit_events table exists');
 SELECT is((SELECT string_agg(e.enumlabel, '|' ORDER BY e.enumsortorder) FROM pg_catalog.pg_enum AS e JOIN pg_catalog.pg_type AS t ON t.oid = e.enumtypid JOIN pg_catalog.pg_namespace AS n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typname = 'app_role'), 'customer|guide|admin', 'app_role enum is exact');
 SELECT is((SELECT string_agg(e.enumlabel, '|' ORDER BY e.enumsortorder) FROM pg_catalog.pg_enum AS e JOIN pg_catalog.pg_type AS t ON t.oid = e.enumtypid JOIN pg_catalog.pg_namespace AS n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typname = 'audit_event_type'), 'role_provisioned|role_revoked|plan_claimed|request_submitted|request_changes_requested|request_approved|request_rejected|quote_created|quote_checkout_started|quote_accepted|quote_reactivated|quote_expired|quote_revoked|checkout_started|checkout_session_recorded|checkout_compensated|booking_status_changed|webhook_processed|webhook_ignored|webhook_failed|webhook_conflict|payment_reconciled|guide_assigned|guide_reassigned|guide_accepted|guide_completed|content_publish_started|content_published|content_publish_failed', 'audit_event_type enum is exhaustive');
+SELECT is((SELECT string_agg(e.enumlabel, '|' ORDER BY e.enumsortorder) FROM pg_catalog.pg_enum AS e JOIN pg_catalog.pg_type AS t ON t.oid = e.enumtypid JOIN pg_catalog.pg_namespace AS n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typname = 'audit_target_type'), 'user|trip_plan|custom_request|custom_quote|checkout_attempt|booking|payment|webhook_event|guide_assignment|content_release|catalog_snapshot|tour_version|departure', 'audit_target_type enum is exhaustive');
 SELECT is((SELECT string_agg(e.enumlabel, '|' ORDER BY e.enumsortorder) FROM pg_catalog.pg_enum AS e JOIN pg_catalog.pg_type AS t ON t.oid = e.enumtypid JOIN pg_catalog.pg_namespace AS n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typname = 'audit_metadata_key'), 'role|source|status|state|decision|provider|currency|count|revision|attempt_no|amount_minor|replayed|is_demo', 'audit metadata keys are exact');
 
 -- RLS and FORCE RLS are explicit for public identity tables and private
@@ -143,12 +145,12 @@ RESET ROLE;
 
 -- Closed metadata keys and per-key scalar domains reject PII, tokens, device
 -- identifiers, arbitrary values, wrong scalar types, and unsafe numbers.
-SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_text) VALUES ('role_provisioned'::public.audit_event_type, 'test', 'meta-email', 'role'::public.audit_metadata_key, 'evil@example.invalid')$$, '23514', NULL, 'audit metadata rejects email values');
-SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_text) VALUES ('role_provisioned'::public.audit_event_type, 'test', 'meta-token', 'token'::public.audit_metadata_key, 'opaque')$$, '22P02', NULL, 'audit metadata rejects token keys');
-SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_text) VALUES ('role_provisioned'::public.audit_event_type, 'test', 'meta-device', 'device_id'::public.audit_metadata_key, 'opaque')$$, '22P02', NULL, 'audit metadata rejects device keys');
-SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_text) VALUES ('role_provisioned'::public.audit_event_type, 'test', 'meta-arbitrary', 'source'::public.audit_metadata_key, 'arbitrary')$$, '23514', NULL, 'audit metadata rejects arbitrary text');
-SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_boolean) VALUES ('role_provisioned'::public.audit_event_type, 'test', 'meta-type', 'role'::public.audit_metadata_key, true)$$, '23514', NULL, 'audit metadata rejects wrong scalar types');
-SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_number) VALUES ('role_provisioned'::public.audit_event_type, 'test', 'meta-negative', 'count'::public.audit_metadata_key, -1)$$, '23514', NULL, 'audit metadata rejects negative numbers');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_text) VALUES ('role_provisioned'::public.audit_event_type, 'user'::public.audit_target_type, '00000000-0000-0000-0000-000000000005'::uuid, 'role'::public.audit_metadata_key, 'evil@example.invalid')$$, '23514', NULL, 'audit metadata rejects email values');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_text) VALUES ('role_provisioned'::public.audit_event_type, 'user'::public.audit_target_type, '00000000-0000-0000-0000-000000000005'::uuid, 'token'::public.audit_metadata_key, 'opaque')$$, '22P02', NULL, 'audit metadata rejects token keys');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_text) VALUES ('role_provisioned'::public.audit_event_type, 'user'::public.audit_target_type, '00000000-0000-0000-0000-000000000005'::uuid, 'device_id'::public.audit_metadata_key, 'opaque')$$, '22P02', NULL, 'audit metadata rejects device keys');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_text) VALUES ('role_provisioned'::public.audit_event_type, 'user'::public.audit_target_type, '00000000-0000-0000-0000-000000000005'::uuid, 'source'::public.audit_metadata_key, 'arbitrary')$$, '23514', NULL, 'audit metadata rejects arbitrary text');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_boolean) VALUES ('role_provisioned'::public.audit_event_type, 'user'::public.audit_target_type, '00000000-0000-0000-0000-000000000005'::uuid, 'role'::public.audit_metadata_key, true)$$, '23514', NULL, 'audit metadata rejects wrong scalar types');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id, metadata_key, metadata_number) VALUES ('role_provisioned'::public.audit_event_type, 'user'::public.audit_target_type, '00000000-0000-0000-0000-000000000005'::uuid, 'count'::public.audit_metadata_key, -1)$$, '23514', NULL, 'audit metadata rejects negative numbers');
 
 SET LOCAL ROLE localens_identity_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
@@ -168,7 +170,7 @@ RESET ROLE;
 
 -- Append-only behavior is tested with the migration session role so failure is
 -- caused by the trigger, not merely by a client grant denial.
-SELECT throws_ok($$UPDATE private.audit_events SET target_id = 'changed' WHERE target_id = '00000000-0000-0000-0000-000000000003'$$, '42501', NULL, 'audit UPDATE is rejected');
+SELECT throws_ok($$UPDATE private.audit_events SET target_id = '00000000-0000-0000-0000-000000000005'::uuid WHERE target_id = '00000000-0000-0000-0000-000000000003'::uuid$$, '42501', NULL, 'audit UPDATE is rejected');
 SELECT throws_ok($$DELETE FROM private.audit_events WHERE target_id = '00000000-0000-0000-0000-000000000003'$$, '42501', NULL, 'audit DELETE is rejected');
 SELECT throws_ok($$TRUNCATE private.audit_events$$, '42501', NULL, 'audit TRUNCATE is rejected');
 
@@ -183,6 +185,38 @@ SET LOCAL ROLE localens_admin_rpc_owner;
 SELECT is((SELECT count(*)::integer FROM public.profiles), 4, 'admin owner can read profiles under FORCE RLS');
 SELECT is((SELECT count(*)::integer FROM private.user_roles), 7, 'admin owner can read roles under FORCE RLS');
 RESET ROLE;
+
+-- Removing both exact trigger-owner INSERT grants makes signup atomic: the
+-- auth row, profile, and customer role all roll back together. Grants are
+-- restored inside this transaction for the remaining checks.
+REVOKE INSERT ON TABLE public.profiles, private.user_roles FROM localens_auth_trigger_owner;
+SELECT throws_ok($$INSERT INTO auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+  VALUES ('00000000-0000-0000-0000-000000000005'::uuid, 'authenticated', 'authenticated', 'identity-5@example.invalid', '', '{}'::jsonb, jsonb_build_object('role', 'admin'), now(), now())$$, '42501', NULL, 'signup rollback rejects missing trigger-owner INSERT');
+SELECT is((SELECT count(*)::integer FROM auth.users WHERE id = '00000000-0000-0000-0000-000000000005'::uuid), 0, 'signup rollback removes auth row');
+SELECT is((SELECT count(*)::integer FROM public.profiles WHERE id = '00000000-0000-0000-0000-000000000005'::uuid), 0, 'signup rollback removes profile');
+SELECT is((SELECT count(*)::integer FROM private.user_roles WHERE user_id = '00000000-0000-0000-0000-000000000005'::uuid), 0, 'signup rollback removes customer role');
+GRANT INSERT ON TABLE public.profiles, private.user_roles TO localens_auth_trigger_owner;
+
+-- Target type and UUID identity prevent raw IP/device/token/email values from
+-- entering audit facts; metadata failures below use valid target IDs.
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id) VALUES ('role_provisioned'::public.audit_event_type, 'ip_address'::public.audit_target_type, '00000000-0000-0000-0000-000000000005'::uuid)$$, '22P02', NULL, 'audit target rejects IP type');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id) VALUES ('role_provisioned'::public.audit_event_type, 'device_id'::public.audit_target_type, '00000000-0000-0000-0000-000000000005'::uuid)$$, '22P02', NULL, 'audit target rejects device type');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id) VALUES ('role_provisioned'::public.audit_event_type, 'token'::public.audit_target_type, '00000000-0000-0000-0000-000000000005'::uuid)$$, '22P02', NULL, 'audit target rejects token type');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id) VALUES ('role_provisioned'::public.audit_event_type, 'email'::public.audit_target_type, '00000000-0000-0000-0000-000000000005'::uuid)$$, '22P02', NULL, 'audit target rejects email type');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id) VALUES ('role_provisioned'::public.audit_event_type, 'arbitrary'::public.audit_target_type, '00000000-0000-0000-0000-000000000005'::uuid)$$, '22P02', NULL, 'audit target rejects arbitrary type');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id) VALUES ('role_provisioned'::public.audit_event_type, 'user'::public.audit_target_type, '192.0.2.1')$$, '22P02', NULL, 'audit target rejects IP value');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id) VALUES ('role_provisioned'::public.audit_event_type, 'user'::public.audit_target_type, 'device-123')$$, '22P02', NULL, 'audit target rejects device value');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id) VALUES ('role_provisioned'::public.audit_event_type, 'user'::public.audit_target_type, 'token-secret')$$, '22P02', NULL, 'audit target rejects token value');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id) VALUES ('role_provisioned'::public.audit_event_type, 'user'::public.audit_target_type, 'person@example.invalid')$$, '22P02', NULL, 'audit target rejects email value');
+SELECT throws_ok($$INSERT INTO private.audit_events (event_type, target_type, target_id) VALUES ('role_provisioned'::public.audit_event_type, 'user'::public.audit_target_type, 'not-a-uuid')$$, '22P02', NULL, 'audit target rejects arbitrary value');
+
+-- Operational identity rows cascade with auth.users; historical audit actors
+-- deliberately block deletion instead.
+SELECT throws_ok($$DELETE FROM auth.users WHERE id = '00000000-0000-0000-0000-000000000001'::uuid$$, '23503', NULL, 'audit actor FK restricts deletion');
+DELETE FROM auth.users WHERE id = '00000000-0000-0000-0000-000000000004'::uuid;
+SELECT is((SELECT count(*)::integer FROM public.profiles WHERE id = '00000000-0000-0000-0000-000000000004'::uuid), 0, 'auth deletion cascades profile');
+SELECT is((SELECT count(*)::integer FROM public.guide_profiles WHERE user_id = '00000000-0000-0000-0000-000000000004'::uuid), 0, 'auth deletion cascades guide profile');
+SELECT is((SELECT count(*)::integer FROM private.user_roles WHERE user_id = '00000000-0000-0000-0000-000000000004'::uuid), 0, 'auth deletion cascades roles');
 
 RESET request.jwt.claim.sub;
 RESET request.jwt.claims;

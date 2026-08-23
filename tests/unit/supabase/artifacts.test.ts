@@ -121,6 +121,22 @@ describe("static Supabase artifact gate", () => {
     expect(identity).toMatch(/CREATE POLICY profiles_auth_trigger_select ON public\.profiles[\s\S]*FOR SELECT TO localens_auth_trigger_owner/i);
     expect(identity).toMatch(/CREATE POLICY user_roles_auth_trigger_select ON private\.user_roles[\s\S]*FOR SELECT TO localens_auth_trigger_owner/i);
     expect(identity).toMatch(/actor_user_id uuid REFERENCES auth\.users\(id\) ON DELETE RESTRICT/i);
+    expect(identity).toMatch(/id uuid PRIMARY KEY REFERENCES auth\.users\(id\) ON DELETE CASCADE/i);
+    expect(identity).toMatch(/user_id uuid PRIMARY KEY REFERENCES auth\.users\(id\) ON DELETE CASCADE/i);
+    expect(identity).toMatch(/user_id uuid NOT NULL REFERENCES auth\.users\(id\) ON DELETE CASCADE/i);
+
+    expect(sql).toMatch(/CREATE TYPE public\.audit_target_type AS ENUM/i);
+    for (const targetType of [
+      "user", "trip_plan", "custom_request", "custom_quote", "checkout_attempt", "booking",
+      "payment", "webhook_event", "guide_assignment", "content_release", "catalog_snapshot",
+      "tour_version", "departure",
+    ]) {
+      expect(sql).toContain(`'${targetType}'`);
+    }
+    expect(identity).toMatch(/target_type public\.audit_target_type NOT NULL/i);
+    expect(identity).toMatch(/target_id uuid NOT NULL/i);
+    expect(identity).not.toMatch(/target_type text|target_id text/i);
+    expect(identity).toMatch(/target_type,\s*\n\s*target_id,\s*[\s\S]*'user'(?:::public\.audit_target_type)?,\s*\n\s*target_user_id/i);
 
     expect(sql).toMatch(/CREATE TYPE public\.audit_metadata_key AS ENUM/i);
     for (const key of ["role", "source", "status", "state", "decision", "provider", "currency", "count", "revision", "attempt_no", "amount_minor", "replayed", "is_demo"]) {
@@ -143,6 +159,7 @@ describe("static Supabase artifact gate", () => {
     expect(identity).toMatch(/GRANT EXECUTE ON FUNCTION auth\.uid\(\) TO localens_identity_rpc_owner, localens_admin_rpc_owner/i);
 
     expect(pgTap).toMatch(/INSERT INTO auth\.users[\s\S]*raw_user_meta_data/i);
+    expect(pgTap).toMatch(/SELECT plan\(89\)/i);
     expect(pgTap).toMatch(/SET LOCAL ROLE authenticated/i);
     expect(pgTap).toMatch(/request\.jwt\.claim\.sub/i);
     expect(pgTap).toMatch(/UPDATE private\.audit_events/i);
@@ -150,6 +167,11 @@ describe("static Supabase artifact gate", () => {
     expect(pgTap).toMatch(/TRUNCATE private\.audit_events/i);
     expect(pgTap).toMatch(/provision_role[\s\S]*self[- ]elevat/i);
     expect(pgTap).toMatch(/admin_user_summary[\s\S]*(?:admin JWT|non-admin|admin summary)/i);
+    expect(pgTap).toMatch(/REVOKE INSERT ON TABLE public\.profiles, private\.user_roles FROM localens_auth_trigger_owner/i);
+    expect(pgTap).toMatch(/signup rollback[\s\S]*auth row[\s\S]*profile[\s\S]*role/i);
+    expect(pgTap).toMatch(/audit target rejects (?:IP|device|token|email|arbitrary)/i);
+    expect(pgTap).toMatch(/audit actor FK restricts deletion/i);
+    expect(pgTap).toMatch(/auth deletion cascades profile[\s\S]*auth deletion cascades guide profile[\s\S]*auth deletion cascades roles/i);
   });
 
   it("passes an empty migration directory because seed data is optional", () => {
