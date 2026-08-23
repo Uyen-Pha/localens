@@ -7,6 +7,7 @@ import {
   parseEngineInput,
   type EngineInput,
   type ItineraryRequest,
+  type OpeningWindow,
 } from "@/lib/domain/itinerary/contracts";
 import { domainError } from "@/lib/domain/itinerary/errors";
 import {
@@ -28,6 +29,14 @@ function expectInvalid(source: unknown, issueKey?: string) {
 }
 
 describe("itinerary domain contracts", () => {
+  it("infers OpeningWindow weekdays as the seven literal weekday values", () => {
+    const weekday: OpeningWindow["weekday"] = 6;
+    expect(weekday).toBe(6);
+    // @ts-expect-error OpeningWindow weekdays are restricted to 0 through 6.
+    const invalidWeekday: OpeningWindow["weekday"] = 7;
+    expect(invalidWeekday).toBe(7);
+  });
+
   it("parses the complete deterministic catalog fixture", () => {
     const result = parseEngineInput(itineraryFixture);
 

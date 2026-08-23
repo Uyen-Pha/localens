@@ -194,6 +194,15 @@ export const supportStatusSchema = z.enum([
   "unsupported",
   "unknown",
 ]);
+export const weekdaySchema = z.union([
+  z.literal(0),
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+  z.literal(5),
+  z.literal(6),
+]);
 export const paceSchema = z.enum(["relaxed", "balanced", "active"]);
 export const currencySchema = z.enum(["VND", "USD"]);
 export const priorityWeightSchema = z.union([
@@ -253,7 +262,7 @@ const budgetSchema = z
 
 export const openingWindowSchema = z
   .object({
-    weekday: z.number().int().min(0).max(6),
+    weekday: weekdaySchema,
     opensAt: hhmmSchema,
     closesAt: hhmmSchema,
   })
@@ -544,6 +553,7 @@ export type ItineraryResult = z.infer<typeof itineraryResultSchema>;
 export const LocaleSchema = localeSchema;
 export const ExperienceTypeSchema = experienceTypeSchema;
 export const SupportStatusSchema = supportStatusSchema;
+export const WeekdaySchema = weekdaySchema;
 export const PaceSchema = paceSchema;
 export const CurrencySchema = currencySchema;
 export const PriorityWeightsSchema = priorityWeightsSchema;

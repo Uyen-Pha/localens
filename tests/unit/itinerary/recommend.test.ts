@@ -353,6 +353,30 @@ describe("recommendItinerary", () => {
     });
   });
 
+  it("never echoes a locked ID in create or recommend domain errors", async () => {
+    const input = deterministicSource();
+    input.request.lockedStopIds = ["guest@example.com"];
+    const ranker = vi.fn(async () => ({
+      orderedIds: ["guest@example.com"],
+      rationales: { "guest@example.com": "must not run" },
+    }));
+
+    const created = createItinerary(input);
+    const recommended = await recommendItinerary(input, { ranker });
+
+    expect(JSON.stringify(created)).not.toContain("guest@example.com");
+    expect(JSON.stringify(recommended)).not.toContain("guest@example.com");
+    expect(created).toMatchObject({
+      ok: false,
+      error: { issueKeys: ["request.lockedStopIds.0"] },
+    });
+    expect(recommended).toMatchObject({
+      ok: false,
+      error: { issueKeys: ["request.lockedStopIds.0"] },
+    });
+    expect(ranker).not.toHaveBeenCalled();
+  });
+
   it("returns a deterministic preflight error unchanged without invoking the provider", async () => {
     const impossible = {
       ...deterministicSource(),

@@ -53,7 +53,7 @@ describe("filterCandidates", () => {
         code: "NO_FEASIBLE_ITINERARY",
         messageKey: "itinerary.locked_stop.ineligible",
         retryable: false,
-        issueKeys: ["lockedStopIds.missing-place"],
+        issueKeys: ["request.lockedStopIds.0"],
       },
     });
   });
@@ -67,7 +67,7 @@ describe("filterCandidates", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("NO_FEASIBLE_ITINERARY");
-      expect(result.error.issueKeys).toEqual(["lockedStopIds.place-banh-mi"]);
+      expect(result.error.issueKeys).toEqual(["request.lockedStopIds.0"]);
     }
   });
 

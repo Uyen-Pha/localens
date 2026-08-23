@@ -20,12 +20,12 @@ const invalidFilter = <T>(): Result<T> => ({
   ),
 });
 
-const lockedFailure = (placeId: string): Result<PlaceCandidate[]> => ({
+const lockedFailure = (index: number): Result<PlaceCandidate[]> => ({
   ok: false,
   error: domainError(
     "NO_FEASIBLE_ITINERARY",
     "itinerary.locked_stop.ineligible",
-    [`lockedStopIds.${placeId}`],
+    [`request.lockedStopIds.${index}`],
   ),
 });
 
@@ -84,6 +84,9 @@ export function filterCandidates(
   const { request, catalog } = input;
   const areas = new Set(request.areas);
   const lockedIds = new Set(request.lockedStopIds);
+  const lockedIndexes = new Map(
+    request.lockedStopIds.map((lockedId, index) => [lockedId, index]),
+  );
   const weights = request.priorityWeights;
   const places = catalog.places;
   const byId = new Map<string, PlaceCandidate>();
@@ -100,8 +103,8 @@ export function filterCandidates(
     byId.set(place.id, place);
   }
 
-  for (const lockedId of request.lockedStopIds) {
-    if (!byId.has(lockedId)) return lockedFailure(lockedId);
+  for (const [index, lockedId] of request.lockedStopIds.entries()) {
+    if (!byId.has(lockedId)) return lockedFailure(index);
   }
 
   const result: PlaceCandidate[] = [];
@@ -137,7 +140,9 @@ export function filterCandidates(
       budgetMatches &&
       (hasSelectedType || locked);
 
-    if (locked && !eligible) return lockedFailure(place.id);
+    if (locked && !eligible) {
+      return lockedFailure(lockedIndexes.get(place.id) ?? 0);
+    }
     if (eligible) result.push(place);
   }
 
