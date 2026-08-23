@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -39,6 +39,64 @@ function runChecker(root: string, ...args: string[]): { status: number; output: 
 }
 
 describe("static Supabase artifact gate", () => {
+  it("requires the Task 2 identity migration and deferred pgTAP artifact", () => {
+    const required = [
+      join(repoRoot, "supabase", "migrations", "20260823090000_extensions_enums.sql"),
+      join(repoRoot, "supabase", "migrations", "20260823091000_identity_roles.sql"),
+      join(repoRoot, "supabase", "tests", "database", "identity_roles_test.sql"),
+    ];
+
+    expect(required.every((path) => existsSync(path))).toBe(true);
+  });
+
+  it("enforces the identity SQL security contract instead of accepting marker-only migrations", () => {
+    const extensionsPath = join(repoRoot, "supabase", "migrations", "20260823090000_extensions_enums.sql");
+    const identityPath = join(repoRoot, "supabase", "migrations", "20260823091000_identity_roles.sql");
+    if (!existsSync(extensionsPath) || !existsSync(identityPath)) return;
+
+    const extensions = readFileSync(extensionsPath, "utf8");
+    const identity = readFileSync(identityPath, "utf8");
+    const sql = `${extensions}\n${identity}`;
+    expect(runChecker(repoRoot)).toMatchObject({ status: 0 });
+    const auditEventTypes = [
+      "role_provisioned", "role_revoked", "plan_claimed", "request_submitted",
+      "request_changes_requested", "request_approved", "request_rejected", "quote_created",
+      "quote_checkout_started", "quote_accepted", "quote_reactivated", "quote_expired", "quote_revoked",
+      "checkout_started", "checkout_session_recorded", "checkout_compensated", "booking_status_changed",
+      "webhook_processed", "webhook_ignored", "webhook_failed", "webhook_conflict", "payment_reconciled",
+      "guide_assigned", "guide_reassigned", "guide_accepted", "guide_completed", "content_publish_started",
+      "content_published", "content_publish_failed",
+    ];
+
+    expect(sql).toMatch(/CREATE SCHEMA IF NOT EXISTS private/i);
+    expect(sql).toMatch(/REVOKE ALL ON SCHEMA private FROM PUBLIC, anon, authenticated/i);
+    expect(sql).toMatch(/ALTER DEFAULT PRIVILEGES IN SCHEMA private REVOKE ALL ON TABLES FROM PUBLIC, anon, authenticated/i);
+    expect(sql).toMatch(/ALTER DEFAULT PRIVILEGES IN SCHEMA private REVOKE ALL ON SEQUENCES FROM PUBLIC, anon, authenticated/i);
+    expect(sql).toMatch(/ALTER DEFAULT PRIVILEGES IN SCHEMA private REVOKE ALL ON FUNCTIONS FROM PUBLIC, anon, authenticated/i);
+    for (const value of auditEventTypes) expect(sql).toContain(`'${value}'`);
+
+    expect(identity).toMatch(/CREATE TABLE private\.user_roles[\s\S]*UNIQUE\s*\(user_id,\s*role\)/i);
+    expect(identity).toMatch(/ON CONFLICT\s*\(user_id,\s*role\)\s+DO NOTHING/i);
+    expect(identity).toMatch(/CREATE OR REPLACE FUNCTION private\.handle_new_auth_user\(\)[\s\S]*SECURITY DEFINER[\s\S]*SET search_path\s*=\s*''/i);
+    expect(identity).toMatch(/CREATE OR REPLACE FUNCTION private\.provision_role\([\s\S]*SECURITY DEFINER[\s\S]*SET search_path\s*=\s*''/i);
+    expect(identity).toMatch(/CREATE OR REPLACE FUNCTION public\.admin_user_summary\(\)[\s\S]*SECURITY DEFINER[\s\S]*SET search_path\s*=\s*''/i);
+    expect(identity).not.toMatch(/raw_user_meta_data/i);
+    expect(identity).toMatch(/ALTER TABLE public\.profiles ENABLE ROW LEVEL SECURITY[\s\S]*ALTER TABLE public\.profiles FORCE ROW LEVEL SECURITY/i);
+    expect(identity).toMatch(/ALTER TABLE public\.guide_profiles ENABLE ROW LEVEL SECURITY[\s\S]*ALTER TABLE public\.guide_profiles FORCE ROW LEVEL SECURITY/i);
+    expect(identity).toMatch(/ALTER TABLE private\.user_roles ENABLE ROW LEVEL SECURITY[\s\S]*ALTER TABLE private\.user_roles FORCE ROW LEVEL SECURITY/i);
+    expect(identity).toMatch(/ALTER TABLE private\.audit_events ENABLE ROW LEVEL SECURITY[\s\S]*ALTER TABLE private\.audit_events FORCE ROW LEVEL SECURITY/i);
+    expect(identity).toMatch(/NOLOGIN[\s\S]*NOBYPASSRLS/i);
+    expect(identity).toMatch(/ALTER FUNCTION private\.handle_new_auth_user\(\) OWNER TO localens_[a-z_]+/i);
+    expect(identity).toMatch(/ALTER FUNCTION private\.provision_role\(uuid, public\.app_role\) OWNER TO localens_[a-z_]+/i);
+    expect(identity).toMatch(/ALTER FUNCTION public\.admin_user_summary\(\) OWNER TO localens_[a-z_]+/i);
+    expect(identity).toMatch(/REVOKE ALL ON FUNCTION private\.handle_new_auth_user\(\) FROM PUBLIC, anon, authenticated/i);
+    expect(identity).toMatch(/REVOKE ALL ON FUNCTION private\.provision_role\(uuid, public\.app_role\) FROM PUBLIC, anon, authenticated/i);
+    expect(identity).toMatch(/REVOKE ALL ON FUNCTION public\.admin_user_summary\(\) FROM PUBLIC, anon/i);
+    expect(identity).toMatch(/GRANT EXECUTE ON FUNCTION public\.admin_user_summary\(\) TO authenticated/i);
+    expect(identity).not.toMatch(/GRANT\s+(?:ALL|SELECT|INSERT|UPDATE|DELETE|REFERENCES|TRIGGER|USAGE)\s+ON\s+(?:SCHEMA|TABLE|SEQUENCE|FUNCTION)\s+(?:private|public)\.[^;]+\s+TO\s+(?:PUBLIC|anon|authenticated)\s*;/i);
+    expect(identity).not.toMatch(/GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+(?!public\.admin_user_summary\(\))[^;]+\s+TO\s+(?:PUBLIC|anon|authenticated)\s*;/i);
+  });
+
   it("passes an empty migration directory because seed data is optional", () => {
     const root = fixtureRoot({});
     try {
