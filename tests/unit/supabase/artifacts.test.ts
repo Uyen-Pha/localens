@@ -134,6 +134,24 @@ COMMIT;
     }
   });
 
+  it("does not let SQL-looking text inside a quoted identifier spoof RLS", () => {
+    const root = fixtureRoot({
+      "supabase/migrations/20260823090000_quoted-spoof.sql": `BEGIN;
+CREATE TABLE public.actual (
+  "ALTER TABLE public.actual ENABLE ROW LEVEL SECURITY" text
+);
+COMMIT;
+`,
+    });
+    try {
+      const result = runChecker(root);
+      expect(result.status).not.toBe(0);
+      expect(result.output).toMatch(/actual.*ROW LEVEL SECURITY|ROW LEVEL SECURITY.*actual/i);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("ignores transaction words and template-looking text in comments and dollar bodies", () => {
     const root = fixtureRoot({
       "supabase/migrations/20260823090000_function.sql": `BEGIN;
@@ -214,6 +232,23 @@ COMMIT;
         const result = runChecker(root);
         expect(result.status).not.toBe(0);
         expect(result.output).toMatch(/unterminated|BEGIN|COMMIT/i);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("rejects malformed nested dollar-body constructs instead of masking them", () => {
+    const snippets = [
+      "BEGIN; CREATE FUNCTION public.bad() RETURNS void LANGUAGE plpgsql AS $fn$ /* unterminated sk_live_12345678901234567890 $fn$; COMMIT;",
+      "BEGIN; CREATE FUNCTION public.bad() RETURNS void LANGUAGE plpgsql AS $fn$ SELECT E'unterminated sk_live_12345678901234567890 $fn$; COMMIT;",
+    ];
+    for (const [index, snippet] of snippets.entries()) {
+      const root = fixtureRoot({ [`supabase/migrations/2026082309000${index}_nested-bad.sql`]: snippet });
+      try {
+        const result = runChecker(root);
+        expect(result.status).not.toBe(0);
+        expect(result.output).toMatch(/unterminated|secret|lexer/i);
       } finally {
         rmSync(root, { recursive: true, force: true });
       }

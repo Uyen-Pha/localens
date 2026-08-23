@@ -109,6 +109,11 @@ describe("database data contracts", () => {
     expect(DATA_CONTRACT_LITERALS.rankingSource).toEqual(["ai", "deterministic"]);
     expect(DATA_CONTRACT_LITERALS.currency).toEqual(["VND", "USD"]);
     expect(DATA_CONTRACT_LITERALS.checkoutCurrency).toEqual(["vnd", "usd"]);
+    expect(DATA_CONTRACT_LITERALS.dataContractErrorCode).toEqual(["INVALID_DB_INTEGER", "UNSAFE_DB_INTEGER"]);
+    expect(DATA_CONTRACT_LITERALS.dataAdapterErrorCode).toEqual([
+      "INVALID_SHAPE", "UNKNOWN_FIELD", "MISSING_FIELD", "INVALID_DB_INTEGER",
+      "UNSAFE_DB_INTEGER", "INVALID_DB_DECIMAL", "INVALID_TIMESTAMP", "SNAPSHOT_MISMATCH",
+    ]);
     expect(DATA_CONTRACT_LITERALS.auditEventType).toEqual([
       "role_provisioned", "role_revoked", "plan_claimed", "request_submitted",
       "request_changes_requested", "request_approved", "request_rejected", "quote_created",
@@ -122,6 +127,20 @@ describe("database data contracts", () => {
     expect(CHECKOUT_CURRENCY_VALUES).toEqual(["vnd", "usd"]);
     expect(RANKING_SOURCE_VALUES).toEqual(["ai", "deterministic"]);
     expect(STRIPE_CHECKOUT_MODE).toBe("payment");
+  });
+
+  it("freezes every literal array and the registry that contains them", () => {
+    for (const value of Object.values(DATA_CONTRACT_LITERALS)) {
+      expect(Object.isFrozen(value)).toBe(true);
+    }
+    for (const value of [
+      CURRENCY_VALUES,
+      CHECKOUT_CURRENCY_VALUES,
+      RANKING_SOURCE_VALUES,
+    ]) {
+      expect(Object.isFrozen(value)).toBe(true);
+    }
+    expect(Object.isFrozen(DATA_CONTRACT_LITERALS)).toBe(true);
   });
 
   it("exports the exact card-only Stripe checkout session shape", () => {

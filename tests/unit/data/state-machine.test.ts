@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  STATE_MACHINE_NAME_VALUES,
   STATE_MACHINE_TRANSITIONS,
   canTransition,
   type StateMachineName,
@@ -77,6 +78,7 @@ describe("database state machines", () => {
   });
 
   it("keeps the transition registry deeply immutable and exhaustive", () => {
+    expect(Object.isFrozen(STATE_MACHINE_NAME_VALUES)).toBe(true);
     expect(Object.isFrozen(STATE_MACHINE_TRANSITIONS)).toBe(true);
     for (const transitions of Object.values(STATE_MACHINE_TRANSITIONS)) {
       expect(Object.isFrozen(transitions)).toBe(true);

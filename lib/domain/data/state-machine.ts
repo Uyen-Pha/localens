@@ -1,12 +1,15 @@
-export type StateMachineName =
-  | "request"
-  | "quote"
-  | "hold"
-  | "booking"
-  | "payment"
-  | "webhook_event"
-  | "assignment"
-  | "content";
+export const STATE_MACHINE_NAME_VALUES = Object.freeze([
+  "request",
+  "quote",
+  "hold",
+  "booking",
+  "payment",
+  "webhook_event",
+  "assignment",
+  "content",
+] as const);
+
+export type StateMachineName = (typeof STATE_MACHINE_NAME_VALUES)[number];
 
 type Transition = readonly [from: string, to: string];
 

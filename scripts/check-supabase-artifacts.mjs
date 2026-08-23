@@ -6,7 +6,7 @@ const MIGRATION_NAME = /^(\d{14})(?:[_-].*)?\.sql$/i;
 const TEMPLATE_TOKEN = /\{\{[^}\r\n]+\}\}|\$\{[^}\r\n]+\}|<%[=-]?[\s\S]*?%>/;
 const RAW_SECRET = /\b(?:sk_(?:live|test)_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|AIza[0-9A-Za-z_-]{20,})\b/i;
 const SECRET_ASSIGNMENT = /\b(?:SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|GEMINI_API_KEY|TURNSTILE_SECRET|HMAC_PEPPER|RAW_GUEST_TOKEN|PASSWORD)\b\s*[:=]\s*(?!null\b|undefined\b)(?:'[^']*'|"[^"]*"|[A-Za-z0-9+/_.=-]+)/i;
-const IDENTIFIER = `(?:"(?:[^"]|"")*"|[A-Za-z_][A-Za-z0-9_$]*)`;
+const IDENTIFIER = `(?:"(?:[^"]|"")*"|[A-Za-z_][A-Za-z0-9_$]*|\uE000\\d+\uE001)`;
 const PUBLIC_TABLE = new RegExp(`\\bCREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(${IDENTIFIER})\\s*\\.\\s*(${IDENTIFIER})`, "gi");
 const ENABLE_RLS = new RegExp(`\\bALTER\\s+TABLE\\s+(?:ONLY\\s+)?(${IDENTIFIER})\\s*\\.\\s*(${IDENTIFIER})\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY\\b`, "gi");
 
@@ -129,11 +129,25 @@ function lexSql(text) {
   return { tokens, errors };
 }
 
-function maskedSql(tokens, maskedTypes) {
-  return tokens.map((token) => maskedTypes.has(token.type) ? maskRange(token.text, 0, token.text.length) : token.text).join("");
+function normalizedStructure(tokens) {
+  const quotedIdentifiers = new Map();
+  let identifierIndex = 0;
+  const text = tokens.map((token) => {
+    if (token.type === "identifier") {
+      const surrogate = `\uE000${identifierIndex}\uE001`;
+      quotedIdentifiers.set(surrogate, token.text);
+      identifierIndex += 1;
+      return surrogate;
+    }
+    if (token.type === "comment" || token.type === "string" || token.type === "dollar") {
+      return maskRange(token.text, 0, token.text.length);
+    }
+    return token.text;
+  }).join("");
+  return { text, quotedIdentifiers };
 }
 
-function commentsMaskedOnly(tokens) {
+function commentsMaskedOnly(tokens, errors = []) {
   return tokens.map((token) => {
     if (token.type === "comment") return maskRange(token.text, 0, token.text.length);
     if (token.type !== "dollar") return token.text;
@@ -141,7 +155,8 @@ function commentsMaskedOnly(tokens) {
     if (!delimiter || !token.text.endsWith(delimiter)) return token.text;
     const body = token.text.slice(delimiter.length, -delimiter.length);
     const nested = lexSql(body);
-    return delimiter + commentsMaskedOnly(nested.tokens) + delimiter;
+    for (const error of nested.errors) errors.push(`nested dollar body: ${error}`);
+    return delimiter + commentsMaskedOnly(nested.tokens, errors) + delimiter;
   }).join("");
 }
 
@@ -172,17 +187,18 @@ function isCommitWrapper(statement) {
   return /^COMMIT(?:\s+(?:WORK|TRANSACTION))?(?:\s+AND\s+(?:NO\s+)?CHAIN)?$/i.test(statement);
 }
 
-function normalizeIdentifier(identifier) {
-  if (identifier.startsWith('"') && identifier.endsWith('"')) return identifier.slice(1, -1).replaceAll('""', '"');
-  return identifier;
+function normalizeIdentifier(identifier, quotedIdentifiers) {
+  const original = quotedIdentifiers.get(identifier) ?? identifier;
+  if (original.startsWith('"') && original.endsWith('"')) return original.slice(1, -1).replaceAll('""', '"');
+  return original;
 }
 
-function isPublicSchema(identifier) {
-  return normalizeIdentifier(identifier).toLowerCase() === "public";
+function isPublicSchema(identifier, quotedIdentifiers) {
+  return normalizeIdentifier(identifier, quotedIdentifiers).toLowerCase() === "public";
 }
 
-function tableKey(schema, table) {
-  return `${normalizeIdentifier(schema).toLowerCase()}.${normalizeIdentifier(table).toLowerCase()}`;
+function tableKey(schema, table, quotedIdentifiers) {
+  return `${normalizeIdentifier(schema, quotedIdentifiers).toLowerCase()}.${normalizeIdentifier(table, quotedIdentifiers).toLowerCase()}`;
 }
 
 function migrationFiles(root) {
@@ -230,21 +246,23 @@ function checkSqlFile(file, errors) {
   const { tokens, errors: lexicalErrors } = lexSql(source);
   for (const error of lexicalErrors) errors.push(`${file.name}: ${error}`);
 
-  const structure = maskedSql(tokens, new Set(["comment", "string", "dollar"]));
+  const structure = normalizedStructure(tokens);
   const statements = splitStatements(tokens);
   if (!statements[0] || !isBeginWrapper(statements[0])) errors.push(`${file.name}: missing first top-level BEGIN wrapper`);
   if (!statements.at(-1) || !isCommitWrapper(statements.at(-1))) errors.push(`${file.name}: missing last top-level COMMIT wrapper`);
 
   const tables = [];
-  for (const match of structure.matchAll(PUBLIC_TABLE)) {
-    if (isPublicSchema(match[1])) tables.push(tableKey(match[1], match[2]));
+  for (const match of structure.text.matchAll(PUBLIC_TABLE)) {
+    if (isPublicSchema(match[1], structure.quotedIdentifiers)) tables.push(tableKey(match[1], match[2], structure.quotedIdentifiers));
   }
   const rls = [];
-  for (const match of structure.matchAll(ENABLE_RLS)) {
-    if (isPublicSchema(match[1])) rls.push(tableKey(match[1], match[2]));
+  for (const match of structure.text.matchAll(ENABLE_RLS)) {
+    if (isPublicSchema(match[1], structure.quotedIdentifiers)) rls.push(tableKey(match[1], match[2], structure.quotedIdentifiers));
   }
 
-  const secretScan = commentsMaskedOnly(tokens);
+  const nestedLexerErrors = [];
+  const secretScan = commentsMaskedOnly(tokens, nestedLexerErrors);
+  for (const error of nestedLexerErrors) errors.push(`${file.name}: ${error}`);
   if (TEMPLATE_TOKEN.test(secretScan)) errors.push(`${file.name}: unresolved template token`);
   if (RAW_SECRET.test(secretScan) || SECRET_ASSIGNMENT.test(secretScan)) errors.push(`${file.name}: forbidden raw secret pattern`);
   return { tables, rls };

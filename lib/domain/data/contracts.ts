@@ -13,87 +13,30 @@ export type Result<T, E> =
   | { ok: true; value: T }
   | { ok: false; error: E };
 
-export type Role = "customer" | "guide" | "admin";
-export type Locale = "en" | "vi";
-export type PlaceStatus = "draft" | "published" | "archived";
-export type TourStatus = "draft" | "published" | "archived";
-export type TourVersionStatus = "draft" | "published" | "retired";
-export type DepartureStatus = "scheduled" | "sold_out" | "cancelled" | "completed";
-export type SnapshotStatus = "building" | "published" | "retired";
-export type RequestStatus =
-  | "draft"
-  | "pending_review"
-  | "changes_requested"
-  | "approved"
-  | "rejected";
-export type QuoteStatus = "active" | "checkout_pending" | "accepted" | "expired" | "revoked";
-export type HoldStatus = "active" | "consumed" | "released" | "expired";
-export type BookingStatus =
-  | "pending_payment"
-  | "payment_processing"
-  | "confirmed"
-  | "payment_failed"
-  | "payment_review"
-  | "expired"
-  | "cancelled"
-  | "completed";
-export type PaymentStatus = "pending" | "paid" | "failed" | "review";
-export type WebhookEventStatus = "received" | "processed" | "ignored" | "failed" | "conflict";
-export type AssignmentStatus = "assigned" | "accepted" | "completed" | "closed";
-export type ContentStatus = "draft" | "publishing" | "published" | "failed";
-export type RankingSource = "ai" | "deterministic";
-export type Currency = "VND" | "USD";
-export type CheckoutCurrency = "vnd" | "usd";
-export type AuditEventType =
-  | "role_provisioned"
-  | "role_revoked"
-  | "plan_claimed"
-  | "request_submitted"
-  | "request_changes_requested"
-  | "request_approved"
-  | "request_rejected"
-  | "quote_created"
-  | "quote_checkout_started"
-  | "quote_accepted"
-  | "quote_reactivated"
-  | "quote_expired"
-  | "quote_revoked"
-  | "checkout_started"
-  | "checkout_session_recorded"
-  | "checkout_compensated"
-  | "booking_status_changed"
-  | "webhook_processed"
-  | "webhook_ignored"
-  | "webhook_failed"
-  | "webhook_conflict"
-  | "payment_reconciled"
-  | "guide_assigned"
-  | "guide_reassigned"
-  | "guide_accepted"
-  | "guide_completed"
-  | "content_publish_started"
-  | "content_published"
-  | "content_publish_failed";
-
-export const ROLE_VALUES = ["customer", "guide", "admin"] as const;
-export const LOCALE_VALUES = ["en", "vi"] as const;
-export const PLACE_STATUS_VALUES = ["draft", "published", "archived"] as const;
-export const TOUR_STATUS_VALUES = ["draft", "published", "archived"] as const;
-export const TOUR_VERSION_STATUS_VALUES = ["draft", "published", "retired"] as const;
-export const DEPARTURE_STATUS_VALUES = ["scheduled", "sold_out", "cancelled", "completed"] as const;
-export const SNAPSHOT_STATUS_VALUES = ["building", "published", "retired"] as const;
-export const REQUEST_STATUS_VALUES = ["draft", "pending_review", "changes_requested", "approved", "rejected"] as const;
-export const QUOTE_STATUS_VALUES = ["active", "checkout_pending", "accepted", "expired", "revoked"] as const;
-export const HOLD_STATUS_VALUES = ["active", "consumed", "released", "expired"] as const;
-export const BOOKING_STATUS_VALUES = ["pending_payment", "payment_processing", "confirmed", "payment_failed", "payment_review", "expired", "cancelled", "completed"] as const;
-export const PAYMENT_STATUS_VALUES = ["pending", "paid", "failed", "review"] as const;
-export const WEBHOOK_EVENT_STATUS_VALUES = ["received", "processed", "ignored", "failed", "conflict"] as const;
-export const ASSIGNMENT_STATUS_VALUES = ["assigned", "accepted", "completed", "closed"] as const;
-export const CONTENT_STATUS_VALUES = ["draft", "publishing", "published", "failed"] as const;
-export const RANKING_SOURCE_VALUES = ["ai", "deterministic"] as const;
-export const CURRENCY_VALUES = ["VND", "USD"] as const;
-export const CHECKOUT_CURRENCY_VALUES = ["vnd", "usd"] as const;
-export const AUDIT_EVENT_TYPE_VALUES = [
+export const ROLE_VALUES = Object.freeze(["customer", "guide", "admin"] as const);
+export const LOCALE_VALUES = Object.freeze(["en", "vi"] as const);
+export const PLACE_STATUS_VALUES = Object.freeze(["draft", "published", "archived"] as const);
+export const TOUR_STATUS_VALUES = Object.freeze(["draft", "published", "archived"] as const);
+export const TOUR_VERSION_STATUS_VALUES = Object.freeze(["draft", "published", "retired"] as const);
+export const DEPARTURE_STATUS_VALUES = Object.freeze(["scheduled", "sold_out", "cancelled", "completed"] as const);
+export const SNAPSHOT_STATUS_VALUES = Object.freeze(["building", "published", "retired"] as const);
+export const REQUEST_STATUS_VALUES = Object.freeze(["draft", "pending_review", "changes_requested", "approved", "rejected"] as const);
+export const QUOTE_STATUS_VALUES = Object.freeze(["active", "checkout_pending", "accepted", "expired", "revoked"] as const);
+export const HOLD_STATUS_VALUES = Object.freeze(["active", "consumed", "released", "expired"] as const);
+export const BOOKING_STATUS_VALUES = Object.freeze(["pending_payment", "payment_processing", "confirmed", "payment_failed", "payment_review", "expired", "cancelled", "completed"] as const);
+export const PAYMENT_STATUS_VALUES = Object.freeze(["pending", "paid", "failed", "review"] as const);
+export const WEBHOOK_EVENT_STATUS_VALUES = Object.freeze(["received", "processed", "ignored", "failed", "conflict"] as const);
+export const ASSIGNMENT_STATUS_VALUES = Object.freeze(["assigned", "accepted", "completed", "closed"] as const);
+export const CONTENT_STATUS_VALUES = Object.freeze(["draft", "publishing", "published", "failed"] as const);
+export const RANKING_SOURCE_VALUES = Object.freeze(["ai", "deterministic"] as const);
+export const CURRENCY_VALUES = Object.freeze(["VND", "USD"] as const);
+export const CHECKOUT_CURRENCY_VALUES = Object.freeze(["vnd", "usd"] as const);
+export const DATA_CONTRACT_ERROR_CODE_VALUES = Object.freeze(["INVALID_DB_INTEGER", "UNSAFE_DB_INTEGER"] as const);
+export const DATA_ADAPTER_ERROR_CODE_VALUES = Object.freeze([
+  "INVALID_SHAPE", "UNKNOWN_FIELD", "MISSING_FIELD", "INVALID_DB_INTEGER",
+  "UNSAFE_DB_INTEGER", "INVALID_DB_DECIMAL", "INVALID_TIMESTAMP", "SNAPSHOT_MISMATCH",
+] as const);
+export const AUDIT_EVENT_TYPE_VALUES = Object.freeze([
   "role_provisioned", "role_revoked", "plan_claimed", "request_submitted",
   "request_changes_requested", "request_approved", "request_rejected", "quote_created",
   "quote_checkout_started", "quote_accepted", "quote_reactivated", "quote_expired", "quote_revoked",
@@ -101,7 +44,29 @@ export const AUDIT_EVENT_TYPE_VALUES = [
   "webhook_processed", "webhook_ignored", "webhook_failed", "webhook_conflict", "payment_reconciled",
   "guide_assigned", "guide_reassigned", "guide_accepted", "guide_completed", "content_publish_started",
   "content_published", "content_publish_failed",
-] as const;
+] as const);
+
+export type Role = (typeof ROLE_VALUES)[number];
+export type Locale = (typeof LOCALE_VALUES)[number];
+export type PlaceStatus = (typeof PLACE_STATUS_VALUES)[number];
+export type TourStatus = (typeof TOUR_STATUS_VALUES)[number];
+export type TourVersionStatus = (typeof TOUR_VERSION_STATUS_VALUES)[number];
+export type DepartureStatus = (typeof DEPARTURE_STATUS_VALUES)[number];
+export type SnapshotStatus = (typeof SNAPSHOT_STATUS_VALUES)[number];
+export type RequestStatus = (typeof REQUEST_STATUS_VALUES)[number];
+export type QuoteStatus = (typeof QUOTE_STATUS_VALUES)[number];
+export type HoldStatus = (typeof HOLD_STATUS_VALUES)[number];
+export type BookingStatus = (typeof BOOKING_STATUS_VALUES)[number];
+export type PaymentStatus = (typeof PAYMENT_STATUS_VALUES)[number];
+export type WebhookEventStatus = (typeof WEBHOOK_EVENT_STATUS_VALUES)[number];
+export type AssignmentStatus = (typeof ASSIGNMENT_STATUS_VALUES)[number];
+export type ContentStatus = (typeof CONTENT_STATUS_VALUES)[number];
+export type RankingSource = (typeof RANKING_SOURCE_VALUES)[number];
+export type Currency = (typeof CURRENCY_VALUES)[number];
+export type CheckoutCurrency = (typeof CHECKOUT_CURRENCY_VALUES)[number];
+export type DataContractErrorCode = (typeof DATA_CONTRACT_ERROR_CODE_VALUES)[number];
+export type DataAdapterErrorCode = (typeof DATA_ADAPTER_ERROR_CODE_VALUES)[number];
+export type AuditEventType = (typeof AUDIT_EVENT_TYPE_VALUES)[number];
 
 export const DATA_CONTRACT_LITERALS = Object.freeze({
   role: ROLE_VALUES,
@@ -122,24 +87,16 @@ export const DATA_CONTRACT_LITERALS = Object.freeze({
   rankingSource: RANKING_SOURCE_VALUES,
   currency: CURRENCY_VALUES,
   checkoutCurrency: CHECKOUT_CURRENCY_VALUES,
+  dataContractErrorCode: DATA_CONTRACT_ERROR_CODE_VALUES,
+  dataAdapterErrorCode: DATA_ADAPTER_ERROR_CODE_VALUES,
   auditEventType: AUDIT_EVENT_TYPE_VALUES,
 });
 
-export type DataContractErrorCode = "INVALID_DB_INTEGER" | "UNSAFE_DB_INTEGER";
 export interface DataContractError {
   code: DataContractErrorCode;
   messageKey: string;
 }
 
-export type DataAdapterErrorCode =
-  | "INVALID_SHAPE"
-  | "UNKNOWN_FIELD"
-  | "MISSING_FIELD"
-  | "INVALID_DB_INTEGER"
-  | "UNSAFE_DB_INTEGER"
-  | "INVALID_DB_DECIMAL"
-  | "INVALID_TIMESTAMP"
-  | "SNAPSHOT_MISMATCH";
 export interface DataAdapterError {
   code: DataAdapterErrorCode;
   messageKey: string;
