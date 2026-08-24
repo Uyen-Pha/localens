@@ -117,6 +117,7 @@ CREATE TEMP TABLE travel_test_ids (
   name text PRIMARY KEY,
   snapshot_id uuid NOT NULL
 ) ON COMMIT DROP;
+GRANT INSERT ON TABLE pg_temp.travel_test_ids TO localens_admin_rpc_owner;
 
 SELECT throws_ok($$INSERT INTO public.travel_edges (from_place_id, to_place_id, mode, minutes, group_cost_vnd, verified_at)
   VALUES ('00000000-0000-0000-0000-000000000602'::uuid, '00000000-0000-0000-0000-000000000602'::uuid, 'walk', 10, 1, now())$$,
