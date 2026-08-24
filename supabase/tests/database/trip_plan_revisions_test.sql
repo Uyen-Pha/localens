@@ -2,7 +2,7 @@
 -- workstation; this suite is intentionally ready for the Task 16 runtime gate.
 BEGIN;
 
-SELECT plan(77);
+SELECT plan(87);
 
 CREATE TEMP TABLE task6_revision_fixture ON COMMIT DROP AS
 WITH fixture AS (
@@ -256,6 +256,54 @@ RESET ROLE;
 SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000715'::uuid), 0, 'out-of-range item score creates no revision');
 SELECT is((SELECT count(*)::integer FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000715'::uuid)), 0, 'out-of-range item score creates no items');
 SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000715'::uuid), 0, 'out-of-range item score creates no recommendation run');
+
+INSERT INTO public.trip_plans (id, owner_user_id)
+VALUES ('00000000-0000-0000-0000-000000000716'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000716'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{result,totals,score}', to_jsonb(10000000000000000::numeric), false))$$,
+  '22023', NULL, 'positive 17-digit total score is rejected');
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000716'::uuid, 0,
+  jsonb_set(
+    jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{items}', jsonb_build_array(
+      jsonb_set((SELECT item_dto FROM task6_revision_fixture), '{score}', to_jsonb((-10000000000000000)::numeric), false)
+    ), false),
+    '{result,items}', jsonb_build_array(
+      jsonb_set((SELECT item_result FROM task6_revision_fixture), '{score}', to_jsonb((-10000000000000000)::numeric), false)
+    ), false
+  ))$$,
+  '22023', NULL, 'negative 17-digit item score is rejected');
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000716'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{result,totals,score}', to_jsonb(9007199254740991.5::numeric), false))$$,
+  '22023', NULL, 'maximum safe integer plus a fraction is rejected');
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000716'::uuid), 0, 'unsafe scores create no revision');
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000716'::uuid)), 0, 'unsafe scores create no items');
+SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000716'::uuid), 0, 'unsafe scores create no recommendation run');
+
+INSERT INTO public.trip_plans (id, owner_user_id)
+VALUES ('00000000-0000-0000-0000-000000000717'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT lives_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000717'::uuid, 0,
+  jsonb_set(
+    jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{items}', jsonb_build_array(
+      jsonb_set((SELECT item_dto FROM task6_revision_fixture), '{score}', to_jsonb(9007199254740990.5::numeric), false)
+    ), false),
+    '{result,items}', jsonb_build_array(
+      jsonb_set((SELECT item_result FROM task6_revision_fixture), '{score}', to_jsonb(9007199254740990.5::numeric), false)
+    ), false
+  ))$$,
+  'safe fractional item score persists');
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000717'::uuid), 1, 'safe fractional score persists a revision');
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000717'::uuid)), 1, 'safe fractional score persists an item');
+SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000717'::uuid), 1, 'safe fractional score records a recommendation run');
 
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000714'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);

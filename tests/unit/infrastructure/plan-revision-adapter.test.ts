@@ -363,10 +363,13 @@ describe("trip-plan revision migration contract", () => {
     expect(migration).toMatch(/visitDurationMinutes[\s\S]*480/);
     expect(migration).toMatch(/length\(persistence_dto->>'budgetVnd'\) > 16/);
     expect(migration).toMatch(/length\(item->>'travelCostVndBefore'\) > 16/);
-    expect(migration).toMatch(/item->>'score' !~[\s\S]*split_part\(regexp_replace\(item->>'score'/);
-    expect(migration).toMatch(/result_item->>'score' !~[\s\S]*split_part\(regexp_replace\(result_item->>'score'/);
-    expect(migration).toMatch(/item->>'score'[\s\S]*9007199254740991/);
-    expect(migration).toMatch(/result_item->>'score'[\s\S]*9007199254740991/);
+    expect(migration).toContain("jsonb_typeof(item->'score') IS DISTINCT FROM 'number'");
+    expect(migration).toContain("jsonb_typeof(result_item->'score') IS DISTINCT FROM 'number'");
+    expect(migration).toContain("item->>'score' !~ '^-?(?:0|[1-9][0-9]{0,15})(?:\\.[0-9]{1,12})?$'");
+    expect(migration).toContain("result_item->>'score' !~ '^-?(?:0|[1-9][0-9]{0,15})(?:\\.[0-9]{1,12})?$'");
+    expect(migration).toMatch(/abs\(\(result_json->'totals'->>'score'\)::numeric\) > 9007199254740991/);
+    expect(migration).toMatch(/abs\(\(item->>'score'\)::numeric\) > 9007199254740991/);
+    expect(migration).toMatch(/abs\(\(result_item->>'score'\)::numeric\) > 9007199254740991/);
   });
 
   it("mirrors canonical engine request and result snapshot facts in SQL", () => {

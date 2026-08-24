@@ -569,9 +569,10 @@ BEGIN
      OR (length(result_json->'totals'->>'travelMinutes') = 3 AND result_json->'totals'->>'travelMinutes' > '720')
      OR (length(result_json->'totals'->>'transitionBufferMinutes') = 3 AND result_json->'totals'->>'transitionBufferMinutes' > '720')
      OR jsonb_typeof(result_json->'totals'->'score') IS DISTINCT FROM 'number'
-     OR result_json->'totals'->>'score' !~ '^-?(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,12})?$'
-     OR (length(split_part(regexp_replace(result_json->'totals'->>'score', '^-', ''), '.', 1)) = 16
-       AND split_part(regexp_replace(result_json->'totals'->>'score', '^-', ''), '.', 1) > '9007199254740991') THEN
+     OR result_json->'totals'->>'score' !~ '^-?(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,12})?$' THEN
+    RAISE EXCEPTION 'invalid nested result totals' USING ERRCODE = '22023';
+  END IF;
+  IF abs((result_json->'totals'->>'score')::numeric) > 9007199254740991::numeric THEN
     RAISE EXCEPTION 'invalid nested result totals' USING ERRCODE = '22023';
   END IF;
   IF persistence_dto->>'fingerprint' !~ '^[0-9a-f]{64}$'
@@ -755,18 +756,20 @@ BEGIN
        OR (length(item->>'travelMinutesBefore') = 3 AND item->>'travelMinutesBefore' > '720')
        OR item->>'transitionBufferMinutesBefore' IS NULL
        OR item->>'transitionBufferMinutesBefore' NOT IN ('0', '10')
+       OR jsonb_typeof(item->'score') IS DISTINCT FROM 'number'
        OR item->>'score' IS NULL
-       OR item->>'score' !~ '^-?(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,12})?$'
-       OR (length(split_part(regexp_replace(item->>'score', '^-', ''), '.', 1)) = 16
-         AND split_part(regexp_replace(item->>'score', '^-', ''), '.', 1) > '9007199254740991')
+       OR item->>'score' !~ '^-?(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,12})?$'
        OR NOT EXISTS (
          SELECT 1 FROM public.catalog_snapshot_places
          WHERE snapshot_id = (persistence_dto->>'catalogSnapshotId')::uuid
            AND place_id = (item->>'placeId')::uuid
        ) THEN
-      RAISE EXCEPTION 'invalid persistence item or snapshot membership' USING ERRCODE = '23514';
-    END IF;
-  END LOOP;
+       RAISE EXCEPTION 'invalid persistence item or snapshot membership' USING ERRCODE = '23514';
+     END IF;
+     IF abs((item->>'score')::numeric) > 9007199254740991::numeric THEN
+       RAISE EXCEPTION 'invalid persistence item score' USING ERRCODE = '22023';
+     END IF;
+   END LOOP;
 
   IF EXISTS (
     SELECT 1 FROM jsonb_array_elements(result_json->'items') AS values(item)
@@ -819,11 +822,12 @@ BEGIN
        OR length(dto_item->>'placeCostVnd') > 16
        OR (length(dto_item->>'placeCostVnd') = 16 AND dto_item->>'placeCostVnd' > '9007199254740991')
        OR result_item->>'score' IS NULL
-       OR result_item->>'score' !~ '^-?(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,12})?$'
-       OR (length(split_part(regexp_replace(result_item->>'score', '^-', ''), '.', 1)) = 16
-         AND split_part(regexp_replace(result_item->>'score', '^-', ''), '.', 1) > '9007199254740991')
+       OR result_item->>'score' !~ '^-?(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,12})?$'
        OR result_item->>'score' IS DISTINCT FROM dto_item->>'score' THEN
       RAISE EXCEPTION 'result item facts do not match persistence projection' USING ERRCODE = '23514';
+    END IF;
+    IF abs((result_item->>'score')::numeric) > 9007199254740991::numeric THEN
+      RAISE EXCEPTION 'invalid result item score' USING ERRCODE = '22023';
     END IF;
     IF (result_item->>'travelCostVndBefore')::numeric <> (dto_item->>'travelCostVndBefore')::numeric
        OR (result_item->>'placeCostVnd')::numeric <> (dto_item->>'placeCostVnd')::numeric THEN
