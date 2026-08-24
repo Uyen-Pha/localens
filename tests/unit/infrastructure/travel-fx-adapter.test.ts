@@ -10,10 +10,9 @@ import {
   mapTravelSnapshot,
 } from "@/lib/infrastructure/supabase/travel-fx-adapter";
 
-const migration = readFileSync(
-  join(process.cwd(), "supabase", "migrations", "20260823093000_travel_fx_snapshots.sql"),
-  "utf8",
-);
+const migration = ["20260823093000_travel_fx_snapshots.sql", "20260824090000_travel_fx_projection_fixes.sql"]
+  .map((file) => readFileSync(join(process.cwd(), "supabase", "migrations", file), "utf8"))
+  .join("\n");
 
 const ids = {
   travel: "00000000-0000-0000-0000-000000000501",
@@ -25,14 +24,21 @@ const ids = {
 
 function edge(overrides: Record<string, unknown> = {}) {
   return {
-    snapshot_id: ids.travel,
-    catalog_snapshot_id: ids.catalog,
     from_place_id: ids.from,
     to_place_id: ids.to,
     mode: "walk",
     minutes: 20,
     group_cost_vnd: "900719925474099",
     verified_at: "2026-08-23T03:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function envelope(overrides: Record<string, unknown> = {}) {
+  return {
+    snapshot_id: ids.travel,
+    catalog_snapshot_id: ids.catalog,
+    edges: [edge()],
     ...overrides,
   };
 }
@@ -51,12 +57,12 @@ function fx(overrides: Record<string, unknown> = {}) {
 
 describe("mapTravelSnapshot", () => {
   it("maps a named directed projection without inventing a reverse edge", () => {
-    const result = mapTravelSnapshot([edge(), edge({
+    const result = mapTravelSnapshot([envelope({ edges: [edge(), edge({
       from_place_id: ids.to,
       to_place_id: ids.from,
       mode: "taxi",
       minutes: 30,
-    })]);
+    })] })]);
 
     expect(result).toEqual({
       ok: true,
@@ -85,7 +91,7 @@ describe("mapTravelSnapshot", () => {
   });
 
   it("preserves a sparse directed graph and never fills missing transitions", () => {
-    const result = mapTravelSnapshot([edge({ to_place_id: ids.other })]);
+    const result = mapTravelSnapshot([envelope({ edges: [edge({ to_place_id: ids.other })] })]);
     expect(result).toMatchObject({
       ok: true,
       value: { edges: [{ fromPlaceId: ids.from, toPlaceId: ids.other }] },
@@ -93,18 +99,25 @@ describe("mapTravelSnapshot", () => {
     if (result.ok) expect(result.value.edges).toHaveLength(1);
   });
 
+  it("accepts the one-row empty envelope for a published snapshot", () => {
+    expect(mapTravelSnapshot([envelope({ edges: [] })])).toEqual({
+      ok: true,
+      value: { id: ids.travel, edges: [] },
+    });
+  });
+
   it("rejects duplicate directed pairs, self edges, and mixed snapshot membership", () => {
-    expect(mapTravelSnapshot([edge(), edge()])).toMatchObject({
+    expect(mapTravelSnapshot([envelope({ edges: [edge(), edge()] })])).toMatchObject({
       ok: false,
       error: { code: "SNAPSHOT_MISMATCH" },
     });
-    expect(mapTravelSnapshot([edge({ from_place_id: ids.from, to_place_id: ids.from })])).toMatchObject({
+    expect(mapTravelSnapshot([envelope({ edges: [edge({ from_place_id: ids.from, to_place_id: ids.from })] })])).toMatchObject({
       ok: false,
       error: { code: "INVALID_SHAPE" },
     });
-    expect(mapTravelSnapshot([edge(), edge({ to_place_id: ids.other, catalog_snapshot_id: ids.other })])).toMatchObject({
+    expect(mapTravelSnapshot([envelope(), envelope({ snapshot_id: ids.other })])).toMatchObject({
       ok: false,
-      error: { code: "SNAPSHOT_MISMATCH" },
+      error: { code: "INVALID_SHAPE" },
     });
   });
 
@@ -117,13 +130,13 @@ describe("mapTravelSnapshot", () => {
       "1e3",
       "9007199254740992",
     ]) {
-      expect(mapTravelSnapshot([edge({ group_cost_vnd: value })])).toMatchObject({
+      expect(mapTravelSnapshot([envelope({ edges: [edge({ group_cost_vnd: value })] })])).toMatchObject({
         ok: false,
         error: { code: expect.stringMatching(/INVALID_DB_DECIMAL|UNSAFE_DB_INTEGER|INVALID_SHAPE/) },
       });
     }
     for (const value of [0, 241, 20.5, "20"]) {
-      expect(mapTravelSnapshot([edge({ minutes: value })])).toMatchObject({
+      expect(mapTravelSnapshot([envelope({ edges: [edge({ minutes: value })] })])).toMatchObject({
         ok: false,
         error: { code: "INVALID_SHAPE" },
       });
@@ -131,11 +144,11 @@ describe("mapTravelSnapshot", () => {
   });
 
   it("rejects extra or missing projection fields and non-dense arrays", () => {
-    expect(mapTravelSnapshot([edge({ unexpected: true })])).toMatchObject({
+    expect(mapTravelSnapshot([envelope({ unexpected: true })])).toMatchObject({
       ok: false,
       error: { code: "UNKNOWN_FIELD" },
     });
-    expect(mapTravelSnapshot([edge({ catalog_snapshot_id: undefined })])).toMatchObject({
+    expect(mapTravelSnapshot([envelope({ catalog_snapshot_id: undefined })])).toMatchObject({
       ok: false,
       error: { code: "MISSING_FIELD" },
     });
@@ -145,9 +158,25 @@ describe("mapTravelSnapshot", () => {
       ok: false,
       error: { code: "INVALID_SHAPE" },
     });
-    expect(mapTravelSnapshot([edge({ verified_at: "2026-08-23T03:00:00+07:00" })])).toMatchObject({
+    expect(mapTravelSnapshot([envelope({ edges: [edge({ verified_at: "2026-08-23T03:00:00+07:00" })] })])).toMatchObject({
       ok: false,
       error: { code: "INVALID_TIMESTAMP" },
+    });
+    expect(mapTravelSnapshot([envelope(), envelope()])).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+    expect(mapTravelSnapshot([envelope({ edges: Object.assign([], { 1: edge() }) })])).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+    expect(mapTravelSnapshot([envelope({ edges: [edge({ unexpected: true })] })])).toMatchObject({
+      ok: false,
+      error: { code: "UNKNOWN_FIELD" },
+    });
+    expect(mapTravelSnapshot([envelope({ edges: [{ ...edge(), verified_at: undefined }] })])).toMatchObject({
+      ok: false,
+      error: { code: "MISSING_FIELD" },
     });
   });
 });
@@ -216,6 +245,14 @@ describe("mapFxSnapshot", () => {
       ok: false,
       error: { code: "INVALID_TIMESTAMP" },
     });
+    expect(mapFxSnapshot(fx({ source: " fixture " }))).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+    expect(mapFxSnapshot(fx({ source: "fixture\n" }))).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
   });
 });
 
@@ -245,14 +282,21 @@ describe("travel/FX migration contract", () => {
     expect(migration).toMatch(/CREATE TRIGGER travel_snapshot_edges_append_only/);
     expect(migration).toMatch(/CREATE TRIGGER fx_snapshots_append_only/);
     expect(migration).toMatch(/SELECT status INTO parent_status[\s\S]*FOR SHARE/);
-    expect(migration).toMatch(/CREATE OR REPLACE VIEW public\.travel_snapshot_edges_v/);
+    expect(migration).toMatch(/CREATE OR REPLACE VIEW public\.travel_snapshots_v/);
+    expect(migration).toMatch(/jsonb_agg\([\s\S]*jsonb_build_object/);
+    expect(migration).toMatch(/COALESCE\([\s\S]*'\[\]'::jsonb/);
+    expect(migration).toMatch(/DROP VIEW IF EXISTS public\.travel_snapshot_edges_v/);
     expect(migration).toMatch(/CREATE OR REPLACE VIEW public\.latest_fx_snapshot_v/);
+    expect(migration).toMatch(/DISTINCT ON \(f\.environment\)/);
+    expect(migration).toMatch(/ORDER BY f\.environment, f\.observed_at DESC, f\.id DESC/);
     expect(migration).toMatch(/observed_at\s*>=\s*pg_catalog\.now\(\)\s*-\s*INTERVAL '7 days'/i);
     expect(migration).toMatch(/observed_at\s*<=\s*pg_catalog\.now\(\)/i);
     expect(migration).toMatch(/WHERE EXISTS \([\s\S]*SELECT 1[\s\S]*FROM public\.catalog_snapshot_places/);
     expect(migration).not.toMatch(/source_edge_id uuid NOT NULL REFERENCES public\.travel_edges/);
     expect(migration).toMatch(/REVOKE ALL ON TABLE[\s\S]*public\.travel_edges[\s\S]*FROM PUBLIC, anon, authenticated/);
-    expect(migration).toMatch(/GRANT SELECT ON public\.travel_snapshot_edges_v TO anon, authenticated/);
+    expect(migration).toMatch(/GRANT SELECT ON public\.travel_snapshots_v TO anon, authenticated/);
     expect(migration).toMatch(/GRANT SELECT ON public\.latest_fx_snapshot_v TO anon, authenticated/);
+    expect(migration).toMatch(/source = btrim\(source\)/);
+    expect(migration).toMatch(/source !~ '\[\[:cntrl:\]\]'/);
   });
 });

@@ -8,16 +8,18 @@ import {
 } from "@/lib/domain/itinerary/contracts";
 import type { DataAdapterError } from "@/lib/domain/data/contracts";
 
-/** The explicit row returned by public.travel_snapshot_edges_v. */
+/** The exact one-row envelope returned by public.travel_snapshots_v. */
 export interface TravelSnapshotProjectionRow {
   snapshot_id: string;
   catalog_snapshot_id: string;
-  from_place_id: string;
-  to_place_id: string;
-  mode: "walk" | "taxi" | "public_transport";
-  minutes: number;
-  group_cost_vnd: string;
-  verified_at: string;
+  edges: Array<{
+    from_place_id: string;
+    to_place_id: string;
+    mode: "walk" | "taxi" | "public_transport";
+    minutes: number;
+    group_cost_vnd: string;
+    verified_at: string;
+  }>;
 }
 
 /** The explicit row returned by public.latest_fx_snapshot_v. */
@@ -30,9 +32,13 @@ export interface FxSnapshotProjectionRow {
   is_demo: boolean;
 }
 
-const TRAVEL_FIELDS = [
+const TRAVEL_ENVELOPE_FIELDS = [
   "snapshot_id",
   "catalog_snapshot_id",
+  "edges",
+] as const;
+
+const TRAVEL_EDGE_FIELDS = [
   "from_place_id",
   "to_place_id",
   "mode",
@@ -159,12 +165,10 @@ function safeSource(value: unknown, path: string): Result<string, DataAdapterErr
   return { ok: true, value };
 }
 
-function parseTravelRow(value: unknown, rowIndex: number): Result<TravelSnapshot["edges"][number] & { snapshotId: string; catalogSnapshotId: string }, DataAdapterError> {
-  const path = `rows[${rowIndex}]`;
-  const fields = exactFields(value, TRAVEL_FIELDS, path);
+function parseTravelEdge(value: unknown, edgeIndex: number): Result<TravelSnapshot["edges"][number], DataAdapterError> {
+  const path = `rows[0].edges[${edgeIndex}]`;
+  const fields = exactFields(value, TRAVEL_EDGE_FIELDS, path);
   if (!fields.ok) return fields;
-  const snapshotId = safeUuid(fields.value.snapshot_id, `${path}.snapshot_id`);
-  const catalogSnapshotId = safeUuid(fields.value.catalog_snapshot_id, `${path}.catalog_snapshot_id`);
   const fromPlaceId = safeUuid(fields.value.from_place_id, `${path}.from_place_id`);
   const toPlaceId = safeUuid(fields.value.to_place_id, `${path}.to_place_id`);
   const minutes = safeMinutes(fields.value.minutes, `${path}.minutes`);
@@ -173,8 +177,6 @@ function parseTravelRow(value: unknown, rowIndex: number): Result<TravelSnapshot
     typeof fields.value.verified_at === "string" && isCanonicalUtc(fields.value.verified_at)
       ? ({ ok: true, value: fields.value.verified_at } as const)
       : invalid("INVALID_TIMESTAMP", "data.timestamp.invalid", `${path}.verified_at`);
-  if (!snapshotId.ok) return snapshotId;
-  if (!catalogSnapshotId.ok) return catalogSnapshotId;
   if (!fromPlaceId.ok) return fromPlaceId;
   if (!toPlaceId.ok) return toPlaceId;
   if (!minutes.ok) return minutes;
@@ -189,8 +191,6 @@ function parseTravelRow(value: unknown, rowIndex: number): Result<TravelSnapshot
   return {
     ok: true,
     value: {
-      snapshotId: snapshotId.value,
-      catalogSnapshotId: catalogSnapshotId.value,
       fromPlaceId: fromPlaceId.value,
       toPlaceId: toPlaceId.value,
       mode: fields.value.mode as "walk" | "taxi" | "public_transport",
@@ -201,44 +201,39 @@ function parseTravelRow(value: unknown, rowIndex: number): Result<TravelSnapshot
   };
 }
 
-/** Map only the explicit published directed-edge projection into the engine DTO. */
+/** Map only the exact one-row published directed-edge envelope into the engine DTO. */
 export function mapTravelSnapshot(rows: unknown): Result<TravelSnapshot, DataAdapterError> {
   const array = denseArray(rows, "rows");
   if (!array.ok) return array;
   if (array.value.length === 0) return invalid("MISSING_FIELD", "data.adapter.missing_field", "rows[0]");
+  if (array.value.length !== 1) return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "rows");
 
-  const mapped: Array<TravelSnapshot["edges"][number] & { snapshotId: string; catalogSnapshotId: string }> = [];
-  for (let index = 0; index < array.value.length; index += 1) {
-    const result = parseTravelRow(array.value[index], index);
+  const envelope = exactFields(array.value[0], TRAVEL_ENVELOPE_FIELDS, "rows[0]");
+  if (!envelope.ok) return envelope;
+  const snapshotId = safeUuid(envelope.value.snapshot_id, "rows[0].snapshot_id");
+  const catalogSnapshotId = safeUuid(envelope.value.catalog_snapshot_id, "rows[0].catalog_snapshot_id");
+  if (!snapshotId.ok) return snapshotId;
+  if (!catalogSnapshotId.ok) return catalogSnapshotId;
+  const edges = denseArray(envelope.value.edges, "rows[0].edges");
+  if (!edges.ok) return edges;
+
+  const mapped: TravelSnapshot["edges"] = [];
+  for (let index = 0; index < edges.value.length; index += 1) {
+    const result = parseTravelEdge(edges.value[index], index);
     if (!result.ok) return result;
     mapped.push(result.value);
   }
 
-  const snapshotId = mapped[0]?.snapshotId;
-  const catalogSnapshotId = mapped[0]?.catalogSnapshotId;
   const pairs = new Set<string>();
   for (const row of mapped) {
     const pair = `${row.fromPlaceId}\u0000${row.toPlaceId}`;
-    if (
-      row.snapshotId !== snapshotId ||
-      row.catalogSnapshotId !== catalogSnapshotId ||
-      pairs.has(pair)
-    ) {
-      return invalid("SNAPSHOT_MISMATCH", "data.snapshot.mismatch", "rows");
-    }
+    if (pairs.has(pair)) return invalid("SNAPSHOT_MISMATCH", "data.snapshot.mismatch", "rows[0].edges");
     pairs.add(pair);
   }
 
   const candidate = {
-    id: snapshotId ?? "",
-    edges: mapped.map((row) => ({
-      fromPlaceId: row.fromPlaceId,
-      toPlaceId: row.toPlaceId,
-      mode: row.mode,
-      minutes: row.minutes,
-      groupCostVnd: row.groupCostVnd,
-      verifiedAt: row.verifiedAt,
-    })),
+    id: snapshotId.value,
+    edges: mapped,
   };
   const parsed = TravelSnapshotSchema.safeParse(candidate);
   if (!parsed.success) {

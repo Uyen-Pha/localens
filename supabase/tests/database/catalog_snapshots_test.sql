@@ -232,9 +232,14 @@ SELECT throws_ok($$UPDATE public.catalog_snapshot_places SET price_vnd_per_perso
   '42501', NULL, 'snapshot place update is rejected');
 SELECT throws_ok($$DELETE FROM public.catalog_snapshot_place_translations WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid$$,
   '42501', NULL, 'snapshot child delete is rejected');
+-- Use a separate building snapshot so the composite membership FK, rather
+-- than the published-child insert guard, is the intended failure.
+INSERT INTO public.catalog_snapshots (id, status)
+VALUES ('00000000-0000-0000-0000-000000000106'::uuid, 'building');
+INSERT INTO public.catalog_snapshot_areas (snapshot_id, area_id, slug)
+VALUES ('00000000-0000-0000-0000-000000000106'::uuid, '00000000-0000-0000-0000-000000000104'::uuid, 'membership-fixture-area');
 SELECT throws_ok($$INSERT INTO public.catalog_snapshot_places (snapshot_id, place_id, area_id, slug, price_vnd_per_person, visit_duration_minutes, source_url, verified_at, attribution)
-  SELECT snapshot_id, gen_random_uuid(), '00000000-0000-0000-0000-000000000102'::uuid, 'wrong-membership', 1, 15, 'https://example.invalid/wrong', DATE '2026-08-20', 'x'
-  FROM public.catalog_snapshot_places LIMIT 1$$,
+  VALUES ('00000000-0000-0000-0000-000000000106'::uuid, gen_random_uuid(), '00000000-0000-0000-0000-000000000105'::uuid, 'wrong-membership', 1, 15, 'https://example.invalid/wrong', DATE '2026-08-20', 'x')$$,
   '23503', NULL, 'snapshot place cannot reference an area outside the snapshot');
 
 SET LOCAL ROLE anon;

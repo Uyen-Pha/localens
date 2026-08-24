@@ -3,7 +3,7 @@
 -- Docker/Supabase/PostgreSQL runtime.
 BEGIN;
 
-SELECT plan(63);
+SELECT plan(74);
 
 SELECT ok(to_regclass('public.travel_edges') IS NOT NULL, 'travel edges exists');
 SELECT ok(to_regclass('public.travel_snapshots') IS NOT NULL, 'travel snapshots exists');
@@ -39,21 +39,24 @@ SELECT ok(has_function_privilege('localens_admin_rpc_owner', 'private.create_tra
   AND NOT has_function_privilege('anon', 'private.create_travel_snapshot()', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'private.create_travel_snapshot()', 'EXECUTE'), 'travel creator grant is internal-admin only');
 SELECT ok((SELECT count(*) = 3 FROM pg_trigger WHERE tgname IN ('travel_snapshots_append_only', 'travel_snapshot_edges_append_only', 'fx_snapshots_append_only')), 'all append-only triggers exist');
-SELECT ok(to_regclass('public.travel_snapshot_edges_v') IS NOT NULL, 'published travel projection exists');
+SELECT ok(to_regclass('public.travel_snapshots_v') IS NOT NULL, 'published travel projection exists');
 SELECT ok(to_regclass('public.latest_fx_snapshot_v') IS NOT NULL, 'latest FX projection exists');
 SELECT ok(NOT has_table_privilege('anon', 'public.travel_edges', 'SELECT')
   AND NOT has_table_privilege('authenticated', 'public.travel_edges', 'SELECT')
   AND NOT has_table_privilege('anon', 'public.fx_snapshots', 'SELECT')
   AND NOT has_table_privilege('authenticated', 'public.fx_snapshots', 'SELECT'), 'API roles cannot read travel or FX base tables');
-SELECT ok(has_table_privilege('anon', 'public.travel_snapshot_edges_v', 'SELECT')
-  AND has_table_privilege('authenticated', 'public.travel_snapshot_edges_v', 'SELECT')
+SELECT ok(has_table_privilege('anon', 'public.travel_snapshots_v', 'SELECT')
+  AND has_table_privilege('authenticated', 'public.travel_snapshots_v', 'SELECT')
   AND has_table_privilege('anon', 'public.latest_fx_snapshot_v', 'SELECT'), 'API roles read only named projections');
 SELECT ok(has_table_privilege('localens_catalog_rpc_owner', 'public.travel_edges', 'DELETE'), 'catalog owner can retire mutable source edges without touching history');
 SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%vnd_per_usd > 0%' FROM pg_constraint WHERE conrelid = 'public.fx_snapshots'::regclass AND contype = 'c'), 'FX rate is positive');
 SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%environment IN%' FROM pg_constraint WHERE conrelid = 'public.fx_snapshots'::regclass AND contype = 'c'), 'FX environment is closed');
 SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%is_demo = (environment = ''demo'')%' FROM pg_constraint WHERE conrelid = 'public.fx_snapshots'::regclass AND contype = 'c'), 'FX demo flag matches environment');
+SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%source = btrim(source)%' AND pg_get_constraintdef(oid) LIKE '%cntrl%'
+  FROM pg_constraint WHERE conrelid = 'public.fx_snapshots'::regclass AND conname = 'fx_snapshots_source_trimmed_no_controls'), 'FX source is trimmed and control-free');
 SELECT ok((SELECT pg_get_viewdef('public.latest_fx_snapshot_v'::regclass) LIKE '%7 days%'), 'latest FX projection has a seven-day freshness bound');
 SELECT ok((SELECT pg_get_viewdef('public.latest_fx_snapshot_v'::regclass) LIKE '%observed_at <=%'), 'latest FX projection excludes future observations');
+SELECT ok((SELECT pg_get_viewdef('public.latest_fx_snapshot_v'::regclass) LIKE '%DISTINCT ON%environment%'), 'latest FX projection partitions by environment');
 
 -- Independent fixtures: two catalog members, one directed current edge, and
 -- one published catalog snapshot.  No reverse edge is inserted.
@@ -110,6 +113,11 @@ VALUES (
   'walk', 35, 12000, now()
 );
 
+CREATE TEMP TABLE travel_test_ids (
+  name text PRIMARY KEY,
+  snapshot_id uuid NOT NULL
+) ON COMMIT DROP;
+
 SELECT throws_ok($$INSERT INTO public.travel_edges (from_place_id, to_place_id, mode, minutes, group_cost_vnd, verified_at)
   VALUES ('00000000-0000-0000-0000-000000000602'::uuid, '00000000-0000-0000-0000-000000000602'::uuid, 'walk', 10, 1, now())$$,
   '23514', NULL, 'self travel edge is rejected');
@@ -131,14 +139,23 @@ SELECT throws_ok($$INSERT INTO public.travel_snapshots (id, catalog_snapshot_id,
 
 SET LOCAL ROLE localens_admin_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000605', true);
-SELECT lives_ok($$SELECT private.create_travel_snapshot()$$, 'travel snapshot creator copies facts atomically');
+SELECT lives_ok($$INSERT INTO pg_temp.travel_test_ids (name, snapshot_id)
+  VALUES ('published', private.create_travel_snapshot())$$, 'travel snapshot creator copies facts atomically');
 RESET ROLE;
 
-SELECT is((SELECT count(*)::integer FROM public.travel_snapshot_edges WHERE snapshot_id = (SELECT id FROM public.travel_snapshots WHERE catalog_snapshot_id = '00000000-0000-0000-0000-000000000604'::uuid AND status = 'published')), 1, 'snapshot copies exactly the available directed edge');
-SELECT is((SELECT count(*)::integer FROM public.travel_snapshot_edges WHERE from_place_id = '00000000-0000-0000-0000-000000000602'::uuid AND to_place_id = '00000000-0000-0000-0000-000000000620'::uuid), 0, 'edges outside catalog membership are filtered, not guessed');
-SELECT is((SELECT count(*)::integer FROM public.travel_snapshot_edges WHERE from_place_id = '00000000-0000-0000-0000-000000000603'::uuid AND to_place_id = '00000000-0000-0000-0000-000000000602'::uuid), 0, 'snapshot does not synthesize a reverse edge');
+SELECT is((SELECT count(*)::integer FROM public.travel_snapshot_edges e JOIN pg_temp.travel_test_ids ids ON ids.snapshot_id = e.snapshot_id AND ids.name = 'published'), 1, 'snapshot copies exactly the available directed edge');
+SELECT is((SELECT count(*)::integer FROM public.travel_snapshot_edges e JOIN pg_temp.travel_test_ids ids ON ids.snapshot_id = e.snapshot_id AND ids.name = 'published' WHERE e.from_place_id = '00000000-0000-0000-0000-000000000602'::uuid AND e.to_place_id = '00000000-0000-0000-0000-000000000620'::uuid), 0, 'edges outside catalog membership are filtered, not guessed');
+SELECT is((SELECT count(*)::integer FROM public.travel_snapshot_edges e JOIN pg_temp.travel_test_ids ids ON ids.snapshot_id = e.snapshot_id AND ids.name = 'published' WHERE e.from_place_id = '00000000-0000-0000-0000-000000000603'::uuid AND e.to_place_id = '00000000-0000-0000-0000-000000000602'::uuid), 0, 'snapshot does not synthesize a reverse edge');
 SELECT lives_ok($$DELETE FROM public.travel_edges WHERE id = '00000000-0000-0000-0000-000000000606'::uuid$$, 'mutable source edge can be deleted after copying');
-SELECT is((SELECT count(*)::integer FROM public.travel_snapshot_edges WHERE from_place_id = '00000000-0000-0000-0000-000000000602'::uuid AND to_place_id = '00000000-0000-0000-0000-000000000603'::uuid), 1, 'deleting current source does not change travel history');
+SELECT is((SELECT count(*)::integer FROM public.travel_snapshot_edges e JOIN pg_temp.travel_test_ids ids ON ids.snapshot_id = e.snapshot_id AND ids.name = 'published' WHERE e.from_place_id = '00000000-0000-0000-0000-000000000602'::uuid AND e.to_place_id = '00000000-0000-0000-0000-000000000603'::uuid), 1, 'deleting current source does not change travel history');
+SELECT lives_ok($$DELETE FROM public.travel_edges WHERE id = '00000000-0000-0000-0000-000000000607'::uuid$$, 'unpublished source edge can be deleted before the next snapshot');
+SET LOCAL ROLE localens_admin_rpc_owner;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000605', true);
+SELECT lives_ok($$INSERT INTO pg_temp.travel_test_ids (name, snapshot_id)
+  VALUES ('empty', private.create_travel_snapshot())$$, 'travel snapshot creator preserves an empty directed graph');
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM public.travel_snapshots_v v JOIN pg_temp.travel_test_ids ids ON ids.snapshot_id = v.snapshot_id AND ids.name = 'empty'), 1, 'empty snapshot has one named envelope row');
+SELECT is((SELECT jsonb_array_length(v.edges) FROM public.travel_snapshots_v v JOIN pg_temp.travel_test_ids ids ON ids.snapshot_id = v.snapshot_id AND ids.name = 'empty'), 0, 'empty snapshot envelope contains a dense empty edge array');
 INSERT INTO public.travel_snapshots (id, catalog_snapshot_id, status)
 VALUES ('00000000-0000-0000-0000-000000000614'::uuid, '00000000-0000-0000-0000-000000000604'::uuid, 'building');
 SELECT is((SELECT count(*)::integer FROM public.travel_snapshots WHERE id = '00000000-0000-0000-0000-000000000614'::uuid AND status = 'building'), 1, 'building travel snapshot fixture is available for FK checks');
@@ -155,14 +172,12 @@ SELECT throws_ok($$INSERT INTO public.travel_snapshot_edges (
   '23503', NULL, 'snapshot edge endpoint must belong to the same catalog snapshot');
 SELECT throws_ok($$INSERT INTO public.travel_snapshot_edges (
     snapshot_id, catalog_snapshot_id, source_edge_id, from_place_id, to_place_id, mode, minutes, group_cost_vnd, verified_at
-  ) VALUES (
-    (SELECT id FROM public.travel_snapshots WHERE catalog_snapshot_id = '00000000-0000-0000-0000-000000000604'::uuid AND status = 'published'),
-    '00000000-0000-0000-0000-000000000604'::uuid,
+  ) SELECT ids.snapshot_id, '00000000-0000-0000-0000-000000000604'::uuid,
     '00000000-0000-0000-0000-000000000613'::uuid,
     '00000000-0000-0000-0000-000000000602'::uuid,
     '00000000-0000-0000-0000-000000000603'::uuid,
     'walk', 25, 10000, now()
-  )$$,
+    FROM pg_temp.travel_test_ids ids WHERE ids.name = 'published'$$,
   '42501', NULL, 'published travel snapshot children cannot be inserted');
 SELECT throws_ok($$UPDATE public.travel_snapshot_edges SET minutes = 20$$,
   '42501', NULL, 'travel snapshot history is immutable');
@@ -171,14 +186,23 @@ SELECT throws_ok($$DELETE FROM public.travel_snapshots$$,
 
 INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)
 VALUES ('00000000-0000-0000-0000-000000000608'::uuid, 25432.12000000, 'fixture', now(), 'demo', true);
-SELECT lives_ok($$INSERT INTO public.fx_snapshots (vnd_per_usd, source, observed_at, environment, is_demo)
-  VALUES (1.00000000, 'fixture', now(), 'production', false)$$, 'production FX flag is accepted');
+INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)
+VALUES ('00000000-0000-0000-0000-000000000616'::uuid, 1.00000000, 'fixture', now() - INTERVAL '2 hours', 'production', false);
+INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)
+VALUES ('00000000-0000-0000-0000-000000000617'::uuid, 25500.00000000, 'new-demo-fixture', now() - INTERVAL '1 hour', 'demo', true);
+SELECT is((SELECT count(*)::integer FROM public.fx_snapshots WHERE id IN ('00000000-0000-0000-0000-000000000616'::uuid, '00000000-0000-0000-0000-000000000617'::uuid)), 2, 'demo and production FX flags are accepted');
 SELECT throws_ok($$INSERT INTO public.fx_snapshots (vnd_per_usd, source, observed_at, environment, is_demo)
   VALUES (0, 'fixture', now(), 'demo', true)$$,
   '23514', NULL, 'non-positive FX is rejected');
 SELECT throws_ok($$INSERT INTO public.fx_snapshots (vnd_per_usd, source, observed_at, environment, is_demo)
   VALUES (1, 'fixture', now(), 'demo', false)$$,
   '23514', NULL, 'inconsistent FX demo flag is rejected');
+SELECT throws_ok($$INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)
+  VALUES ('00000000-0000-0000-0000-000000000618'::uuid, 1, ' fixture ', now(), 'demo', true)$$,
+  '23514', NULL, 'FX source surrounding whitespace is rejected');
+SELECT throws_ok($$INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)
+  VALUES ('00000000-0000-0000-0000-000000000619'::uuid, 1, E'fixture\n', now(), 'demo', true)$$,
+  '23514', NULL, 'FX source control characters are rejected');
 SELECT throws_ok($$UPDATE public.fx_snapshots SET source = 'changed'$$,
   '42501', NULL, 'FX history is immutable');
 SELECT throws_ok($$DELETE FROM public.fx_snapshots$$,
@@ -187,6 +211,9 @@ INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environme
 VALUES ('00000000-0000-0000-0000-000000000609'::uuid, 25000.00000000, 'stale-fixture', now() - INTERVAL '8 days', 'demo', true);
 INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)
 VALUES ('00000000-0000-0000-0000-000000000615'::uuid, 26000.00000000, 'future-fixture', now() + INTERVAL '1 day', 'demo', true);
+SELECT is((SELECT count(*)::integer FROM public.latest_fx_snapshot_v WHERE environment = 'demo'), 1, 'latest FX returns one valid demo row');
+SELECT is((SELECT count(*)::integer FROM public.latest_fx_snapshot_v WHERE environment = 'production'), 1, 'latest FX returns one valid production row');
+SELECT is((SELECT count(*)::integer FROM public.latest_fx_snapshot_v WHERE environment = 'production' AND id = '00000000-0000-0000-0000-000000000616'::uuid), 1, 'newer demo FX cannot hide valid production FX');
 SELECT is((SELECT count(*)::integer FROM public.latest_fx_snapshot_v WHERE observed_at::timestamptz < now() - INTERVAL '7 days'), 0, 'latest FX projection never presents stale data as fresh');
 SELECT is((SELECT count(*)::integer FROM public.latest_fx_snapshot_v WHERE observed_at::timestamptz > now()), 0, 'latest FX projection never presents future data');
 
