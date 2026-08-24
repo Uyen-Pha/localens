@@ -306,8 +306,29 @@ DECLARE
     'currency', 'budgetVnd', 'totalCostVnd', 'totalDurationMinutes',
     'lockedPlaceIds', 'items'
   ];
+  expected_request_keys constant text[] := ARRAY[
+    'startAt', 'durationMinutes', 'areas', 'budget', 'partySize',
+    'guideLanguage', 'priorityWeights', 'pace', 'dietaryRequirements',
+    'mobilityRequirements', 'lockedStopIds'
+  ];
+  expected_budget_keys constant text[] := ARRAY['currency', 'amountMinor'];
+  expected_priority_keys constant text[] := ARRAY[
+    'street_food', 'history', 'traditional_craft', 'traditional_market'
+  ];
+  expected_result_keys constant text[] := ARRAY[
+    'normalizedStartAt', 'budgetVnd', 'rankingSource', 'items', 'totals', 'snapshotIds'
+  ];
+  expected_totals_keys constant text[] := ARRAY[
+    'durationMinutes', 'visitMinutes', 'travelMinutes',
+    'transitionBufferMinutes', 'groupCostVnd', 'score'
+  ];
+  expected_snapshot_keys constant text[] := ARRAY['catalog', 'travel', 'fx'];
   actual_key_count integer;
+  request_json jsonb;
+  result_json jsonb;
   item jsonb;
+  result_item jsonb;
+  dto_item jsonb;
   item_position integer := 0;
   locked_text text;
   locked_id uuid;
@@ -330,9 +351,8 @@ BEGIN
     RAISE EXCEPTION 'customer role required' USING ERRCODE = '42501';
   END IF;
   -- jsonb_typeof(persistence_dto) = 'object' is the only accepted envelope.
-  IF plan_id IS NULL OR base_revision_no IS NULL OR base_revision_no < 0
-     OR persistence_dto IS NULL OR jsonb_typeof(persistence_dto) = 'array'
-     OR jsonb_typeof(persistence_dto) IS DISTINCT FROM 'object' THEN
+  IF plan_id IS NULL OR base_revision_no IS NULL OR base_revision_no < 0 OR base_revision_no > 2147483646
+     OR persistence_dto IS NULL OR jsonb_typeof(persistence_dto) IS DISTINCT FROM 'object' THEN
     RAISE EXCEPTION 'invalid persistence DTO' USING ERRCODE = '22023';
   END IF;
 
@@ -344,11 +364,103 @@ BEGIN
      OR EXISTS (SELECT 1 FROM unnest(expected_keys) AS keys(key) WHERE NOT (persistence_dto ? key)) THEN
     RAISE EXCEPTION 'invalid persistence DTO keys' USING ERRCODE = '22023';
   END IF;
-  IF jsonb_typeof(persistence_dto->'request') <> 'object'
-     OR jsonb_typeof(persistence_dto->'result') <> 'object'
-     OR jsonb_typeof(persistence_dto->'items') <> 'array'
-     OR jsonb_array_length(persistence_dto->'items') > 8 THEN
+  request_json := persistence_dto->'request';
+  result_json := persistence_dto->'result';
+  IF jsonb_typeof(request_json) IS DISTINCT FROM 'object'
+     OR jsonb_typeof(result_json) IS DISTINCT FROM 'object'
+     OR jsonb_typeof(persistence_dto->'items') IS DISTINCT FROM 'array' THEN
     RAISE EXCEPTION 'invalid persistence DTO structure' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_array_length(persistence_dto->'items') > 8 THEN
+    RAISE EXCEPTION 'invalid persistence DTO structure' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_typeof(request_json->'budget') IS DISTINCT FROM 'object'
+     OR jsonb_typeof(request_json->'lockedStopIds') IS DISTINCT FROM 'array'
+     OR jsonb_typeof(request_json->'areas') IS DISTINCT FROM 'array'
+     OR jsonb_typeof(request_json->'dietaryRequirements') IS DISTINCT FROM 'array'
+     OR jsonb_typeof(request_json->'mobilityRequirements') IS DISTINCT FROM 'array'
+     OR jsonb_typeof(request_json->'priorityWeights') IS DISTINCT FROM 'object'
+     OR jsonb_typeof(result_json->'items') IS DISTINCT FROM 'array'
+     OR jsonb_typeof(result_json->'totals') IS DISTINCT FROM 'object'
+     OR jsonb_typeof(result_json->'snapshotIds') IS DISTINCT FROM 'object' THEN
+    RAISE EXCEPTION 'invalid nested persistence DTO shape' USING ERRCODE = '22023';
+  END IF;
+  IF (SELECT count(*) FROM jsonb_object_keys(request_json)) <> cardinality(expected_request_keys)
+     OR EXISTS (SELECT 1 FROM jsonb_object_keys(request_json) AS keys(key) WHERE NOT (key = ANY(expected_request_keys)))
+     OR EXISTS (SELECT 1 FROM unnest(expected_request_keys) AS keys(key) WHERE NOT (request_json ? key))
+     OR (SELECT count(*) FROM jsonb_object_keys(request_json->'budget')) <> cardinality(expected_budget_keys)
+     OR EXISTS (SELECT 1 FROM jsonb_object_keys(request_json->'budget') AS keys(key) WHERE NOT (key = ANY(expected_budget_keys)))
+     OR EXISTS (SELECT 1 FROM unnest(expected_budget_keys) AS keys(key) WHERE NOT (request_json->'budget' ? key))
+     OR (SELECT count(*) FROM jsonb_object_keys(request_json->'priorityWeights')) <> cardinality(expected_priority_keys)
+     OR EXISTS (SELECT 1 FROM jsonb_object_keys(request_json->'priorityWeights') AS keys(key) WHERE NOT (key = ANY(expected_priority_keys)))
+     OR EXISTS (SELECT 1 FROM unnest(expected_priority_keys) AS keys(key) WHERE NOT (request_json->'priorityWeights' ? key))
+     OR (SELECT count(*) FROM jsonb_object_keys(result_json)) <> cardinality(expected_result_keys)
+     OR EXISTS (SELECT 1 FROM jsonb_object_keys(result_json) AS keys(key) WHERE NOT (key = ANY(expected_result_keys)))
+     OR EXISTS (SELECT 1 FROM unnest(expected_result_keys) AS keys(key) WHERE NOT (result_json ? key))
+     OR (SELECT count(*) FROM jsonb_object_keys(result_json->'totals')) <> cardinality(expected_totals_keys)
+     OR EXISTS (SELECT 1 FROM jsonb_object_keys(result_json->'totals') AS keys(key) WHERE NOT (key = ANY(expected_totals_keys)))
+     OR EXISTS (SELECT 1 FROM unnest(expected_totals_keys) AS keys(key) WHERE NOT (result_json->'totals' ? key))
+     OR (SELECT count(*) FROM jsonb_object_keys(result_json->'snapshotIds')) <> cardinality(expected_snapshot_keys)
+     OR EXISTS (SELECT 1 FROM jsonb_object_keys(result_json->'snapshotIds') AS keys(key) WHERE NOT (key = ANY(expected_snapshot_keys)))
+     OR EXISTS (SELECT 1 FROM unnest(expected_snapshot_keys) AS keys(key) WHERE NOT (result_json->'snapshotIds' ? key)) THEN
+    RAISE EXCEPTION 'invalid nested persistence DTO shape' USING ERRCODE = '22023';
+  END IF;
+  -- Recheck the allowlisted request facts as their engine JSON types.  This
+  -- keeps the audit snapshot canonical even when the authenticated RPC is
+  -- called without the Edge adapter.
+  IF jsonb_typeof(request_json->'startAt') IS DISTINCT FROM 'string'
+     OR jsonb_typeof(request_json->'durationMinutes') IS DISTINCT FROM 'number'
+     OR request_json->>'durationMinutes' !~ '^(?:0|[1-9][0-9]*)$'
+     OR length(request_json->>'durationMinutes') < 2
+     OR length(request_json->>'durationMinutes') > 3
+     OR (length(request_json->>'durationMinutes') = 3 AND request_json->>'durationMinutes' > '720')
+     OR jsonb_typeof(request_json->'budget'->'currency') IS DISTINCT FROM 'string'
+     OR request_json->'budget'->>'currency' NOT IN ('VND', 'USD')
+     OR jsonb_typeof(request_json->'budget'->'amountMinor') IS DISTINCT FROM 'number'
+     OR request_json->'budget'->>'amountMinor' !~ '^(?:0|[1-9][0-9]*)$'
+     OR length(request_json->'budget'->>'amountMinor') > 16
+     OR (length(request_json->'budget'->>'amountMinor') = 16 AND request_json->'budget'->>'amountMinor' > '9007199254740991')
+     OR jsonb_typeof(request_json->'partySize') IS DISTINCT FROM 'number'
+     OR request_json->>'partySize' !~ '^(?:0|[1-9][0-9]*)$'
+     OR request_json->>'partySize' = '0'
+     OR length(request_json->>'partySize') > 2
+     OR (length(request_json->>'partySize') = 2 AND request_json->>'partySize' > '20')
+     OR jsonb_typeof(request_json->'guideLanguage') IS DISTINCT FROM 'string'
+     OR request_json->>'guideLanguage' NOT IN ('en', 'vi')
+     OR jsonb_typeof(request_json->'pace') IS DISTINCT FROM 'string'
+     OR request_json->>'pace' NOT IN ('relaxed', 'balanced', 'active')
+     OR jsonb_typeof(request_json->'priorityWeights'->'street_food') IS DISTINCT FROM 'number'
+     OR jsonb_typeof(request_json->'priorityWeights'->'history') IS DISTINCT FROM 'number'
+     OR jsonb_typeof(request_json->'priorityWeights'->'traditional_craft') IS DISTINCT FROM 'number'
+     OR jsonb_typeof(request_json->'priorityWeights'->'traditional_market') IS DISTINCT FROM 'number'
+     OR request_json->'priorityWeights'->>'street_food' !~ '^[0-5]$'
+     OR request_json->'priorityWeights'->>'history' !~ '^[0-5]$'
+     OR request_json->'priorityWeights'->>'traditional_craft' !~ '^[0-5]$'
+     OR request_json->'priorityWeights'->>'traditional_market' !~ '^[0-5]$'
+     OR (request_json->'priorityWeights'->>'street_food' = '0'
+       AND request_json->'priorityWeights'->>'history' = '0'
+       AND request_json->'priorityWeights'->>'traditional_craft' = '0'
+       AND request_json->'priorityWeights'->>'traditional_market' = '0') THEN
+    RAISE EXCEPTION 'invalid nested request facts' USING ERRCODE = '22023';
+  END IF;
+
+  IF jsonb_typeof(result_json->'totals'->'visitMinutes') IS DISTINCT FROM 'number'
+     OR jsonb_typeof(result_json->'totals'->'travelMinutes') IS DISTINCT FROM 'number'
+     OR jsonb_typeof(result_json->'totals'->'transitionBufferMinutes') IS DISTINCT FROM 'number'
+     OR result_json->'totals'->>'visitMinutes' !~ '^(?:0|[1-9][0-9]*)$'
+     OR result_json->'totals'->>'travelMinutes' !~ '^(?:0|[1-9][0-9]*)$'
+     OR result_json->'totals'->>'transitionBufferMinutes' !~ '^(?:0|[1-9][0-9]*)$'
+     OR length(result_json->'totals'->>'visitMinutes') > 3
+     OR length(result_json->'totals'->>'travelMinutes') > 3
+     OR length(result_json->'totals'->>'transitionBufferMinutes') > 3
+     OR (length(result_json->'totals'->>'visitMinutes') = 3 AND result_json->'totals'->>'visitMinutes' > '720')
+     OR (length(result_json->'totals'->>'travelMinutes') = 3 AND result_json->'totals'->>'travelMinutes' > '720')
+     OR (length(result_json->'totals'->>'transitionBufferMinutes') = 3 AND result_json->'totals'->>'transitionBufferMinutes' > '720')
+     OR jsonb_typeof(result_json->'totals'->'score') IS DISTINCT FROM 'number'
+     OR result_json->'totals'->>'score' !~ '^-?(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,12})?$'
+     OR (length(split_part(regexp_replace(result_json->'totals'->>'score', '^-', ''), '.', 1)) = 16
+       AND split_part(regexp_replace(result_json->'totals'->>'score', '^-', ''), '.', 1) > '9007199254740991') THEN
+    RAISE EXCEPTION 'invalid nested result totals' USING ERRCODE = '22023';
   END IF;
   IF persistence_dto->>'fingerprint' !~ '^[0-9a-f]{64}$'
      OR persistence_dto->>'rankingSource' NOT IN ('ai', 'deterministic')
@@ -356,12 +468,21 @@ BEGIN
      OR persistence_dto->>'travelSnapshotId' !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
      OR persistence_dto->>'revisionNo' IS NULL
      OR persistence_dto->>'revisionNo' !~ '^(?:0|[1-9][0-9]*)$'
+     OR persistence_dto->>'revisionNo' = '0'
+     OR length(persistence_dto->>'revisionNo') > 10
+     OR (length(persistence_dto->>'revisionNo') = 10 AND persistence_dto->>'revisionNo' > '2147483647')
      OR persistence_dto->>'budgetVnd' IS NULL
      OR persistence_dto->>'budgetVnd' !~ '^(?:0|[1-9][0-9]*)$'
+     OR length(persistence_dto->>'budgetVnd') > 16
+     OR (length(persistence_dto->>'budgetVnd') = 16 AND persistence_dto->>'budgetVnd' > '9007199254740991')
      OR persistence_dto->>'totalCostVnd' IS NULL
      OR persistence_dto->>'totalCostVnd' !~ '^(?:0|[1-9][0-9]*)$'
+     OR length(persistence_dto->>'totalCostVnd') > 16
+     OR (length(persistence_dto->>'totalCostVnd') = 16 AND persistence_dto->>'totalCostVnd' > '9007199254740991')
      OR persistence_dto->>'totalDurationMinutes' IS NULL
      OR persistence_dto->>'totalDurationMinutes' !~ '^(?:0|[1-9][0-9]*)$'
+     OR length(persistence_dto->>'totalDurationMinutes') > 3
+     OR (length(persistence_dto->>'totalDurationMinutes') = 3 AND persistence_dto->>'totalDurationMinutes' > '720')
      OR persistence_dto->>'currency' NOT IN ('VND', 'USD')
      OR ((persistence_dto->>'currency') = 'USD' AND (
        persistence_dto->>'fxSnapshotId' IS NULL
@@ -370,6 +491,38 @@ BEGIN
        OR persistence_dto->>'fxVndPerUsd' !~ '^(?:0|[1-9][0-9]{0,11})\.[0-9]{8}$'
      )) THEN
     RAISE EXCEPTION 'invalid persistence DTO snapshot or fingerprint' USING ERRCODE = '22023';
+  END IF;
+
+  -- The nested JSON is retained as an audit snapshot, so its scalar facts
+  -- must agree with the allowlisted persistence projection.  These checks
+  -- happen before the plan lock and before any revision/run row exists.
+  IF jsonb_typeof(request_json->'budget'->'currency') <> 'string'
+     OR request_json->'budget'->>'currency' IS DISTINCT FROM persistence_dto->>'currency'
+     OR request_json->'lockedStopIds' IS DISTINCT FROM persistence_dto->'lockedPlaceIds'
+     OR result_json->>'rankingSource' IS DISTINCT FROM persistence_dto->>'rankingSource'
+     OR result_json->'snapshotIds'->>'catalog' IS DISTINCT FROM persistence_dto->>'catalogSnapshotId'
+     OR result_json->'snapshotIds'->>'travel' IS DISTINCT FROM persistence_dto->>'travelSnapshotId'
+     OR result_json->'snapshotIds'->>'fx' IS DISTINCT FROM persistence_dto->>'fxSnapshotId'
+     OR jsonb_typeof(result_json->'budgetVnd') <> 'number'
+     OR result_json->>'budgetVnd' IS NULL
+     OR result_json->>'budgetVnd' !~ '^(?:0|[1-9][0-9]*)$'
+     OR length(result_json->>'budgetVnd') > 16
+     OR (length(result_json->>'budgetVnd') = 16 AND result_json->>'budgetVnd' > '9007199254740991')
+     OR result_json->>'budgetVnd' IS DISTINCT FROM persistence_dto->>'budgetVnd'
+     OR jsonb_typeof(result_json->'totals'->'durationMinutes') <> 'number'
+     OR result_json->'totals'->>'durationMinutes' IS NULL
+     OR result_json->'totals'->>'durationMinutes' !~ '^(?:0|[1-9][0-9]*)$'
+     OR length(result_json->'totals'->>'durationMinutes') > 3
+     OR (length(result_json->'totals'->>'durationMinutes') = 3 AND result_json->'totals'->>'durationMinutes' > '720')
+     OR result_json->'totals'->>'durationMinutes' IS DISTINCT FROM persistence_dto->>'totalDurationMinutes'
+     OR jsonb_typeof(result_json->'totals'->'groupCostVnd') <> 'number'
+     OR result_json->'totals'->>'groupCostVnd' IS NULL
+     OR result_json->'totals'->>'groupCostVnd' !~ '^(?:0|[1-9][0-9]*)$'
+     OR length(result_json->'totals'->>'groupCostVnd') > 16
+     OR (length(result_json->'totals'->>'groupCostVnd') = 16 AND result_json->'totals'->>'groupCostVnd' > '9007199254740991')
+     OR result_json->'totals'->>'groupCostVnd' IS DISTINCT FROM persistence_dto->>'totalCostVnd'
+     OR jsonb_array_length(result_json->'items') <> jsonb_array_length(persistence_dto->'items') THEN
+    RAISE EXCEPTION 'nested persistence DTO parity mismatch' USING ERRCODE = '23514';
   END IF;
 
   -- The plan lock is acquired before comparing latest_revision_no.  Therefore
@@ -418,8 +571,10 @@ BEGIN
     RAISE EXCEPTION 'currency and FX snapshot nullability mismatch' USING ERRCODE = '23514';
   END IF;
 
-  IF jsonb_typeof(persistence_dto->'lockedPlaceIds') <> 'array'
-     OR jsonb_array_length(persistence_dto->'lockedPlaceIds') > 8
+  IF jsonb_typeof(persistence_dto->'lockedPlaceIds') IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'invalid locked place identifiers' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_array_length(persistence_dto->'lockedPlaceIds') > 8
      OR (SELECT count(*) FROM jsonb_array_elements_text(persistence_dto->'lockedPlaceIds'))
         <> (SELECT count(DISTINCT value) FROM jsonb_array_elements_text(persistence_dto->'lockedPlaceIds') AS values(value)) THEN
     RAISE EXCEPTION 'invalid locked place identifiers' USING ERRCODE = '22023';
@@ -466,26 +621,97 @@ BEGIN
        OR item->>'placeId' !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
        OR item->>'travelCostVndBefore' IS NULL
        OR item->>'travelCostVndBefore' !~ '^(?:0|[1-9][0-9]*)$'
+       OR length(item->>'travelCostVndBefore') > 16
+       OR (length(item->>'travelCostVndBefore') = 16 AND item->>'travelCostVndBefore' > '9007199254740991')
        OR item->>'placeCostVnd' IS NULL
        OR item->>'placeCostVnd' !~ '^(?:0|[1-9][0-9]*)$'
+       OR length(item->>'placeCostVnd') > 16
+       OR (length(item->>'placeCostVnd') = 16 AND item->>'placeCostVnd' > '9007199254740991')
        OR item->>'startAt' IS NULL
        OR item->>'startAt' !~ '^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:00\+07:00$'
        OR item->>'endAt' IS NULL
        OR item->>'endAt' !~ '^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:00\+07:00$'
        OR item->>'visitDurationMinutes' IS NULL
        OR item->>'visitDurationMinutes' !~ '^(?:0|[1-9][0-9]*)$'
+       OR length(item->>'visitDurationMinutes') > 3
+       OR length(item->>'visitDurationMinutes') = 1
+       OR (length(item->>'visitDurationMinutes') = 2 AND item->>'visitDurationMinutes' < '15')
+       OR (length(item->>'visitDurationMinutes') = 3 AND item->>'visitDurationMinutes' > '480')
        OR item->>'travelMinutesBefore' IS NULL
        OR item->>'travelMinutesBefore' !~ '^(?:0|[1-9][0-9]*)$'
+       OR length(item->>'travelMinutesBefore') > 3
+       OR (length(item->>'travelMinutesBefore') = 3 AND item->>'travelMinutesBefore' > '720')
        OR item->>'transitionBufferMinutesBefore' IS NULL
        OR item->>'transitionBufferMinutesBefore' NOT IN ('0', '10')
        OR item->>'score' IS NULL
-       OR item->>'score' !~ '^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$'
+       OR item->>'score' !~ '^-?(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,12})?$'
        OR NOT EXISTS (
          SELECT 1 FROM public.catalog_snapshot_places
          WHERE snapshot_id = (persistence_dto->>'catalogSnapshotId')::uuid
            AND place_id = (item->>'placeId')::uuid
        ) THEN
       RAISE EXCEPTION 'invalid persistence item or snapshot membership' USING ERRCODE = '23514';
+    END IF;
+  END LOOP;
+
+  IF EXISTS (
+    SELECT 1 FROM jsonb_array_elements(result_json->'items') AS values(item)
+    WHERE jsonb_typeof(values.item) IS DISTINCT FROM 'object'
+  ) THEN
+    RAISE EXCEPTION 'invalid result item shape' USING ERRCODE = '22023';
+  END IF;
+
+  -- Compare the retained engine result to the exact persistence projection by
+  -- ordinality.  Money is compared numerically only after each value has
+  -- passed the canonical, bounded integer checks above.
+  FOR result_item, dto_item IN
+    SELECT result_values.item, dto_values.item
+    FROM jsonb_array_elements(result_json->'items') WITH ORDINALITY AS result_values(item, ordinal)
+    JOIN jsonb_array_elements(persistence_dto->'items') WITH ORDINALITY AS dto_values(item, ordinal)
+      USING (ordinal)
+  LOOP
+    IF (SELECT count(*) FROM jsonb_object_keys(result_item)) <> cardinality(expected_item_keys)
+       OR EXISTS (SELECT 1 FROM jsonb_object_keys(result_item) AS keys(key) WHERE NOT (key = ANY(expected_item_keys)))
+       OR EXISTS (SELECT 1 FROM unnest(expected_item_keys) AS keys(key) WHERE NOT (result_item ? key))
+       OR jsonb_typeof(result_item->'placeId') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(result_item->'startAt') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(result_item->'endAt') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(result_item->'visitDurationMinutes') IS DISTINCT FROM 'number'
+       OR jsonb_typeof(result_item->'travelMinutesBefore') IS DISTINCT FROM 'number'
+       OR jsonb_typeof(result_item->'transitionBufferMinutesBefore') IS DISTINCT FROM 'number'
+       OR jsonb_typeof(result_item->'travelCostVndBefore') IS DISTINCT FROM 'number'
+       OR jsonb_typeof(result_item->'placeCostVnd') IS DISTINCT FROM 'number'
+       OR jsonb_typeof(result_item->'score') IS DISTINCT FROM 'number'
+       OR result_item->>'placeId' IS DISTINCT FROM dto_item->>'placeId'
+       OR result_item->>'startAt' IS DISTINCT FROM dto_item->>'startAt'
+       OR result_item->>'endAt' IS DISTINCT FROM dto_item->>'endAt'
+       OR result_item->>'visitDurationMinutes' IS DISTINCT FROM dto_item->>'visitDurationMinutes'
+       OR result_item->>'travelMinutesBefore' IS DISTINCT FROM dto_item->>'travelMinutesBefore'
+       OR result_item->>'transitionBufferMinutesBefore' IS DISTINCT FROM dto_item->>'transitionBufferMinutesBefore'
+       OR result_item->>'travelCostVndBefore' IS NULL
+       OR result_item->>'travelCostVndBefore' !~ '^(?:0|[1-9][0-9]*)$'
+       OR length(result_item->>'travelCostVndBefore') > 16
+       OR (length(result_item->>'travelCostVndBefore') = 16 AND result_item->>'travelCostVndBefore' > '9007199254740991')
+       OR dto_item->>'travelCostVndBefore' IS NULL
+       OR dto_item->>'travelCostVndBefore' !~ '^(?:0|[1-9][0-9]*)$'
+       OR length(dto_item->>'travelCostVndBefore') > 16
+       OR (length(dto_item->>'travelCostVndBefore') = 16 AND dto_item->>'travelCostVndBefore' > '9007199254740991')
+       OR result_item->>'placeCostVnd' IS NULL
+       OR result_item->>'placeCostVnd' !~ '^(?:0|[1-9][0-9]*)$'
+       OR length(result_item->>'placeCostVnd') > 16
+       OR (length(result_item->>'placeCostVnd') = 16 AND result_item->>'placeCostVnd' > '9007199254740991')
+       OR dto_item->>'placeCostVnd' IS NULL
+       OR dto_item->>'placeCostVnd' !~ '^(?:0|[1-9][0-9]*)$'
+       OR length(dto_item->>'placeCostVnd') > 16
+       OR (length(dto_item->>'placeCostVnd') = 16 AND dto_item->>'placeCostVnd' > '9007199254740991')
+       OR result_item->>'score' IS NULL
+       OR result_item->>'score' !~ '^-?(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,12})?$'
+       OR result_item->>'score' IS DISTINCT FROM dto_item->>'score' THEN
+      RAISE EXCEPTION 'result item facts do not match persistence projection' USING ERRCODE = '23514';
+    END IF;
+    IF (result_item->>'travelCostVndBefore')::numeric <> (dto_item->>'travelCostVndBefore')::numeric
+       OR (result_item->>'placeCostVnd')::numeric <> (dto_item->>'placeCostVnd')::numeric THEN
+      RAISE EXCEPTION 'result item facts do not match persistence projection' USING ERRCODE = '23514';
     END IF;
   END LOOP;
 

@@ -19,6 +19,9 @@ const FINGERPRINT_PATTERN = /^[0-9a-f]{64}$/;
 const UNSIGNED_DECIMAL_PATTERN = /^(?:0|[1-9]\d*)$/;
 const FX_PATTERN = /^(?:0|[1-9]\d{0,11})(?:\.\d{1,8})?$/;
 const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
+const MAX_INT32 = 2_147_483_647;
+const MAX_DURATION_MINUTES = 720;
+const MAX_TRAVEL_MINUTES = 720;
 
 function invalid(
   code: DataAdapterError["code"],
@@ -90,6 +93,18 @@ function safeUnsignedDecimal(value: unknown, path: string): Result<string, DataA
     return invalid("INVALID_DB_DECIMAL", "data.decimal.invalid", path);
   }
   return { ok: true, value: normalized };
+}
+
+function boundedInteger(
+  value: number,
+  minimum: number,
+  maximum: number,
+  path: string,
+): Result<number, DataAdapterError> {
+  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    return invalid("INVALID_DB_INTEGER", "data.integer.invalid", path);
+  }
+  return { ok: true, value };
 }
 
 function safeFxDecimal(value: unknown, path: string): Result<string, DataAdapterError> {
@@ -170,9 +185,23 @@ function validateSnapshotAndPlaces(input: EngineInput, result: ItineraryResult):
 
 function projectItem(item: ItineraryResult["items"][number], index: number): Result<PlanRevisionItem, DataAdapterError> {
   const placeId = safeUuid(item.placeId, `result.items[${index}].placeId`);
+  const visitDuration = boundedInteger(
+    item.visitDurationMinutes,
+    15,
+    480,
+    `result.items[${index}].visitDurationMinutes`,
+  );
+  const travelMinutes = boundedInteger(
+    item.travelMinutesBefore,
+    0,
+    MAX_TRAVEL_MINUTES,
+    `result.items[${index}].travelMinutesBefore`,
+  );
   const travelCost = safeUnsignedDecimal(item.travelCostVndBefore, `result.items[${index}].travelCostVndBefore`);
   const placeCost = safeUnsignedDecimal(item.placeCostVnd, `result.items[${index}].placeCostVnd`);
   if (!placeId.ok) return placeId;
+  if (!visitDuration.ok) return visitDuration;
+  if (!travelMinutes.ok) return travelMinutes;
   if (!travelCost.ok) return travelCost;
   if (!placeCost.ok) return placeCost;
   return {
@@ -181,8 +210,8 @@ function projectItem(item: ItineraryResult["items"][number], index: number): Res
       placeId: placeId.value,
       startAt: item.startAt,
       endAt: item.endAt,
-      visitDurationMinutes: item.visitDurationMinutes,
-      travelMinutesBefore: item.travelMinutesBefore,
+      visitDurationMinutes: visitDuration.value,
+      travelMinutesBefore: travelMinutes.value,
       transitionBufferMinutesBefore: item.transitionBufferMinutesBefore,
       travelCostVndBefore: travelCost.value,
       placeCostVnd: placeCost.value,
@@ -208,6 +237,9 @@ export function toPlanRevisionInsert(
   if (!Number.isSafeInteger(revision) || revision < 1) {
     return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "revision");
   }
+  if (revision > MAX_INT32) {
+    return invalid("INVALID_DB_INTEGER", "data.integer.invalid", "revision");
+  }
 
   const source = parsedInput.value;
   const itinerary = parsedResult.value;
@@ -219,6 +251,19 @@ export function toPlanRevisionInsert(
   if (lockedPlaceIds.value.some((placeId) => !catalogPlaceIds.has(placeId))) {
     return invalid("SNAPSHOT_MISMATCH", "data.snapshot.mismatch", "input.request.lockedStopIds");
   }
+  const resultPositions = new Map(itinerary.items.map((item, index) => [item.placeId, index]));
+  let previousLockedPosition = -1;
+  for (const [index, lockedPlaceId] of lockedPlaceIds.value.entries()) {
+    const resultPosition = resultPositions.get(lockedPlaceId);
+    if (resultPosition === undefined || resultPosition <= previousLockedPosition) {
+      return invalid(
+        "SNAPSHOT_MISMATCH",
+        "data.snapshot.mismatch",
+        `input.request.lockedStopIds[${index}]`,
+      );
+    }
+    previousLockedPosition = resultPosition;
+  }
   if (source.request.budget.currency === "USD" && source.fx === undefined) {
     return invalid("SNAPSHOT_MISMATCH", "data.snapshot.mismatch", "input.fx");
   }
@@ -226,6 +271,21 @@ export function toPlanRevisionInsert(
   const totalCostVnd = safeUnsignedDecimal(itinerary.totals.groupCostVnd, "result.totals.groupCostVnd");
   if (!budgetVnd.ok) return budgetVnd;
   if (!totalCostVnd.ok) return totalCostVnd;
+  const totalDurationMinutes = boundedInteger(
+    itinerary.totals.durationMinutes,
+    0,
+    MAX_DURATION_MINUTES,
+    "result.totals.durationMinutes",
+  );
+  if (!totalDurationMinutes.ok) return totalDurationMinutes;
+  for (const [fieldPath, value] of [
+    ["result.totals.visitMinutes", itinerary.totals.visitMinutes],
+    ["result.totals.travelMinutes", itinerary.totals.travelMinutes],
+    ["result.totals.transitionBufferMinutes", itinerary.totals.transitionBufferMinutes],
+  ] as const) {
+    const bounded = boundedInteger(value, 0, MAX_DURATION_MINUTES, fieldPath);
+    if (!bounded.ok) return bounded;
+  }
 
   const items: PlanRevisionItem[] = [];
   for (let index = 0; index < itinerary.items.length; index += 1) {
@@ -259,7 +319,7 @@ export function toPlanRevisionInsert(
       currency: source.request.budget.currency,
       budgetVnd: budgetVnd.value,
       totalCostVnd: totalCostVnd.value,
-      totalDurationMinutes: itinerary.totals.durationMinutes,
+      totalDurationMinutes: totalDurationMinutes.value,
       lockedPlaceIds: lockedPlaceIds.value,
       items,
     },

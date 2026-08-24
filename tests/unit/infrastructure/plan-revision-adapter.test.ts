@@ -221,6 +221,59 @@ describe("toPlanRevisionInsert", () => {
       error: { code: "INVALID_SHAPE" },
     });
   });
+
+  it("requires every locked stop to be selected in the same relative order", () => {
+    const missingLockedStop = toPlanRevisionInsert(
+      {
+        ...input,
+        request: { ...input.request, lockedStopIds: [ids.firstPlace, ids.secondPlace] },
+      },
+      { ...result, items: [result.items[0]!] },
+      "a".repeat(64),
+      1,
+    );
+    expect(missingLockedStop).toMatchObject({
+      ok: false,
+      error: { code: "SNAPSHOT_MISMATCH" },
+    });
+
+    const outOfOrderLockedStops = toPlanRevisionInsert(
+      {
+        ...input,
+        request: { ...input.request, lockedStopIds: [ids.secondPlace, ids.firstPlace] },
+      },
+      result,
+      "a".repeat(64),
+      1,
+    );
+    expect(outOfOrderLockedStops).toMatchObject({
+      ok: false,
+      error: { code: "SNAPSHOT_MISMATCH" },
+    });
+  });
+
+  it("rejects values outside the persistence integer bounds", () => {
+    expect(toPlanRevisionInsert(input, result, "a".repeat(64), 2_147_483_648)).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_DB_INTEGER" },
+    });
+
+    expect(toPlanRevisionInsert(input, {
+      ...result,
+      totals: { ...result.totals, durationMinutes: 721 },
+    }, "a".repeat(64), 1)).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_DB_INTEGER" },
+    });
+
+    expect(toPlanRevisionInsert(input, {
+      ...result,
+      items: [{ ...result.items[0]!, travelMinutesBefore: 721 }, result.items[1]!],
+    }, "a".repeat(64), 1)).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_DB_INTEGER" },
+    });
+  });
 });
 
 describe("trip-plan revision migration contract", () => {
@@ -274,5 +327,37 @@ describe("trip-plan revision migration contract", () => {
     expect(migration).toMatch(/fx_snapshot_id IS NULL[\s\S]*fx_vnd_per_usd IS NULL/);
     expect(migration).toMatch(/fx_snapshot_id IS NOT NULL[\s\S]*fx_vnd_per_usd IS NOT NULL/);
     expect(migration).toMatch(/catalog_snapshot_id[\s\S]*travel_snapshot_id/);
+  });
+
+  it("requires canonical nested request/result JSON and parity before inserts", () => {
+    expect(migration).toMatch(/expected_request_keys constant text\[\] := ARRAY/);
+    expect(migration).toMatch(/expected_result_keys constant text\[\] := ARRAY/);
+    expect(migration).toMatch(/request_json->'budget'/);
+    expect(migration).toMatch(/request_json->'lockedStopIds'[\s\S]*lockedPlaceIds/);
+    expect(migration).toMatch(/result_json->>'rankingSource'[\s\S]*rankingSource/);
+    expect(migration).toMatch(/result_json->'snapshotIds'[\s\S]*catalogSnapshotId/);
+    expect(migration).toMatch(/result_json->>'budgetVnd'[\s\S]*budgetVnd/);
+    expect(migration).toMatch(/result_json->'totals'[\s\S]*totalDurationMinutes/);
+    expect(migration).toMatch(/result_json->'items'[\s\S]*WITH ORDINALITY/);
+    expect(migration).toMatch(/result item facts do not match/);
+    expect(migration).toMatch(/expected_priority_keys constant text\[\] := ARRAY/);
+    expect(migration).toMatch(/budget'->'amountMinor'[\s\S]*9007199254740991/);
+    expect(migration).toMatch(/priorityWeights'[\s\S]*traditional_market/);
+    expect(migration).toMatch(/totals'->>'visitMinutes'[\s\S]*720/);
+    expect(migration).toMatch(/totals'->'score'[\s\S]*9007199254740991/);
+    expect(migration).toMatch(/invalid nested request facts/);
+    expect(migration).toMatch(/jsonb_typeof\(request_json\) IS DISTINCT FROM 'object'/);
+    expect(migration).toMatch(/jsonb_typeof\(result_json\) IS DISTINCT FROM 'object'/);
+  });
+
+  it("guards every integer cast with the database range", () => {
+    expect(migration).toMatch(/revisionNo[\s\S]*2147483647/);
+    expect(migration).toMatch(/budgetVnd[\s\S]*9007199254740991/);
+    expect(migration).toMatch(/totalCostVnd[\s\S]*9007199254740991/);
+    expect(migration).toMatch(/totalDurationMinutes[\s\S]*720/);
+    expect(migration).toMatch(/travelMinutesBefore[\s\S]*720/);
+    expect(migration).toMatch(/visitDurationMinutes[\s\S]*480/);
+    expect(migration).toMatch(/length\(persistence_dto->>'budgetVnd'\) > 16/);
+    expect(migration).toMatch(/length\(item->>'travelCostVndBefore'\) > 16/);
   });
 });

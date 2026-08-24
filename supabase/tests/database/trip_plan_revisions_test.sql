@@ -2,7 +2,83 @@
 -- workstation; this suite is intentionally ready for the Task 16 runtime gate.
 BEGIN;
 
-SELECT plan(50);
+SELECT plan(62);
+
+CREATE TEMP TABLE task6_revision_fixture ON COMMIT DROP AS
+WITH fixture AS (
+  SELECT
+    jsonb_build_object(
+      'startAt', '2026-08-20T08:00:00+07:00',
+      'durationMinutes', 60,
+      'areas', jsonb_build_array('00000000-0000-0000-0000-000000000703'),
+      'budget', jsonb_build_object('currency', 'VND', 'amountMinor', 0),
+      'partySize', 1,
+      'guideLanguage', 'en',
+      'priorityWeights', jsonb_build_object('street_food', 1, 'history', 0, 'traditional_craft', 0, 'traditional_market', 0),
+      'pace', 'balanced',
+      'dietaryRequirements', jsonb_build_array(),
+      'mobilityRequirements', jsonb_build_array(),
+      'lockedStopIds', jsonb_build_array()
+    ) AS request_json,
+    jsonb_build_object(
+      'normalizedStartAt', '2026-08-20T08:00:00+07:00',
+      'budgetVnd', 0,
+      'rankingSource', 'deterministic',
+      'items', jsonb_build_array(),
+      'totals', jsonb_build_object('durationMinutes', 0, 'visitMinutes', 0, 'travelMinutes', 0, 'transitionBufferMinutes', 0, 'groupCostVnd', 0, 'score', 0),
+      'snapshotIds', jsonb_build_object('catalog', '00000000-0000-0000-0000-000000000702', 'travel', '00000000-0000-0000-0000-000000000705', 'fx', NULL::text)
+    ) AS vnd_result_json,
+    jsonb_build_object(
+      'normalizedStartAt', '2026-08-20T08:00:00+07:00',
+      'budgetVnd', 0,
+      'rankingSource', 'ai',
+      'items', jsonb_build_array(),
+      'totals', jsonb_build_object('durationMinutes', 0, 'visitMinutes', 0, 'travelMinutes', 0, 'transitionBufferMinutes', 0, 'groupCostVnd', 0, 'score', 0),
+      'snapshotIds', jsonb_build_object('catalog', '00000000-0000-0000-0000-000000000702', 'travel', '00000000-0000-0000-0000-000000000705', 'fx', '00000000-0000-0000-0000-000000000708')
+    ) AS usd_result_json,
+    jsonb_build_object(
+      'placeId', '00000000-0000-0000-0000-000000000704',
+      'startAt', '2026-08-20T08:00:00+07:00',
+      'endAt', '2026-08-20T09:00:00+07:00',
+      'visitDurationMinutes', 60,
+      'travelMinutesBefore', 0,
+      'transitionBufferMinutesBefore', 0,
+      'travelCostVndBefore', '0',
+      'placeCostVnd', '0',
+      'score', 1
+    ) AS item_dto,
+    jsonb_build_object(
+      'placeId', '00000000-0000-0000-0000-000000000704',
+      'startAt', '2026-08-20T08:00:00+07:00',
+      'endAt', '2026-08-20T09:00:00+07:00',
+      'visitDurationMinutes', 60,
+      'travelMinutesBefore', 0,
+      'transitionBufferMinutesBefore', 0,
+      'travelCostVndBefore', 0,
+      'placeCostVnd', 0,
+      'score', 1
+    ) AS item_result
+)
+SELECT fixture.*,
+  jsonb_build_object(
+    'revisionNo', 1, 'request', request_json, 'result', vnd_result_json,
+    'fingerprint', repeat('a', 64), 'rankingSource', 'deterministic',
+    'catalogSnapshotId', '00000000-0000-0000-0000-000000000702',
+    'travelSnapshotId', '00000000-0000-0000-0000-000000000705',
+    'fxSnapshotId', NULL::text, 'fxVndPerUsd', NULL::text, 'currency', 'VND',
+    'budgetVnd', '0', 'totalCostVnd', '0', 'totalDurationMinutes', 0,
+    'lockedPlaceIds', jsonb_build_array(), 'items', jsonb_build_array()
+  ) AS vnd_dto,
+  jsonb_build_object(
+    'revisionNo', 1, 'request', jsonb_set(request_json, '{budget,currency}', to_jsonb('USD'::text), false), 'result', usd_result_json,
+    'fingerprint', repeat('b', 64), 'rankingSource', 'ai',
+    'catalogSnapshotId', '00000000-0000-0000-0000-000000000702',
+    'travelSnapshotId', '00000000-0000-0000-0000-000000000705',
+    'fxSnapshotId', '00000000-0000-0000-0000-000000000708', 'fxVndPerUsd', '25000.00000000', 'currency', 'USD',
+    'budgetVnd', '0', 'totalCostVnd', '0', 'totalDurationMinutes', 0,
+    'lockedPlaceIds', jsonb_build_array(), 'items', jsonb_build_array()
+  ) AS usd_dto
+FROM fixture;
 
 SELECT ok(to_regclass('public.trip_plans') IS NOT NULL, 'trip plans exists');
 SELECT ok(to_regclass('public.trip_plan_revisions') IS NOT NULL, 'trip plan revisions exists');
@@ -59,23 +135,7 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701
 SELECT lives_ok($$SELECT * FROM private.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000706'::uuid,
   0,
-  jsonb_build_object(
-    'revisionNo', 1,
-    'request', '{}'::jsonb,
-    'result', '{}'::jsonb,
-    'fingerprint', repeat('a', 64),
-    'rankingSource', 'deterministic',
-    'catalogSnapshotId', '00000000-0000-0000-0000-000000000702',
-    'travelSnapshotId', '00000000-0000-0000-0000-000000000705',
-    'fxSnapshotId', NULL,
-    'fxVndPerUsd', NULL,
-    'currency', 'VND',
-    'budgetVnd', '0',
-    'totalCostVnd', '0',
-    'totalDurationMinutes', 0,
-    'lockedPlaceIds', '[]'::jsonb,
-    'items', '[]'::jsonb
-  )
+  (SELECT vnd_dto FROM task6_revision_fixture)
 )$$, 'customer CAS creates the first revision');
 SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000706'::uuid), 1, 'one revision is persisted');
 SELECT is((SELECT count(*)::integer FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000706'::uuid)), 0, 'empty immutable item list has no orphan rows');
@@ -91,7 +151,7 @@ SELECT is((SELECT count(*)::integer FROM public.trip_plans WHERE id = '00000000-
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000706'::uuid, 0,
-  jsonb_build_object('revisionNo', 1, 'request', '{}'::jsonb, 'result', '{}'::jsonb, 'fingerprint', repeat('a', 64), 'rankingSource', 'deterministic', 'catalogSnapshotId', '00000000-0000-0000-0000-000000000702', 'travelSnapshotId', '00000000-0000-0000-0000-000000000705', 'fxSnapshotId', NULL, 'fxVndPerUsd', NULL, 'currency', 'VND', 'budgetVnd', '0', 'totalCostVnd', '0', 'totalDurationMinutes', 0, 'lockedPlaceIds', '[]'::jsonb, 'items', '[]'::jsonb))$$, 'P0001', 'STALE_REVISION', 'stale CAS has stable error');
+  (SELECT vnd_dto FROM task6_revision_fixture))$$, 'P0001', 'STALE_REVISION', 'stale CAS has stable error');
 RESET ROLE;
 SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000706'::uuid), 1, 'stale CAS creates no orphan revision');
 SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000706'::uuid), 1, 'stale CAS creates no orphan recommendation run');
@@ -102,7 +162,10 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000710'::uuid, 0,
-  jsonb_build_object('revisionNo', 1, 'request', '{}'::jsonb, 'result', '{}'::jsonb, 'fingerprint', repeat('d', 64), 'rankingSource', 'deterministic', 'catalogSnapshotId', '00000000-0000-0000-0000-000000000702', 'travelSnapshotId', '00000000-0000-0000-0000-000000000705', 'fxSnapshotId', NULL, 'fxVndPerUsd', NULL, 'currency', 'VND', 'budgetVnd', '0', 'totalCostVnd', '0', 'totalDurationMinutes', 0, 'lockedPlaceIds', '[]'::jsonb, 'items', '[null]'::jsonb))$$, '22023', NULL, 'malformed scalar item is rejected with a stable shape error');
+  jsonb_set(
+    jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{result,items}', '[null]'::jsonb, false),
+    '{items}', '[null]'::jsonb, false
+  ))$$, '22023', NULL, 'malformed scalar item is rejected with a stable shape error');
 RESET ROLE;
 SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000710'::uuid), 0, 'malformed item creates no revision');
 SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000710'::uuid), 0, 'malformed item creates no recommendation run');
@@ -117,15 +180,60 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT lives_ok($$SELECT * FROM private.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000707'::uuid, 0,
-  jsonb_build_object('revisionNo', 1, 'request', '{}'::jsonb, 'result', '{}'::jsonb, 'fingerprint', repeat('b', 64), 'rankingSource', 'ai', 'catalogSnapshotId', '00000000-0000-0000-0000-000000000702', 'travelSnapshotId', '00000000-0000-0000-0000-000000000705', 'fxSnapshotId', '00000000-0000-0000-0000-000000000708', 'fxVndPerUsd', '25000.00000000', 'currency', 'USD', 'budgetVnd', '0', 'totalCostVnd', '0', 'totalDurationMinutes', 0, 'lockedPlaceIds', '[]'::jsonb, 'items', '[]'::jsonb))$$, 'USD CAS requires an exact referenced FX rate');
+  (SELECT usd_dto FROM task6_revision_fixture))$$, 'USD CAS requires an exact referenced FX rate');
 RESET ROLE;
 SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000707'::uuid), 1, 'USD revision persists exact FX snapshot');
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000707'::uuid, 1,
-  jsonb_build_object('revisionNo', 2, 'request', '{}'::jsonb, 'result', '{}'::jsonb, 'fingerprint', repeat('c', 64), 'rankingSource', 'ai', 'catalogSnapshotId', '00000000-0000-0000-0000-000000000702', 'travelSnapshotId', '00000000-0000-0000-0000-000000000705', 'fxSnapshotId', '00000000-0000-0000-0000-000000000708', 'fxVndPerUsd', '25001.00000000', 'currency', 'USD', 'budgetVnd', '0', 'totalCostVnd', '0', 'totalDurationMinutes', 0, 'lockedPlaceIds', '[]'::jsonb, 'items', '[]'::jsonb))$$, '23514', NULL, 'mismatched FX rate is rejected before insert');
+  jsonb_set((SELECT usd_dto FROM task6_revision_fixture), '{fxVndPerUsd}', to_jsonb('25001.00000000'::text), false))$$, '23514', NULL, 'mismatched FX rate is rejected before insert');
 RESET ROLE;
+
+INSERT INTO public.trip_plans (id, owner_user_id)
+VALUES ('00000000-0000-0000-0000-000000000711'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000711'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,budget,currency}', to_jsonb('USD'::text), false))$$,
+  '23514', NULL, 'forged request budget currency is rejected before insert');
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000711'::uuid), 0, 'forged request creates no revision');
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000711'::uuid)), 0, 'forged request creates no items');
+SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000711'::uuid), 0, 'forged request creates no recommendation run');
+
+INSERT INTO public.trip_plans (id, owner_user_id)
+VALUES ('00000000-0000-0000-0000-000000000712'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000712'::uuid, 0,
+  jsonb_set(
+    jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{items}', jsonb_build_array((SELECT item_dto FROM task6_revision_fixture)), false),
+    '{result,items}', jsonb_build_array(jsonb_set((SELECT item_result FROM task6_revision_fixture), '{placeCostVnd}', to_jsonb(1), false)), false
+  ))$$,
+  '23514', NULL, 'forged result item cost is rejected before insert');
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000712'::uuid), 0, 'forged result creates no revision');
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000712'::uuid)), 0, 'forged result creates no items');
+SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000712'::uuid), 0, 'forged result creates no recommendation run');
+
+INSERT INTO public.trip_plans (id, owner_user_id)
+VALUES ('00000000-0000-0000-0000-000000000713'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000713'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{budgetVnd}', to_jsonb('9007199254740992'::text), false))$$,
+  '22023', NULL, 'money above the database bound is rejected before cast');
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000713'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{totalDurationMinutes}', to_jsonb('721'::text), false))$$,
+  '22023', NULL, 'duration above the database bound is rejected before cast');
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000713'::uuid), 0, 'out-of-range values create no revision');
+SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000713'::uuid), 0, 'out-of-range values create no recommendation run');
 
 SELECT throws_ok($$UPDATE public.trip_plan_revisions SET fingerprint = repeat('b', 64) WHERE plan_id = '00000000-0000-0000-0000-000000000706'::uuid$$, '42501', NULL, 'revision update is rejected');
 SELECT throws_ok($$DELETE FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000706'::uuid$$, '42501', NULL, 'recommendation run delete is rejected');
