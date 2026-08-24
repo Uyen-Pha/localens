@@ -757,6 +757,8 @@ BEGIN
        OR item->>'transitionBufferMinutesBefore' NOT IN ('0', '10')
        OR item->>'score' IS NULL
        OR item->>'score' !~ '^-?(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,12})?$'
+       OR (length(split_part(regexp_replace(item->>'score', '^-', ''), '.', 1)) = 16
+         AND split_part(regexp_replace(item->>'score', '^-', ''), '.', 1) > '9007199254740991')
        OR NOT EXISTS (
          SELECT 1 FROM public.catalog_snapshot_places
          WHERE snapshot_id = (persistence_dto->>'catalogSnapshotId')::uuid
@@ -818,6 +820,8 @@ BEGIN
        OR (length(dto_item->>'placeCostVnd') = 16 AND dto_item->>'placeCostVnd' > '9007199254740991')
        OR result_item->>'score' IS NULL
        OR result_item->>'score' !~ '^-?(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,12})?$'
+       OR (length(split_part(regexp_replace(result_item->>'score', '^-', ''), '.', 1)) = 16
+         AND split_part(regexp_replace(result_item->>'score', '^-', ''), '.', 1) > '9007199254740991')
        OR result_item->>'score' IS DISTINCT FROM dto_item->>'score' THEN
       RAISE EXCEPTION 'result item facts do not match persistence projection' USING ERRCODE = '23514';
     END IF;

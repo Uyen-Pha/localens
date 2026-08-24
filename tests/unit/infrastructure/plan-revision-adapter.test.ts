@@ -12,6 +12,10 @@ const migration = readFileSync(
   join(process.cwd(), "supabase", "migrations", "20260823095000_trip_plans_revisions.sql"),
   "utf8",
 );
+const databaseFixture = readFileSync(
+  join(process.cwd(), "supabase", "tests", "database", "trip_plan_revisions_test.sql"),
+  "utf8",
+);
 
 const ids = {
   catalog: "00000000-0000-0000-0000-000000000601",
@@ -359,6 +363,10 @@ describe("trip-plan revision migration contract", () => {
     expect(migration).toMatch(/visitDurationMinutes[\s\S]*480/);
     expect(migration).toMatch(/length\(persistence_dto->>'budgetVnd'\) > 16/);
     expect(migration).toMatch(/length\(item->>'travelCostVndBefore'\) > 16/);
+    expect(migration).toMatch(/item->>'score' !~[\s\S]*split_part\(regexp_replace\(item->>'score'/);
+    expect(migration).toMatch(/result_item->>'score' !~[\s\S]*split_part\(regexp_replace\(result_item->>'score'/);
+    expect(migration).toMatch(/item->>'score'[\s\S]*9007199254740991/);
+    expect(migration).toMatch(/result_item->>'score'[\s\S]*9007199254740991/);
   });
 
   it("mirrors canonical engine request and result snapshot facts in SQL", () => {
@@ -374,5 +382,11 @@ describe("trip-plan revision migration contract", () => {
     expect(migration).toMatch(/jsonb_array_elements_text\(request_json->'lockedStopIds'\)/);
     expect(migration).toMatch(/count\(DISTINCT value\)/);
     expect(migration).toMatch(/invalid nested request arrays/);
+  });
+
+  it("gives the authenticated pgTAP role only fixture read access", () => {
+    expect(databaseFixture).toMatch(
+      /CREATE TEMP TABLE task6_revision_fixture[\s\S]*GRANT SELECT ON task6_revision_fixture TO authenticated;/,
+    );
   });
 });
