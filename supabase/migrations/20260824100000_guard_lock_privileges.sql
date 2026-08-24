@@ -40,7 +40,8 @@ BEGIN
   FOR version_row IN SELECT * FROM public.tour_versions WHERE tour_id = target_tour_id AND status = 'published'::public.tour_version_status LOOP
     IF NOT EXISTS (SELECT 1 FROM public.catalog_snapshots WHERE id = version_row.catalog_snapshot_id AND status = 'published'::public.snapshot_status)
        OR version_row.source_url !~ '^https://[^[:space:]/?#]+'
-       OR version_row.source_url !~ '^https://[A-Za-z0-9.-]+([/?]|$)'
+       OR version_row.source_url !~ '^https://[A-Za-z0-9.-]+\.[A-Za-z]{2,}([/?]|$)'
+       OR version_row.source_url ~* '^https://[^/?#]*xn--[^/?#]*([/?]|$)'
        OR version_row.source_url ~ '#'
        OR lower(version_row.source_url) ~ '[?&](utm_[^=&#]*|fbclid|gclid)(=|&|$)'
        OR lower(version_row.source_url) ~ '[?&]([^=&#]*_)?(email|phone|name|token|session|user|customer)(_[^=&#]*)?(=|&|$)'
@@ -110,10 +111,13 @@ $function$;
 ALTER FUNCTION private.assert_published_tour_complete(uuid) OWNER TO localens_tour_guard_owner;
 REVOKE ALL ON FUNCTION private.assert_published_tour_complete(uuid) FROM PUBLIC, anon, authenticated;
 
--- The mapper's URL parser rejects malformed ports and percent-encoded
--- authority credentials.  Keep the database acceptance boundary equivalent.
+-- The mapper accepts only an ASCII dotted-FQDN authority without ports,
+-- numeric-host coercion, or punycode markers. Keep the database boundary equal.
 ALTER TABLE public.tour_versions
   ADD CONSTRAINT tour_versions_source_url_authority_check
-  CHECK (source_url ~ '^https://[A-Za-z0-9.-]+([/?]|$)');
+  CHECK (
+    source_url ~ '^https://[A-Za-z0-9.-]+\.[A-Za-z]{2,}([/?]|$)'
+    AND source_url !~* '^https://[^/?#]*xn--[^/?#]*([/?]|$)'
+  );
 
 COMMIT;

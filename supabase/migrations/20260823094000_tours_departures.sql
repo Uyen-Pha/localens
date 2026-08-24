@@ -72,6 +72,8 @@ CREATE TABLE public.tour_versions (
   source_url text NOT NULL CHECK (
     source_url ~ '^https://'
     AND source_url ~ '^https://[^[:space:]/?#]+'
+    AND source_url ~ '^https://[A-Za-z0-9.-]+\.[A-Za-z]{2,}([/?]|$)'
+    AND source_url !~* '^https://[^/?#]*xn--[^/?#]*([/?]|$)'
     AND source_url ~ '^https://[^[:space:]]+$'
     AND source_url !~ '@'
     AND source_url !~ '#'
@@ -419,6 +421,8 @@ BEGIN
   FOR version_row IN SELECT * FROM public.tour_versions WHERE tour_id = target_tour_id AND status = 'published'::public.tour_version_status LOOP
     IF NOT EXISTS (SELECT 1 FROM public.catalog_snapshots WHERE id = version_row.catalog_snapshot_id AND status = 'published'::public.snapshot_status)
        OR version_row.source_url !~ '^https://[^[:space:]/?#]+'
+       OR version_row.source_url !~ '^https://[A-Za-z0-9.-]+\.[A-Za-z]{2,}([/?]|$)'
+       OR version_row.source_url ~* '^https://[^/?#]*xn--[^/?#]*([/?]|$)'
        OR version_row.source_url ~ '#'
        OR lower(version_row.source_url) ~ '[?&](utm_[^=&#]*|fbclid|gclid)(=|&|$)'
        OR lower(version_row.source_url) ~ '[?&]([^=&#]*_)?(email|phone|name|token|session|user|customer)(_[^=&#]*)?(=|&|$)'

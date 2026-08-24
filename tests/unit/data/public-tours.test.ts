@@ -82,6 +82,13 @@ describe("mapPublishedTour", () => {
     });
   });
 
+  it("accepts a normal dotted FQDN with a safe query parameter", () => {
+    expect(mapPublishedTour(row({ source_url: "https://www.example.com/sources/central-market?ref=editorial" }))).toMatchObject({
+      ok: true,
+      value: { sourceUrl: "https://www.example.com/sources/central-market?ref=editorial" },
+    });
+  });
+
   it("rejects arrays, missing fields, and draft/admin field leakage", () => {
     expect(mapPublishedTour([row()])).toMatchObject({ ok: false, error: { code: "INVALID_SHAPE" } });
     expect(mapPublishedTour({ ...row(), title: undefined })).toMatchObject({
@@ -117,6 +124,13 @@ describe("mapPublishedTour", () => {
       { source_url: "https://example.invalid:443/path" },
       { source_url: "https://example.invalid:65536/path" },
       { source_url: "https://user%40example.invalid/path" },
+      { source_url: "https://999.999.999.999/path" },
+      { source_url: "https://999.999/path" },
+      { source_url: "https://xn--/path" },
+      { source_url: "https://0x100000000/path" },
+      { source_url: "https://xn--.example/path" },
+      { source_url: "https://例え.テスト/path" },
+      { source_url: "https://[::1]/path" },
       { price_vnd_minor: 9007199254740993 },
       { price_vnd_minor: "9007199254740992" },
       { price_vnd_minor: "01" },
@@ -223,10 +237,15 @@ describe("fixed-tour SQL artifact", () => {
 
   it("hardens URL authorities and grants only row-lock UPDATE columns", () => {
     const migration = readFileSync(privilegeFixMigrationPath, "utf8");
+    const originalMigration = readFileSync(migrationPath, "utf8");
+    for (const sql of [migration, originalMigration]) {
+      expect(sql).toContain("source_url ~ '^https://[A-Za-z0-9.-]+\\.[A-Za-z]{2,}([/?]|$)'");
+      expect(sql).toContain("source_url !~* '^https://[^/?#]*xn--[^/?#]*([/?]|$)'");
+      expect(sql).toContain("OR version_row.source_url !~ '^https://[A-Za-z0-9.-]+\\.[A-Za-z]{2,}([/?]|$)'");
+      expect(sql).toContain("OR version_row.source_url ~* '^https://[^/?#]*xn--[^/?#]*([/?]|$)'");
+    }
     expect(migration).toMatch(/tour_versions_source_url_authority_check/i);
-    expect(migration).toContain("CHECK (source_url ~ '^https://[A-Za-z0-9.-]+([/?]|$)');");
     expect(migration).toContain("CREATE OR REPLACE FUNCTION private.assert_published_tour_complete");
-    expect(migration).toContain("OR version_row.source_url !~ '^https://[A-Za-z0-9.-]+([/?]|$)'");
     expect(migration).toMatch(/GRANT UPDATE \(id\) ON TABLE public\.tours[\s\S]*public\.tour_versions TO localens_tour_guard_owner/i);
     expect(migration).toMatch(/GRANT UPDATE \(id\) ON TABLE public\.catalog_snapshots[\s\S]*public\.travel_snapshots TO localens_catalog_guard_owner/i);
     expect(migration).not.toMatch(/GRANT UPDATE ON TABLE public\.(?:tours|tour_versions|catalog_snapshots|travel_snapshots)\b/i);

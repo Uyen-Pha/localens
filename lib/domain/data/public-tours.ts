@@ -65,6 +65,8 @@ const CANONICAL_UNSIGNED_BIGINT = /^(?:0|[1-9]\d*)$/;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MAX_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 const FORBIDDEN_SOURCE_QUERY_KEY = /(^|_)(email|phone|name|token|session|user|customer)(_|$)/;
+const SOURCE_URL_AUTHORITY = /^https:\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/?]|$)/;
+const SOURCE_URL_PUNYCODE_AUTHORITY = /^https:\/\/[^/?#]*xn--[^/?#]*(?:[/?]|$)/i;
 
 function invalid(
   code: DataAdapterError["code"],
@@ -167,6 +169,8 @@ function httpsUrl(value: unknown, path: string): Result<string, DataAdapterError
     value.length > 2048 ||
     /[\u0000-\u001F\u007F\s]/.test(value) ||
     value.includes("@") ||
+    !SOURCE_URL_AUTHORITY.test(value) ||
+    SOURCE_URL_PUNYCODE_AUTHORITY.test(value) ||
     /^(?:https:)?\/\/[^/?#]*:\d+(?:[/?#]|$)/i.test(value) ||
     /(?:\?|&)[^=&#]*%[0-9a-f]{2}/i.test(value)
   ) {

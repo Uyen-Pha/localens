@@ -3,7 +3,7 @@
 -- Docker/Supabase/PostgreSQL runtime.
 BEGIN;
 
-SELECT plan(137);
+SELECT plan(142);
 
 SELECT ok(to_regclass('public.tours') IS NOT NULL, 'tours exists');
 SELECT ok(to_regclass('public.tour_translations') IS NOT NULL, 'mutable tour translations exist');
@@ -163,7 +163,7 @@ VALUES (
   '00000000-0000-0000-0000-000000000921'::uuid,
   '00000000-0000-0000-0000-000000000901'::uuid,
   'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.',
-  'https://example.invalid/fixture', DATE '2026-08-20', 'Fixture', 'CC BY 4.0'
+  'https://www.example.com/fixture?ref=editorial', DATE '2026-08-20', 'Fixture', 'CC BY 4.0'
 );
 INSERT INTO public.tour_version_translations (tour_version_id, locale, title, summary, meeting_point)
 VALUES ('00000000-0000-0000-0000-000000000922'::uuid, 'en', 'Complete version', 'Fixture', 'Fixture gate');
@@ -291,6 +291,11 @@ SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_i
 SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://example.invalid:443/path', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects explicit ports');
 SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://example.invalid:65536/path', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects out-of-range ports');
 SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://user%40example.invalid/path', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects encoded authority credentials');
+SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://999.999.999.999/path', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects numeric IPv4-looking authority');
+SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://999.999/path', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects numeric two-label authority');
+SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://xn--/path', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects invalid punycode authority');
+SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://0x100000000/path', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects hexadecimal numeric authority');
+SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://xn--.example/path', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects punycode marker before valid TLD');
 
 -- A deterministic draft version is enough to exercise departure state and
 -- immutable-fact guards without making this test depend on seed data.
