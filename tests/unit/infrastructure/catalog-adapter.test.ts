@@ -180,6 +180,14 @@ describe("mapCatalogSnapshot", () => {
     expect(catalogMigration).toMatch(/assert_published_place_complete[\s\S]*pg_catalog\.pg_advisory_xact_lock/);
   });
 
+  it("locks both place keys in canonical order when a required child is reparented", () => {
+    expect(catalogMigration).toMatch(/assert_published_place_row[\s\S]*OLD\.place_id IS DISTINCT FROM NEW\.place_id/);
+    expect(catalogMigration).toMatch(/assert_published_place_row[\s\S]*OLD\.place_id::text < NEW\.place_id::text/);
+    expect(catalogMigration).toMatch(/assert_published_place_row[\s\S]*private\.assert_published_place_complete\(OLD\.place_id\)[\s\S]*private\.assert_published_place_complete\(NEW\.place_id\)/);
+    expect(catalogMigration).toMatch(/assert_opening_window_nonoverlap[\s\S]*OLD\.place_id IS DISTINCT FROM NEW\.place_id/);
+    expect(catalogMigration).toMatch(/assert_opening_window_nonoverlap[\s\S]*OLD\.place_id::text < NEW\.place_id::text/);
+  });
+
   it("exposes only the named published projection to API roles", () => {
     expect(catalogMigration).toMatch(/CREATE OR REPLACE VIEW public\.catalog_snapshot_places_v[\s\S]*security_invoker\s*=\s*false/i);
     expect(catalogMigration).toMatch(/ALTER VIEW public\.catalog_snapshot_places_v OWNER TO localens_catalog_rpc_owner/i);

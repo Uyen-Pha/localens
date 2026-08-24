@@ -410,9 +410,27 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 BEGIN
-  PERFORM pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended('localens:place:' || NEW.place_id::text, 0::bigint)
-  );
+  IF TG_OP = 'UPDATE' AND OLD.place_id IS DISTINCT FROM NEW.place_id THEN
+    IF OLD.place_id::text < NEW.place_id::text THEN
+      PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('localens:place:' || OLD.place_id::text, 0::bigint)
+      );
+      PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('localens:place:' || NEW.place_id::text, 0::bigint)
+      );
+    ELSE
+      PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('localens:place:' || NEW.place_id::text, 0::bigint)
+      );
+      PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('localens:place:' || OLD.place_id::text, 0::bigint)
+      );
+    END IF;
+  ELSE
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended('localens:place:' || NEW.place_id::text, 0::bigint)
+    );
+  END IF;
   IF EXISTS (
     SELECT 1
     FROM public.place_opening_hours AS existing
@@ -586,10 +604,31 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 BEGIN
-  PERFORM private.assert_published_place_complete(
-    CASE WHEN TG_OP = 'DELETE' THEN OLD.place_id ELSE NEW.place_id END
-  );
-  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  IF TG_OP = 'DELETE' THEN
+    PERFORM private.assert_published_place_complete(OLD.place_id);
+    RETURN OLD;
+  END IF;
+  IF TG_OP = 'UPDATE' AND OLD.place_id IS DISTINCT FROM NEW.place_id THEN
+    IF OLD.place_id::text < NEW.place_id::text THEN
+      PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('localens:place:' || OLD.place_id::text, 0::bigint)
+      );
+      PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('localens:place:' || NEW.place_id::text, 0::bigint)
+      );
+    ELSE
+      PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('localens:place:' || NEW.place_id::text, 0::bigint)
+      );
+      PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('localens:place:' || OLD.place_id::text, 0::bigint)
+      );
+    END IF;
+    PERFORM private.assert_published_place_complete(OLD.place_id);
+    PERFORM private.assert_published_place_complete(NEW.place_id);
+  ELSE
+    PERFORM private.assert_published_place_complete(NEW.place_id);
+  END IF;
   RETURN NEW;
 END;
 $function$;

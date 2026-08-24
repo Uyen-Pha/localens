@@ -2,7 +2,7 @@
 -- `supabase test db --local` after a reset; this workstation has no runtime.
 BEGIN;
 
-SELECT plan(103);
+SELECT plan(112);
 
 -- The mutable catalog and immutable history relations are all present.
 SELECT ok(to_regclass('public.areas') IS NOT NULL, 'areas exists');
@@ -102,6 +102,12 @@ SELECT ok((SELECT pg_get_functiondef('private.assert_opening_window_nonoverlap()
   AND pg_get_functiondef('private.assert_exception_consistency()'::regprocedure) LIKE '%pg_catalog.pg_advisory_xact_lock%'
   AND pg_get_functiondef('private.assert_exception_window_parent_open()'::regprocedure) LIKE '%pg_catalog.pg_advisory_xact_lock%'
   AND pg_get_functiondef('private.assert_published_place_complete(uuid)'::regprocedure) LIKE '%pg_catalog.pg_advisory_xact_lock%'), 'catalog check-then-act paths use transaction advisory locks');
+SELECT ok((SELECT pg_get_functiondef('private.assert_published_place_row()'::regprocedure) LIKE '%OLD.place_id IS DISTINCT FROM NEW.place_id%'
+  AND pg_get_functiondef('private.assert_published_place_row()'::regprocedure) LIKE '%OLD.place_id::text < NEW.place_id::text%'
+  AND pg_get_functiondef('private.assert_published_place_row()'::regprocedure) LIKE '%private.assert_published_place_complete(OLD.place_id)%'
+  AND pg_get_functiondef('private.assert_published_place_row()'::regprocedure) LIKE '%private.assert_published_place_complete(NEW.place_id)%'
+  AND pg_get_functiondef('private.assert_opening_window_nonoverlap()'::regprocedure) LIKE '%OLD.place_id IS DISTINCT FROM NEW.place_id%'
+  AND pg_get_functiondef('private.assert_opening_window_nonoverlap()'::regprocedure) LIKE '%OLD.place_id::text < NEW.place_id::text%'), 'required-child reparenting locks both places in canonical order');
 SELECT ok(NOT has_table_privilege('anon', 'public.places', 'SELECT')
   AND NOT has_table_privilege('authenticated', 'public.places', 'SELECT')
   AND NOT has_table_privilege('anon', 'public.catalog_snapshot_places', 'SELECT')
@@ -149,6 +155,8 @@ INSERT INTO public.place_guide_languages (place_id, language)
 VALUES ('00000000-0000-0000-0000-000000000201'::uuid, 'en');
 INSERT INTO public.place_opening_hours (place_id, weekday, opens_at, closes_at)
 VALUES ('00000000-0000-0000-0000-000000000201'::uuid, 1, TIME '08:00', TIME '12:00');
+INSERT INTO public.places (id, area_id, slug)
+VALUES ('00000000-0000-0000-0000-000000000205'::uuid, '00000000-0000-0000-0000-000000000101'::uuid, 'reparent-draft-place');
 UPDATE public.places SET status = 'published'
 WHERE id = '00000000-0000-0000-0000-000000000201'::uuid;
 SELECT is((SELECT status::text FROM public.places WHERE id = '00000000-0000-0000-0000-000000000201'::uuid), 'published', 'complete draft publishes successfully');
@@ -156,6 +164,23 @@ SELECT throws_ok($$DELETE FROM public.place_guide_languages WHERE place_id = '00
   '23514', NULL, 'published place cannot delete its last guide language');
 SELECT throws_ok($$DELETE FROM public.place_opening_hours WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid$$,
   '23514', NULL, 'published place cannot delete its last opening window');
+
+SELECT throws_ok($$UPDATE public.place_translations SET place_id = '00000000-0000-0000-0000-000000000205'::uuid
+  WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid AND locale = 'en'$$,
+  '23514', NULL, 'reparenting the last EN translation is rejected');
+SELECT is((SELECT count(*)::integer FROM public.place_translations WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid), 2, 'failed EN reparent leaves published place unchanged');
+SELECT throws_ok($$UPDATE public.place_experience_types SET place_id = '00000000-0000-0000-0000-000000000205'::uuid
+  WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid AND experience_type = 'history'$$,
+  '23514', NULL, 'reparenting the last experience type is rejected');
+SELECT is((SELECT count(*)::integer FROM public.place_experience_types WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid), 1, 'failed experience reparent leaves published place unchanged');
+SELECT throws_ok($$UPDATE public.place_guide_languages SET place_id = '00000000-0000-0000-0000-000000000205'::uuid
+  WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid AND language = 'en'$$,
+  '23514', NULL, 'reparenting the last guide language is rejected');
+SELECT is((SELECT count(*)::integer FROM public.place_guide_languages WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid), 1, 'failed guide-language reparent leaves published place unchanged');
+SELECT throws_ok($$UPDATE public.place_opening_hours SET place_id = '00000000-0000-0000-0000-000000000205'::uuid
+  WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid AND weekday = 1$$,
+  '23514', NULL, 'reparenting the last opening window is rejected');
+SELECT is((SELECT count(*)::integer FROM public.place_opening_hours WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid), 1, 'failed opening reparent leaves published place unchanged');
 
 SELECT throws_ok($$INSERT INTO public.place_opening_hours (place_id, weekday, opens_at, closes_at)
   VALUES ('00000000-0000-0000-0000-000000000201'::uuid, 1, TIME '11:00', TIME '13:00')$$,
