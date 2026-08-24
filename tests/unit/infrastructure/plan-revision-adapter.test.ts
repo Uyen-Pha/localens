@@ -360,4 +360,19 @@ describe("trip-plan revision migration contract", () => {
     expect(migration).toMatch(/length\(persistence_dto->>'budgetVnd'\) > 16/);
     expect(migration).toMatch(/length\(item->>'travelCostVndBefore'\) > 16/);
   });
+
+  it("mirrors canonical engine request and result snapshot facts in SQL", () => {
+    expect(migration).toMatch(/iso_offset_pattern constant text/);
+    expect(migration).toMatch(/request_json->>'startAt' !~ iso_offset_pattern/);
+    expect(migration).toMatch(/request_json->>'durationMinutes'[\s\S]*'60'/);
+    expect(migration).toMatch(/canonical_hcm_pattern constant text/);
+    expect(migration).toMatch(/result_json->>'normalizedStartAt' !~ canonical_hcm_pattern/);
+    expect(migration).not.toMatch(/result_json->>'normalizedStartAt' IS DISTINCT FROM request_json->>'startAt'/);
+    expect(migration).toMatch(/jsonb_array_elements_text\(request_json->'areas'\)/);
+    expect(migration).toMatch(/jsonb_array_elements_text\(request_json->'dietaryRequirements'\)/);
+    expect(migration).toMatch(/jsonb_array_elements_text\(request_json->'mobilityRequirements'\)/);
+    expect(migration).toMatch(/jsonb_array_elements_text\(request_json->'lockedStopIds'\)/);
+    expect(migration).toMatch(/count\(DISTINCT value\)/);
+    expect(migration).toMatch(/invalid nested request arrays/);
+  });
 });

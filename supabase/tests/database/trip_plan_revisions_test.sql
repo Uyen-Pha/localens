@@ -2,13 +2,13 @@
 -- workstation; this suite is intentionally ready for the Task 16 runtime gate.
 BEGIN;
 
-SELECT plan(62);
+SELECT plan(73);
 
 CREATE TEMP TABLE task6_revision_fixture ON COMMIT DROP AS
 WITH fixture AS (
   SELECT
     jsonb_build_object(
-      'startAt', '2026-08-20T08:00:00+07:00',
+      'startAt', '2026-08-20T01:00:00Z',
       'durationMinutes', 60,
       'areas', jsonb_build_array('00000000-0000-0000-0000-000000000703'),
       'budget', jsonb_build_object('currency', 'VND', 'amountMinor', 0),
@@ -234,6 +234,47 @@ SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
 RESET ROLE;
 SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000713'::uuid), 0, 'out-of-range values create no revision');
 SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000713'::uuid), 0, 'out-of-range values create no recommendation run');
+
+INSERT INTO public.trip_plans (id, owner_user_id)
+VALUES ('00000000-0000-0000-0000-000000000714'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000714'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,durationMinutes}', to_jsonb(59), false))$$,
+  '22023', NULL, 'request duration below 60 is rejected');
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000714'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,areas}', '[1]'::jsonb, false))$$,
+  '22023', NULL, 'request array element must be an engine ID string');
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000714'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,areas}', '[]'::jsonb, false))$$,
+  '22023', NULL, 'request areas cardinality is enforced');
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000714'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,dietaryRequirements}', '["halal","halal"]'::jsonb, false))$$,
+  '22023', NULL, 'request dietary IDs must be unique');
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000714'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,mobilityRequirements}', '[true]'::jsonb, false))$$,
+  '22023', NULL, 'request mobility element must be an engine ID string');
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000714'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,lockedStopIds}', '["00000000-0000-0000-0000-000000000704","00000000-0000-0000-0000-000000000704"]'::jsonb, false))$$,
+  '22023', NULL, 'request locked IDs must be unique');
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000714'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{result,normalizedStartAt}', to_jsonb('not-a-timestamp'::text), false))$$,
+  '22023', NULL, 'result normalized start must be canonical HCM time');
+SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000714'::uuid, 0,
+  jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,startAt}', to_jsonb('2026-02-30T08:00:00Z'::text), false))$$,
+  '22023', NULL, 'request start must use a real calendar date');
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000714'::uuid), 0, 'malformed request/result snapshots create no revision');
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000714'::uuid)), 0, 'malformed request/result snapshots create no items');
+SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000714'::uuid), 0, 'malformed request/result snapshots create no recommendation run');
 
 SELECT throws_ok($$UPDATE public.trip_plan_revisions SET fingerprint = repeat('b', 64) WHERE plan_id = '00000000-0000-0000-0000-000000000706'::uuid$$, '42501', NULL, 'revision update is rejected');
 SELECT throws_ok($$DELETE FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000706'::uuid$$, '42501', NULL, 'recommendation run delete is rejected');

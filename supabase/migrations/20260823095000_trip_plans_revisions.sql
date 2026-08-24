@@ -323,6 +323,8 @@ DECLARE
     'transitionBufferMinutes', 'groupCostVnd', 'score'
   ];
   expected_snapshot_keys constant text[] := ARRAY['catalog', 'travel', 'fx'];
+  iso_offset_pattern constant text := '^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,3})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$';
+  canonical_hcm_pattern constant text := '^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:00\+07:00$';
   actual_key_count integer;
   request_json jsonb;
   result_json jsonb;
@@ -405,14 +407,94 @@ BEGIN
      OR EXISTS (SELECT 1 FROM unnest(expected_snapshot_keys) AS keys(key) WHERE NOT (result_json->'snapshotIds' ? key)) THEN
     RAISE EXCEPTION 'invalid nested persistence DTO shape' USING ERRCODE = '22023';
   END IF;
+  IF jsonb_array_length(request_json->'areas') < 1
+     OR jsonb_array_length(request_json->'areas') > 12
+     OR jsonb_array_length(request_json->'dietaryRequirements') > 12
+     OR jsonb_array_length(request_json->'mobilityRequirements') > 12
+     OR jsonb_array_length(request_json->'lockedStopIds') > 8 THEN
+    RAISE EXCEPTION 'invalid nested request arrays' USING ERRCODE = '22023';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(request_json->'areas') AS values(value)
+    WHERE jsonb_typeof(values.value) IS DISTINCT FROM 'string'
+       OR length(values.value #>> '{}') < 1
+       OR length(values.value #>> '{}') > 160
+       OR values.value #>> '{}' <> btrim(values.value #>> '{}')
+       OR values.value #>> '{}' ~ '[[:cntrl:]]'
+  ) OR EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(request_json->'dietaryRequirements') AS values(value)
+    WHERE jsonb_typeof(values.value) IS DISTINCT FROM 'string'
+       OR length(values.value #>> '{}') < 1
+       OR length(values.value #>> '{}') > 160
+       OR values.value #>> '{}' <> btrim(values.value #>> '{}')
+       OR values.value #>> '{}' ~ '[[:cntrl:]]'
+  ) OR EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(request_json->'mobilityRequirements') AS values(value)
+    WHERE jsonb_typeof(values.value) IS DISTINCT FROM 'string'
+       OR length(values.value #>> '{}') < 1
+       OR length(values.value #>> '{}') > 160
+       OR values.value #>> '{}' <> btrim(values.value #>> '{}')
+       OR values.value #>> '{}' ~ '[[:cntrl:]]'
+  ) OR EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(request_json->'lockedStopIds') AS values(value)
+    WHERE jsonb_typeof(values.value) IS DISTINCT FROM 'string'
+       OR length(values.value #>> '{}') < 1
+       OR length(values.value #>> '{}') > 160
+       OR values.value #>> '{}' <> btrim(values.value #>> '{}')
+       OR values.value #>> '{}' ~ '[[:cntrl:]]'
+  ) THEN
+    RAISE EXCEPTION 'invalid nested request arrays' USING ERRCODE = '22023';
+  END IF;
+  IF (SELECT count(*) FROM jsonb_array_elements_text(request_json->'areas'))
+       <> (SELECT count(DISTINCT value) FROM jsonb_array_elements_text(request_json->'areas') AS values(value))
+     OR (SELECT count(*) FROM jsonb_array_elements_text(request_json->'dietaryRequirements'))
+       <> (SELECT count(DISTINCT value) FROM jsonb_array_elements_text(request_json->'dietaryRequirements') AS values(value))
+     OR (SELECT count(*) FROM jsonb_array_elements_text(request_json->'mobilityRequirements'))
+       <> (SELECT count(DISTINCT value) FROM jsonb_array_elements_text(request_json->'mobilityRequirements') AS values(value))
+     OR (SELECT count(*) FROM jsonb_array_elements_text(request_json->'lockedStopIds'))
+       <> (SELECT count(DISTINCT value) FROM jsonb_array_elements_text(request_json->'lockedStopIds') AS values(value)) THEN
+    RAISE EXCEPTION 'invalid nested request arrays' USING ERRCODE = '22023';
+  END IF;
   -- Recheck the allowlisted request facts as their engine JSON types.  This
   -- keeps the audit snapshot canonical even when the authenticated RPC is
   -- called without the Edge adapter.
   IF jsonb_typeof(request_json->'startAt') IS DISTINCT FROM 'string'
-     OR jsonb_typeof(request_json->'durationMinutes') IS DISTINCT FROM 'number'
+     OR request_json->>'startAt' !~ iso_offset_pattern THEN
+    RAISE EXCEPTION 'invalid nested request facts' USING ERRCODE = '22023';
+  END IF;
+  -- The engine accepts any explicit ISO offset (including Z), then rounds
+  -- upward to the canonical HCM minute.  The RPC validates the input shape;
+  -- the adapter/engine owns that normalization rather than comparing the raw
+  -- request string with result.normalizedStartAt.
+  IF substring(request_json->>'startAt' FROM 6 FOR 2) = '02'
+     AND (
+       substring(request_json->>'startAt' FROM 9 FOR 2) > '29'
+       OR (
+         substring(request_json->>'startAt' FROM 9 FOR 2) = '29'
+         AND NOT (
+           mod(substring(request_json->>'startAt' FROM 1 FOR 4)::integer, 4) = 0
+           AND (
+             mod(substring(request_json->>'startAt' FROM 1 FOR 4)::integer, 100) <> 0
+             OR mod(substring(request_json->>'startAt' FROM 1 FOR 4)::integer, 400) = 0
+           )
+         )
+       )
+     ) THEN
+    RAISE EXCEPTION 'invalid nested request facts' USING ERRCODE = '22023';
+  END IF;
+  IF substring(request_json->>'startAt' FROM 6 FOR 2) IN ('04', '06', '09', '11')
+     AND substring(request_json->>'startAt' FROM 9 FOR 2) > '30' THEN
+    RAISE EXCEPTION 'invalid nested request facts' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_typeof(request_json->'durationMinutes') IS DISTINCT FROM 'number'
      OR request_json->>'durationMinutes' !~ '^(?:0|[1-9][0-9]*)$'
      OR length(request_json->>'durationMinutes') < 2
      OR length(request_json->>'durationMinutes') > 3
+     OR (length(request_json->>'durationMinutes') = 2 AND request_json->>'durationMinutes' < '60')
      OR (length(request_json->>'durationMinutes') = 3 AND request_json->>'durationMinutes' > '720')
      OR jsonb_typeof(request_json->'budget'->'currency') IS DISTINCT FROM 'string'
      OR request_json->'budget'->>'currency' NOT IN ('VND', 'USD')
@@ -442,6 +524,36 @@ BEGIN
        AND request_json->'priorityWeights'->>'traditional_craft' = '0'
        AND request_json->'priorityWeights'->>'traditional_market' = '0') THEN
     RAISE EXCEPTION 'invalid nested request facts' USING ERRCODE = '22023';
+  END IF;
+
+  IF jsonb_typeof(result_json->'normalizedStartAt') IS DISTINCT FROM 'string'
+     OR result_json->>'normalizedStartAt' !~ canonical_hcm_pattern
+     OR jsonb_typeof(result_json->'rankingSource') IS DISTINCT FROM 'string'
+     OR result_json->>'rankingSource' NOT IN ('ai', 'deterministic')
+     OR jsonb_typeof(result_json->'snapshotIds'->'catalog') IS DISTINCT FROM 'string'
+     OR jsonb_typeof(result_json->'snapshotIds'->'travel') IS DISTINCT FROM 'string'
+     OR jsonb_typeof(result_json->'snapshotIds'->'fx') NOT IN ('string', 'null') THEN
+    RAISE EXCEPTION 'invalid nested result facts' USING ERRCODE = '22023';
+  END IF;
+  IF substring(result_json->>'normalizedStartAt' FROM 6 FOR 2) = '02'
+     AND (
+       substring(result_json->>'normalizedStartAt' FROM 9 FOR 2) > '29'
+       OR (
+         substring(result_json->>'normalizedStartAt' FROM 9 FOR 2) = '29'
+         AND NOT (
+           mod(substring(result_json->>'normalizedStartAt' FROM 1 FOR 4)::integer, 4) = 0
+           AND (
+             mod(substring(result_json->>'normalizedStartAt' FROM 1 FOR 4)::integer, 100) <> 0
+             OR mod(substring(result_json->>'normalizedStartAt' FROM 1 FOR 4)::integer, 400) = 0
+           )
+         )
+       )
+     ) THEN
+    RAISE EXCEPTION 'invalid nested result facts' USING ERRCODE = '22023';
+  END IF;
+  IF substring(result_json->>'normalizedStartAt' FROM 6 FOR 2) IN ('04', '06', '09', '11')
+     AND substring(result_json->>'normalizedStartAt' FROM 9 FOR 2) > '30' THEN
+    RAISE EXCEPTION 'invalid nested result facts' USING ERRCODE = '22023';
   END IF;
 
   IF jsonb_typeof(result_json->'totals'->'visitMinutes') IS DISTINCT FROM 'number'
