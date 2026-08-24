@@ -3,7 +3,7 @@
 -- Docker/Supabase/PostgreSQL runtime.
 BEGIN;
 
-SELECT plan(128);
+SELECT plan(137);
 
 SELECT ok(to_regclass('public.tours') IS NOT NULL, 'tours exists');
 SELECT ok(to_regclass('public.tour_translations') IS NOT NULL, 'mutable tour translations exist');
@@ -87,12 +87,23 @@ SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.tour_vers
 SELECT ok(has_function_privilege('localens_tour_rpc_owner', 'private.valid_tour_copy_array(text[])', 'EXECUTE'), 'tour RPC owner can evaluate copy-array checks');
 SELECT ok(has_table_privilege('localens_tour_guard_owner', 'public.departures', 'SELECT'), 'tour guard can inspect active departures');
 SELECT ok(has_table_privilege('localens_tour_guard_owner', 'public.catalog_snapshot_place_translations', 'SELECT'), 'tour guard can inspect snapshot titles');
+SELECT ok(has_column_privilege('localens_tour_guard_owner', 'public.tours', 'id', 'UPDATE')
+  AND has_column_privilege('localens_tour_guard_owner', 'public.tour_versions', 'id', 'UPDATE'), 'tour guard has only row-lock UPDATE columns');
+SELECT ok(NOT has_table_privilege('localens_tour_guard_owner', 'public.tours', 'UPDATE')
+  AND NOT has_table_privilege('localens_tour_guard_owner', 'public.tour_versions', 'UPDATE')
+  AND NOT has_column_privilege('localens_tour_guard_owner', 'public.tours', 'slug', 'UPDATE')
+  AND NOT has_column_privilege('localens_tour_guard_owner', 'public.tour_versions', 'status', 'UPDATE'), 'tour guard has no table or mutable-column UPDATE');
+SELECT ok(NOT EXISTS (SELECT 1 FROM pg_policy WHERE polrelid = ANY(ARRAY['public.tours'::regclass, 'public.tour_versions'::regclass]) AND polcmd = ANY(ARRAY['w'::"char", '*'::"char"]) AND (0 = ANY(polroles) OR 'localens_tour_guard_owner'::regrole::oid = ANY(polroles))), 'tour lifecycle has no guard UPDATE policy');
 SELECT ok((SELECT count(*) = 1 FROM pg_policy WHERE polrelid = 'public.departures'::regclass AND polname = 'tour_guard_departures_select'), 'departure guard SELECT policy exists');
 SELECT ok((SELECT count(*) = 1 FROM pg_policy WHERE polrelid = 'public.catalog_snapshot_place_translations'::regclass AND polname = 'catalog_snapshot_place_translations_tour_guard_select'), 'tour guard can inspect snapshot titles under RLS');
 SELECT ok((SELECT pg_get_expr(polqual, polrelid) LIKE '%tour_versions%' AND pg_get_expr(polqual, polrelid) LIKE '%tours%' AND pg_get_expr(polqual, polrelid) LIKE '%catalog_snapshots%' FROM pg_policy WHERE polrelid = 'public.tour_version_translations'::regclass AND polname = 'tour_version_translations_public_select'), 'version translation API policy requires version, parent, and catalog publication');
 SELECT ok((SELECT pg_get_expr(polqual, polrelid) LIKE '%tour_versions%' AND pg_get_expr(polqual, polrelid) LIKE '%tours%' AND pg_get_expr(polqual, polrelid) LIKE '%catalog_snapshots%' FROM pg_policy WHERE polrelid = 'public.tour_version_stops'::regclass AND polname = 'tour_version_stops_public_select'), 'version stop API policy requires version, parent, and catalog publication');
 SELECT ok((SELECT pg_get_functiondef('private.assert_departure_insert()'::regprocedure) LIKE '%status <> ''scheduled''%'), 'departure insert guard requires scheduled status');
 SELECT ok((SELECT pg_get_functiondef('private.reject_published_tour_child_insert()'::regprocedure) LIKE '%retired%'), 'retired version children are immutable');
+SELECT ok((SELECT pg_get_functiondef('private.assert_published_tour_complete(uuid)'::regprocedure) LIKE '%source_url !~ ''^https://[A-Za-z0-9.-]+([/?]|$)''%'), 'publication guard enforces mapper-compatible URL authority');
+SET LOCAL ROLE localens_tour_guard_owner;
+SELECT is((WITH changed AS (UPDATE public.tours SET id = id RETURNING 1) SELECT count(*)::bigint FROM changed), 0::bigint, 'tour guard row-lock column update changes no rows without an UPDATE policy');
+RESET ROLE;
 
 SELECT lives_ok($$SELECT private.assert_published_tour_complete(NULL::uuid)$$, 'published completeness helper is callable by its owner path');
 SELECT ok((SELECT count(*) = 1 FROM pg_policy WHERE polrelid = 'public.tours'::regclass AND polname = 'tours_public_select'), 'published tour policy exists');
@@ -276,6 +287,10 @@ VALUES (
 SELECT throws_ok($$INSERT INTO public.tour_version_stops (tour_version_id, catalog_snapshot_id, position, place_id) VALUES ('00000000-0000-0000-0000-000000000923'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 1, '00000000-0000-0000-0000-000000000999'::uuid)$$, '23503', NULL, 'stop cannot reference a place outside its catalog snapshot');
 SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY[' guide'], ARRAY['transfer'], 'No refunds.', 'https://example.invalid/fixture', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour copy arrays reject untrimmed values');
 SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://user@example.invalid/fixture', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects authority credentials');
+SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://example.invalid:bad/path', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects malformed ports');
+SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://example.invalid:443/path', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects explicit ports');
+SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://example.invalid:65536/path', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects out-of-range ports');
+SELECT throws_ok($$INSERT INTO public.tour_versions (tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license) VALUES ('00000000-0000-0000-0000-000000000902'::uuid, '00000000-0000-0000-0000-000000000901'::uuid, 'draft', 120, 100000, ARRAY['guide'], ARRAY['transfer'], 'No refunds.', 'https://user%40example.invalid/path', DATE '2026-08-20', 'Fixture', 'CC BY 4.0')$$, '23514', NULL, 'tour source URL rejects encoded authority credentials');
 
 -- A deterministic draft version is enough to exercise departure state and
 -- immutable-fact guards without making this test depend on seed data.

@@ -13,6 +13,12 @@ const migrationPath = join(
   "migrations",
   "20260823094000_tours_departures.sql",
 );
+const privilegeFixMigrationPath = join(
+  process.cwd(),
+  "supabase",
+  "migrations",
+  "20260824100000_guard_lock_privileges.sql",
+);
 
 const stop = (position = 1, overrides: Record<string, unknown> = {}) => ({
   position,
@@ -107,6 +113,10 @@ describe("mapPublishedTour", () => {
       { source_url: "https://example.invalid/source?UTM_source=campaign" },
       { source_url: "https://example.invalid/source?safe%6bey=value" },
       { source_url: "https://example.invalid/source/path@fragment" },
+      { source_url: "https://example.invalid:bad/path" },
+      { source_url: "https://example.invalid:443/path" },
+      { source_url: "https://example.invalid:65536/path" },
+      { source_url: "https://user%40example.invalid/path" },
       { price_vnd_minor: 9007199254740993 },
       { price_vnd_minor: "9007199254740992" },
       { price_vnd_minor: "01" },
@@ -209,6 +219,17 @@ describe("fixed-tour SQL artifact", () => {
     expect(migration).toMatch(/private\.valid_tour_copy_array\(inclusions\)/i);
     expect(migration).toMatch(/cardinality\(inclusions\) <= 32/i);
     expect(migration).toMatch(/position BETWEEN 1 AND 64/i);
+  });
+
+  it("hardens URL authorities and grants only row-lock UPDATE columns", () => {
+    const migration = readFileSync(privilegeFixMigrationPath, "utf8");
+    expect(migration).toMatch(/tour_versions_source_url_authority_check/i);
+    expect(migration).toContain("CHECK (source_url ~ '^https://[A-Za-z0-9.-]+([/?]|$)');");
+    expect(migration).toContain("CREATE OR REPLACE FUNCTION private.assert_published_tour_complete");
+    expect(migration).toContain("OR version_row.source_url !~ '^https://[A-Za-z0-9.-]+([/?]|$)'");
+    expect(migration).toMatch(/GRANT UPDATE \(id\) ON TABLE public\.tours[\s\S]*public\.tour_versions TO localens_tour_guard_owner/i);
+    expect(migration).toMatch(/GRANT UPDATE \(id\) ON TABLE public\.catalog_snapshots[\s\S]*public\.travel_snapshots TO localens_catalog_guard_owner/i);
+    expect(migration).not.toMatch(/GRANT UPDATE ON TABLE public\.(?:tours|tour_versions|catalog_snapshots|travel_snapshots)\b/i);
   });
 
   it("keeps executable pgTAP assertions scalar-safe and exact", () => {

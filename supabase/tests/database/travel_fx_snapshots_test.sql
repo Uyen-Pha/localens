@@ -3,7 +3,7 @@
 -- Docker/Supabase/PostgreSQL runtime.
 BEGIN;
 
-SELECT plan(74);
+SELECT plan(78);
 
 SELECT ok(to_regclass('public.travel_edges') IS NOT NULL, 'travel edges exists');
 SELECT ok(to_regclass('public.travel_snapshots') IS NOT NULL, 'travel snapshots exists');
@@ -33,6 +33,16 @@ SELECT ok((SELECT rolcanlogin = false AND rolbypassrls = false FROM pg_catalog.p
 SELECT ok((SELECT pg_get_functiondef('private.reject_published_snapshot_insert()'::regprocedure) LIKE '%FOR SHARE%'), 'snapshot insert guard locks parent status while checking');
 SELECT ok(has_table_privilege('localens_catalog_guard_owner', 'public.catalog_snapshots', 'SELECT')
   AND has_table_privilege('localens_catalog_guard_owner', 'public.travel_snapshots', 'SELECT'), 'snapshot guard has only narrow parent SELECT privileges');
+SELECT ok(has_column_privilege('localens_catalog_guard_owner', 'public.catalog_snapshots', 'id', 'UPDATE')
+  AND has_column_privilege('localens_catalog_guard_owner', 'public.travel_snapshots', 'id', 'UPDATE'), 'snapshot guard has only row-lock UPDATE columns');
+SELECT ok(NOT has_table_privilege('localens_catalog_guard_owner', 'public.catalog_snapshots', 'UPDATE')
+  AND NOT has_table_privilege('localens_catalog_guard_owner', 'public.travel_snapshots', 'UPDATE')
+  AND NOT has_column_privilege('localens_catalog_guard_owner', 'public.catalog_snapshots', 'status', 'UPDATE')
+  AND NOT has_column_privilege('localens_catalog_guard_owner', 'public.travel_snapshots', 'status', 'UPDATE'), 'snapshot guard has no table or mutable-column UPDATE');
+SELECT ok(NOT EXISTS (SELECT 1 FROM pg_policy WHERE polrelid = ANY(ARRAY['public.catalog_snapshots'::regclass, 'public.travel_snapshots'::regclass]) AND polcmd = ANY(ARRAY['w'::"char", '*'::"char"]) AND (0 = ANY(polroles) OR 'localens_catalog_guard_owner'::regrole::oid = ANY(polroles))), 'snapshot lifecycle has no guard UPDATE policy');
+SET LOCAL ROLE localens_catalog_guard_owner;
+SELECT is((WITH changed AS (UPDATE public.catalog_snapshots SET id = id RETURNING 1) SELECT count(*)::bigint FROM changed), 0::bigint, 'snapshot guard row-lock column update changes no rows without an UPDATE policy');
+RESET ROLE;
 SELECT ok((SELECT pg_get_functiondef('private.create_travel_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.areas IN SHARE ROW EXCLUSIVE MODE%'
   AND pg_get_functiondef('private.create_travel_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.travel_edges IN SHARE ROW EXCLUSIVE MODE%'), 'travel creator declares fixed source locks');
 SELECT ok(has_function_privilege('localens_admin_rpc_owner', 'private.create_travel_snapshot()', 'EXECUTE')

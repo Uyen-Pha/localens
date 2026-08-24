@@ -167,6 +167,7 @@ function httpsUrl(value: unknown, path: string): Result<string, DataAdapterError
     value.length > 2048 ||
     /[\u0000-\u001F\u007F\s]/.test(value) ||
     value.includes("@") ||
+    /^(?:https:)?\/\/[^/?#]*:\d+(?:[/?#]|$)/i.test(value) ||
     /(?:\?|&)[^=&#]*%[0-9a-f]{2}/i.test(value)
   ) {
     return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);

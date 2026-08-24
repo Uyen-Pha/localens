@@ -299,4 +299,10 @@ describe("travel/FX migration contract", () => {
     expect(migration).toMatch(/source = btrim\(source\)/);
     expect(migration).toMatch(/source !~ '\[\[:cntrl:\]\]'/);
   });
+
+  it("pins snapshot row locks to id-only UPDATE grants without UPDATE policies", () => {
+    const privilegeFix = readFileSync(join(process.cwd(), "supabase", "migrations", "20260824100000_guard_lock_privileges.sql"), "utf8");
+    expect(privilegeFix).toMatch(/GRANT UPDATE \(id\) ON TABLE public\.catalog_snapshots[\s\S]*public\.travel_snapshots TO localens_catalog_guard_owner/i);
+    expect(privilegeFix).not.toMatch(/GRANT UPDATE ON TABLE public\.(?:catalog_snapshots|travel_snapshots)\b/i);
+  });
 });
