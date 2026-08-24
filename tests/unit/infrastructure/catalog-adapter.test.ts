@@ -1,5 +1,8 @@
 // @vitest-environment node
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { mapCatalogSnapshot } from "@/lib/infrastructure/supabase/catalog-adapter";
@@ -15,6 +18,11 @@ const exception = {
   closed: false,
   windows: [{ opens_at: "09:00:00", closes_at: "12:00:00" }],
 };
+
+const catalogMigration = readFileSync(
+  join(process.cwd(), "supabase", "migrations", "20260823092000_catalog_snapshots.sql"),
+  "utf8",
+);
 
 function row(overrides: Record<string, unknown> = {}) {
   return {
@@ -142,5 +150,41 @@ describe("mapCatalogSnapshot", () => {
     for (const value of invalid) {
       expect(mapCatalogSnapshot([value])).toMatchObject({ ok: false, error: { code: "INVALID_SHAPE" } });
     }
+  });
+
+  it("serializes snapshot copies with a fixed-order read-compatible table lock", () => {
+    const lockOrder = [
+      "areas",
+      "area_translations",
+      "places",
+      "place_translations",
+      "place_experience_types",
+      "place_guide_languages",
+      "place_supports",
+      "place_opening_hours",
+      "place_opening_exceptions",
+      "place_opening_exception_windows",
+    ];
+    const positions = lockOrder.map((table) => {
+      const match = catalogMigration.indexOf(`LOCK TABLE public.${table} IN SHARE ROW EXCLUSIVE MODE`);
+      expect(match).toBeGreaterThan(-1);
+      return match;
+    });
+    expect(positions).toEqual([...positions].sort((left, right) => left - right));
+  });
+
+  it("serializes check-then-act catalog invariants with transaction advisory locks", () => {
+    expect(catalogMigration).toMatch(/pg_catalog\.pg_advisory_xact_lock\([\s\S]*pg_catalog\.hashtextextended/);
+    expect(catalogMigration).toMatch(/assert_opening_window_nonoverlap[\s\S]*pg_catalog\.pg_advisory_xact_lock/);
+    expect(catalogMigration).toMatch(/assert_exception_window_nonoverlap[\s\S]*pg_catalog\.pg_advisory_xact_lock/);
+    expect(catalogMigration).toMatch(/assert_published_place_complete[\s\S]*pg_catalog\.pg_advisory_xact_lock/);
+  });
+
+  it("exposes only the named published projection to API roles", () => {
+    expect(catalogMigration).toMatch(/CREATE OR REPLACE VIEW public\.catalog_snapshot_places_v[\s\S]*security_invoker\s*=\s*false/i);
+    expect(catalogMigration).toMatch(/ALTER VIEW public\.catalog_snapshot_places_v OWNER TO localens_catalog_rpc_owner/i);
+    expect(catalogMigration).toMatch(/GRANT SELECT ON public\.catalog_snapshot_places_v TO anon, authenticated/i);
+    expect(catalogMigration).toMatch(/REVOKE ALL ON TABLE[\s\S]*public\.places[\s\S]*FROM anon, authenticated/i);
+    expect(catalogMigration).not.toMatch(/GRANT SELECT ON TABLE[\s\S]*public\.places[\s\S]*TO anon, authenticated/i);
   });
 });

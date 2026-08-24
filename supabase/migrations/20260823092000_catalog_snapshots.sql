@@ -367,7 +367,9 @@ GRANT SELECT, INSERT, UPDATE ON TABLE
   TO localens_catalog_rpc_owner;
 GRANT SELECT ON private.user_roles TO localens_catalog_rpc_owner;
 GRANT EXECUTE ON FUNCTION auth.uid() TO localens_catalog_rpc_owner;
-GRANT SELECT ON TABLE
+-- API roles receive no direct privilege on mutable catalog facts or immutable
+-- history tables. They read the exact published projection below instead.
+REVOKE ALL ON TABLE
   public.areas, public.area_translations, public.places, public.place_translations,
   public.place_experience_types, public.place_guide_languages, public.place_supports,
   public.place_opening_hours, public.place_opening_exceptions, public.place_opening_exception_windows,
@@ -377,7 +379,7 @@ GRANT SELECT ON TABLE
   public.catalog_snapshot_place_guide_languages, public.catalog_snapshot_place_supports,
   public.catalog_snapshot_place_opening_hours, public.catalog_snapshot_place_opening_exceptions,
   public.catalog_snapshot_place_opening_exception_windows
-  TO anon, authenticated;
+  FROM anon, authenticated;
 
 CREATE POLICY user_roles_catalog_rpc_select ON private.user_roles
   FOR SELECT TO localens_catalog_rpc_owner
@@ -408,6 +410,9 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 BEGIN
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('localens:place:' || NEW.place_id::text, 0::bigint)
+  );
   IF EXISTS (
     SELECT 1
     FROM public.place_opening_hours AS existing
@@ -451,6 +456,9 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 BEGIN
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('localens:exception:' || NEW.exception_id::text, 0::bigint)
+  );
   IF EXISTS (
     SELECT 1
     FROM public.place_opening_exception_windows AS existing
@@ -491,6 +499,9 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 BEGIN
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('localens:exception:' || NEW.id::text, 0::bigint)
+  );
   IF NEW.closed AND EXISTS (SELECT 1 FROM public.place_opening_exception_windows WHERE exception_id = NEW.id) THEN
     RAISE EXCEPTION 'closed exceptions cannot contain opening windows' USING ERRCODE = '23514';
   END IF;
@@ -517,6 +528,9 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 BEGIN
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('localens:exception:' || NEW.exception_id::text, 0::bigint)
+  );
   IF EXISTS (
     SELECT 1 FROM public.place_opening_exceptions AS exceptions
     WHERE exceptions.id = NEW.exception_id
@@ -543,6 +557,9 @@ AS $function$
 DECLARE
   place_row public.places%ROWTYPE;
 BEGIN
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('localens:place:' || target_place_id::text, 0::bigint)
+  );
   SELECT * INTO place_row FROM public.places WHERE id = target_place_id;
   IF NOT FOUND OR place_row.status <> 'published'::public.place_status THEN RETURN; END IF;
   IF place_row.source_url IS NULL OR place_row.source_url !~ '^https://' OR place_row.verified_at IS NULL OR place_row.attribution IS NULL OR btrim(place_row.attribution) = '' THEN
@@ -679,6 +696,20 @@ BEGIN
     RAISE EXCEPTION 'admin role required' USING ERRCODE = '42501';
   END IF;
 
+  -- The fixed-order SHARE ROW EXCLUSIVE locks conflict with catalog DML while
+  -- continuing to allow reads. A two-session lock/copy race harness is
+  -- deferred to Task 16 because Docker/Postgres is unavailable here.
+  LOCK TABLE public.areas IN SHARE ROW EXCLUSIVE MODE;
+  LOCK TABLE public.area_translations IN SHARE ROW EXCLUSIVE MODE;
+  LOCK TABLE public.places IN SHARE ROW EXCLUSIVE MODE;
+  LOCK TABLE public.place_translations IN SHARE ROW EXCLUSIVE MODE;
+  LOCK TABLE public.place_experience_types IN SHARE ROW EXCLUSIVE MODE;
+  LOCK TABLE public.place_guide_languages IN SHARE ROW EXCLUSIVE MODE;
+  LOCK TABLE public.place_supports IN SHARE ROW EXCLUSIVE MODE;
+  LOCK TABLE public.place_opening_hours IN SHARE ROW EXCLUSIVE MODE;
+  LOCK TABLE public.place_opening_exceptions IN SHARE ROW EXCLUSIVE MODE;
+  LOCK TABLE public.place_opening_exception_windows IN SHARE ROW EXCLUSIVE MODE;
+
   snapshot_id := gen_random_uuid();
   FOR place_row IN
     SELECT * FROM public.places WHERE status = 'published'::public.place_status
@@ -753,7 +784,7 @@ GRANT EXECUTE ON FUNCTION private.create_catalog_snapshot() TO localens_admin_rp
 -- Explicit projection for PostgREST. JSON arrays/objects are built only from
 -- snapshot child rows; no current mutable values are joined into history.
 CREATE OR REPLACE VIEW public.catalog_snapshot_places_v
-WITH (security_invoker = true, security_barrier = true)
+WITH (security_invoker = false, security_barrier = true)
 AS
 SELECT
   sp.snapshot_id,
@@ -775,6 +806,8 @@ FROM public.catalog_snapshot_places AS sp
 JOIN public.catalog_snapshots AS s ON s.id = sp.snapshot_id
 WHERE s.status = 'published'::public.snapshot_status;
 
+ALTER VIEW public.catalog_snapshot_places_v OWNER TO localens_catalog_rpc_owner;
+REVOKE ALL ON public.catalog_snapshot_places_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.catalog_snapshot_places_v TO anon, authenticated;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
 

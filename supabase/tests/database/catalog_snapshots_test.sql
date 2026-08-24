@@ -2,7 +2,7 @@
 -- `supabase test db --local` after a reset; this workstation has no runtime.
 BEGIN;
 
-SELECT plan(95);
+SELECT plan(103);
 
 -- The mutable catalog and immutable history relations are all present.
 SELECT ok(to_regclass('public.areas') IS NOT NULL, 'areas exists');
@@ -87,6 +87,29 @@ SELECT ok((SELECT pg_get_functiondef('private.create_catalog_snapshot()'::regpro
 SELECT ok(NOT has_function_privilege('anon', 'private.create_catalog_snapshot()', 'EXECUTE'), 'anon cannot execute snapshot creator');
 SELECT ok(NOT has_function_privilege('authenticated', 'private.create_catalog_snapshot()', 'EXECUTE'), 'authenticated cannot execute snapshot creator');
 SELECT ok((SELECT pg_get_viewdef('public.catalog_snapshot_places_v'::regclass) LIKE '%price_vnd_per_person::text%'), 'PostgREST projection exposes canonical decimal-string money');
+SELECT ok((SELECT pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.areas IN SHARE ROW EXCLUSIVE MODE%'
+  AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.area_translations IN SHARE ROW EXCLUSIVE MODE%'
+  AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.places IN SHARE ROW EXCLUSIVE MODE%'
+  AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.place_translations IN SHARE ROW EXCLUSIVE MODE%'
+  AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.place_experience_types IN SHARE ROW EXCLUSIVE MODE%'
+  AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.place_guide_languages IN SHARE ROW EXCLUSIVE MODE%'
+  AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.place_supports IN SHARE ROW EXCLUSIVE MODE%'
+  AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.place_opening_hours IN SHARE ROW EXCLUSIVE MODE%'
+  AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.place_opening_exceptions IN SHARE ROW EXCLUSIVE MODE%'
+  AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.place_opening_exception_windows IN SHARE ROW EXCLUSIVE MODE%'), 'snapshot creator locks canonical tables in fixed order');
+SELECT ok((SELECT pg_get_functiondef('private.assert_opening_window_nonoverlap()'::regprocedure) LIKE '%pg_catalog.pg_advisory_xact_lock%'
+  AND pg_get_functiondef('private.assert_exception_window_nonoverlap()'::regprocedure) LIKE '%pg_catalog.pg_advisory_xact_lock%'
+  AND pg_get_functiondef('private.assert_exception_consistency()'::regprocedure) LIKE '%pg_catalog.pg_advisory_xact_lock%'
+  AND pg_get_functiondef('private.assert_exception_window_parent_open()'::regprocedure) LIKE '%pg_catalog.pg_advisory_xact_lock%'
+  AND pg_get_functiondef('private.assert_published_place_complete(uuid)'::regprocedure) LIKE '%pg_catalog.pg_advisory_xact_lock%'), 'catalog check-then-act paths use transaction advisory locks');
+SELECT ok(NOT has_table_privilege('anon', 'public.places', 'SELECT')
+  AND NOT has_table_privilege('authenticated', 'public.places', 'SELECT')
+  AND NOT has_table_privilege('anon', 'public.catalog_snapshot_places', 'SELECT')
+  AND NOT has_table_privilege('authenticated', 'public.catalog_snapshot_places', 'SELECT'), 'API roles cannot read catalog base tables');
+SELECT ok(has_table_privilege('anon', 'public.catalog_snapshot_places_v', 'SELECT')
+  AND has_table_privilege('authenticated', 'public.catalog_snapshot_places_v', 'SELECT'), 'API roles can read only the published projection');
+SELECT is((SELECT pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid = 'public.catalog_snapshot_places_v'::regclass), 'localens_catalog_rpc_owner', 'published projection has named NOLOGIN definer owner');
+SELECT ok((SELECT rolcanlogin = false AND rolbypassrls = false FROM pg_catalog.pg_roles WHERE rolname = 'localens_catalog_rpc_owner'), 'projection owner cannot login or bypass RLS');
 
 -- Behavioral invariants use fixed rows and roll back with this suite. A draft
 -- becomes publishable only after complete provenance, EN/VI copy, and engine
@@ -129,6 +152,10 @@ VALUES ('00000000-0000-0000-0000-000000000201'::uuid, 1, TIME '08:00', TIME '12:
 UPDATE public.places SET status = 'published'
 WHERE id = '00000000-0000-0000-0000-000000000201'::uuid;
 SELECT is((SELECT status::text FROM public.places WHERE id = '00000000-0000-0000-0000-000000000201'::uuid), 'published', 'complete draft publishes successfully');
+SELECT throws_ok($$DELETE FROM public.place_guide_languages WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid$$,
+  '23514', NULL, 'published place cannot delete its last guide language');
+SELECT throws_ok($$DELETE FROM public.place_opening_hours WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid$$,
+  '23514', NULL, 'published place cannot delete its last opening window');
 
 SELECT throws_ok($$INSERT INTO public.place_opening_hours (place_id, weekday, opens_at, closes_at)
   VALUES ('00000000-0000-0000-0000-000000000201'::uuid, 1, TIME '11:00', TIME '13:00')$$,
@@ -186,7 +213,8 @@ SELECT throws_ok($$INSERT INTO public.catalog_snapshot_places (snapshot_id, plac
   '23503', NULL, 'snapshot place cannot reference an area outside the snapshot');
 
 SET LOCAL ROLE anon;
-SELECT is((SELECT count(*)::integer FROM public.places WHERE id = '00000000-0000-0000-0000-000000000204'::uuid), 0, 'anonymous cannot read draft catalog rows');
+SELECT throws_ok($$SELECT count(*) FROM public.places WHERE id = '00000000-0000-0000-0000-000000000204'::uuid$$,
+  '42501', NULL, 'anonymous cannot read catalog base tables');
 SELECT is((SELECT count(*)::integer FROM public.catalog_snapshot_places_v WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid), 1, 'anonymous can read the published catalog projection');
 RESET ROLE;
 
