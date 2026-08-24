@@ -64,6 +64,7 @@ const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const CANONICAL_UNSIGNED_BIGINT = /^(?:0|[1-9]\d*)$/;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MAX_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
+const FORBIDDEN_SOURCE_QUERY_KEY = /(^|_)(email|phone|name|token|session|user|customer)(_|$)/;
 
 function invalid(
   code: DataAdapterError["code"],
@@ -160,12 +161,29 @@ function dateValue(value: unknown, path: string): Result<string, DataAdapterErro
 }
 
 function httpsUrl(value: unknown, path: string): Result<string, DataAdapterError> {
-  if (typeof value !== "string" || value.trim() !== value || value.length > 2048 || /[\u0000-\u001F\u007F]/.test(value)) {
+  if (
+    typeof value !== "string" ||
+    value.trim() !== value ||
+    value.length > 2048 ||
+    /[\u0000-\u001F\u007F\s]/.test(value) ||
+    value.includes("@") ||
+    /(?:\?|&)[^=&#]*%[0-9a-f]{2}/i.test(value)
+  ) {
     return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
   }
   try {
     const parsed = new URL(value);
-    if (parsed.protocol !== "https:" || parsed.username !== "" || parsed.password !== "") {
+    if (
+      parsed.protocol !== "https:" ||
+      parsed.hostname === "" ||
+      parsed.username !== "" ||
+      parsed.password !== "" ||
+      parsed.hash !== "" ||
+      [...parsed.searchParams.keys()].some((key) => {
+        const normalized = key.toLowerCase();
+        return normalized.startsWith("utm_") || normalized === "fbclid" || normalized === "gclid" || FORBIDDEN_SOURCE_QUERY_KEY.test(normalized);
+      })
+    ) {
       return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
     }
   } catch {

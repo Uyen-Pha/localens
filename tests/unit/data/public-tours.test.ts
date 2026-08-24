@@ -95,6 +95,18 @@ describe("mapPublishedTour", () => {
       { locale: "fr" },
       { verified_at: "2026-02-29" },
       { source_url: "http://example.invalid/source" },
+      { source_url: "https://example.invalid/source#fragment" },
+      { source_url: "https://example.invalid/source?utm_source=campaign" },
+      { source_url: "https://example.invalid/source?fbclid=click" },
+      { source_url: "https://example.invalid/source?email=person%40example.invalid" },
+      { source_url: "https://example.invalid/source?customer_id=42" },
+      { source_url: "https://example.invalid/source?full_name=Person" },
+      { source_url: "https://example.invalid/source?email_address=person%40example.invalid" },
+      { source_url: "https://example.invalid/source?user=person" },
+      { source_url: "https://example.invalid/source?customer=person" },
+      { source_url: "https://example.invalid/source?UTM_source=campaign" },
+      { source_url: "https://example.invalid/source?safe%6bey=value" },
+      { source_url: "https://example.invalid/source/path@fragment" },
       { price_vnd_minor: 9007199254740993 },
       { price_vnd_minor: "9007199254740992" },
       { price_vnd_minor: "01" },
@@ -144,6 +156,25 @@ describe("mapPublishedTour", () => {
       error: { code: "INVALID_SHAPE" },
     });
   });
+
+  it("keeps projection bounds aligned for arrays, stop facts, and slugs", () => {
+    const tooManyItems = Array.from({ length: 33 }, (_, index) => `item-${index}`);
+    const tooManyStops = Array.from({ length: 65 }, (_, index) => stop(index + 1, {
+      place_id: `00000000-0000-0000-0000-${String(index + 200).padStart(12, "0")}`,
+    }));
+    expect(mapPublishedTour(row({ inclusions: tooManyItems }))).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+    expect(mapPublishedTour(row({ stops: tooManyStops }))).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+    expect(mapPublishedTour(row({ slug: "a".repeat(161) }))).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+  });
 });
 
 describe("fixed-tour SQL artifact", () => {
@@ -163,6 +194,28 @@ describe("fixed-tour SQL artifact", () => {
     expect(migration).toMatch(/GRANT SELECT\s*\([^)]*\) ON TABLE public\.(?:tours|tour_translations|tour_versions|tour_version_translations|tour_version_stops)/i);
     expect(migration).not.toMatch(/GRANT SELECT ON TABLE public\.(?:tours|tour_translations|tour_versions|tour_version_translations|tour_version_stops)[^;]*TO anon, authenticated/i);
     expect(migration).not.toMatch(/get_live_departure_availability/i);
+  });
+
+  it("uses typed enum comparisons, strict source bounds, and lifecycle lock guards", () => {
+    const migration = readFileSync(migrationPath, "utf8");
+    expect(migration).toMatch(/NEW\.status\s*=\s*ANY\s*\(ARRAY\[[\s\S]*public\.departure_status/i);
+    expect(migration).not.toMatch(/NEW\.status\s+IN\s*\([^)]*\)::public\.departure_status\[\]/i);
+    expect(migration).not.toMatch(/(?:NEW|OLD)\.status\s+IN\s*\([^)]*\)::public\.(?:departure_status|tour_status)\[\]/i);
+    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION private\.lock_tour_parents\(uuid, uuid\)/i);
+    expect(migration).toMatch(/CREATE TRIGGER tours_lifecycle_lock BEFORE UPDATE OF status ON public\.tours/i);
+    expect(migration).toMatch(/CREATE TRIGGER tour_translations_lifecycle_lock BEFORE INSERT OR UPDATE OR DELETE ON public\.tour_translations/i);
+    expect(migration).toMatch(/source_url !~ '#'/i);
+    expect(migration).toMatch(/source_url !~ '[^']*utm_/i);
+    expect(migration).toMatch(/private\.valid_tour_copy_array\(inclusions\)/i);
+    expect(migration).toMatch(/cardinality\(inclusions\) <= 32/i);
+    expect(migration).toMatch(/position BETWEEN 1 AND 64/i);
+  });
+
+  it("keeps executable pgTAP assertions scalar-safe and exact", () => {
+    const pgTap = readFileSync(join(process.cwd(), "supabase", "tests", "database", "tours_departures_test.sql"), "utf8");
+    expect(pgTap).not.toMatch(/SELECT\s+(?:ok|is)\s*\(\s*\(SELECT\s+pg_get_constraintdef\([^\n]+\)\s+LIKE/i);
+    expect(pgTap).toMatch(/FROM (?:pg_catalog\.)?pg_enum[\s\S]*departure_status/i);
+    expect(pgTap).toMatch(/count\(\*\) = 2[\s\S]*tour_version_stops/i);
   });
 
   it("pins every public table to forced RLS and uses named non-login owners", () => {
