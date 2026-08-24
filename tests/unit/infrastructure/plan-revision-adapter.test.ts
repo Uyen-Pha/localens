@@ -1,0 +1,278 @@
+// @vitest-environment node
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+import type { EngineInput, ItineraryResult } from "@/lib/domain/itinerary/contracts";
+import { toPlanRevisionInsert } from "@/lib/infrastructure/supabase/plan-revision-adapter";
+
+const migration = readFileSync(
+  join(process.cwd(), "supabase", "migrations", "20260823095000_trip_plans_revisions.sql"),
+  "utf8",
+);
+
+const ids = {
+  catalog: "00000000-0000-0000-0000-000000000601",
+  travel: "00000000-0000-0000-0000-000000000602",
+  fx: "00000000-0000-0000-0000-000000000603",
+  area: "00000000-0000-0000-0000-000000000604",
+  firstPlace: "00000000-0000-0000-0000-000000000605",
+  secondPlace: "00000000-0000-0000-0000-000000000606",
+};
+
+const place = (id: string, areaId = ids.area) => ({
+  id,
+  areaId,
+  types: ["street_food" as const],
+  priceVndPerPerson: 180_000,
+  visitDurationMinutes: 45,
+  guideLanguages: ["en" as const],
+  dietarySupport: { halal: "supported" as const },
+  mobilitySupport: { "step-free": "supported" as const },
+  openingHours: [{ weekday: 5 as const, opensAt: "08:00", closesAt: "18:00" }],
+  openingExceptions: [],
+});
+
+const input: EngineInput = {
+  request: {
+    startAt: "2026-09-05T01:00:00Z",
+    durationMinutes: 240,
+    areas: [ids.area],
+    budget: { currency: "USD", amountMinor: 10_000 },
+    partySize: 2,
+    guideLanguage: "en",
+    priorityWeights: {
+      street_food: 5,
+      history: 0,
+      traditional_craft: 0,
+      traditional_market: 0,
+    },
+    pace: "balanced",
+    dietaryRequirements: ["halal"],
+    mobilityRequirements: ["step-free"],
+    lockedStopIds: [ids.firstPlace],
+  },
+  catalog: {
+    id: ids.catalog,
+    places: [place(ids.firstPlace), place(ids.secondPlace)],
+  },
+  travel: {
+    id: ids.travel,
+    edges: [{
+      fromPlaceId: ids.firstPlace,
+      toPlaceId: ids.secondPlace,
+      mode: "walk",
+      minutes: 12,
+      groupCostVnd: 45_000,
+      verifiedAt: "2026-09-04T18:00:00+07:00",
+    }],
+  },
+  fx: {
+    id: ids.fx,
+    vndPerUsd: "25000.00000000",
+    observedAtUtc: "2026-09-05T01:00:00Z",
+  },
+  asOfUtc: "2026-09-05T01:00:00Z",
+};
+
+const result: ItineraryResult = {
+  normalizedStartAt: "2026-09-05T08:00:00+07:00",
+  budgetVnd: 250_000_000,
+  rankingSource: "ai",
+  items: [
+    {
+      placeId: ids.firstPlace,
+      startAt: "2026-09-05T08:00:00+07:00",
+      endAt: "2026-09-05T08:45:00+07:00",
+      visitDurationMinutes: 45,
+      travelMinutesBefore: 0,
+      transitionBufferMinutesBefore: 0,
+      travelCostVndBefore: 0,
+      placeCostVnd: 180_000,
+      score: 4,
+    },
+    {
+      placeId: ids.secondPlace,
+      startAt: "2026-09-05T09:07:00+07:00",
+      endAt: "2026-09-05T09:52:00+07:00",
+      visitDurationMinutes: 45,
+      travelMinutesBefore: 12,
+      transitionBufferMinutesBefore: 10,
+      travelCostVndBefore: 45_000,
+      placeCostVnd: 180_000,
+      score: 3,
+    },
+  ],
+  totals: {
+    durationMinutes: 112,
+    visitMinutes: 90,
+    travelMinutes: 12,
+    transitionBufferMinutes: 10,
+    groupCostVnd: 405_000,
+    score: 7,
+  },
+  snapshotIds: { catalog: ids.catalog, travel: ids.travel, fx: ids.fx },
+};
+
+describe("toPlanRevisionInsert", () => {
+  it("projects only immutable persistence fields and serializes every database bigint as a decimal string", () => {
+    const mapped = toPlanRevisionInsert(input, result, "a".repeat(64), 3);
+
+    expect(mapped).toEqual({
+      ok: true,
+      value: {
+        revisionNo: 3,
+        request: input.request,
+        result,
+        fingerprint: "a".repeat(64),
+        rankingSource: "ai",
+        catalogSnapshotId: ids.catalog,
+        travelSnapshotId: ids.travel,
+        fxSnapshotId: ids.fx,
+        fxVndPerUsd: "25000.00000000",
+        currency: "USD",
+        budgetVnd: "250000000",
+        totalCostVnd: "405000",
+        totalDurationMinutes: 112,
+        lockedPlaceIds: [ids.firstPlace],
+        items: [
+          expect.objectContaining({
+            placeId: ids.firstPlace,
+            travelCostVndBefore: "0",
+            placeCostVnd: "180000",
+          }),
+          expect.objectContaining({
+            placeId: ids.secondPlace,
+            travelCostVndBefore: "45000",
+            placeCostVnd: "180000",
+          }),
+        ],
+      },
+    });
+
+    if (mapped.ok) {
+      expect(Object.keys(mapped.value)).toEqual([
+        "revisionNo", "request", "result", "fingerprint", "rankingSource",
+        "catalogSnapshotId", "travelSnapshotId", "fxSnapshotId", "fxVndPerUsd",
+        "currency", "budgetVnd", "totalCostVnd", "totalDurationMinutes",
+        "lockedPlaceIds", "items",
+      ]);
+      expect(mapped.value.items).toHaveLength(2);
+      expect(Object.keys(mapped.value.items[0] ?? {})).toEqual([
+        "placeId", "startAt", "endAt", "visitDurationMinutes", "travelMinutesBefore",
+        "transitionBufferMinutesBefore", "travelCostVndBefore", "placeCostVnd", "score",
+      ]);
+    }
+  });
+
+  it("rejects a result from a different immutable snapshot set", () => {
+    expect(toPlanRevisionInsert(input, {
+      ...result,
+      snapshotIds: { ...result.snapshotIds, catalog: ids.travel },
+    }, "a".repeat(64), 1)).toMatchObject({
+      ok: false,
+      error: { code: "SNAPSHOT_MISMATCH" },
+    });
+  });
+
+  it("rejects non-UUID persistence identifiers, unsafe revisions, and non-canonical fingerprints", () => {
+    expect(toPlanRevisionInsert({ ...input, catalog: { ...input.catalog, id: "catalog-v1" } }, result, "a".repeat(64), 1)).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+    expect(toPlanRevisionInsert(input, { ...result, items: [{ ...result.items[0], placeId: "place-1" }, ...result.items.slice(1)] }, "a".repeat(64), 1)).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+    expect(toPlanRevisionInsert(input, result, "A".repeat(64), 1)).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+    expect(toPlanRevisionInsert(input, result, "a".repeat(64), 0)).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+  });
+
+  it("rejects runtime extras instead of persisting caller metadata", () => {
+    const source = { ...input, request: { ...input.request, ownerUserId: "forged" } } as unknown as EngineInput;
+    const output = toPlanRevisionInsert(source, result, "a".repeat(64), 1);
+    expect(output).toMatchObject({ ok: false, error: { code: "UNKNOWN_FIELD" } });
+  });
+
+  it("requires USD FX parity and persists no FX facts for VND", () => {
+    const vndInput = {
+      ...input,
+      fx: undefined,
+      request: { ...input.request, budget: { currency: "VND" as const, amountMinor: 2_000_000 } },
+    };
+    const vndResult = { ...result, snapshotIds: { ...result.snapshotIds, fx: null } };
+    const mapped = toPlanRevisionInsert(vndInput, vndResult, "a".repeat(64), 1);
+    expect(mapped).toMatchObject({ ok: true, value: { currency: "VND", fxSnapshotId: null, fxVndPerUsd: null } });
+
+    expect(toPlanRevisionInsert(vndInput, result, "a".repeat(64), 1)).toMatchObject({
+      ok: false,
+      error: { code: "SNAPSHOT_MISMATCH" },
+    });
+    expect(toPlanRevisionInsert({ ...input, fx: undefined }, result, "a".repeat(64), 1)).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+  });
+});
+
+describe("trip-plan revision migration contract", () => {
+  it("defines owner-scoped plan/revision/item history with restrictive snapshot membership", () => {
+    expect(migration).toMatch(/CREATE TABLE public\.trip_plans[\s\S]*owner_user_id uuid[\s\S]*guest_binding_id uuid/);
+    expect(migration).toMatch(/CREATE TABLE public\.trip_plan_revisions[\s\S]*UNIQUE \(plan_id, revision_no\)/);
+    expect(migration).toMatch(/CREATE TABLE public\.trip_plan_items[\s\S]*UNIQUE \(revision_id, position\)[\s\S]*UNIQUE \(revision_id, place_id\)/);
+    expect(migration).toMatch(/FOREIGN KEY \(catalog_snapshot_id, place_id\)[\s\S]*ON DELETE RESTRICT/);
+    expect(migration).toMatch(/FOREIGN KEY \(travel_snapshot_id\)[\s\S]*ON DELETE RESTRICT/);
+    expect(migration).toMatch(/FOREIGN KEY \(fx_snapshot_id\)[\s\S]*ON DELETE RESTRICT/);
+    expect(migration).toMatch(/CREATE TABLE private\.recommendation_runs[\s\S]*append/i);
+    expect(migration).toMatch(/trip_plan_revisions_append_only/);
+    expect(migration).toMatch(/trip_plan_items_append_only/);
+  });
+
+  it("keeps guest binding as a nullable Task 7 placeholder without an FK or anonymous policy", () => {
+    expect(migration).toMatch(/guest_binding_id uuid\s*,/);
+    expect(migration).not.toMatch(/guest_binding_id uuid[^\n]*REFERENCES/);
+    expect(migration).not.toMatch(/TO anon[\s\S]*trip_plans/);
+    expect(migration).toMatch(/ALTER TABLE public\.trip_plans ENABLE ROW LEVEL SECURITY/);
+    expect(migration).toMatch(/ALTER TABLE public\.trip_plans FORCE ROW LEVEL SECURITY/);
+  });
+
+  it("uses a locked customer-owner compare-and-swap and stable stale error", () => {
+    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION private\.advance_trip_plan_revision\(\s*plan_id uuid,\s*base_revision_no integer,\s*persistence_dto jsonb\s*\)/);
+    expect(migration).toMatch(/actor_user_id\s*:=\s*auth\.uid\(\)/);
+    expect(migration).toMatch(/SELECT[\s\S]*FROM public\.trip_plans[\s\S]*FOR UPDATE/);
+    expect(migration).toMatch(/STALE_REVISION/);
+    expect(migration).toMatch(/RAISE EXCEPTION[\s\S]*STALE_REVISION/);
+    expect(migration).toMatch(/INSERT INTO public\.trip_plan_revisions/);
+    expect(migration).toMatch(/INSERT INTO public\.trip_plan_items/);
+    expect(migration).toMatch(/ON CONFLICT \(plan_id, revision_no\)/);
+    expect(migration).toMatch(/REVOKE ALL ON FUNCTION private\.advance_trip_plan_revision/);
+  });
+
+  it("pins definer security, least-privilege grants, and owner-only RLS", () => {
+    expect(migration).toMatch(/CREATE ROLE localens_plan_rpc_owner NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/SECURITY DEFINER[\s\S]*SET search_path = ''/);
+    expect(migration).toMatch(/ALTER FUNCTION private\.advance_trip_plan_revision[\s\S]*OWNER TO localens_plan_rpc_owner/);
+    expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION private\.advance_trip_plan_revision[\s\S]*TO authenticated/);
+    expect(migration).toMatch(/REVOKE ALL ON TABLE public\.trip_plans, public\.trip_plan_revisions, public\.trip_plan_items FROM PUBLIC, anon, authenticated/);
+    expect(migration).toMatch(/trip_plans_owner_select[\s\S]*TO authenticated[\s\S]*auth\.uid\(\) = owner_user_id/);
+    expect(migration).toMatch(/trip_plan_revisions_owner_select[\s\S]*TO authenticated/);
+    expect(migration).not.toMatch(/CREATE POLICY[^\n]*TO anon[^\n]*trip_plan/);
+  });
+
+  it("rechecks canonical persistence shape, snapshot IDs, fingerprints, and FX nullability in SQL", () => {
+    expect(migration).toMatch(/jsonb_typeof\(persistence_dto\) = 'object'/);
+    expect(migration).toMatch(/jsonb_object_keys\(persistence_dto\)/);
+    expect(migration).toMatch(/fingerprint[\s\S]*~ '\^\[0-9a-f\]\{64\}\$'/);
+    expect(migration).toMatch(/fx_snapshot_id IS NULL[\s\S]*fx_vnd_per_usd IS NULL/);
+    expect(migration).toMatch(/fx_snapshot_id IS NOT NULL[\s\S]*fx_vnd_per_usd IS NOT NULL/);
+    expect(migration).toMatch(/catalog_snapshot_id[\s\S]*travel_snapshot_id/);
+  });
+});

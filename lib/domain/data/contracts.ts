@@ -208,7 +208,24 @@ export interface PlanRevisionInsert {
   totalCostVnd: string;
   totalDurationMinutes: number;
   lockedPlaceIds: string[];
-  items: ItineraryItem[];
+  items: PlanRevisionItem[];
+}
+
+/**
+ * The persistence projection of an engine item.  PostgreSQL bigint columns
+ * cross the JavaScript boundary as canonical decimal strings; the engine's
+ * in-memory numeric item is deliberately not reused here.
+ */
+export interface PlanRevisionItem {
+  placeId: string;
+  startAt: string;
+  endAt: string;
+  visitDurationMinutes: number;
+  travelMinutesBefore: number;
+  transitionBufferMinutesBefore: 0 | 10;
+  travelCostVndBefore: string;
+  placeCostVnd: string;
+  score: number;
 }
 
 export interface CreateGuestPlanArgs {
