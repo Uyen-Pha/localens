@@ -75,6 +75,14 @@ describe("read-only API application boundary", () => {
     expect(filtered.value.tours.map((tour) => tour.slug)).toEqual(["demo-cho-lon-craft"]);
   });
 
+  it("accepts known catalog areas even when no fixed tour uses them", () => {
+    const result = createReadOnlyApi().listTours("en", { areaIds: ["demo-hcmc-thu-duc"] });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.tours).toEqual([]);
+  });
+
   it("returns exact allowlisted keys and defensive copies", () => {
     const api = createReadOnlyApi();
     const catalog = api.listTours("en");
@@ -116,8 +124,9 @@ describe("read-only API application boundary", () => {
       expect(allPlaceIds.has(edge.fromPlaceId)).toBe(true);
       expect(allPlaceIds.has(edge.toPlaceId)).toBe(true);
       expect(edge.fromPlaceId).not.toBe(edge.toPlaceId);
-      expect(edgeKeys.add(`${edge.fromPlaceId}:${edge.toPlaceId}`).size).toBeGreaterThan(0);
+      edgeKeys.add(`${edge.fromPlaceId}:${edge.toPlaceId}`);
     }
+    expect(edgeKeys.size).toBe(engineInput.travel.edges.length);
     for (const tour of catalog.value.tours) {
       expect(tour.durationMinutes).toBeGreaterThan(0);
       expect(tour.priceVndMinor).toMatch(/^(?:0|[1-9]\d*)$/);
@@ -167,6 +176,30 @@ describe("read-only API application boundary", () => {
       retryable: false,
     });
     expect(error.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("generates unique v4 correlation IDs when UUID APIs are unavailable", () => {
+    const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: { randomUUID: undefined, getRandomValues: undefined },
+    });
+
+    try {
+      const api = createReadOnlyApi({ correlationIdFactory: () => "not-a-uuid" });
+      const first = errorOf(api.listTours("fr")).correlationId;
+      const second = errorOf(api.listTours("fr")).correlationId;
+
+      expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+      expect(second).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+      expect(second).not.toBe(first);
+    } finally {
+      if (originalCrypto === undefined) {
+        Reflect.deleteProperty(globalThis, "crypto");
+      } else {
+        Object.defineProperty(globalThis, "crypto", originalCrypto);
+      }
+    }
   });
 
   it("builds a deterministic preview and returns only the allowlisted result DTO", () => {

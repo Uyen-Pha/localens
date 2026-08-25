@@ -49,6 +49,7 @@ const DIETARY_REQUIREMENT_IDS = new Set(["halal", "vegetarian"]);
 const MOBILITY_REQUIREMENT_IDS = new Set(["step-free"]);
 const FILTER_FIELDS = ["keyword", "areaIds", "experienceTypes"] as const;
 const CORRELATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+let fallbackCorrelationCounter = 0;
 
 export { API_ERROR_CODES, API_MESSAGE_CATALOG, API_MESSAGE_KEYS };
 
@@ -154,7 +155,31 @@ function generatedCorrelationId(): string {
   } catch {
     // Keep the error envelope safe even when a runtime does not expose UUID generation.
   }
-  return "00000000-0000-4000-8000-000000000000";
+
+  const bytes = new Uint8Array(16);
+  let populatedByCrypto = false;
+  try {
+    const getRandomValues = globalThis.crypto?.getRandomValues;
+    if (typeof getRandomValues === "function") {
+      getRandomValues.call(globalThis.crypto, bytes);
+      populatedByCrypto = true;
+    }
+  } catch {
+    // Fall back to process-local monotonic entropy below.
+  }
+  if (!populatedByCrypto) {
+    fallbackCorrelationCounter = (fallbackCorrelationCounter + 1) >>> 0;
+    const now = Date.now();
+    for (let index = 0; index < 8; index += 1) {
+      bytes[index] = (now >>> ((index % 4) * 8)) & 0xff;
+      bytes[index + 8] = (fallbackCorrelationCounter >>> ((index % 4) * 8)) & 0xff;
+    }
+  }
+
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function makeCorrelationId(factory: (() => string) | undefined): string {
@@ -261,6 +286,7 @@ function parseTourFilter(
   input: unknown,
   correlationId: string,
   tours: readonly DemoTourRecord[],
+  knownAreaIds: ReadonlySet<string>,
 ): ApiResult<NormalizedTourFilter> {
   if (input === undefined) return success(correlationId, { areaIds: [], experienceTypes: [] });
   if (!isRecord(input)) return failure(correlationId, "INVALID_FILTER", API_MESSAGE_KEYS.filterInvalid);
@@ -277,11 +303,10 @@ function parseTourFilter(
     if (!parsedKeyword.ok) return parsedKeyword;
     keyword = parsedKeyword.value;
   }
-  const knownAreas = new Set(tours.flatMap((tour) => tour.areaIds));
   const knownTypes = new Set(tours.flatMap((tour) => tour.experienceTypes));
   let areaIds: string[] = [];
   if (input.areaIds !== undefined) {
-    const parsedAreas = normalizedIdArray(input.areaIds, "areaIds", correlationId, knownAreas);
+    const parsedAreas = normalizedIdArray(input.areaIds, "areaIds", correlationId, knownAreaIds);
     if (!parsedAreas.ok) return parsedAreas;
     areaIds = parsedAreas.value;
   }
@@ -443,7 +468,7 @@ export function createReadOnlyApi(options: ReadOnlyApiOptions = {}): ReadOnlyApi
       try {
         const locale = localeInput as Locale;
         const tours = repository.listTours(locale);
-        const parsedFilter = parseTourFilter(filterInput, correlationId, tours);
+        const parsedFilter = parseTourFilter(filterInput, correlationId, tours, new Set(repository.listAreaIds()));
         if (!parsedFilter.ok) return parsedFilter;
         return success(correlationId, {
           environment: repository.environment,

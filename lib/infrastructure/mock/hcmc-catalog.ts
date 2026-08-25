@@ -71,6 +71,9 @@ const DEMO_PLACES = deepFreeze([
 ]);
 
 const placeIds = DEMO_PLACES.map((candidate) => candidate.id);
+const catalogAreaIds = deepFreeze(
+  Array.from(new Set(DEMO_PLACES.map((candidate) => candidate.areaId))).sort(),
+);
 const DEMO_TRAVEL_EDGES = deepFreeze(
   placeIds.flatMap((fromPlaceId, fromIndex) =>
     placeIds
@@ -287,6 +290,7 @@ export interface InternalDemoCatalogRepository {
   readonly city: typeof DEMO_CITY;
   listTours(locale: Locale): readonly DemoTourRecord[];
   getEngineInput(request: DeepReadonly<EngineInput["request"]>): EngineInput;
+  listAreaIds(): readonly string[];
   hasArea(areaId: string): boolean;
   hasPlace(placeId: string): boolean;
   getPlaceTitle(placeId: string, locale: Locale): string | undefined;
@@ -315,8 +319,12 @@ class HcmcDemoCatalogRepository implements InternalDemoCatalogRepository {
     };
   }
 
+  listAreaIds(): readonly string[] {
+    return catalogAreaIds;
+  }
+
   hasArea(areaId: string): boolean {
-    return new Set(DEMO_PLACES.map((candidate) => candidate.areaId)).has(areaId);
+    return catalogAreaIds.includes(areaId);
   }
 
   hasPlace(placeId: string): boolean {
