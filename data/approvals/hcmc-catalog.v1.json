@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "hcmc-catalog.v1",
+  "status": "draft",
+  "reviewer": {"status":"pending","name":null,"userId":null},
+  "reviewedAtUtc": null,
+  "approvedAtUtc": null,
+  "fixedUuidNamespace": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+  "uuidVersion": 5,
+  "slugRules": {
+    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    "order": "manifest array order is semantic and immutable",
+    "placeIdRule": "UUIDv5(namespace, place slug)",
+    "tourIdRule": "UUIDv5(namespace, tour slug)"
+  },
+  "counts": {"operationalAreas":4,"places":30,"tours":8},
+  "sourceHashes": {
+    "places": "983ad68b2a9cdd42e34ed2c1fea70d239597b3d12dcdbb02731ce4d3a90fbc3f",
+    "tours": "42e5c4a275d40e517566993ecd56c017158bc84bdd6466ae1e985a052f1625f3",
+    "sourceHashes": "fccaed8e5e757bc80ea28a14e02c7c6a1b0e50e01d25dd1e848207c39103e21c"
+  },
+  "reviewChecklist": {
+    "officialSourceUrlsChecked": false,
+    "hoursAndAccessChecked": false,
+    "pricingChecked": false,
+    "bilingualCopyChecked": false,
+    "hashesChecked": true,
+    "networkFetchAtSeedTime": false
+  },
+  "invalidatedWhen": ["any fact changes","any source URL/host/sourceRef changes","any hash/count changes","any namespace/slug/order changes","any status or tour-stop change"]
+}

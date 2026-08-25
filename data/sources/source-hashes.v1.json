@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "source-hashes.v1",
+  "algorithm": "sha256",
+  "canonicalization": "recursive_sorted_object_keys_arrays_semantic_order",
+  "generatedAtUtc": "2026-08-25T00:00:00Z",
+  "hashScope": "Only hcmc-places.v1.json and hcmc-tours.v1.json are hashed here; this file is not self-hashed.",
+  "manifests": {
+    "places": {"path":"data/sources/hcmc-places.v1.json","sha256":"983ad68b2a9cdd42e34ed2c1fea70d239597b3d12dcdbb02731ce4d3a90fbc3f","recordCount":30,"semanticOrder":"places array order"},
+    "tours": {"path":"data/sources/hcmc-tours.v1.json","sha256":"42e5c4a275d40e517566993ecd56c017158bc84bdd6466ae1e985a052f1625f3","recordCount":8,"semanticOrder":"tours array order"}
+  },
+  "counts": {"operationalAreas":4,"places":30,"tours":8}
+}

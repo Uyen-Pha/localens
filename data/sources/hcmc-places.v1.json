@@ -1,0 +1,3093 @@
+{
+  "schemaVersion": "hcmc-places.v1",
+  "city": "Ho Chi Minh City",
+  "retrievedAtUtc": "2026-08-25T00:00:00Z",
+  "verifiedAt": "2026-08-25",
+  "researchOnly": true,
+  "publicationNote": "This is a researched draft. LocalLens must re-check every fact before publication; no network fetch is performed by seed generation.",
+  "pricingPolicy": {
+    "planningEstimateField": "priceVndPerPerson",
+    "planningEstimateProvenance": "localens_demo_company_price",
+    "planningEstimateIsOfficialAdmission": false
+  },
+  "factSourcePolicy": "sourceIds and sourceUrl identify the exact checked source page for venue identity and any known facts; unknownFacts must remain visible when a fact is not evidenced.",
+  "sources": [
+    {
+      "sourceId": "city-tourism",
+      "url": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "hostname": "visithcmc.net",
+      "authority": "official",
+      "publisher": "Ho Chi Minh City Department of Tourism portal",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "attribution": "Ho Chi Minh City official tourism website",
+      "license": "No open license stated; research-only use with attribution; verify before publication",
+      "notes": "Exact official itinerary page used for city venues, addresses and selected hours; each fact remains subject to re-verification."
+    },
+    {
+      "sourceId": "independence-palace",
+      "url": "https://dinhdoclap.gov.vn/en/visiting-hours/",
+      "hostname": "dinhdoclap.gov.vn",
+      "authority": "official",
+      "publisher": "Independence Palace",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "attribution": "Independence Palace official visiting-hours page",
+      "license": "No open license stated; research-only use with attribution; verify before publication",
+      "notes": "Exact official page for visiting hours and ticket information."
+    },
+    {
+      "sourceId": "war-remnants",
+      "url": "https://baotangchungtichchientranh.vn/en/visit",
+      "hostname": "baotangchungtichchientranh.vn",
+      "authority": "official",
+      "publisher": "War Remnants Museum",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "attribution": "War Remnants Museum official visit page",
+      "license": "No open license stated; research-only use with attribution; verify before publication",
+      "notes": "Exact official page for visiting hours, ticket information and visitor facilities."
+    },
+    {
+      "sourceId": "hcmc-museum",
+      "url": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "hostname": "visithcmc.net",
+      "authority": "official",
+      "publisher": "Ho Chi Minh City Department of Tourism portal",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "attribution": "Ho Chi Minh City official tourism itinerary page",
+      "license": "No open license stated; research-only use with attribution; verify before publication",
+      "notes": "Exact official city-tourism page; venue-level facts must be rechecked against the museum before publication."
+    },
+    {
+      "sourceId": "history-museum",
+      "url": "https://www.baotanglichsutphcm.com.vn/en-US/about-us",
+      "hostname": "www.baotanglichsutphcm.com.vn",
+      "authority": "official",
+      "publisher": "History Museum of Ho Chi Minh City",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "attribution": "History Museum of Ho Chi Minh City official about page",
+      "license": "No open license stated; research-only use with attribution; verify before publication",
+      "notes": "Exact official museum page for identity; hours remain explicitly unverified in this draft."
+    },
+    {
+      "sourceId": "fito",
+      "url": "https://fitomuseum.com.vn/bao-tang-y-hoc-co-truyen-viet-nam/",
+      "hostname": "fitomuseum.com.vn",
+      "authority": "official",
+      "publisher": "FITO Museum",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "attribution": "FITO Museum official museum page",
+      "license": "No open license stated; research-only use with attribution; verify before publication",
+      "notes": "Exact official page for museum hours and ticket information.",
+      "publicationSafetyCaveat": "The page contained suspicious injected links during research; do not publish copied page content until the museum confirms page integrity."
+    },
+    {
+      "sourceId": "ao-dai",
+      "url": "https://aodaomuseum.com/",
+      "hostname": "aodaomuseum.com",
+      "authority": "official",
+      "publisher": "Ao Dai Museum",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "attribution": "Ao Dai Museum official website",
+      "license": "No open license stated; research-only use with attribution; verify before publication",
+      "notes": "Official venue source; page-level hours remain to be rechecked."
+    },
+    {
+      "sourceId": "cu-chi",
+      "url": "https://cuchitunnel.org.vn/",
+      "hostname": "cuchitunnel.org.vn",
+      "authority": "official",
+      "publisher": "Cu Chi Tunnels",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "attribution": "Cu Chi Tunnels official website",
+      "license": "No open license stated; research-only use with attribution; verify before publication",
+      "notes": "Official venue source; route and accessibility remain to be rechecked."
+    }
+  ],
+  "operationalAreas": [
+    {
+      "slug": "central-historical",
+      "name": {
+        "en": "Central heritage",
+        "vi": "Di sản trung tâm"
+      },
+      "description": {
+        "en": "District 1 heritage, museums, public landmarks and visitor services.",
+        "vi": "Di sản, bảo tàng, công trình công cộng và dịch vụ tham quan tại Quận 1."
+      }
+    },
+    {
+      "slug": "district-3-cultural",
+      "name": {
+        "en": "District 3 culture",
+        "vi": "Văn hóa Quận 3"
+      },
+      "description": {
+        "en": "Museums, memorial places and neighborhood culture in District 3.",
+        "vi": "Bảo tàng, địa điểm tưởng niệm và văn hóa khu phố tại Quận 3."
+      }
+    },
+    {
+      "slug": "district-5-chinatown",
+      "name": {
+        "en": "Chinatown and District 5",
+        "vi": "Chợ Lớn và Quận 5"
+      },
+      "description": {
+        "en": "Markets, assembly halls and traditional streets in and around District 5.",
+        "vi": "Chợ, hội quán và các tuyến phố truyền thống tại khu vực Quận 5."
+      }
+    },
+    {
+      "slug": "outer-hcmc",
+      "name": {
+        "en": "Local neighborhoods",
+        "vi": "Khu dân cư địa phương"
+      },
+      "description": {
+        "en": "Outer-district museums, food streets, craft places and local markets.",
+        "vi": "Bảo tàng, phố ẩm thực, làng nghề và chợ địa phương ở các quận ngoài trung tâm."
+      }
+    }
+  ],
+  "places": [
+    {
+      "slug": "independence-palace",
+      "operationalArea": "central-historical",
+      "status": "research_only",
+      "title": {
+        "en": "Independence Palace",
+        "vi": "Dinh Độc Lập"
+      },
+      "summary": {
+        "en": "A landmark of modern Vietnamese history in central Ho Chi Minh City.",
+        "vi": "Công trình gắn với lịch sử Việt Nam hiện đại ở trung tâm Thành phố Hồ Chí Minh."
+      },
+      "description": {
+        "en": "Visitors can explore the preserved state rooms, grounds and historical interpretation areas.",
+        "vi": "Khách tham quan các phòng khánh tiết, khuôn viên và không gian diễn giải lịch sử được bảo tồn."
+      },
+      "experienceTypes": [
+        "history"
+      ],
+      "visitDurationMinutes": 90,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://dinhdoclap.gov.vn/en/visiting-hours/",
+      "sourceIds": [
+        "independence-palace"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "known",
+        "windows": [
+          {
+            "days": "daily",
+            "opens": "07:00",
+            "closes": "18:00",
+            "sourceId": "independence-palace"
+          }
+        ]
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Admission fee and accessibility details require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "officialAdmissionPrice"
+      ],
+      "officialAddress": {
+        "status": "known",
+        "value": "135 Nam Ky Khoi Nghia Street; visitor gate information is on the official page.",
+        "sourceRef": "independence-palace",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "known",
+        "amountVnd": 80000,
+        "currency": "VND",
+        "sourceRef": "independence-palace"
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "independence-palace"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "independence-palace"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "independence-palace"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "independence-palace"
+        ],
+        "hours": [
+          "independence-palace"
+        ],
+        "admission": [
+          "independence-palace"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "war-remnants-museum",
+      "operationalArea": "central-historical",
+      "status": "research_only",
+      "title": {
+        "en": "War Remnants Museum",
+        "vi": "Bảo tàng Chứng tích Chiến tranh"
+      },
+      "summary": {
+        "en": "A museum documenting war history and its human impact.",
+        "vi": "Bảo tàng giới thiệu lịch sử chiến tranh và những tác động đối với con người."
+      },
+      "description": {
+        "en": "The visit focuses on exhibitions, archival material and historical interpretation.",
+        "vi": "Hành trình tập trung vào các trưng bày, tư liệu lưu trữ và nội dung diễn giải lịch sử."
+      },
+      "experienceTypes": [
+        "history"
+      ],
+      "visitDurationMinutes": 90,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://baotangchungtichchientranh.vn/en/visit",
+      "sourceIds": [
+        "war-remnants"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "known",
+        "windows": [
+          {
+            "days": "daily",
+            "opens": "07:30",
+            "closes": "17:30",
+            "sourceId": "war-remnants"
+          }
+        ]
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Current exhibition rotation, ticket policy and mobility details require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "officialAdmissionPrice"
+      ],
+      "officialAddress": {
+        "status": "known",
+        "value": "28 Vo Van Tan Street, Ho Chi Minh City.",
+        "sourceRef": "war-remnants",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "known",
+        "amountVnd": 40000,
+        "currency": "VND",
+        "sourceRef": "war-remnants"
+      },
+      "support": {
+        "language": {
+          "confidence": "medium",
+          "sourceRef": "war-remnants"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "war-remnants"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "war-remnants"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "war-remnants"
+        ],
+        "hours": [
+          "war-remnants"
+        ],
+        "admission": [
+          "war-remnants"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "ho-chi-minh-city-museum",
+      "operationalArea": "central-historical",
+      "status": "research_only",
+      "title": {
+        "en": "Ho Chi Minh City Museum",
+        "vi": "Bảo tàng Thành phố Hồ Chí Minh"
+      },
+      "summary": {
+        "en": "A civic museum in a historic central building.",
+        "vi": "Bảo tàng đô thị trong một công trình lịch sử ở khu trung tâm."
+      },
+      "description": {
+        "en": "The visit connects the city’s history, urban life and heritage architecture.",
+        "vi": "Chuyến tham quan kết nối lịch sử thành phố, đời sống đô thị và kiến trúc di sản."
+      },
+      "experienceTypes": [
+        "history"
+      ],
+      "visitDurationMinutes": 75,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "hcmc-museum"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Exhibition availability, current fee and accessibility details require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "officialAdmissionPrice"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "history-museum-hcmc",
+      "operationalArea": "central-historical",
+      "status": "research_only",
+      "title": {
+        "en": "History Museum of Ho Chi Minh City",
+        "vi": "Bảo tàng Lịch sử Thành phố Hồ Chí Minh"
+      },
+      "summary": {
+        "en": "A museum of regional archaeology, culture and history.",
+        "vi": "Bảo tàng về khảo cổ, văn hóa và lịch sử khu vực."
+      },
+      "description": {
+        "en": "The visit follows objects and stories from early societies through later periods.",
+        "vi": "Khách theo dõi hiện vật và câu chuyện từ các xã hội cổ đến những giai đoạn sau."
+      },
+      "experienceTypes": [
+        "history"
+      ],
+      "visitDurationMinutes": 90,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://www.baotanglichsutphcm.com.vn/en-US/about-us",
+      "sourceIds": [
+        "history-museum"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Current gallery rotation, fee and mobility details require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "officialAdmissionPrice"
+      ],
+      "officialAddress": {
+        "status": "known",
+        "value": "02 Nguyen Binh Khiem Street, Ho Chi Minh City.",
+        "sourceRef": "history-museum",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "history-museum"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "history-museum"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "history-museum"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "history-museum"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "central-post-office",
+      "operationalArea": "central-historical",
+      "status": "research_only",
+      "title": {
+        "en": "Saigon Central Post Office",
+        "vi": "Bưu điện Trung tâm Sài Gòn"
+      },
+      "summary": {
+        "en": "A working post office and a landmark of French-colonial architecture.",
+        "vi": "Bưu điện đang hoạt động và là công trình kiến trúc thời Pháp thuộc."
+      },
+      "description": {
+        "en": "The experience combines architectural observation with a short look at a living civic service.",
+        "vi": "Trải nghiệm kết hợp quan sát kiến trúc và tìm hiểu ngắn về một dịch vụ công cộng đang hoạt động."
+      },
+      "experienceTypes": [
+        "history"
+      ],
+      "visitDurationMinutes": 45,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Postal-service counter schedules and interior photography rules require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "officialServiceSchedule"
+      ],
+      "officialAddress": {
+        "status": "known",
+        "value": "2 Cong Xa Paris, Ho Chi Minh City.",
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "fine-arts-museum-hcmc",
+      "operationalArea": "central-historical",
+      "status": "research_only",
+      "title": {
+        "en": "Ho Chi Minh City Museum of Fine Arts",
+        "vi": "Bảo tàng Mỹ thuật Thành phố Hồ Chí Minh"
+      },
+      "summary": {
+        "en": "A historic building presenting Vietnamese and regional art.",
+        "vi": "Công trình lịch sử giới thiệu mỹ thuật Việt Nam và khu vực."
+      },
+      "description": {
+        "en": "Visitors explore galleries, collections and the building’s layered architectural details.",
+        "vi": "Khách khám phá các phòng trưng bày, bộ sưu tập và chi tiết kiến trúc nhiều lớp của tòa nhà."
+      },
+      "experienceTypes": [
+        "history"
+      ],
+      "visitDurationMinutes": 90,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Current exhibition, ticket and accessibility details require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "officialAdmissionPrice"
+      ],
+      "officialAddress": {
+        "status": "known",
+        "value": "97 Pho Duc Chinh Street, Ho Chi Minh City.",
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "southern-womens-museum",
+      "operationalArea": "district-3-cultural",
+      "status": "research_only",
+      "title": {
+        "en": "Southern Women’s Museum",
+        "vi": "Bảo tàng Phụ nữ Nam Bộ"
+      },
+      "summary": {
+        "en": "A museum about women’s roles, memory and southern cultural life.",
+        "vi": "Bảo tàng về vai trò của phụ nữ, ký ức và đời sống văn hóa Nam Bộ."
+      },
+      "description": {
+        "en": "The visit uses objects, photographs and stories to discuss women’s experiences across periods.",
+        "vi": "Chuyến tham quan dùng hiện vật, hình ảnh và câu chuyện để tìm hiểu trải nghiệm của phụ nữ qua các thời kỳ."
+      },
+      "experienceTypes": [
+        "history"
+      ],
+      "visitDurationMinutes": 75,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Current displays, fee and accessibility details require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "officialAdmissionPrice"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "ton-duc-thang-museum",
+      "operationalArea": "district-3-cultural",
+      "status": "research_only",
+      "title": {
+        "en": "Ton Duc Thang Museum",
+        "vi": "Bảo tàng Tôn Đức Thắng"
+      },
+      "summary": {
+        "en": "A museum preserving memories and materials about Ton Duc Thang.",
+        "vi": "Bảo tàng lưu giữ ký ức và tư liệu về Tôn Đức Thắng."
+      },
+      "description": {
+        "en": "The visit follows personal history, public service and archival interpretation.",
+        "vi": "Chuyến tham quan theo dõi cuộc đời, hoạt động xã hội và tư liệu lưu trữ."
+      },
+      "experienceTypes": [
+        "history"
+      ],
+      "visitDurationMinutes": 60,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Current display, fee and accessibility details require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "officialAdmissionPrice"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "giac-lam-pagoda",
+      "operationalArea": "outer-hcmc",
+      "status": "research_only",
+      "title": {
+        "en": "Giac Lam Pagoda",
+        "vi": "Chùa Giác Lâm"
+      },
+      "summary": {
+        "en": "A historic Buddhist pagoda and a quiet cultural landmark.",
+        "vi": "Ngôi chùa Phật giáo lâu đời và điểm di sản văn hóa thanh tĩnh."
+      },
+      "description": {
+        "en": "Visitors observe the religious compound, architecture and living devotional practices respectfully.",
+        "vi": "Khách tôn trọng quan sát khuôn viên tôn giáo, kiến trúc và thực hành tín ngưỡng đang diễn ra."
+      },
+      "experienceTypes": [
+        "history"
+      ],
+      "visitDurationMinutes": 60,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Ceremony schedules, visitor etiquette and mobility details require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "officialVisitorRules"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "cu-chi-tunnels",
+      "operationalArea": "outer-hcmc",
+      "status": "research_only",
+      "title": {
+        "en": "Cu Chi Tunnels",
+        "vi": "Địa đạo Củ Chi"
+      },
+      "summary": {
+        "en": "A historic tunnel complex and rural heritage destination outside the city center.",
+        "vi": "Khu di tích đường hầm lịch sử và điểm di sản nông thôn ngoài trung tâm thành phố."
+      },
+      "description": {
+        "en": "The visit combines historical interpretation, preserved structures and a rural landscape context.",
+        "vi": "Chuyến tham quan kết hợp diễn giải lịch sử, công trình được bảo tồn và bối cảnh cảnh quan nông thôn."
+      },
+      "experienceTypes": [
+        "history"
+      ],
+      "visitDurationMinutes": 180,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://cuchitunnel.org.vn/",
+      "sourceIds": [
+        "cu-chi"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Site route, current ticket and mobility limitations require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "officialAdmissionPrice"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "cu-chi",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "cu-chi"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "cu-chi"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "cu-chi"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "cu-chi"
+        ],
+        "hours": [
+          "cu-chi"
+        ],
+        "admission": [
+          "cu-chi"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "ben-thanh-market",
+      "operationalArea": "central-historical",
+      "status": "research_only",
+      "title": {
+        "en": "Ben Thanh Market",
+        "vi": "Chợ Bến Thành"
+      },
+      "summary": {
+        "en": "A central market for produce, prepared food, souvenirs and everyday commerce.",
+        "vi": "Khu chợ trung tâm với thực phẩm, món ăn, quà lưu niệm và hoạt động mua bán hằng ngày."
+      },
+      "description": {
+        "en": "The experience focuses on respectful market observation, tasting choices and vendor interaction.",
+        "vi": "Trải nghiệm tập trung vào quan sát chợ, lựa chọn món thử và giao tiếp tôn trọng với tiểu thương."
+      },
+      "experienceTypes": [
+        "traditional_market",
+        "street_food"
+      ],
+      "visitDurationMinutes": 90,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Individual stall hours, dietary cross-contact and current prices require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "stallOpeningDetails"
+      ],
+      "officialAddress": {
+        "status": "known",
+        "value": "Quach Thi Trang Square and surrounding gates, Ho Chi Minh City.",
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "tan-dinh-market",
+      "operationalArea": "district-3-cultural",
+      "status": "research_only",
+      "title": {
+        "en": "Tan Dinh Market",
+        "vi": "Chợ Tân Định"
+      },
+      "summary": {
+        "en": "A neighborhood market with fresh food and daily local commerce.",
+        "vi": "Khu chợ dân sinh với thực phẩm tươi và hoạt động mua bán thường ngày."
+      },
+      "description": {
+        "en": "Visitors can observe local routines and select food experiences with guidance.",
+        "vi": "Khách có thể quan sát nhịp sống địa phương và chọn trải nghiệm ẩm thực có hướng dẫn."
+      },
+      "experienceTypes": [
+        "traditional_market",
+        "street_food"
+      ],
+      "visitDurationMinutes": 75,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Individual stall hours, dietary cross-contact and current prices require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "stallOpeningDetails"
+      ],
+      "officialAddress": {
+        "status": "known",
+        "value": "314-336 Hai Ba Trung Street, Ho Chi Minh City.",
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "an-dong-market",
+      "operationalArea": "district-5-chinatown",
+      "status": "research_only",
+      "title": {
+        "en": "An Dong Market",
+        "vi": "Chợ An Đông"
+      },
+      "summary": {
+        "en": "A wholesale and retail market known for textiles, clothing and food.",
+        "vi": "Khu chợ bán sỉ và lẻ với vải vóc, quần áo và thực phẩm."
+      },
+      "description": {
+        "en": "The experience introduces trading rhythms, textile browsing and nearby local food.",
+        "vi": "Trải nghiệm giới thiệu nhịp buôn bán, khám phá hàng vải và ẩm thực địa phương lân cận."
+      },
+      "experienceTypes": [
+        "traditional_market",
+        "street_food"
+      ],
+      "visitDurationMinutes": 90,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Individual stall hours, dietary cross-contact and current prices require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "stallOpeningDetails"
+      ],
+      "officialAddress": {
+        "status": "known",
+        "value": "18 An Duong Vuong Street, Ho Chi Minh City.",
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "binh-tay-market",
+      "operationalArea": "district-5-chinatown",
+      "status": "research_only",
+      "title": {
+        "en": "Binh Tay Market",
+        "vi": "Chợ Bình Tây"
+      },
+      "summary": {
+        "en": "A landmark market at the heart of Cho Lon’s trading district.",
+        "vi": "Khu chợ biểu tượng trong trung tâm thương mại Chợ Lớn."
+      },
+      "description": {
+        "en": "Visitors explore market architecture, wholesale traditions and surrounding neighborhood life.",
+        "vi": "Khách khám phá kiến trúc chợ, truyền thống bán sỉ và đời sống khu phố xung quanh."
+      },
+      "experienceTypes": [
+        "traditional_market",
+        "history"
+      ],
+      "visitDurationMinutes": 90,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Individual stall hours, dietary cross-contact and current prices require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "stallOpeningDetails"
+      ],
+      "officialAddress": {
+        "status": "known",
+        "value": "57A Thap Muoi Street, Ho Chi Minh City.",
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "ho-thi-ky-food-street",
+      "operationalArea": "outer-hcmc",
+      "status": "research_only",
+      "title": {
+        "en": "Ho Thi Ky Food Street",
+        "vi": "Phố ẩm thực Hồ Thị Kỷ"
+      },
+      "summary": {
+        "en": "A lively food street with southern and regional flavors.",
+        "vi": "Phố ẩm thực nhộn nhịp với hương vị Nam Bộ và nhiều vùng miền."
+      },
+      "description": {
+        "en": "The visit is a guided tasting walk with flexible choices and respectful street etiquette.",
+        "vi": "Chuyến đi là hành trình nếm thử có hướng dẫn, linh hoạt lựa chọn và tôn trọng không gian phố."
+      },
+      "experienceTypes": [
+        "street_food"
+      ],
+      "visitDurationMinutes": 120,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Vendor availability, allergens, dietary cross-contact and current prices require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "vendorOpeningDetails"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "nguyen-hue-walking-street",
+      "operationalArea": "central-historical",
+      "status": "research_only",
+      "title": {
+        "en": "Nguyen Hue Walking Street",
+        "vi": "Phố đi bộ Nguyễn Huệ"
+      },
+      "summary": {
+        "en": "A central pedestrian boulevard for public life, events and city observation.",
+        "vi": "Đại lộ đi bộ trung tâm để quan sát đời sống công cộng, sự kiện và nhịp phố."
+      },
+      "description": {
+        "en": "The experience focuses on public space, architecture, evening atmosphere and respectful people-watching.",
+        "vi": "Trải nghiệm tập trung vào không gian công cộng, kiến trúc, không khí buổi tối và quan sát đời sống tôn trọng."
+      },
+      "experienceTypes": [
+        "history",
+        "street_food"
+      ],
+      "visitDurationMinutes": 60,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Event closures, crowd conditions, traffic arrangements and accessibility details require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "eventClosureCalendar"
+      ],
+      "officialAddress": {
+        "status": "known",
+        "value": "Nguyen Hue Street, Ho Chi Minh City.",
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "tue-thanh-assembly-hall",
+      "operationalArea": "district-5-chinatown",
+      "status": "research_only",
+      "title": {
+        "en": "Tue Thanh Assembly Hall",
+        "vi": "Hội quán Tuệ Thành"
+      },
+      "summary": {
+        "en": "A Cantonese assembly hall and living place of community heritage.",
+        "vi": "Hội quán người Hoa và không gian di sản cộng đồng đang được sử dụng."
+      },
+      "description": {
+        "en": "The visit introduces architecture, community history and respectful temple etiquette.",
+        "vi": "Chuyến tham quan giới thiệu kiến trúc, lịch sử cộng đồng và phép lịch sự khi vào nơi thờ tự."
+      },
+      "experienceTypes": [
+        "history"
+      ],
+      "visitDurationMinutes": 60,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Ceremony schedules, photography rules and mobility details require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "visitorRules"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "city-tourism"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "fito-museum",
+      "operationalArea": "outer-hcmc",
+      "status": "research_only",
+      "title": {
+        "en": "FITO Museum of Traditional Vietnamese Medicine",
+        "vi": "Bảo tàng Y học Cổ truyền Việt Nam FITO"
+      },
+      "summary": {
+        "en": "A private museum introducing Vietnamese traditional medicine and material culture.",
+        "vi": "Bảo tàng giới thiệu y học cổ truyền Việt Nam và văn hóa vật chất liên quan."
+      },
+      "description": {
+        "en": "Visitors explore tools, texts and displays about traditional medical knowledge.",
+        "vi": "Khách khám phá dụng cụ, sách và trưng bày về tri thức y học truyền thống."
+      },
+      "experienceTypes": [
+        "history",
+        "traditional_craft"
+      ],
+      "visitDurationMinutes": 90,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://fitomuseum.com.vn/bao-tang-y-hoc-co-truyen-viet-nam/",
+      "sourceIds": [
+        "fito"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "known",
+        "windows": [
+          {
+            "days": "daily",
+            "opens": "08:30",
+            "closes": "17:00",
+            "sourceId": "fito"
+          }
+        ]
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Current ticket, tour language and accessibility details require a final operational check.",
+        "The source page contained suspicious injected links during research; page integrity and copied content require a final safety review."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "officialAdmissionPrice"
+      ],
+      "officialAddress": {
+        "status": "known",
+        "value": "41 Hoang Du Khuong Street, Ho Chi Minh City.",
+        "sourceRef": "fito",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "known",
+        "amountVnd": 180000,
+        "currency": "VND",
+        "sourceRef": "fito"
+      },
+      "support": {
+        "language": {
+          "confidence": "medium",
+          "sourceRef": "fito"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "fito"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "fito"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "fito"
+        ],
+        "hours": [
+          "fito"
+        ],
+        "admission": [
+          "fito"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "district-5-traditional-medicine-street",
+      "operationalArea": "district-5-chinatown",
+      "status": "research_only",
+      "title": {
+        "en": "District 5 Traditional Medicine Street",
+        "vi": "Phố Đông y Quận 5"
+      },
+      "summary": {
+        "en": "A traditional medicine trading street in the Cho Lon area.",
+        "vi": "Tuyến phố buôn bán dược liệu và sản phẩm y học cổ truyền ở khu Chợ Lớn."
+      },
+      "description": {
+        "en": "The experience observes shopfronts, heritage commerce and responsible interpretation without making medical claims.",
+        "vi": "Trải nghiệm quan sát mặt tiền cửa hàng, thương mại di sản và diễn giải có trách nhiệm, không đưa ra tư vấn y tế."
+      },
+      "experienceTypes": [
+        "traditional_craft",
+        "traditional_market"
+      ],
+      "visitDurationMinutes": 75,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Business participation, product claims, dietary safety and current opening hours require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "shopOpeningDetails"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "ao-dai-museum",
+      "operationalArea": "outer-hcmc",
+      "status": "research_only",
+      "title": {
+        "en": "Ao Dai Museum",
+        "vi": "Bảo tàng Áo Dài"
+      },
+      "summary": {
+        "en": "A museum celebrating the Vietnamese ao dai and its cultural stories.",
+        "vi": "Bảo tàng tôn vinh áo dài Việt Nam và những câu chuyện văn hóa đi cùng."
+      },
+      "description": {
+        "en": "The visit connects garments, makers, personal stories and garden architecture.",
+        "vi": "Chuyến tham quan kết nối trang phục, người làm nghề, câu chuyện cá nhân và kiến trúc vườn."
+      },
+      "experienceTypes": [
+        "traditional_craft",
+        "history"
+      ],
+      "visitDurationMinutes": 90,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://aodaomuseum.com/",
+      "sourceIds": [
+        "ao-dai"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "known"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Current displays, ticket, transport and accessibility details require a final operational check."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "officialAdmissionPrice"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "ao-dai",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": "ao-dai"
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": "ao-dai"
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": "ao-dai"
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "ao-dai"
+        ],
+        "hours": [
+          "ao-dai"
+        ],
+        "admission": [
+          "ao-dai"
+        ]
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "thiec-market",
+      "operationalArea": "district-5-chinatown",
+      "status": "research_only",
+      "title": {
+        "en": "Thiec Market",
+        "vi": "Chợ Thiếc"
+      },
+      "summary": {
+        "en": "A local market candidate in the Cho Lon area.",
+        "vi": "Một chợ địa phương được ghi nhận tại khu Chợ Lớn."
+      },
+      "description": {
+        "en": "The venue is retained for research while official hours, operating status and visit suitability are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh giờ hoạt động, trạng thái kinh doanh và khả năng tham quan."
+      },
+      "experienceTypes": [
+        "traditional_market"
+      ],
+      "visitDurationMinutes": 60,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "unknown"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Official venue page, current operating hours, stall participation and accessibility are not verified."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "stallOpeningDetails"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "pham-van-hai-market",
+      "operationalArea": "outer-hcmc",
+      "status": "research_only",
+      "title": {
+        "en": "Pham Van Hai Market",
+        "vi": "Chợ Phạm Văn Hai"
+      },
+      "summary": {
+        "en": "A local market candidate for everyday food and neighborhood life.",
+        "vi": "Một chợ địa phương được đề xuất để tìm hiểu thực phẩm và đời sống khu dân cư."
+      },
+      "description": {
+        "en": "The venue is retained for research while official hours and visitor suitability are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh giờ hoạt động và mức phù hợp cho khách tham quan."
+      },
+      "experienceTypes": [
+        "traditional_market",
+        "street_food"
+      ],
+      "visitDurationMinutes": 60,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "unknown"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Official venue page, current operating hours, stall participation and accessibility are not verified."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "stallOpeningDetails"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "ba-hoa-market",
+      "operationalArea": "outer-hcmc",
+      "status": "research_only",
+      "title": {
+        "en": "Ba Hoa Market",
+        "vi": "Chợ Bà Hoa"
+      },
+      "summary": {
+        "en": "A local market candidate associated with central Vietnamese food culture.",
+        "vi": "Một chợ địa phương gắn với văn hóa ẩm thực miền Trung."
+      },
+      "description": {
+        "en": "The venue is retained for research while official hours and vendor evidence are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh giờ hoạt động và bằng chứng về tiểu thương."
+      },
+      "experienceTypes": [
+        "traditional_market",
+        "street_food"
+      ],
+      "visitDurationMinutes": 60,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "unknown"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Official venue page, current operating hours, dietary evidence and accessibility are not verified."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "stallOpeningDetails"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "alley-200-xom-chieu",
+      "operationalArea": "outer-hcmc",
+      "status": "research_only",
+      "title": {
+        "en": "Alley 200 Xom Chieu",
+        "vi": "Hẻm 200 Xóm Chiếu"
+      },
+      "summary": {
+        "en": "A neighborhood food-alley candidate in District 4.",
+        "vi": "Một địa điểm ẩm thực trong hẻm ở Quận 4 được đề xuất nghiên cứu."
+      },
+      "description": {
+        "en": "The venue is retained for research while vendor continuity, official access information and hours are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh sự ổn định của hàng quán, thông tin tiếp cận và giờ hoạt động."
+      },
+      "experienceTypes": [
+        "street_food"
+      ],
+      "visitDurationMinutes": 90,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "unknown"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Official venue page, vendor opening hours, dietary evidence and group access are not verified."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "vendorOpeningDetails"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "banh-mi-hoa-ma",
+      "operationalArea": "district-3-cultural",
+      "status": "research_only",
+      "title": {
+        "en": "Hoa Ma Banh Mi",
+        "vi": "Bánh mì Hòa Mã"
+      },
+      "summary": {
+        "en": "A named banh mi shop candidate associated with local breakfast culture.",
+        "vi": "Một hàng bánh mì được nhắc đến trong văn hóa ăn sáng địa phương."
+      },
+      "description": {
+        "en": "The venue is retained for research while current opening hours, capacity and dietary information are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh giờ mở cửa, sức chứa và thông tin chế độ ăn."
+      },
+      "experienceTypes": [
+        "street_food"
+      ],
+      "visitDurationMinutes": 45,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "unknown"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Official business page, current opening hours, dietary cross-contact and group capacity are not verified."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "vendorOpeningDetails"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "banh-mi-huynh-hoa",
+      "operationalArea": "central-historical",
+      "status": "research_only",
+      "title": {
+        "en": "Huynh Hoa Banh Mi",
+        "vi": "Bánh mì Huỳnh Hoa"
+      },
+      "summary": {
+        "en": "A named banh mi shop candidate in the central area.",
+        "vi": "Một hàng bánh mì được đề xuất ở khu vực trung tâm."
+      },
+      "description": {
+        "en": "The venue is retained for research while current opening hours, queue conditions and dietary information are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh giờ mở cửa, tình trạng xếp hàng và thông tin chế độ ăn."
+      },
+      "experienceTypes": [
+        "street_food"
+      ],
+      "visitDurationMinutes": 45,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "unknown"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Official business page, current opening hours, dietary cross-contact and group capacity are not verified."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "vendorOpeningDetails"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "vietnam-silver-house",
+      "operationalArea": "outer-hcmc",
+      "status": "research_only",
+      "title": {
+        "en": "Vietnam Silver House",
+        "vi": "Nhà bạc Việt Nam"
+      },
+      "summary": {
+        "en": "A craft and silver-making venue candidate.",
+        "vi": "Một địa điểm thủ công và chế tác bạc được đề xuất nghiên cứu."
+      },
+      "description": {
+        "en": "The venue is retained for research while its official identity, public access and craft demonstration evidence are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh danh tính chính thức, quyền tham quan và bằng chứng trình diễn nghề."
+      },
+      "experienceTypes": [
+        "traditional_craft"
+      ],
+      "visitDurationMinutes": 75,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "unknown"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Official venue identity, operating hours, visitor access and demonstration schedule are not verified."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "demonstrationSchedule"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "mot-thoang-viet-nam-craft-village",
+      "operationalArea": "outer-hcmc",
+      "status": "research_only",
+      "title": {
+        "en": "Mot Thoang Viet Nam Craft Village",
+        "vi": "Làng nghề Một Thoáng Việt Nam"
+      },
+      "summary": {
+        "en": "A craft-village candidate for traditional making and rural culture.",
+        "vi": "Một làng nghề được đề xuất để tìm hiểu nghề truyền thống và văn hóa nông thôn."
+      },
+      "description": {
+        "en": "The venue is retained for research while current public access, demonstrations and transport details are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh quyền tham quan, hoạt động trình diễn và thông tin di chuyển."
+      },
+      "experienceTypes": [
+        "traditional_craft"
+      ],
+      "visitDurationMinutes": 120,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "unknown"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Official venue page, current operating hours, public access and demonstration schedule are not verified."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "demonstrationSchedule"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "rice-paper-phu-hoa-dong",
+      "operationalArea": "outer-hcmc",
+      "status": "research_only",
+      "title": {
+        "en": "Phu Hoa Dong Rice Paper Village",
+        "vi": "Làng bánh tráng Phú Hòa Đông"
+      },
+      "summary": {
+        "en": "A rice-paper craft-village candidate in the Cu Chi area.",
+        "vi": "Một làng nghề bánh tráng được đề xuất tại khu vực Củ Chi."
+      },
+      "description": {
+        "en": "The venue is retained for research while participating households, public access and food-safety evidence are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh hộ tham gia, quyền tham quan và bằng chứng an toàn thực phẩm."
+      },
+      "experienceTypes": [
+        "traditional_craft"
+      ],
+      "visitDurationMinutes": 90,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "unknown"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Official participating venue, current operating hours, public access and food-safety information are not verified."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "demonstrationSchedule"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    },
+    {
+      "slug": "hoa-binh-lantern-making",
+      "operationalArea": "district-5-chinatown",
+      "status": "research_only",
+      "title": {
+        "en": "Hoa Binh Lantern Making",
+        "vi": "Nghề làm lồng đèn Hòa Bình"
+      },
+      "summary": {
+        "en": "A lantern-making craft candidate associated with the Cho Lon area.",
+        "vi": "Một địa điểm nghề làm lồng đèn được đề xuất tại khu Chợ Lớn."
+      },
+      "description": {
+        "en": "The venue is retained for research while the workshop identity, public access and demonstration hours are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh danh tính xưởng, quyền tham quan và giờ trình diễn."
+      },
+      "experienceTypes": [
+        "traditional_craft"
+      ],
+      "visitDurationMinutes": 75,
+      "priceVndPerPerson": 0,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "hours": {
+        "status": "unknown",
+        "windows": []
+      },
+      "coordinates": {
+        "status": "unknown",
+        "latitude": null,
+        "longitude": null
+      },
+      "languageSupport": {
+        "en": "unknown",
+        "vi": "unknown"
+      },
+      "languageSupportConfidence": "unknown",
+      "unknownFacts": [
+        "Official workshop identity, current operating hours, public access and demonstration schedule are not verified."
+      ],
+      "evidenceOnlyFields": [
+        "officialAddress",
+        "officialHoursText",
+        "officialCoordinates",
+        "demonstrationSchedule"
+      ],
+      "officialAddress": {
+        "status": "unknown",
+        "value": null,
+        "sourceRef": "city-tourism",
+        "verifiedAt": "2026-08-25"
+      },
+      "officialAdmission": {
+        "status": "unknown",
+        "amountVnd": null,
+        "currency": "VND",
+        "sourceRef": null
+      },
+      "support": {
+        "language": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "accessibility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "dietary": {
+          "confidence": "unknown",
+          "sourceRef": null
+        },
+        "mobility": {
+          "confidence": "unknown",
+          "sourceRef": null
+        }
+      },
+      "factSourceRefs": {
+        "identity": [
+          "city-tourism"
+        ],
+        "hours": [],
+        "admission": []
+      },
+      "planningEstimate": {
+        "amountVnd": 0,
+        "currency": "VND",
+        "provenance": "localens_demo_company_price",
+        "isOfficialAdmission": false
+      }
+    }
+  ]
+}

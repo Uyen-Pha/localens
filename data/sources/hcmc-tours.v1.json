@@ -1,0 +1,411 @@
+{
+  "schemaVersion": "hcmc-tours.v1",
+  "city": "Ho Chi Minh City",
+  "retrievedAtUtc": "2026-08-25T00:00:00Z",
+  "verifiedAt": "2026-08-25",
+  "researchOnly": true,
+  "sourceRegistryRef": "hcmc-places.v1.sources",
+  "publicationNote": "Tour prices are LocalLens planning estimates only. Availability is false whenever a stop is research_only or temporarily_closed; no booking or payment is implied by this manifest.",
+  "demoFx": {
+    "environment": "demo",
+    "status": "stale",
+    "vndPerUsd": "25500.00000000",
+    "observedAtUtc": "2025-01-01T00:00:00Z",
+    "freshnessDays": 7,
+    "usdEnabled": false,
+    "staleReason": "Demo FX snapshot is older than the allowed freshness window; USD must not be displayed or used for checkout."
+  },
+  "currencyPolicy": {
+    "baseCurrency": "VND",
+    "usdEnabled": false,
+    "usdDisabledReason": "USD is disabled because the demo FX snapshot is stale."
+  },
+  "tours": [
+    {
+      "slug": "heritage-core-hcmc",
+      "available": false,
+      "title": {
+        "en": "Central Heritage Essentials",
+        "vi": "Tinh hoa di sản trung tâm"
+      },
+      "summary": {
+        "en": "A compact walk through landmark history and civic architecture.",
+        "vi": "Hành trình gọn qua lịch sử biểu tượng và kiến trúc đô thị trung tâm."
+      },
+      "meetingPoint": {
+        "en": "Central Ho Chi Minh City; exact meeting point is confirmed before booking.",
+        "vi": "Khu trung tâm Thành phố Hồ Chí Minh; điểm hẹn chính xác được xác nhận trước khi đặt."
+      },
+      "durationMinutes": 300,
+      "priceVndPerPerson": 950000,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "stops": [
+        "independence-palace",
+        "war-remnants-museum",
+        "central-post-office"
+      ],
+      "stopActivities": [
+        {
+          "en": "Explore preserved rooms and historical exhibits.",
+          "vi": "Khám phá các phòng được bảo tồn và trưng bày lịch sử."
+        },
+        {
+          "en": "Reflect on war history through museum collections.",
+          "vi": "Tìm hiểu lịch sử chiến tranh qua các bộ sưu tập bảo tàng."
+        },
+        {
+          "en": "Observe a working civic landmark and its architecture.",
+          "vi": "Quan sát công trình công cộng đang hoạt động và kiến trúc của công trình."
+        }
+      ],
+      "unknownFacts": [
+        "Exact meeting point, guide allocation and final operating checks are not part of this research draft."
+      ]
+    },
+    {
+      "slug": "museum-and-memory",
+      "available": false,
+      "title": {
+        "en": "Museums and Memory",
+        "vi": "Bảo tàng và ký ức"
+      },
+      "summary": {
+        "en": "A slower museum route connecting city, regional and visual history.",
+        "vi": "Tuyến bảo tàng thong thả kết nối lịch sử thành phố, khu vực và nghệ thuật thị giác."
+      },
+      "meetingPoint": {
+        "en": "A central museum entrance; exact meeting point is confirmed before booking.",
+        "vi": "Một cổng bảo tàng ở trung tâm; điểm hẹn chính xác được xác nhận trước khi đặt."
+      },
+      "durationMinutes": 330,
+      "priceVndPerPerson": 1050000,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism",
+        "history-museum"
+      ],
+      "verifiedAt": "2026-08-25",
+      "stops": [
+        "ho-chi-minh-city-museum",
+        "history-museum-hcmc",
+        "fine-arts-museum-hcmc"
+      ],
+      "stopActivities": [
+        {
+          "en": "Connect civic history with the city’s changing identity.",
+          "vi": "Kết nối lịch sử đô thị với bản sắc đang thay đổi của thành phố."
+        },
+        {
+          "en": "Follow archaeological and regional history displays.",
+          "vi": "Theo dõi các trưng bày khảo cổ và lịch sử khu vực."
+        },
+        {
+          "en": "Observe Vietnamese and regional art in a historic building.",
+          "vi": "Quan sát mỹ thuật Việt Nam và khu vực trong một công trình lịch sử."
+        }
+      ],
+      "unknownFacts": [
+        "Current exhibition rotations, ticket policy and accessibility require final venue checks."
+      ]
+    },
+    {
+      "slug": "cho-lon-market-and-heritage",
+      "available": false,
+      "title": {
+        "en": "Cho Lon Markets and Heritage",
+        "vi": "Chợ Lớn: chợ và di sản"
+      },
+      "summary": {
+        "en": "A market-and-assembly-hall route through trading life in Cho Lon.",
+        "vi": "Tuyến chợ và hội quán qua nhịp buôn bán ở Chợ Lớn."
+      },
+      "meetingPoint": {
+        "en": "District 5 market area; exact meeting point is confirmed before booking.",
+        "vi": "Khu chợ Quận 5; điểm hẹn chính xác được xác nhận trước khi đặt."
+      },
+      "durationMinutes": 360,
+      "priceVndPerPerson": 1100000,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "stops": [
+        "an-dong-market",
+        "binh-tay-market",
+        "tue-thanh-assembly-hall"
+      ],
+      "stopActivities": [
+        {
+          "en": "Browse textiles and observe everyday trading rhythms.",
+          "vi": "Khám phá hàng vải và quan sát nhịp buôn bán thường ngày."
+        },
+        {
+          "en": "Read market architecture and wholesale traditions.",
+          "vi": "Tìm hiểu kiến trúc chợ và truyền thống bán sỉ."
+        },
+        {
+          "en": "Learn about community heritage with respectful temple etiquette.",
+          "vi": "Tìm hiểu di sản cộng đồng với phép lịch sự nơi thờ tự."
+        }
+      ],
+      "unknownFacts": [
+        "Market stall participation, dietary suitability and current vendor hours require final checks."
+      ]
+    },
+    {
+      "slug": "southern-memory-and-night-food",
+      "available": false,
+      "title": {
+        "en": "Southern Memory and Night Food",
+        "vi": "Ký ức Nam Bộ và ẩm thực đêm"
+      },
+      "summary": {
+        "en": "A culture-and-food route from museum stories to a lively evening street.",
+        "vi": "Tuyến văn hóa và ẩm thực từ câu chuyện bảo tàng đến con phố buổi tối sôi động."
+      },
+      "meetingPoint": {
+        "en": "District 3 or District 10; exact meeting point is confirmed before booking.",
+        "vi": "Quận 3 hoặc Quận 10; điểm hẹn chính xác được xác nhận trước khi đặt."
+      },
+      "durationMinutes": 300,
+      "priceVndPerPerson": 900000,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "stops": [
+        "southern-womens-museum",
+        "ton-duc-thang-museum",
+        "ho-thi-ky-food-street"
+      ],
+      "stopActivities": [
+        {
+          "en": "Explore women’s stories and southern cultural memory.",
+          "vi": "Khám phá câu chuyện phụ nữ và ký ức văn hóa Nam Bộ."
+        },
+        {
+          "en": "Connect personal history with public service and memory.",
+          "vi": "Kết nối lịch sử cá nhân với hoạt động công cộng và ký ức."
+        },
+        {
+          "en": "Choose a guided tasting set with dietary questions discussed first.",
+          "vi": "Chọn set nếm thử có hướng dẫn sau khi trao đổi trước về chế độ ăn."
+        }
+      ],
+      "unknownFacts": [
+        "Vendor choices, dietary cross-contact and current evening conditions require final checks."
+      ]
+    },
+    {
+      "slug": "cu-chi-and-craft-country",
+      "available": false,
+      "title": {
+        "en": "Cu Chi and Craft Country",
+        "vi": "Củ Chi và làng nghề"
+      },
+      "summary": {
+        "en": "A proposed rural heritage route linking tunnels with craft-village candidates.",
+        "vi": "Tuyến di sản nông thôn đề xuất kết nối địa đạo với các làng nghề đang nghiên cứu."
+      },
+      "meetingPoint": {
+        "en": "Cu Chi area; exact meeting point and transport are confirmed only after verification.",
+        "vi": "Khu vực Củ Chi; điểm hẹn và phương án di chuyển chỉ xác nhận sau khi kiểm chứng."
+      },
+      "durationMinutes": 540,
+      "priceVndPerPerson": 1450000,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://cuchitunnel.org.vn/",
+      "sourceIds": [
+        "cu-chi",
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "stops": [
+        "cu-chi-tunnels",
+        "mot-thoang-viet-nam-craft-village",
+        "rice-paper-phu-hoa-dong"
+      ],
+      "stopActivities": [
+        {
+          "en": "Interpret the preserved tunnel complex and rural history.",
+          "vi": "Tìm hiểu khu địa đạo được bảo tồn và lịch sử nông thôn."
+        },
+        {
+          "en": "Observe a craft-village candidate only after public access is verified.",
+          "vi": "Chỉ quan sát địa điểm làng nghề sau khi xác minh quyền tham quan."
+        },
+        {
+          "en": "Learn about rice-paper making only after a participating household is verified.",
+          "vi": "Chỉ tìm hiểu nghề làm bánh tráng sau khi xác minh hộ tham gia."
+        }
+      ],
+      "unknownFacts": [
+        "Two craft stops are research_only; transport, public access, hours and food-safety evidence are unverified."
+      ]
+    },
+    {
+      "slug": "street-food-candidates",
+      "available": false,
+      "title": {
+        "en": "Street Food Candidates",
+        "vi": "Các điểm ẩm thực đang nghiên cứu"
+      },
+      "summary": {
+        "en": "A proposed tasting route using food-street and shop candidates that still need verification.",
+        "vi": "Tuyến nếm thử đề xuất với các phố và hàng ăn vẫn cần xác minh."
+      },
+      "meetingPoint": {
+        "en": "A central food area; no departure is available until each vendor is verified.",
+        "vi": "Một khu ẩm thực trung tâm; chưa có khởi hành cho đến khi xác minh từng hàng quán."
+      },
+      "durationMinutes": 210,
+      "priceVndPerPerson": 650000,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "stops": [
+        "ho-thi-ky-food-street",
+        "alley-200-xom-chieu",
+        "banh-mi-hoa-ma",
+        "banh-mi-huynh-hoa"
+      ],
+      "stopActivities": [
+        {
+          "en": "Choose food-street options with allergen questions first.",
+          "vi": "Chọn món ở phố ẩm thực sau khi hỏi trước về dị ứng."
+        },
+        {
+          "en": "Walk through the neighborhood only after access and vendor continuity are verified.",
+          "vi": "Chỉ đi qua khu phố sau khi xác minh quyền tiếp cận và sự ổn định của hàng quán."
+        },
+        {
+          "en": "Observe a named breakfast shop candidate after current hours are verified.",
+          "vi": "Quan sát hàng ăn sáng sau khi xác minh giờ hiện tại."
+        },
+        {
+          "en": "Observe a central shop candidate after queue and dietary details are verified.",
+          "vi": "Quan sát hàng ăn khu trung tâm sau khi xác minh tình trạng xếp hàng và chế độ ăn."
+        }
+      ],
+      "unknownFacts": [
+        "Three food candidates are research_only; vendor hours, ingredients and dietary cross-contact are unverified."
+      ]
+    },
+    {
+      "slug": "district-5-craft-research",
+      "available": false,
+      "title": {
+        "en": "District 5 Craft Research Walk",
+        "vi": "Khảo sát nghề truyền thống Quận 5"
+      },
+      "summary": {
+        "en": "A proposed walk connecting medicine, lantern and market candidates.",
+        "vi": "Tuyến đi đề xuất kết nối các điểm y học, lồng đèn và chợ đang nghiên cứu."
+      },
+      "meetingPoint": {
+        "en": "District 5; exact meeting point is unavailable until the research stops are verified.",
+        "vi": "Quận 5; điểm hẹn chưa thể xác nhận cho đến khi các điểm nghiên cứu được kiểm chứng."
+      },
+      "durationMinutes": 300,
+      "priceVndPerPerson": 850000,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceIds": [
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "stops": [
+        "district-5-traditional-medicine-street",
+        "thiec-market",
+        "ba-hoa-market",
+        "hoa-binh-lantern-making"
+      ],
+      "stopActivities": [
+        {
+          "en": "Discuss traditional medicine commerce without making medical claims.",
+          "vi": "Tìm hiểu thương mại dược liệu mà không đưa ra tuyên bố y tế."
+        },
+        {
+          "en": "Observe a local market candidate after its hours are verified.",
+          "vi": "Quan sát chợ địa phương sau khi xác minh giờ hoạt động."
+        },
+        {
+          "en": "Explore a food-market candidate after vendor evidence is verified.",
+          "vi": "Khám phá điểm chợ ẩm thực sau khi xác minh bằng chứng về tiểu thương."
+        },
+        {
+          "en": "Observe lantern-making only after workshop access is verified.",
+          "vi": "Chỉ quan sát nghề làm lồng đèn sau khi xác minh quyền vào xưởng."
+        }
+      ],
+      "unknownFacts": [
+        "Thiec Market, Ba Hoa Market and Hoa Binh Lantern Making are research_only; access, hours and participation are unverified."
+      ]
+    },
+    {
+      "slug": "local-market-and-ao-dai",
+      "available": false,
+      "title": {
+        "en": "Local Market and Ao Dai",
+        "vi": "Chợ địa phương và áo dài"
+      },
+      "summary": {
+        "en": "A proposed local-life route pairing neighborhood commerce with costume heritage.",
+        "vi": "Tuyến đời sống địa phương đề xuất kết hợp chợ dân sinh với di sản trang phục."
+      },
+      "meetingPoint": {
+        "en": "Tan Binh or the Ao Dai Museum area; exact meeting point is confirmed after venue checks.",
+        "vi": "Khu Tân Bình hoặc Bảo tàng Áo Dài; điểm hẹn chính xác xác nhận sau khi kiểm tra địa điểm."
+      },
+      "durationMinutes": 330,
+      "priceVndPerPerson": 1000000,
+      "priceProvenance": "localens_demo_company_price",
+      "sourceUrl": "https://aodaomuseum.com/",
+      "sourceIds": [
+        "ao-dai",
+        "city-tourism"
+      ],
+      "verifiedAt": "2026-08-25",
+      "stops": [
+        "tan-dinh-market",
+        "pham-van-hai-market",
+        "vietnam-silver-house",
+        "ao-dai-museum"
+      ],
+      "stopActivities": [
+        {
+          "en": "Observe a neighborhood market and discuss daily food choices.",
+          "vi": "Quan sát chợ dân sinh và tìm hiểu lựa chọn thực phẩm hằng ngày."
+        },
+        {
+          "en": "Walk through a market candidate only after current hours are verified.",
+          "vi": "Chỉ đi qua điểm chợ sau khi xác minh giờ hiện tại."
+        },
+        {
+          "en": "Discuss a silver-craft candidate only after workshop identity is verified.",
+          "vi": "Chỉ tìm hiểu điểm nghề bạc sau khi xác minh danh tính xưởng."
+        },
+        {
+          "en": "Connect garments, makers and cultural stories at the museum.",
+          "vi": "Kết nối trang phục, người làm nghề và câu chuyện văn hóa tại bảo tàng."
+        }
+      ],
+      "unknownFacts": [
+        "Pham Van Hai Market and Vietnam Silver House are research_only; access, hours and workshop participation are unverified."
+      ]
+    }
+  ]
+}
