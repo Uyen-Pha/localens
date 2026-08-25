@@ -81,6 +81,20 @@ describe("local demo booking boundary", () => {
     expect(replay).toMatchObject({ bookingId: booking.bookingId, status: "paid", paymentStatus: "succeeded" });
   });
 
+  it("resumes a legitimately paid local booking with its paid state", () => {
+    const storage = createStorage();
+    const booking = createLocalBooking({ departureId, partySize: 1, storage, now });
+    createTestPayment({ bookingId: booking.bookingId, storage, now: new Date("2026-09-01T02:10:00.000Z") });
+
+    const resumed = createLocalBooking({ departureId, partySize: 1, storage, now: new Date("2026-09-01T02:11:00.000Z") });
+    expect(resumed).toMatchObject({
+      bookingId: booking.bookingId,
+      resumed: true,
+      status: "paid",
+      paymentStatus: "succeeded",
+    });
+  });
+
   it("does not pay after the Stripe Test concept window expires", () => {
     const storage = createStorage();
     const booking = createLocalBooking({ departureId, partySize: 1, storage, now });

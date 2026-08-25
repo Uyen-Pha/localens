@@ -200,7 +200,7 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
       setNotice(null);
       setBookingError(null);
       setPaymentError(null);
-      setPaymentPhase("idle");
+      setPaymentPhase(nextBooking.status === "paid" && nextBooking.paymentStatus === "succeeded" ? "success" : "idle");
     } catch (error) {
       setBookingError(errorKeyForMessage(error instanceof Error ? error.message : ""));
     }

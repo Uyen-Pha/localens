@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { BookingFlow, type BookingCopy } from "@/components/customer/booking-flow";
+import { createLocalBooking, createTestPayment } from "@/lib/application/booking/mock-booking";
 
 afterEach(() => {
   cleanup();
@@ -104,6 +105,21 @@ describe("BookingFlow", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: copy.successHeading })).toHaveFocus());
     expect(screen.getByText(/demo-booking-/)).toBeInTheDocument();
     expect(screen.getByText(copy.paidStatus)).toBeInTheDocument();
+  });
+
+  it("shows a resumed paid demo booking as success instead of offering payment again", async () => {
+    const held = createLocalBooking({ departureId: validDeparture, partySize: 1 });
+    createTestPayment({ bookingId: held.bookingId });
+    window.history.replaceState({}, "", `/en/booking?departure=${validDeparture}&partySize=1`);
+    render(<BookingFlow locale="en" copy={copy} />);
+
+    await screen.findByRole("heading", { name: copy.tourTitles["demo-markets-and-street-food"] });
+    fireEvent.click(screen.getByRole("button", { name: copy.continueLabel }));
+
+    expect(await screen.findByRole("heading", { name: copy.successHeading })).toBeInTheDocument();
+    expect(screen.getByText(copy.paymentBanner)).toBeInTheDocument();
+    expect(screen.getByText(held.bookingId)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: copy.payLabel })).not.toBeInTheDocument();
   });
 
   it("marks an invalid party size and focuses the field before creating a hold", async () => {
