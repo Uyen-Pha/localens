@@ -245,12 +245,29 @@ export interface SubmitCustomRequestInput {
   planId: string;
   revisionNo: number;
 }
+export interface SubmitCustomRequestArgs {
+  planId: string;
+  revisionNo: number;
+}
 export interface ReviewCustomRequestInput {
   requestId: string;
   decision: "changes_requested" | "approved" | "rejected";
   note: string | null;
 }
+export interface ReviewCustomRequestArgs {
+  requestId: string;
+  decision: "changes_requested" | "approved" | "rejected";
+  note: string | null;
+}
 export interface CreateCustomQuoteInput {
+  requestId: string;
+  amountVndMinor: string;
+  checkoutCurrency: CheckoutCurrency;
+  titleEn: string;
+  titleVi: string;
+  policy: string;
+}
+export interface CreateCustomQuoteArgs {
   requestId: string;
   amountVndMinor: string;
   checkoutCurrency: CheckoutCurrency;
