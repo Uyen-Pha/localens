@@ -11,6 +11,7 @@ describe("localized fixed tours page", () => {
     render(await ToursPage({ params: Promise.resolve({ locale: "en" }) }));
 
     expect(screen.getByRole("heading", { level: 1, name: dictionary.home.discoveryTitle })).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(dictionary.home.demoDisclosure);
     for (const tour of dictionary.home.fixedTours) {
       expect(screen.getByRole("heading", { level: 2, name: tour.title })).toBeInTheDocument();
       expect(screen.getByText(tour.description)).toBeInTheDocument();

@@ -34,6 +34,7 @@ export type Dictionary = {
       detail: string;
     }>;
     fixedToursCta: string;
+    demoDisclosure: string;
     trustEyebrow: string;
     trustTitle: string;
     trustIntro: string;
@@ -161,6 +162,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       },
     ],
     fixedToursCta: "See all fixed tours",
+    demoDisclosure:
+      "Demo catalog: these fixed tours use internal sample places and do not accept bookings or payments yet.",
     trustEyebrow: "A considered way to wander",
     trustTitle: "Local, clear, and made around you",
     trustIntro:
@@ -189,14 +192,14 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     personalizationForm: {
       formLabel: "Personalized route preferences",
       durationLabel: "How many minutes do you have?",
-      durationHint: "Choose between 15 and 720 minutes.",
+      durationHint: "Choose between 60 and 720 minutes.",
       areasLabel: "Which areas interest you?",
       areasHint: "Choose one or more areas.",
       areaOptions: [
-        { value: "central", label: "District 1 & central" },
-        { value: "cholon", label: "Cho Lon" },
-        { value: "thuduc", label: "Thu Duc" },
-        { value: "riverside", label: "Riverside" },
+        { value: "demo-hcmc-district-1", label: "District 1 & central" },
+        { value: "demo-hcmc-district-3", label: "District 3 & museum district" },
+        { value: "demo-hcmc-district-5", label: "Cho Lon & District 5" },
+        { value: "demo-hcmc-thu-duc", label: "Thu Duc" },
       ],
       budgetLabel: "Budget for your whole group",
       budgetHint: "Enter one positive group total. USD is converted to cents for amountMinor.",
@@ -244,7 +247,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       specialNeedsLabel: "Anything else we should plan around?",
       specialNeedsHint: "Optional — tell us about accessibility, celebrations, or a must-see detail.",
       submitLabel: "Preview my route brief",
-      validationMessage: "Add a start date, start time, and at least one area before previewing your brief.",
+      validationMessage: "Add a start date, start time, group size from 1 to 20, a positive budget, at least one area, and at least one priority before previewing your brief.",
       previewMessage: "Preview only: your preferences stay on this page and are not sent yet.",
       confirmationMessage: "Your route is confirmed.",
     },
@@ -303,6 +306,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       },
     ],
     fixedToursCta: "Xem tất cả tour cố định",
+    demoDisclosure:
+      "Danh mục demo: các tour cố định này dùng địa điểm mẫu nội bộ và chưa nhận đặt tour hay thanh toán.",
     trustEyebrow: "Một cách khám phá có cân nhắc",
     trustTitle: "Địa phương, rõ ràng và xoay quanh bạn",
     trustIntro:
@@ -331,14 +336,14 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     personalizationForm: {
       formLabel: "Tùy chọn lịch trình riêng",
       durationLabel: "Bạn có bao nhiêu phút?",
-      durationHint: "Chọn từ 15 đến 720 phút.",
+      durationHint: "Chọn từ 60 đến 720 phút.",
       areasLabel: "Bạn quan tâm khu vực nào?",
       areasHint: "Chọn một hoặc nhiều khu vực.",
       areaOptions: [
-        { value: "central", label: "Quận 1 & trung tâm" },
-        { value: "cholon", label: "Chợ Lớn" },
-        { value: "thuduc", label: "Thủ Đức" },
-        { value: "riverside", label: "Khu ven sông" },
+        { value: "demo-hcmc-district-1", label: "Quận 1 & trung tâm" },
+        { value: "demo-hcmc-district-3", label: "Quận 3 & khu bảo tàng" },
+        { value: "demo-hcmc-district-5", label: "Chợ Lớn & Quận 5" },
+        { value: "demo-hcmc-thu-duc", label: "Thủ Đức" },
       ],
       budgetLabel: "Ngân sách cho cả nhóm",
       budgetHint: "Nhập một tổng ngân sách dương cho cả nhóm. USD sẽ được đổi sang cent trong amountMinor.",
@@ -386,7 +391,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       specialNeedsLabel: "Có điều gì khác cần lưu ý?",
       specialNeedsHint: "Không bắt buộc — hãy chia sẻ nhu cầu tiếp cận, dịp đặc biệt hoặc điều nhất định phải xem.",
       submitLabel: "Xem trước yêu cầu lịch trình",
-      validationMessage: "Hãy thêm ngày, giờ bắt đầu và ít nhất một khu vực trước khi xem trước yêu cầu.",
+      validationMessage: "Hãy thêm ngày, giờ bắt đầu, số người từ 1 đến 20, ngân sách dương, ít nhất một khu vực và một ưu tiên trước khi xem trước yêu cầu.",
       previewMessage: "Chỉ là bản xem trước: lựa chọn của bạn vẫn ở trên trang và chưa được gửi đi.",
       confirmationMessage: "Lịch trình của bạn đã được xác nhận.",
     },

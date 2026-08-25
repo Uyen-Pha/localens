@@ -9,6 +9,14 @@ import type {
 
 type PersonalizationFormCopy = Dictionary["home"]["personalizationForm"];
 
+const MAX_SAFE_MINOR = Number.MAX_SAFE_INTEGER;
+const PRIORITY_KEYS: PersonalizationPriorityKey[] = [
+  "street_food",
+  "history",
+  "traditional_craft",
+  "traditional_market",
+];
+
 export type PersonalizationRequest = {
   startAt: string;
   durationMinutes: number;
@@ -48,7 +56,7 @@ export function buildPersonalizationRequest(formData: FormData): Personalization
     areas: formData.getAll("areas").map(String),
     budget: {
       currency,
-      amountMinor: currency === "USD" ? Math.round(amount * 100) : Math.round(amount),
+      amountMinor: currency === "USD" ? Math.round(amount * 100) : amount,
     },
     partySize: numericValue(formData, "partySize"),
     guideLanguage: String(formData.get("guideLanguage") ?? "en") as "en" | "vi",
@@ -68,6 +76,7 @@ export function buildPersonalizationRequest(formData: FormData): Personalization
 export function PersonalizationForm({ copy }: { copy: PersonalizationFormCopy }) {
   const [isPreviewed, setIsPreviewed] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [budgetCurrency, setBudgetCurrency] = useState<"VND" | "USD">("VND");
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -75,8 +84,34 @@ export function PersonalizationForm({ copy }: { copy: PersonalizationFormCopy })
     const hasDate = String(formData.get("startDate") ?? "").length > 0;
     const hasTime = String(formData.get("startTime") ?? "").length > 0;
     const hasArea = formData.getAll("areas").length > 0;
+    const durationMinutes = numericValue(formData, "durationMinutes");
+    const partySize = numericValue(formData, "partySize");
+    const currency = String(formData.get("budgetCurrency") ?? "VND");
+    const amount = numericValue(formData, "budgetAmount");
+    const amountMinor = currency === "USD" ? Math.round(amount * 100) : amount;
+    const hasValidDuration =
+      Number.isInteger(durationMinutes) && durationMinutes >= 60 && durationMinutes <= 720;
+    const hasValidPartySize =
+      Number.isSafeInteger(partySize) && partySize >= 1 && partySize <= 20;
+    const hasValidBudget =
+      (currency === "VND" || currency === "USD") &&
+      Number.isFinite(amount) &&
+      amount > 0 &&
+      (currency === "USD" || Number.isInteger(amount)) &&
+      Number.isSafeInteger(amountMinor);
+    const hasPriority = PRIORITY_KEYS.some(
+      (key) => weightValue(formData, key) > 0,
+    );
 
-    if (!hasDate || !hasTime || !hasArea) {
+    if (
+      !hasDate ||
+      !hasTime ||
+      !hasArea ||
+      !hasValidDuration ||
+      !hasValidPartySize ||
+      !hasValidBudget ||
+      !hasPriority
+    ) {
       setIsPreviewed(false);
       setValidationError(copy.validationMessage);
       return;
@@ -92,19 +127,19 @@ export function PersonalizationForm({ copy }: { copy: PersonalizationFormCopy })
       <div className="personalization-form__grid">
         <label className="field">
           <span>{copy.durationLabel}</span>
-          <input name="durationMinutes" type="number" min={15} max={720} step={15} defaultValue={180} required aria-label={copy.durationLabel} aria-describedby="duration-hint" />
+          <input name="durationMinutes" type="number" min={60} max={720} step={15} defaultValue={180} required aria-label={copy.durationLabel} aria-describedby="duration-hint" />
           <small id="duration-hint">{copy.durationHint}</small>
         </label>
 
         <label className="field">
           <span>{copy.budgetLabel}</span>
-          <input name="budgetAmount" type="number" min={1} step="0.01" defaultValue={1000000} required aria-label={copy.budgetLabel} aria-describedby="budget-hint" />
+          <input name="budgetAmount" type="number" min={1} max={budgetCurrency === "USD" ? MAX_SAFE_MINOR / 100 : MAX_SAFE_MINOR} step={budgetCurrency === "USD" ? "0.01" : "1"} defaultValue={1000000} required aria-label={copy.budgetLabel} aria-describedby="budget-hint" />
           <small id="budget-hint">{copy.budgetHint}</small>
         </label>
 
         <label className="field">
           <span>{copy.budgetCurrencyLabel}</span>
-          <select name="budgetCurrency" defaultValue="VND">
+          <select name="budgetCurrency" value={budgetCurrency} onChange={(event) => setBudgetCurrency(event.target.value as "VND" | "USD")}>
             {copy.budgetCurrencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
@@ -129,7 +164,7 @@ export function PersonalizationForm({ copy }: { copy: PersonalizationFormCopy })
 
         <label className="field">
           <span>{copy.partySizeLabel}</span>
-          <input name="partySize" type="number" min={1} max={20} defaultValue={2} aria-label={copy.partySizeLabel} aria-describedby="party-size-hint" />
+          <input name="partySize" type="number" min={1} max={20} defaultValue={2} required aria-label={copy.partySizeLabel} aria-describedby="party-size-hint" />
           <small id="party-size-hint">{copy.partySizeHint}</small>
         </label>
       </div>

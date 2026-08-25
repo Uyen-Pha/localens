@@ -42,6 +42,22 @@ describe("localized public SEO helpers", () => {
     });
   });
 
+  it("builds fixed-tour metadata at the localized tours path", async () => {
+    const { getLocalizedToursMetadata } = await loadSeoHelpers();
+    const metadata = getLocalizedToursMetadata("en", "https://example.com");
+
+    expect(metadata.alternates).toEqual({
+      canonical: "https://example.com/en/tours/",
+      languages: {
+        en: "https://example.com/en/tours/",
+        vi: "https://example.com/vi/tours/",
+      },
+    });
+    expect(metadata.openGraph).toMatchObject({
+      url: "https://example.com/en/tours/",
+    });
+  });
+
   it("serializes truthful bilingual homepage JSON-LD without unsafe markup", async () => {
     const { getHomeJsonLd, serializeJsonLd } = await loadSeoHelpers();
     const jsonLd = getHomeJsonLd("en", "https://example.com");
@@ -60,12 +76,14 @@ describe("localized public SEO helpers", () => {
     expect(JSON.parse(serialized)).toEqual(jsonLd);
   });
 
-  it("lists only the two current localized public foundation routes", async () => {
+  it("lists localized home and fixed-tour routes", async () => {
     const { getSitemapEntries } = await loadSeoHelpers();
 
     expect(getSitemapEntries("https://example.com///")).toEqual([
       { url: "https://example.com/en/" },
       { url: "https://example.com/vi/" },
+      { url: "https://example.com/en/tours/" },
+      { url: "https://example.com/vi/tours/" },
     ]);
   });
 });

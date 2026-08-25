@@ -36,7 +36,7 @@ describe("SiteHeader", () => {
       <SiteHeader
         locale="en"
         labels={labels}
-        pathname="/en/explore/"
+        pathname="/en/"
       />,
     );
 
@@ -45,7 +45,7 @@ describe("SiteHeader", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Explore" })).toHaveAttribute(
       "href",
-      "/en/explore",
+      "/en/tours",
     );
     expect(screen.getByRole("link", { name: "Fixed tours" })).toHaveAttribute(
       "href",
@@ -53,15 +53,13 @@ describe("SiteHeader", () => {
     );
     expect(screen.getByRole("link", { name: "Plan my trip" })).toHaveAttribute(
       "href",
-      "/en/plan",
+      "/en#personalize",
     );
-    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
-      "href",
-      "/en/sign-in",
-    );
+    expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+    expect(screen.getByText("Sign in")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("link", { name: "Tiếng Việt" })).toHaveAttribute(
       "href",
-      "/vi/explore",
+      "/vi",
     );
 
     for (const link of screen.getAllByRole("link")) {

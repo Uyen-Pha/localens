@@ -5,7 +5,7 @@ import { FixedToursGrid } from "@/components/customer/fixed-tours-grid";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import {
-  getLocalizedHomeMetadata,
+  getLocalizedToursMetadata,
   getPublicSiteUrl,
 } from "@/lib/seo/metadata";
 
@@ -23,7 +23,7 @@ export async function generateMetadata({
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const dictionary = getDictionary(locale);
-  const metadata = getLocalizedHomeMetadata(locale, getPublicSiteUrl());
+  const metadata = getLocalizedToursMetadata(locale, getPublicSiteUrl());
   return {
     ...metadata,
     title: `${dictionary.home.discoveryTitle} | LocalLens`,
@@ -48,6 +48,9 @@ export default async function ToursPage({
           <h1 id="fixed-tours-title">{copy.discoveryTitle}</h1>
           <p>{copy.discoveryIntro}</p>
         </div>
+        <p className="demo-disclosure" role="note">
+          {copy.demoDisclosure}
+        </p>
         <FixedToursGrid locale={locale} copy={copy} hrefForTour={(id) => `#${id}`} headingLevel="h2" />
       </section>
     </div>

@@ -17,6 +17,19 @@ const HOME_COPY: Record<Locale, { title: string; description: string }> = {
   },
 };
 
+const TOURS_COPY: Record<Locale, { title: string; description: string }> = {
+  en: {
+    title: "Fixed tours in Ho Chi Minh City | LocalLens",
+    description:
+      "Browse LocalLens fixed cultural tours across food, history, craft, markets, and local life in Ho Chi Minh City.",
+  },
+  vi: {
+    title: "Tour cố định tại Thành phố Hồ Chí Minh | LocalLens",
+    description:
+      "Khám phá các tour cố định của LocalLens về ẩm thực, lịch sử, nghề thủ công, chợ và đời sống địa phương tại Thành phố Hồ Chí Minh.",
+  },
+};
+
 const LOCALE_METADATA: Record<
   Locale,
   { openGraphLocale: string; alternateOpenGraphLocale: string }
@@ -44,8 +57,11 @@ export function getPublicSiteUrl(): string {
   return normalizePublicAppUrl(process.env.NEXT_PUBLIC_APP_URL);
 }
 
-function localizedUrl(siteUrl: string, locale: Locale): string {
-  return `${normalizePublicAppUrl(siteUrl)}/${locale}/`;
+function localizedUrl(siteUrl: string, locale: Locale, path = ""): string {
+  const normalizedPath = path
+    ? `/${path.replace(/^\/+|\/+$/g, "")}/`
+    : "/";
+  return `${normalizePublicAppUrl(siteUrl)}/${locale}${normalizedPath}`;
 }
 
 export function getLocalizedHomeMetadata(
@@ -73,6 +89,37 @@ export function getLocalizedHomeMetadata(
       title: copy.title,
       description: copy.description,
       url: localizedUrl(normalizedSiteUrl, locale),
+      locale: localeMetadata.openGraphLocale,
+      alternateLocale: [localeMetadata.alternateOpenGraphLocale],
+    },
+  };
+}
+
+export function getLocalizedToursMetadata(
+  locale: Locale,
+  siteUrl: string = getPublicSiteUrl(),
+): Metadata {
+  const normalizedSiteUrl = normalizePublicAppUrl(siteUrl);
+  const copy = TOURS_COPY[locale];
+  const localeMetadata = LOCALE_METADATA[locale];
+
+  return {
+    metadataBase: new URL(normalizedSiteUrl),
+    title: copy.title,
+    description: copy.description,
+    alternates: {
+      canonical: localizedUrl(normalizedSiteUrl, locale, "tours"),
+      languages: {
+        en: localizedUrl(normalizedSiteUrl, "en", "tours"),
+        vi: localizedUrl(normalizedSiteUrl, "vi", "tours"),
+      },
+    },
+    openGraph: {
+      type: "website",
+      siteName: "LocalLens",
+      title: copy.title,
+      description: copy.description,
+      url: localizedUrl(normalizedSiteUrl, locale, "tours"),
       locale: localeMetadata.openGraphLocale,
       alternateLocale: [localeMetadata.alternateOpenGraphLocale],
     },
@@ -112,7 +159,8 @@ export function serializeJsonLd(value: unknown): string {
 
 export function getSitemapEntries(siteUrl: string = getPublicSiteUrl()) {
   const normalizedSiteUrl = normalizePublicAppUrl(siteUrl);
-  return ["en", "vi"].map((locale) => ({
-    url: `${normalizedSiteUrl}/${locale}/`,
-  }));
+  return [
+    ...["en", "vi"].map((locale) => ({ url: `${normalizedSiteUrl}/${locale}/` })),
+    ...["en", "vi"].map((locale) => ({ url: `${normalizedSiteUrl}/${locale}/tours/` })),
+  ];
 }

@@ -20,7 +20,7 @@ describe("PersonalizationForm", () => {
       "name",
       "durationMinutes",
     );
-    expect(screen.getByLabelText(dictionary.home.personalizationForm.durationLabel)).toHaveAttribute("min", "15");
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.durationLabel)).toHaveAttribute("min", "60");
     expect(screen.getByLabelText(dictionary.home.personalizationForm.durationLabel)).toHaveAttribute("max", "720");
     expect(screen.getByRole("group", { name: dictionary.home.personalizationForm.areasLabel })).toBeInTheDocument();
     expect(screen.getByLabelText(dictionary.home.personalizationForm.budgetLabel)).toHaveAttribute(
@@ -52,6 +52,8 @@ describe("PersonalizationForm", () => {
       expect(screen.getByLabelText(priority.label)).toHaveAttribute("min", "0");
       expect(screen.getByLabelText(priority.label)).toHaveAttribute("max", "5");
     }
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[0].label)).toHaveAttribute("value", "demo-hcmc-district-1");
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[1].label)).toHaveAttribute("value", "demo-hcmc-district-3");
   });
 
   it("requires a date, time, and at least one area before showing the local preview", () => {
@@ -113,5 +115,40 @@ describe("PersonalizationForm", () => {
       },
       pace: "active",
     });
+  });
+
+  it("blocks a preview when party size, budget, or every priority weight is invalid", () => {
+    const dictionary = getDictionary("en");
+
+    render(<PersonalizationForm copy={dictionary.home.personalizationForm} />);
+    const form = screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel });
+    fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel), {
+      target: { value: "2026-09-05" },
+    });
+    fireEvent.click(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[0].label));
+    fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.partySizeLabel), {
+      target: { value: "0" },
+    });
+    for (const priority of dictionary.home.personalizationForm.priorities) {
+      fireEvent.change(screen.getByLabelText(priority.label), { target: { value: "0" } });
+    }
+    fireEvent.submit(form);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      dictionary.home.personalizationForm.validationMessage,
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("uses whole VND minor units and cents for USD", () => {
+    const dictionary = getDictionary("en");
+
+    render(<PersonalizationForm copy={dictionary.home.personalizationForm} />);
+    const amount = screen.getByLabelText(dictionary.home.personalizationForm.budgetLabel);
+    expect(amount).toHaveAttribute("step", "1");
+    fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.budgetCurrencyLabel), {
+      target: { value: "USD" },
+    });
+    expect(amount).toHaveAttribute("step", "0.01");
   });
 });

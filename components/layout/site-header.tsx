@@ -33,11 +33,11 @@ export function SiteHeader({ locale, labels, pathname }: SiteHeaderProps) {
         </Link>
 
         <nav className="site-header__nav" aria-label={labels.navigation.primary}>
-          <Link href={`/${locale}/explore/`}>{labels.navigation.explore}</Link>
+          <Link href={`/${locale}/tours/`}>{labels.navigation.explore}</Link>
           <Link href={`/${locale}/tours/`}>
             {labels.navigation.fixedTours}
           </Link>
-          <Link href={`/${locale}/plan/`}>{labels.navigation.planTrip}</Link>
+          <Link href={`/${locale}/#personalize`}>{labels.navigation.planTrip}</Link>
         </nav>
 
         <div className="site-header__actions">
@@ -46,9 +46,12 @@ export function SiteHeader({ locale, labels, pathname }: SiteHeaderProps) {
             labels={labels.language}
             pathname={pathname}
           />
-          <Link className="site-header__cta" href={`/${locale}/sign-in/`}>
+          <span
+            className="site-header__cta site-header__cta--disabled"
+            aria-disabled="true"
+          >
             {labels.navigation.signIn}
-          </Link>
+          </span>
         </div>
       </div>
     </header>

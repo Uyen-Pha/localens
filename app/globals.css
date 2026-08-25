@@ -102,7 +102,8 @@ button:focus-visible,
 }
 
 .site-header__nav a,
-.site-header__actions a {
+.site-header__actions a,
+.site-header__actions .site-header__cta {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
@@ -124,6 +125,11 @@ button:focus-visible,
 
 .site-header__cta:hover {
   background: var(--color-cta-vermilion-dark);
+}
+
+.site-header__cta--disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .locale-switcher {
@@ -512,6 +518,7 @@ button:focus-visible,
 .personalization-form__footer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-top: var(--space-5); }
 .form-preview { max-width: 34rem; margin: 0; color: var(--customer-ink-soft); font-size: 0.9rem; line-height: 1.45; }
 .form-validation { max-width: 34rem; margin: 0; color: var(--color-cta-vermilion-dark); font-size: 0.9rem; font-weight: 700; line-height: 1.45; }
+.demo-disclosure { margin: var(--space-4) 0 0; padding: var(--space-3) var(--space-4); border-left: 3px solid var(--customer-orange); background: rgba(209, 122, 0, 0.08); color: var(--customer-ink-soft); font-size: 0.9rem; line-height: 1.45; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
