@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { FixedToursGrid } from "@/components/customer/fixed-tours-grid";
+import { TourCatalogExplorer } from "@/components/customer/tour-catalog-explorer";
+import { createReadOnlyApi } from "@/lib/application/api/read-only-api";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import {
@@ -34,19 +35,26 @@ export default async function ToursPage({
   if (!isLocale(locale)) notFound();
   const dictionary = getDictionary(locale);
   const copy = dictionary.home;
+  const catalogResult = createReadOnlyApi().listTours(locale);
 
   return (
     <div className="customer-home customer-tours-page">
       <section className="customer-section customer-section--discovery" aria-labelledby="fixed-tours-title">
         <div className="section-heading">
           <p className="eyebrow">{copy.discoveryEyebrow}</p>
-          <h1 id="fixed-tours-title">{copy.discoveryTitle}</h1>
-          <p>{copy.discoveryIntro}</p>
+          <h1 id="fixed-tours-title">{copy.tourCatalog.catalogHeading}</h1>
+          <p>{copy.tourCatalog.catalogIntro}</p>
         </div>
-        <p className="demo-disclosure" role="note">
-          {copy.demoDisclosure}
-        </p>
-        <FixedToursGrid locale={locale} copy={copy} hrefForTour={(id) => `#${id}`} headingLevel="h2" />
+        <TourCatalogExplorer
+          locale={locale}
+          copy={copy.tourCatalog}
+          areaOptions={copy.tourCatalog.areaOptions}
+          initialCatalog={catalogResult.ok ? catalogResult.value : null}
+          initialError={catalogResult.ok ? null : {
+            retryable: catalogResult.error.retryable,
+            correlationId: catalogResult.error.correlationId,
+          }}
+        />
       </section>
     </div>
   );

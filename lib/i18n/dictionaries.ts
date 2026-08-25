@@ -1,6 +1,7 @@
 import english from "@/messages/en.json";
 import vietnamese from "@/messages/vi.json";
 
+import type { ExperienceType } from "@/lib/domain/itinerary/contracts";
 import type { Locale } from "@/lib/i18n/config";
 
 export type PersonalizationPriorityKey =
@@ -35,6 +36,41 @@ export type Dictionary = {
     }>;
     fixedToursCta: string;
     demoDisclosure: string;
+    tourCatalog: {
+      catalogHeading: string;
+      catalogIntro: string;
+      filtersLegend: string;
+      keywordLabel: string;
+      keywordPlaceholder: string;
+      areaLabel: string;
+      allAreasLabel: string;
+      areaOptions: Array<{ value: string; label: string }>;
+      experienceLabel: string;
+      allExperienceTypesLabel: string;
+      experienceTypeOptions: Array<{ value: ExperienceType; label: string }>;
+      clearFiltersLabel: string;
+      filteringStatus: string;
+      resultCountLabel: string;
+      detailsLabel: string;
+      durationLabel: string;
+      priceLabel: string;
+      meetingPointLabel: string;
+      experienceTypesLabel: string;
+      areasLabel: string;
+      stopsLabel: string;
+      inclusionsLabel: string;
+      exclusionsLabel: string;
+      cancellationPolicyLabel: string;
+      sourceLabel: string;
+      attributionLabel: string;
+      verifiedLabel: string;
+      licenseLabel: string;
+      noResults: string;
+      errorMessage: string;
+      retryableMessage: string;
+      correlationLabel: string;
+      disclosure: string;
+    };
     trustEyebrow: string;
     trustTitle: string;
     trustIntro: string;
@@ -184,6 +220,51 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     fixedToursCta: "See all fixed tours",
     demoDisclosure:
       "Demo catalog: these fixed tours use internal sample places and do not accept bookings or payments yet.",
+    tourCatalog: {
+      catalogHeading: "Fixed tours in Ho Chi Minh City",
+      catalogIntro: "Browse the internal demo catalog and inspect the facts behind each fixed route.",
+      filtersLegend: "Filter the demo catalog",
+      keywordLabel: "Search tours",
+      keywordPlaceholder: "Search title or summary",
+      areaLabel: "Area",
+      allAreasLabel: "All areas",
+      areaOptions: [
+        { value: "demo-hcmc-district-1", label: "District 1 & central" },
+        { value: "demo-hcmc-district-3", label: "District 3 & museum district" },
+        { value: "demo-hcmc-district-5", label: "Cho Lon & District 5" },
+        { value: "demo-hcmc-thu-duc", label: "Thu Duc" },
+      ],
+      experienceLabel: "Experience type",
+      allExperienceTypesLabel: "All experience types",
+      experienceTypeOptions: [
+        { value: "street_food", label: "Street food" },
+        { value: "history", label: "History" },
+        { value: "traditional_craft", label: "Traditional craft" },
+        { value: "traditional_market", label: "Traditional market" },
+      ],
+      clearFiltersLabel: "Clear filters",
+      filteringStatus: "Refreshing the demo catalog…",
+      resultCountLabel: "tours",
+      detailsLabel: "View tour facts",
+      durationLabel: "Duration",
+      priceLabel: "Fixed price",
+      meetingPointLabel: "Meeting point",
+      experienceTypesLabel: "Experience types",
+      areasLabel: "Areas",
+      stopsLabel: "Stops",
+      inclusionsLabel: "Includes",
+      exclusionsLabel: "Excludes",
+      cancellationPolicyLabel: "Policy",
+      sourceLabel: "Source URL",
+      attributionLabel: "Attribution",
+      verifiedLabel: "Verified",
+      licenseLabel: "License",
+      noResults: "No demo tours match these filters.",
+      errorMessage: "The demo tour catalog could not be loaded.",
+      retryableMessage: "Please clear a filter and try again.",
+      correlationLabel: "Reference",
+      disclosure: "Demo catalog only: fixed tours are non-bookable and do not accept payment or confirmation yet.",
+    },
     trustEyebrow: "A considered way to wander",
     trustTitle: "Local, clear, and made around you",
     trustIntro:
@@ -349,6 +430,51 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     fixedToursCta: "Xem tất cả tour cố định",
     demoDisclosure:
       "Danh mục demo: các tour cố định này dùng địa điểm mẫu nội bộ và chưa nhận đặt tour hay thanh toán.",
+    tourCatalog: {
+      catalogHeading: "Tour cố định tại Thành phố Hồ Chí Minh",
+      catalogIntro: "Xem danh mục demo nội bộ và kiểm tra thông tin của từng tuyến cố định.",
+      filtersLegend: "Lọc danh mục demo",
+      keywordLabel: "Tìm tour",
+      keywordPlaceholder: "Tìm theo tên hoặc mô tả",
+      areaLabel: "Khu vực",
+      allAreasLabel: "Tất cả khu vực",
+      areaOptions: [
+        { value: "demo-hcmc-district-1", label: "Quận 1 & trung tâm" },
+        { value: "demo-hcmc-district-3", label: "Quận 3 & khu bảo tàng" },
+        { value: "demo-hcmc-district-5", label: "Chợ Lớn & Quận 5" },
+        { value: "demo-hcmc-thu-duc", label: "Thủ Đức" },
+      ],
+      experienceLabel: "Loại trải nghiệm",
+      allExperienceTypesLabel: "Tất cả loại trải nghiệm",
+      experienceTypeOptions: [
+        { value: "street_food", label: "Ẩm thực đường phố" },
+        { value: "history", label: "Lịch sử" },
+        { value: "traditional_craft", label: "Nghề thủ công truyền thống" },
+        { value: "traditional_market", label: "Chợ truyền thống" },
+      ],
+      clearFiltersLabel: "Xóa bộ lọc",
+      filteringStatus: "Đang làm mới danh mục demo…",
+      resultCountLabel: "tour",
+      detailsLabel: "Xem thông tin tour",
+      durationLabel: "Thời lượng",
+      priceLabel: "Giá cố định",
+      meetingPointLabel: "Điểm hẹn",
+      experienceTypesLabel: "Loại trải nghiệm",
+      areasLabel: "Khu vực",
+      stopsLabel: "Điểm dừng",
+      inclusionsLabel: "Bao gồm",
+      exclusionsLabel: "Không bao gồm",
+      cancellationPolicyLabel: "Chính sách",
+      sourceLabel: "URL nguồn",
+      attributionLabel: "Ghi công",
+      verifiedLabel: "Xác minh",
+      licenseLabel: "Giấy phép",
+      noResults: "Không có tour demo phù hợp với bộ lọc này.",
+      errorMessage: "Không thể tải danh mục tour demo.",
+      retryableMessage: "Hãy xóa một bộ lọc và thử lại.",
+      correlationLabel: "Mã tham chiếu",
+      disclosure: "Chỉ là danh mục demo: tour cố định chưa nhận đặt tour, thanh toán hoặc xác nhận.",
+    },
     trustEyebrow: "Một cách khám phá có cân nhắc",
     trustTitle: "Địa phương, rõ ràng và xoay quanh bạn",
     trustIntro:
