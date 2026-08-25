@@ -15,14 +15,14 @@ import type {
 type UnknownRecord = Record<string, unknown>;
 
 export interface ContentDraftRpcArgs {
-  locale: Locale;
-  slug: string;
-  title: string;
-  description: string;
-  body: string;
-  source_urls: string[];
-  verified_at: string;
-  image_attributions: ImageAttribution[];
+  p_locale: Locale;
+  p_slug: string;
+  p_title: string;
+  p_description: string;
+  p_body: string;
+  p_source_urls: string[];
+  p_verified_at: string;
+  p_image_attributions: ImageAttribution[];
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -263,14 +263,14 @@ export function toContentDraftRpcArgs(input: unknown): Result<ContentDraftRpcArg
   return {
     ok: true,
     value: {
-      locale: mapped.value.locale,
-      slug: mapped.value.slug,
-      title: mapped.value.title,
-      description: mapped.value.description,
-      body: mapped.value.body,
-      source_urls: mapped.value.sourceUrls,
-      verified_at: mapped.value.verifiedAt,
-      image_attributions: mapped.value.imageAttributions,
+      p_locale: mapped.value.locale,
+      p_slug: mapped.value.slug,
+      p_title: mapped.value.title,
+      p_description: mapped.value.description,
+      p_body: mapped.value.body,
+      p_source_urls: mapped.value.sourceUrls,
+      p_verified_at: mapped.value.verifiedAt,
+      p_image_attributions: mapped.value.imageAttributions,
     },
   };
 }

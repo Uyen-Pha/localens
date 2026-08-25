@@ -95,14 +95,14 @@ describe("content contract adapters", () => {
     expect(toContentDraftRpcArgs(draftInput)).toEqual({
       ok: true,
       value: {
-        locale: "en",
-        slug: "cho-lon-market",
-        title: "Cho Lon Market",
-        description: "A short guide to a traditional market.",
-        body: "Visit the market with a local guide.",
-        source_urls: ["https://example.org/market"],
-        verified_at: "2026-08-24",
-        image_attributions: [attribution],
+        p_locale: "en",
+        p_slug: "cho-lon-market",
+        p_title: "Cho Lon Market",
+        p_description: "A short guide to a traditional market.",
+        p_body: "Visit the market with a local guide.",
+        p_source_urls: ["https://example.org/market"],
+        p_verified_at: "2026-08-24",
+        p_image_attributions: [attribution],
       },
     });
     expect(toContentDraft({ ...draftInput, id: ids.draft } as never)).toMatchObject({
