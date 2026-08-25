@@ -2,10 +2,19 @@
 
 import { useState, type FormEvent } from "react";
 
+import {
+  createReadOnlyApi,
+  type ItineraryPreviewDto,
+} from "@/lib/application/api/read-only-api";
+import type { Locale } from "@/lib/i18n/config";
 import type {
   Dictionary,
   PersonalizationPriorityKey,
 } from "@/lib/i18n/dictionaries";
+import {
+  ItineraryPreview,
+  type ItineraryPreviewError,
+} from "@/components/customer/itinerary-preview";
 
 type PersonalizationFormCopy = Dictionary["home"]["personalizationForm"];
 
@@ -19,6 +28,7 @@ const PRIORITY_KEYS: PersonalizationPriorityKey[] = [
   "traditional_craft",
   "traditional_market",
 ];
+const readOnlyApi = createReadOnlyApi();
 
 export type PersonalizationRequest = {
   startAt: string;
@@ -95,10 +105,18 @@ export function buildPersonalizationRequest(formData: FormData): Personalization
   };
 }
 
-export function PersonalizationForm({ copy }: { copy: PersonalizationFormCopy }) {
+export function PersonalizationForm({
+  copy,
+  locale = "en",
+}: {
+  copy: PersonalizationFormCopy;
+  locale?: Locale;
+}) {
   const [isPreviewed, setIsPreviewed] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [budgetCurrency, setBudgetCurrency] = useState<"VND" | "USD">("VND");
+  const [preview, setPreview] = useState<ItineraryPreviewDto | null | undefined>(undefined);
+  const [previewError, setPreviewError] = useState<ItineraryPreviewError | null>(null);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -132,12 +150,29 @@ export function PersonalizationForm({ copy }: { copy: PersonalizationFormCopy })
     ) {
       setIsPreviewed(false);
       setValidationError(copy.validationMessage);
+      setPreview(undefined);
+      setPreviewError(null);
       return;
     }
 
-    buildPersonalizationRequest(formData);
+    const request = buildPersonalizationRequest(formData);
+    const result = readOnlyApi.previewItinerary(request);
+    if (!result.ok) {
+      setIsPreviewed(false);
+      setValidationError(null);
+      setPreview(null);
+      setPreviewError({
+        message: copy.preview.errorMessage,
+        retryable: result.error.retryable,
+        correlationId: result.error.correlationId,
+      });
+      return;
+    }
+
     setValidationError(null);
     setIsPreviewed(true);
+    setPreviewError(null);
+    setPreview(result.value);
   }
 
   return (
@@ -245,6 +280,12 @@ export function PersonalizationForm({ copy }: { copy: PersonalizationFormCopy })
         {validationError ? <p className="form-validation" role="alert">{validationError}</p> : null}
         {isPreviewed ? <p className="form-preview" role="status">{copy.previewMessage}</p> : null}
       </div>
+      <ItineraryPreview
+        locale={locale}
+        copy={copy.preview}
+        preview={preview}
+        error={previewError}
+      />
     </form>
   );
 }

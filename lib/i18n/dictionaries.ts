@@ -79,6 +79,26 @@ export type Dictionary = {
       validationMessage: string;
       previewMessage: string;
       confirmationMessage: string;
+      preview: {
+        heading: string;
+        deterministicDisclosure: string;
+        proposalOnly: string;
+        startLabel: string;
+        endLabel: string;
+        visitDurationLabel: string;
+        travelDurationLabel: string;
+        travelCostLabel: string;
+        placeCostLabel: string;
+        totalsHeading: string;
+        totalDurationLabel: string;
+        totalVisitLabel: string;
+        totalTravelLabel: string;
+        totalCostLabel: string;
+        warningMessage: string;
+        errorMessage: string;
+        retryableMessage: string;
+        correlationLabel: string;
+      };
     };
   };
   navigation: {
@@ -250,6 +270,27 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       validationMessage: "Add a start date, start time, group size from 1 to 20, a positive budget, at least one area, and at least one priority before previewing your brief.",
       previewMessage: "Preview only: your preferences stay on this page and are not sent yet.",
       confirmationMessage: "Your route is confirmed.",
+      preview: {
+        heading: "Your route proposal",
+        deterministicDisclosure:
+          "Demo preview: deterministic ranking is the simulated-AI stand-in. No network or paid AI service is called.",
+        proposalOnly: "Proposal only — no booking or confirmation has been made.",
+        startLabel: "Starts",
+        endLabel: "Ends",
+        visitDurationLabel: "Visit",
+        travelDurationLabel: "Travel before stop",
+        travelCostLabel: "Travel cost",
+        placeCostLabel: "Place cost",
+        totalsHeading: "Proposal totals",
+        totalDurationLabel: "Total time",
+        totalVisitLabel: "Time visiting",
+        totalTravelLabel: "Time travelling",
+        totalCostLabel: "Group cost",
+        warningMessage: "This proposal includes a transition buffer between stops.",
+        errorMessage: "The demo preview could not build a route.",
+        retryableMessage: "Please review your choices and try again.",
+        correlationLabel: "Reference",
+      },
     },
   },
   vi: {
@@ -394,6 +435,27 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       validationMessage: "Hãy thêm ngày, giờ bắt đầu, số người từ 1 đến 20, ngân sách dương, ít nhất một khu vực và một ưu tiên trước khi xem trước yêu cầu.",
       previewMessage: "Chỉ là bản xem trước: lựa chọn của bạn vẫn ở trên trang và chưa được gửi đi.",
       confirmationMessage: "Lịch trình của bạn đã được xác nhận.",
+      preview: {
+        heading: "Đề xuất lịch trình của bạn",
+        deterministicDisclosure:
+          "Bản xem trước demo: xếp hạng tất định đang đóng vai trò AI mô phỏng. Không gọi mạng hoặc dịch vụ AI trả phí.",
+        proposalOnly: "Chỉ là đề xuất — chưa có đặt tour hay xác nhận nào được thực hiện.",
+        startLabel: "Bắt đầu",
+        endLabel: "Kết thúc",
+        visitDurationLabel: "Thời gian tham quan",
+        travelDurationLabel: "Di chuyển trước điểm này",
+        travelCostLabel: "Chi phí di chuyển",
+        placeCostLabel: "Chi phí địa điểm",
+        totalsHeading: "Tổng quan đề xuất",
+        totalDurationLabel: "Tổng thời lượng",
+        totalVisitLabel: "Thời gian tham quan",
+        totalTravelLabel: "Thời gian di chuyển",
+        totalCostLabel: "Chi phí cả nhóm",
+        warningMessage: "Đề xuất này có thêm thời gian đệm giữa các điểm.",
+        errorMessage: "Không thể tạo lịch trình từ bản demo.",
+        retryableMessage: "Hãy kiểm tra lựa chọn và thử lại.",
+        correlationLabel: "Mã tham chiếu",
+      },
     },
   },
 };

@@ -118,6 +118,25 @@ describe("PersonalizationForm", () => {
     });
   });
 
+  it("renders a deterministic itinerary proposal after a valid preview submit", () => {
+    const dictionary = getDictionary("en");
+    const previewCopy = dictionary.home.personalizationForm.preview;
+
+    render(<PersonalizationForm copy={dictionary.home.personalizationForm} />);
+    const form = screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel });
+    fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel), {
+      target: { value: "2026-09-05" },
+    });
+    fireEvent.click(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[0].label));
+    fireEvent.submit(form);
+
+    expect(screen.getByRole("region", { name: previewCopy.heading })).toBeInTheDocument();
+    expect(screen.getByText(previewCopy.deterministicDisclosure)).toBeInTheDocument();
+    expect(screen.getByText(previewCopy.proposalOnly)).toBeInTheDocument();
+    expect(screen.getByText(previewCopy.totalsHeading)).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem").length).toBeGreaterThan(0);
+  });
+
   it("blocks a preview when party size, budget, or every priority weight is invalid", () => {
     const dictionary = getDictionary("en");
 

@@ -81,7 +81,7 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
           <h2 id="personalization-title">{copy.personalizationTitle}</h2>
           <p>{copy.personalizationIntro}</p>
         </div>
-        <PersonalizationForm copy={copy.personalizationForm} />
+        <PersonalizationForm copy={copy.personalizationForm} locale={locale} />
       </section>
     </div>
   );

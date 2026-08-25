@@ -519,6 +519,24 @@ button:focus-visible,
 .form-preview { max-width: 34rem; margin: 0; color: var(--customer-ink-soft); font-size: 0.9rem; line-height: 1.45; }
 .form-validation { max-width: 34rem; margin: 0; color: var(--color-cta-vermilion-dark); font-size: 0.9rem; font-weight: 700; line-height: 1.45; }
 .demo-disclosure { margin: var(--space-4) 0 0; padding: var(--space-3) var(--space-4); border-left: 3px solid var(--customer-orange); background: rgba(209, 122, 0, 0.08); color: var(--customer-ink-soft); font-size: 0.9rem; line-height: 1.45; }
+.itinerary-preview { margin-top: var(--space-6); padding: var(--space-5); border: 1px solid var(--customer-line); border-radius: 0.6rem; background: var(--customer-paper); }
+.itinerary-preview > h3 { margin: 0; color: var(--customer-ink); font-size: clamp(1.25rem, 2vw, 1.6rem); }
+.itinerary-preview__disclosure, .itinerary-preview__proposal, .itinerary-preview__warning { margin: var(--space-3) 0 0; color: var(--customer-ink-soft); line-height: 1.5; }
+.itinerary-preview__proposal { color: var(--customer-ink); font-weight: 700; }
+.itinerary-preview__warning { padding: var(--space-3); border-left: 3px solid var(--customer-orange); background: rgba(209, 122, 0, 0.08); }
+.itinerary-preview__error { margin-top: var(--space-4); padding: var(--space-3); border-left: 3px solid var(--color-cta-vermilion); background: rgba(190, 58, 36, 0.08); color: var(--color-cta-vermilion-dark); }
+.itinerary-preview__error p { margin: 0.35rem 0 0; }
+.itinerary-preview__error p:first-child { margin-top: 0; font-weight: 700; }
+.itinerary-timeline { display: grid; gap: var(--space-4); margin: var(--space-5) 0 0; padding: 0; list-style: none; }
+.itinerary-timeline__item { position: relative; padding-left: var(--space-5); border-left: 2px solid var(--customer-orange); }
+.itinerary-timeline__item::before { position: absolute; top: 0.25rem; left: -0.45rem; width: 0.75rem; height: 0.75rem; border-radius: 50%; background: var(--customer-orange); content: ""; }
+.itinerary-timeline__item h4 { margin: 0; color: var(--customer-ink); font-size: 1.05rem; }
+.itinerary-timeline__details, .itinerary-preview__totals dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-5); margin: var(--space-3) 0 0; }
+.itinerary-timeline__details div, .itinerary-preview__totals dl div { display: flex; justify-content: space-between; gap: var(--space-3); border-bottom: 1px solid var(--customer-line); padding-bottom: 0.35rem; }
+.itinerary-timeline__details dt, .itinerary-preview__totals dt { color: var(--customer-ink-soft); font-size: 0.82rem; }
+.itinerary-timeline__details dd, .itinerary-preview__totals dd { margin: 0; color: var(--customer-ink); font-weight: 700; text-align: right; }
+.itinerary-preview__totals { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--customer-line); }
+.itinerary-preview__totals h4 { margin: 0; color: var(--customer-ink); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
@@ -563,6 +581,8 @@ button:focus-visible,
   .trust-card { min-height: 12rem; }
   .trust-card h3 { margin-top: 2rem; }
   .personalization-form__grid { grid-template-columns: 1fr; }
+  .itinerary-preview { padding: var(--space-4); }
+  .itinerary-timeline__details, .itinerary-preview__totals dl { grid-template-columns: 1fr; }
   .field--wide { grid-column: auto; }
   .check-grid { grid-template-columns: 1fr; }
   .priority-grid { grid-template-columns: 1fr; }
