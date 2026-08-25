@@ -16,6 +16,14 @@ const databaseFixture = readFileSync(
   join(process.cwd(), "supabase", "tests", "database", "trip_plan_revisions_test.sql"),
   "utf8",
 );
+const guestQuotaMigration = readFileSync(
+  join(process.cwd(), "supabase", "migrations", "20260823100000_guest_quota.sql"),
+  "utf8",
+);
+const guestQuotaDatabaseFixture = readFileSync(
+  join(process.cwd(), "supabase", "tests", "database", "guest_quota_test.sql"),
+  "utf8",
+);
 
 const ids = {
   catalog: "00000000-0000-0000-0000-000000000601",
@@ -293,12 +301,18 @@ describe("trip-plan revision migration contract", () => {
     expect(migration).toMatch(/trip_plan_items_append_only/);
   });
 
-  it("keeps guest binding as a nullable Task 7 placeholder without an FK or anonymous policy", () => {
+  it("hands the Task 6 placeholder to Task 7 without exposing private CAS", () => {
     expect(migration).toMatch(/guest_binding_id uuid\s*,/);
     expect(migration).not.toMatch(/guest_binding_id uuid[^\n]*REFERENCES/);
     expect(migration).not.toMatch(/TO anon[\s\S]*trip_plans/);
     expect(migration).toMatch(/ALTER TABLE public\.trip_plans ENABLE ROW LEVEL SECURITY/);
     expect(migration).toMatch(/ALTER TABLE public\.trip_plans FORCE ROW LEVEL SECURITY/);
+    expect(guestQuotaMigration).toMatch(/ADD CONSTRAINT trip_plans_guest_binding_fk[\s\S]*REFERENCES private\.guest_bindings\(id\)/);
+    expect(guestQuotaMigration).toMatch(/GRANT EXECUTE ON FUNCTION public\.advance_trip_plan_revision\(uuid, integer, jsonb\) TO authenticated/);
+    expect(guestQuotaMigration).toMatch(/REVOKE ALL ON FUNCTION private\.advance_trip_plan_revision\(uuid, integer, jsonb\) FROM authenticated/);
+    expect(guestQuotaDatabaseFixture).toMatch(/public\.advance_trip_plan_revision/);
+    expect(guestQuotaDatabaseFixture).not.toMatch(/\$\$SELECT \* FROM private\.advance_trip_plan_revision/);
+    expect(guestQuotaDatabaseFixture).toMatch(/NOT has_schema_privilege\('authenticated', 'private', 'USAGE'\)/);
   });
 
   it("uses a locked customer-owner compare-and-swap and stable stale error", () => {

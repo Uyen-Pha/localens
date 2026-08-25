@@ -36,11 +36,43 @@ ALTER ROLE localens_quota_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
 ALTER ROLE localens_webhook_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
 ALTER ROLE localens_build_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
 
+-- Identity migrations must not inherit authority through stale role
+-- memberships. Scrub every edge whose parent or member is a protected owner
+-- or executor, including memberships created before the Task 6 plan owner was
+-- introduced. The catalog query is intentionally dynamic so newly-added
+-- protected roles cannot retain an arbitrary inherited grant.
+DO $membership$
+DECLARE
+  protected_roles constant text[] := ARRAY[
+    'localens_plan_rpc_owner', 'localens_plan_guard_owner',
+    'localens_guest_rpc_owner', 'localens_claim_rpc_owner',
+    'localens_quota_rpc_owner', 'localens_guest_executor',
+    'localens_quota_executor', 'localens_webhook_executor',
+    'localens_build_executor'
+  ];
+  membership_record record;
+BEGIN
+  FOR membership_record IN
+    SELECT parent_role.rolname AS parent_name, member_role.rolname AS member_name
+    FROM pg_catalog.pg_auth_members AS memberships
+    JOIN pg_catalog.pg_roles AS parent_role ON parent_role.oid = memberships.roleid
+    JOIN pg_catalog.pg_roles AS member_role ON member_role.oid = memberships.member
+    WHERE parent_role.rolname = ANY(protected_roles)
+       OR member_role.rolname = ANY(protected_roles)
+  LOOP
+    EXECUTE pg_catalog.format(
+      'REVOKE %I FROM %I',
+      membership_record.parent_name,
+      membership_record.member_name
+    );
+  END LOOP;
+END
+$membership$;
+
 REVOKE ALL ON SCHEMA public, private, auth FROM localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner, localens_guest_executor, localens_quota_executor;
 REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner, localens_guest_executor, localens_quota_executor;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA private, public FROM localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner, localens_guest_executor, localens_quota_executor;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner, localens_guest_executor, localens_quota_executor;
-REVOKE localens_guest_rpc_owner, localens_quota_rpc_owner FROM localens_guest_executor, localens_quota_executor;
 
 CREATE TABLE private.guest_bindings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -101,6 +133,29 @@ CREATE TABLE private.quota_reservations (
   UNIQUE (reservation_id)
 );
 
+-- A reservation is the immutable idempotency receipt for one provider
+-- attempt.  Counters may change, but the receipt itself cannot be edited,
+-- deleted, or truncated by any role.
+CREATE OR REPLACE FUNCTION private.reject_quota_reservation_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+BEGIN
+  RAISE EXCEPTION 'quota reservations are append-only' USING ERRCODE = '42501';
+END;
+$function$;
+ALTER FUNCTION private.reject_quota_reservation_mutation() OWNER TO localens_quota_rpc_owner;
+REVOKE ALL ON FUNCTION private.reject_quota_reservation_mutation() FROM PUBLIC, anon, authenticated;
+
+CREATE TRIGGER quota_reservations_append_only_update_delete
+  BEFORE UPDATE OR DELETE ON private.quota_reservations
+  FOR EACH ROW EXECUTE FUNCTION private.reject_quota_reservation_mutation();
+CREATE TRIGGER quota_reservations_append_only_truncate
+  BEFORE TRUNCATE ON private.quota_reservations
+  FOR EACH STATEMENT EXECUTE FUNCTION private.reject_quota_reservation_mutation();
+
 -- Both edges are deliberately DEFERRABLE: creation inserts the plan, then its
 -- binding, then fills the plan FK before commit.  The binding is the
 -- authoritative owner of the relationship; the plan column is a guarded
@@ -144,10 +199,35 @@ CREATE POLICY quota_global_quota_owner_all ON private.quota_global_buckets
   FOR ALL TO localens_quota_rpc_owner
   USING (current_user = 'localens_quota_rpc_owner')
   WITH CHECK (current_user = 'localens_quota_rpc_owner');
-CREATE POLICY quota_reservations_quota_owner_all ON private.quota_reservations
-  FOR ALL TO localens_quota_rpc_owner
-  USING (current_user = 'localens_quota_rpc_owner')
+CREATE POLICY quota_reservations_quota_owner_select ON private.quota_reservations
+  FOR SELECT TO localens_quota_rpc_owner
+  USING (current_user = 'localens_quota_rpc_owner');
+CREATE POLICY quota_reservations_quota_owner_insert ON private.quota_reservations
+  FOR INSERT TO localens_quota_rpc_owner
   WITH CHECK (current_user = 'localens_quota_rpc_owner');
+
+CREATE POLICY guest_bindings_claim_owner_select ON private.guest_bindings
+  FOR SELECT TO localens_claim_rpc_owner
+  USING (current_user = 'localens_claim_rpc_owner');
+CREATE POLICY guest_bindings_claim_owner_update ON private.guest_bindings
+  FOR UPDATE TO localens_claim_rpc_owner
+  USING (current_user = 'localens_claim_rpc_owner')
+  WITH CHECK (current_user = 'localens_claim_rpc_owner');
+CREATE POLICY guest_capabilities_claim_owner_select ON private.guest_capabilities
+  FOR SELECT TO localens_claim_rpc_owner
+  USING (current_user = 'localens_claim_rpc_owner');
+CREATE POLICY guest_capabilities_claim_owner_update ON private.guest_capabilities
+  FOR UPDATE TO localens_claim_rpc_owner
+  USING (current_user = 'localens_claim_rpc_owner')
+  WITH CHECK (current_user = 'localens_claim_rpc_owner');
+
+CREATE POLICY trip_plans_claim_owner_select ON public.trip_plans
+  FOR SELECT TO localens_claim_rpc_owner
+  USING (current_user = 'localens_claim_rpc_owner');
+CREATE POLICY trip_plans_claim_owner_update ON public.trip_plans
+  FOR UPDATE TO localens_claim_rpc_owner
+  USING (current_user = 'localens_claim_rpc_owner')
+  WITH CHECK (current_user = 'localens_claim_rpc_owner');
 
 CREATE POLICY trip_plans_guest_owner_all ON public.trip_plans
   FOR ALL TO localens_guest_rpc_owner
@@ -184,20 +264,23 @@ GRANT UPDATE (guest_binding_id, latest_revision_no, owner_user_id) ON TABLE publ
 GRANT SELECT, INSERT ON TABLE public.trip_plan_revisions, public.trip_plan_items TO localens_guest_rpc_owner;
 GRANT SELECT, INSERT ON TABLE private.recommendation_runs TO localens_guest_rpc_owner;
 GRANT SELECT, INSERT ON TABLE private.guest_bindings, private.guest_capabilities TO localens_guest_rpc_owner;
-GRANT UPDATE (claimed_at, claimed_by) ON TABLE private.guest_bindings TO localens_guest_rpc_owner;
-GRANT UPDATE (revoked_at) ON TABLE private.guest_capabilities TO localens_guest_rpc_owner;
 GRANT SELECT ON TABLE private.guest_bindings, private.guest_capabilities TO localens_plan_rpc_owner;
-GRANT UPDATE (id) ON TABLE private.guest_bindings, private.guest_capabilities TO localens_plan_rpc_owner;
 GRANT SELECT ON TABLE public.catalog_snapshots, public.catalog_snapshot_places, public.travel_snapshots, public.fx_snapshots TO localens_plan_rpc_owner;
 GRANT SELECT, INSERT ON TABLE private.quota_buckets, private.quota_global_buckets, private.quota_reservations TO localens_quota_rpc_owner;
 GRANT UPDATE (used_count) ON TABLE private.quota_buckets, private.quota_global_buckets TO localens_quota_rpc_owner;
-GRANT UPDATE (id) ON TABLE private.quota_reservations TO localens_quota_rpc_owner;
+GRANT SELECT ON TABLE public.trip_plans TO localens_claim_rpc_owner;
+GRANT UPDATE (owner_user_id) ON TABLE public.trip_plans TO localens_claim_rpc_owner;
+GRANT SELECT ON TABLE private.guest_bindings, private.guest_capabilities TO localens_claim_rpc_owner;
+GRANT UPDATE (claimed_at, claimed_by) ON TABLE private.guest_bindings TO localens_claim_rpc_owner;
+GRANT UPDATE (revoked_at) ON TABLE private.guest_capabilities TO localens_claim_rpc_owner;
 GRANT EXECUTE ON FUNCTION auth.uid() TO localens_claim_rpc_owner, localens_plan_rpc_owner;
 GRANT SELECT ON TABLE private.user_roles TO localens_claim_rpc_owner;
 
 REVOKE ALL ON TABLE private.guest_bindings, private.guest_capabilities,
   private.quota_buckets, private.quota_global_buckets, private.quota_reservations
   FROM PUBLIC, anon, authenticated;
+REVOKE UPDATE, DELETE, TRUNCATE ON TABLE private.quota_reservations
+  FROM PUBLIC, anon, authenticated, localens_quota_rpc_owner, localens_quota_executor;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA private FROM PUBLIC, anon, authenticated;
 -- Task 7 exposes customer operations through public wrappers only; the
 -- authenticated role cannot resolve private implementation objects directly.
@@ -739,14 +822,12 @@ BEGIN
   ELSE
     SELECT * INTO binding_row
     FROM private.guest_bindings AS bindings
-    WHERE bindings.id = p_guest_binding_id
-    FOR UPDATE;
+    WHERE bindings.id = p_guest_binding_id;
     SELECT * INTO capability_row
     FROM private.guest_capabilities AS capabilities
     WHERE capabilities.binding_id = p_guest_binding_id
       AND capabilities.token_hash = p_token_hash
-      AND capabilities.pepper_version = p_pepper_version
-    FOR UPDATE;
+      AND capabilities.pepper_version = p_pepper_version;
     IF plan_row.owner_user_id IS NOT NULL
        OR plan_row.guest_binding_id IS DISTINCT FROM p_guest_binding_id
        OR NOT FOUND
@@ -1139,7 +1220,7 @@ BEGIN
   RETURN NEXT;
 END;
 $function$;
-ALTER FUNCTION private.claim_guest_binding(uuid, text, smallint, uuid) OWNER TO localens_guest_rpc_owner;
+ALTER FUNCTION private.claim_guest_binding(uuid, text, smallint, uuid) OWNER TO localens_claim_rpc_owner;
 REVOKE ALL ON FUNCTION private.claim_guest_binding(uuid, text, smallint, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.claim_guest_binding(uuid, text, smallint, uuid) TO localens_claim_rpc_owner;
 
@@ -1185,13 +1266,15 @@ GRANT EXECUTE ON FUNCTION public.claim_guest_plan(uuid, text, smallint) TO authe
 CREATE OR REPLACE FUNCTION private.reserve_quota(
   p_reservation_id uuid,
   p_kind text,
-  p_bucket_hashes text[]
+  p_ip_hash text,
+  p_device_hash text
 )
 RETURNS TABLE (
   reservation_id uuid,
   kind text,
   bucket_hashes text[],
-  period_start timestamptz
+  period_start timestamptz,
+  state text
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -1199,6 +1282,7 @@ SET search_path = ''
 AS $function$
 DECLARE
   existing private.quota_reservations%ROWTYPE;
+  inserted private.quota_reservations%ROWTYPE;
   bucket_row record;
   current_period timestamptz;
   global_row private.quota_global_buckets%ROWTYPE;
@@ -1207,38 +1291,23 @@ DECLARE
   lock_key bigint;
   bucket_count integer := 0;
   updated_bucket_count integer;
+  updated_global_count integer;
 BEGIN
   IF p_reservation_id IS NULL OR p_kind IS NULL OR p_kind NOT IN ('planner', 'gemini')
-     OR p_bucket_hashes IS NULL OR cardinality(p_bucket_hashes) <> 2
-     OR p_bucket_hashes[1] IS NULL OR p_bucket_hashes[2] IS NULL
-     OR p_bucket_hashes[1] !~ '^[0-9a-f]{64}$'
-     OR p_bucket_hashes[2] !~ '^[0-9a-f]{64}$'
-     OR p_bucket_hashes[1] = p_bucket_hashes[2] THEN
+     OR p_ip_hash IS NULL OR p_device_hash IS NULL
+     OR p_ip_hash !~ '^[0-9a-f]{64}$'
+     OR p_device_hash !~ '^[0-9a-f]{64}$'
+     OR p_ip_hash = p_device_hash THEN
     RAISE EXCEPTION 'invalid quota reservation' USING ERRCODE = '22023';
   END IF;
   -- The tuple is semantically [ip_hash, device_hash].  We never sort or
   -- relabel these values; only the constructed database rows are lock-sorted.
-  expected_hashes := ARRAY[p_bucket_hashes[1], p_bucket_hashes[2]];
+  expected_hashes := ARRAY[p_ip_hash, p_device_hash];
   -- Serializes the absent-idempotency-row case without trusting a client
-  -- period. Existing rows are then locked before any bucket row.
+  -- period. The reservation receipt itself is the immutable idempotency row;
+  -- it is never explicitly locked or updated.
   lock_key := pg_catalog.hashtextextended(p_reservation_id::text, 0);
   PERFORM pg_catalog.pg_advisory_xact_lock(lock_key);
-  SELECT * INTO existing
-  FROM private.quota_reservations AS reservations
-  WHERE reservations.reservation_id = p_reservation_id
-  FOR UPDATE;
-  IF FOUND THEN
-    IF existing.kind IS DISTINCT FROM p_kind OR existing.bucket_hashes IS DISTINCT FROM expected_hashes THEN
-      RAISE EXCEPTION 'quota reservation conflict' USING ERRCODE = '22023';
-    END IF;
-    reservation_id := existing.reservation_id;
-    kind := existing.kind;
-    bucket_hashes := existing.bucket_hashes;
-    period_start := existing.period_start;
-    RETURN NEXT;
-    RETURN;
-  END IF;
-
   IF p_kind = 'planner' THEN
     current_period := pg_catalog.date_trunc('hour', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
     limit_per_bucket := 30;
@@ -1246,6 +1315,32 @@ BEGIN
     current_period := pg_catalog.date_trunc('day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
     limit_per_bucket := 5;
   END IF;
+
+  -- Insert the immutable reservation receipt before touching quota counters.
+  -- A successful RETURNING row is the only created path; a conflict is a
+  -- replay and must return the stored decision without incrementing anything.
+  INSERT INTO private.quota_reservations (reservation_id, kind, bucket_hashes, period_start)
+  VALUES (p_reservation_id, p_kind, expected_hashes, current_period)
+  ON CONFLICT (reservation_id) DO NOTHING
+  RETURNING * INTO inserted;
+  IF NOT FOUND THEN
+    SELECT * INTO existing
+    FROM private.quota_reservations AS reservations
+    WHERE reservations.reservation_id = p_reservation_id;
+    IF NOT FOUND
+       OR existing.kind IS DISTINCT FROM p_kind
+       OR existing.bucket_hashes IS DISTINCT FROM expected_hashes THEN
+      RAISE EXCEPTION 'quota reservation conflict' USING ERRCODE = '22023';
+    END IF;
+    reservation_id := existing.reservation_id;
+    kind := existing.kind;
+    bucket_hashes := existing.bucket_hashes;
+    period_start := existing.period_start;
+    state := 'replayed';
+    RETURN NEXT;
+    RETURN;
+  END IF;
+
   INSERT INTO private.quota_buckets (bucket_kind, bucket_hash, period_start, limit_count)
   SELECT CASE WHEN p_kind = 'planner' THEN 'planner_ip' ELSE 'gemini_ip' END,
          expected_hashes[1], current_period, limit_per_bucket
@@ -1306,21 +1401,23 @@ BEGIN
     UPDATE private.quota_global_buckets AS globals
     SET used_count = globals.used_count + 1
     WHERE globals.period_start = current_period;
+    GET DIAGNOSTICS updated_global_count = ROW_COUNT;
+    IF updated_global_count <> 1 THEN
+      RAISE EXCEPTION 'quota global update set is incomplete' USING ERRCODE = '23514';
+    END IF;
   END IF;
-  INSERT INTO private.quota_reservations (reservation_id, kind, bucket_hashes, period_start)
-  VALUES (p_reservation_id, p_kind, expected_hashes, current_period)
-  ON CONFLICT (reservation_id) DO NOTHING;
 
-  reservation_id := p_reservation_id;
-  kind := p_kind;
-  bucket_hashes := expected_hashes;
-  period_start := current_period;
+  reservation_id := inserted.reservation_id;
+  kind := inserted.kind;
+  bucket_hashes := inserted.bucket_hashes;
+  period_start := inserted.period_start;
+  state := 'created';
   RETURN NEXT;
 END;
 $function$;
-ALTER FUNCTION private.reserve_quota(uuid, text, text[]) OWNER TO localens_quota_rpc_owner;
-REVOKE ALL ON FUNCTION private.reserve_quota(uuid, text, text[]) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION private.reserve_quota(uuid, text, text[]) TO localens_quota_executor;
+ALTER FUNCTION private.reserve_quota(uuid, text, text, text) OWNER TO localens_quota_rpc_owner;
+REVOKE ALL ON FUNCTION private.reserve_quota(uuid, text, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION private.reserve_quota(uuid, text, text, text) TO localens_quota_executor;
 
 -- Webhook/build roles are deliberately separate from guest and quota
 -- executors; no membership or table access is granted here.

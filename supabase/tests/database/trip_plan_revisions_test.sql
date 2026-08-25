@@ -94,7 +94,7 @@ SELECT ok((SELECT relrowsecurity AND relforcerowsecurity FROM pg_catalog.pg_clas
 
 SELECT ok((SELECT is_nullable = 'YES' FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trip_plans' AND column_name = 'owner_user_id'), 'plan owner is nullable before claim');
 SELECT ok((SELECT is_nullable = 'YES' FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trip_plans' AND column_name = 'guest_binding_id'), 'guest binding is nullable placeholder');
-SELECT is((SELECT count(*) FROM pg_constraint WHERE conrelid = 'public.trip_plans'::regclass AND pg_get_constraintdef(oid) LIKE '%guest_binding_id%'), 0::bigint, 'Task 6 adds no guest binding FK');
+SELECT is((SELECT count(*) FROM pg_constraint WHERE conrelid = 'public.trip_plans'::regclass AND contype = 'f' AND conname = 'trip_plans_guest_binding_fk'), 1::bigint, 'Task 7 adds the guest binding FK');
 SELECT ok((SELECT count(*) = 1 FROM pg_constraint WHERE conrelid = 'public.trip_plan_revisions'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) LIKE '%plan_id, revision_no%'), 'revision number is unique per plan');
 SELECT ok((SELECT count(*) >= 1 FROM pg_constraint WHERE conrelid = 'public.trip_plan_items'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) LIKE '%revision_id, position%'), 'item positions are unique per revision');
 SELECT ok((SELECT count(*) = 1 FROM pg_constraint WHERE conrelid = 'public.trip_plan_items'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) LIKE '%revision_id, place_id%'), 'item places are unique per revision');
@@ -108,9 +108,9 @@ SELECT is((SELECT count(*) FROM pg_trigger WHERE tgname IN ('trip_plan_revisions
 SELECT ok((SELECT prosecdef AND proconfig @> ARRAY['search_path='] FROM pg_proc WHERE oid = 'private.advance_trip_plan_revision(uuid, integer, jsonb)'::regprocedure), 'CAS function is pinned SECURITY DEFINER');
 SELECT is((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'private.advance_trip_plan_revision(uuid, integer, jsonb)'::regprocedure), 'localens_plan_rpc_owner', 'CAS function has named owner');
 SELECT ok((SELECT rolcanlogin = false AND rolbypassrls = false FROM pg_catalog.pg_roles WHERE rolname = 'localens_plan_rpc_owner'), 'CAS owner cannot login or bypass RLS');
-SELECT ok(has_function_privilege('authenticated', 'private.advance_trip_plan_revision(uuid, integer, jsonb)', 'EXECUTE'), 'authenticated can invoke only the guarded customer CAS');
+SELECT ok(has_function_privilege('authenticated', 'public.advance_trip_plan_revision(uuid, integer, jsonb)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'private.advance_trip_plan_revision(uuid, integer, jsonb)', 'EXECUTE'), 'authenticated can invoke only the guarded public customer CAS');
 SELECT ok(NOT has_function_privilege('anon', 'private.advance_trip_plan_revision(uuid, integer, jsonb)', 'EXECUTE'), 'anonymous cannot invoke customer CAS');
-SELECT ok(has_schema_privilege('authenticated', 'private', 'USAGE'), 'authenticated has narrow private schema usage for the RPC');
+SELECT ok(NOT has_schema_privilege('authenticated', 'private', 'USAGE'), 'authenticated cannot resolve the private implementation schema');
 SELECT ok(NOT has_table_privilege('anon', 'public.trip_plans', 'SELECT') AND NOT has_table_privilege('anon', 'public.trip_plan_revisions', 'SELECT'), 'anonymous cannot read plan base tables');
 SELECT ok(has_column_privilege('authenticated', 'public.trip_plans', 'id', 'SELECT') AND has_column_privilege('authenticated', 'public.trip_plan_items', 'place_id', 'SELECT'), 'authenticated has allowlisted owner read columns');
 SELECT ok(NOT EXISTS (SELECT 1 FROM pg_policy WHERE polrelid IN ('public.trip_plans'::regclass, 'public.trip_plan_revisions'::regclass, 'public.trip_plan_items'::regclass) AND (0 = ANY (polroles) OR 'anon'::regrole::oid = ANY(polroles))), 'anonymous has no plan RLS policy');
@@ -134,7 +134,7 @@ VALUES ('00000000-0000-0000-0000-000000000706'::uuid, '00000000-0000-0000-0000-0
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT lives_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT lives_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000706'::uuid,
   0,
   (SELECT vnd_dto FROM task6_revision_fixture)
@@ -151,7 +151,7 @@ SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_i
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000709', true);
 SELECT is((SELECT count(*)::integer FROM public.trip_plans WHERE id = '00000000-0000-0000-0000-000000000706'::uuid), 0, 'cross-owner cannot read another plan');
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000706'::uuid, 0,
   (SELECT vnd_dto FROM task6_revision_fixture))$$, 'P0001', 'STALE_REVISION', 'stale CAS has stable error');
 RESET ROLE;
@@ -162,7 +162,7 @@ INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000710'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000710'::uuid, 0,
   jsonb_set(
     jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{result,items}', '[null]'::jsonb, false),
@@ -180,14 +180,14 @@ INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000707'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT lives_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT lives_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000707'::uuid, 0,
   (SELECT usd_dto FROM task6_revision_fixture))$$, 'USD CAS requires an exact referenced FX rate');
 RESET ROLE;
 SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000707'::uuid), 1, 'USD revision persists exact FX snapshot');
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000707'::uuid, 1,
   jsonb_set((SELECT usd_dto FROM task6_revision_fixture), '{fxVndPerUsd}', to_jsonb('25001.00000000'::text), false))$$, '23514', NULL, 'mismatched FX rate is rejected before insert');
 RESET ROLE;
@@ -196,7 +196,7 @@ INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000711'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000711'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,budget,currency}', to_jsonb('USD'::text), false))$$,
   '23514', NULL, 'forged request budget currency is rejected before insert');
@@ -209,7 +209,7 @@ INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000712'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000712'::uuid, 0,
   jsonb_set(
     jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{items}', jsonb_build_array((SELECT item_dto FROM task6_revision_fixture)), false),
@@ -225,11 +225,11 @@ INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000713'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000713'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{budgetVnd}', to_jsonb('9007199254740992'::text), false))$$,
   '22023', NULL, 'money above the database bound is rejected before cast');
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000713'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{totalDurationMinutes}', to_jsonb('721'::text), false))$$,
   '22023', NULL, 'duration above the database bound is rejected before cast');
@@ -241,7 +241,7 @@ INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000715'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000715'::uuid, 0,
   jsonb_set(
     jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{items}', jsonb_build_array(
@@ -261,11 +261,11 @@ INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000716'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000716'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{result,totals,score}', to_jsonb(10000000000000000::numeric), false))$$,
   '22023', NULL, 'positive 17-digit total score is rejected');
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000716'::uuid, 0,
   jsonb_set(
     jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{items}', jsonb_build_array(
@@ -276,7 +276,7 @@ SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
     ), false
   ))$$,
   '22023', NULL, 'negative 17-digit item score is rejected');
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000716'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{result,totals,score}', to_jsonb(9007199254740991.5::numeric), false))$$,
   '22023', NULL, 'maximum safe integer plus a fraction is rejected');
@@ -289,7 +289,7 @@ INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000717'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT lives_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT lives_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000717'::uuid, 0,
   jsonb_set(
     jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{items}', jsonb_build_array(
@@ -309,35 +309,35 @@ INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000714'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000714'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,durationMinutes}', to_jsonb(59), false))$$,
   '22023', NULL, 'request duration below 60 is rejected');
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000714'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,areas}', '[1]'::jsonb, false))$$,
   '22023', NULL, 'request array element must be an engine ID string');
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000714'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,areas}', '[]'::jsonb, false))$$,
   '22023', NULL, 'request areas cardinality is enforced');
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000714'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,dietaryRequirements}', '["halal","halal"]'::jsonb, false))$$,
   '22023', NULL, 'request dietary IDs must be unique');
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000714'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,mobilityRequirements}', '[true]'::jsonb, false))$$,
   '22023', NULL, 'request mobility element must be an engine ID string');
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000714'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,lockedStopIds}', '["00000000-0000-0000-0000-000000000704","00000000-0000-0000-0000-000000000704"]'::jsonb, false))$$,
   '22023', NULL, 'request locked IDs must be unique');
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000714'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{result,normalizedStartAt}', to_jsonb('not-a-timestamp'::text), false))$$,
   '22023', NULL, 'result normalized start must be canonical HCM time');
-SELECT throws_ok($$SELECT * FROM private.advance_trip_plan_revision(
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000714'::uuid, 0,
   jsonb_set((SELECT vnd_dto FROM task6_revision_fixture), '{request,startAt}', to_jsonb('2026-02-30T08:00:00Z'::text), false))$$,
   '22023', NULL, 'request start must use a real calendar date');

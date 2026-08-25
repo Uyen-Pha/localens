@@ -7,11 +7,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   parseGuestCapability,
+  parseQuotaReservationDecision,
+  parseQuotaReservationInput,
   parseQuotaReservation,
 } from "@/lib/infrastructure/supabase/guest-quota-contracts";
 
 const migration = readFileSync(
   join(process.cwd(), "supabase", "migrations", "20260823100000_guest_quota.sql"),
+  "utf8",
+);
+const databaseFixture = readFileSync(
+  join(process.cwd(), "supabase", "tests", "database", "guest_quota_test.sql"),
   "utf8",
 );
 
@@ -76,6 +82,35 @@ describe("guest capability contracts", () => {
       })).toMatchObject({ ok: false });
     }
   });
+
+  it("keeps semantic IP/device input named and distinguishes created from replayed output", () => {
+    const input = parseQuotaReservationInput({
+      reservationId,
+      kind: "planner",
+      ipHash,
+      deviceHash,
+    });
+    expect(input).toEqual({
+      ok: true,
+      value: { reservationId, kind: "planner", ipHash, deviceHash },
+    });
+    expect(parseQuotaReservationInput({
+      reservationId,
+      kind: "planner",
+      bucketHashes: [ipHash, deviceHash],
+    })).toMatchObject({ ok: false });
+
+    const decision = {
+      reservationId,
+      kind: "planner" as const,
+      bucketHashes: [ipHash, deviceHash],
+      periodStart: "2026-08-24T15:00:00Z",
+      state: "created" as const,
+    };
+    expect(parseQuotaReservationDecision(decision)).toEqual({ ok: true, value: decision });
+    expect(parseQuotaReservationDecision({ ...decision, state: "replayed" })).toMatchObject({ ok: true });
+    expect(parseQuotaReservationDecision({ ...decision, state: "failed" })).toMatchObject({ ok: false });
+  });
 });
 
 describe("guest quota migration contract", () => {
@@ -106,6 +141,40 @@ describe("guest quota migration contract", () => {
     expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION private\.advance_guest_trip_plan_revision[^\n]*localens_guest_executor/);
     expect(migration).toMatch(/raw guest token|raw_token|token_hash[\s\S]*/);
     expect(migration).not.toMatch(/request\.headers|x-forwarded-for/i);
+  });
+
+  it("uses immutable reservation rows and named semantic quota inputs", () => {
+    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION private\.reserve_quota\([\s\S]*p_reservation_id uuid,[\s\S]*p_kind text,[\s\S]*p_ip_hash text,[\s\S]*p_device_hash text/);
+    expect(migration).toMatch(/RETURNS TABLE \([\s\S]*state text/);
+    expect(migration).toMatch(/quota_reservations_append_only_update_delete/);
+    expect(migration).toMatch(/quota_reservations_append_only_truncate/);
+    expect(migration).not.toMatch(/GRANT UPDATE \(id\) ON TABLE private\.quota_reservations/);
+    const reservationFunction = migration.slice(migration.indexOf("CREATE OR REPLACE FUNCTION private.reserve_quota"));
+    expect(reservationFunction).not.toMatch(/FROM private\.quota_reservations[\s\S]{0,180}FOR UPDATE/);
+    expect(reservationFunction).toMatch(/INSERT INTO private\.quota_reservations[\s\S]*ON CONFLICT \(reservation_id\) DO NOTHING[\s\S]*RETURNING/);
+    expect(reservationFunction).toMatch(/state\s*:=\s*'created'/);
+    expect(reservationFunction).toMatch(/state\s*:=\s*'replayed'/);
+    expect(reservationFunction).toMatch(/existing\.kind IS DISTINCT FROM p_kind[\s\S]*existing\.bucket_hashes IS DISTINCT FROM expected_hashes/);
+    expect(migration).not.toMatch(/CREATE POLICY quota_reservations_quota_owner_(?:denied_mutation|no_update|all)/);
+    expect(migration).toMatch(/CREATE POLICY quota_reservations_quota_owner_select[\s\S]*FOR SELECT/);
+    expect(migration).toMatch(/CREATE POLICY quota_reservations_quota_owner_insert[\s\S]*FOR INSERT/);
+    expect(migration).toMatch(/pg_auth_members[\s\S]*JOIN pg_catalog\.pg_roles AS parent_role[\s\S]*JOIN pg_catalog\.pg_roles AS member_role/);
+    expect(migration).toMatch(/WHERE parent_role\.rolname[\s\S]*ANY\(protected_roles\)[\s\S]*OR member_role\.rolname[\s\S]*ANY\(protected_roles\)/);
+    expect(migration).toMatch(/localens_plan_rpc_owner[\s\S]*localens_plan_guard_owner/);
+    expect(migration).not.toMatch(/GRANT UPDATE \(id\) ON TABLE private\.(?:guest_bindings|guest_capabilities) TO localens_plan_rpc_owner/);
+    const persistFunction = migration.slice(
+      migration.indexOf("CREATE OR REPLACE FUNCTION private.persist_trip_plan_revision"),
+      migration.indexOf("CREATE OR REPLACE FUNCTION private.advance_trip_plan_revision"),
+    );
+    expect(persistFunction).toMatch(/FROM public\.trip_plans[\s\S]*FOR UPDATE/);
+    expect(persistFunction).toMatch(/FROM private\.guest_bindings[\s\S]*WHERE[\s\S]*;[\s\S]*SELECT \* INTO capability_row[\s\S]*FROM private\.guest_capabilities/);
+    expect(persistFunction).not.toMatch(/FROM private\.(?:guest_bindings|guest_capabilities)[\s\S]*FOR UPDATE/);
+    expect(migration).toMatch(/ALTER FUNCTION private\.reserve_quota\(uuid, text, text, text\)/);
+    expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION private\.reserve_quota\(uuid, text, text, text\) TO localens_quota_executor/);
+    expect(migration).not.toMatch(/reserve_quota\(uuid, text, text\[\]\)/);
+    expect(databaseFixture).toMatch(/private\.reserve_quota\([^,]+,\s*'planner',\s*[^,]+,\s*[^)]+\)/);
+    expect(databaseFixture).toMatch(/state[\s\S]*created[\s\S]*replayed/);
+    expect(databaseFixture).not.toMatch(/private\.reserve_quota\([^,]+,\s*'(?:planner|gemini)',\s*ARRAY\[/);
   });
 
   it("defines database-owned expiry, claim-once, and atomic quota limits", () => {

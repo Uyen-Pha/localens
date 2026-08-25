@@ -15,6 +15,17 @@ export interface QuotaReservation {
   periodStart: string;
 }
 
+export interface QuotaReservationInput {
+  reservationId: string;
+  kind: "planner" | "gemini";
+  ipHash: string;
+  deviceHash: string;
+}
+
+export interface QuotaReservationDecision extends QuotaReservation {
+  state: "created" | "replayed";
+}
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const HOUR_PERIOD_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:00:00Z$/;
@@ -42,6 +53,15 @@ const hashSchema = z.string().refine((value) => HASH_PATTERN.test(value), {
   message: "must be a lowercase HMAC digest",
 });
 
+const quotaReservationInputSchema = z.object({
+  reservationId: uuidSchema,
+  kind: z.enum(["planner", "gemini"]),
+  ipHash: hashSchema,
+  deviceHash: hashSchema,
+}).strict().refine((value) => value.ipHash !== value.deviceHash, {
+  message: "IP and device hashes must be unique",
+});
+
 export const guestCapabilitySchema = z.object({
   planId: uuidSchema,
   tokenHash: hashSchema,
@@ -64,6 +84,10 @@ export const quotaReservationSchema = z.object({
     context.addIssue({ code: "custom", path: ["periodStart"], message: "period start is not canonical for quota kind" });
   }
 });
+
+export const quotaReservationDecisionSchema = quotaReservationSchema.extend({
+  state: z.enum(["created", "replayed"]),
+}).strict();
 
 function invalid(fieldPath: string): { ok: false; error: DataAdapterError } {
   return {
@@ -88,4 +112,14 @@ export function parseGuestCapability(value: unknown): GuestQuotaContractResult<G
 export function parseQuotaReservation(value: unknown): GuestQuotaContractResult<QuotaReservation> {
   const parsed = quotaReservationSchema.safeParse(value);
   return parsed.success ? { ok: true, value: parsed.data } : invalid("quotaReservation");
+}
+
+export function parseQuotaReservationInput(value: unknown): GuestQuotaContractResult<QuotaReservationInput> {
+  const parsed = quotaReservationInputSchema.safeParse(value);
+  return parsed.success ? { ok: true, value: parsed.data } : invalid("quotaReservationInput");
+}
+
+export function parseQuotaReservationDecision(value: unknown): GuestQuotaContractResult<QuotaReservationDecision> {
+  const parsed = quotaReservationDecisionSchema.safeParse(value);
+  return parsed.success ? { ok: true, value: parsed.data } : invalid("quotaReservationDecision");
 }
