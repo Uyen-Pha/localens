@@ -21,6 +21,12 @@ function createStorage(): BookingStorage {
 const now = new Date("2026-09-01T02:00:00.000Z");
 const departureId = DEMO_DEPARTURE_IDS[0];
 
+function withoutResponseFlag(booking: ReturnType<typeof createLocalBooking>) {
+  const stored = { ...booking };
+  delete (stored as { resumed?: boolean }).resumed;
+  return stored;
+}
+
 describe("local demo booking boundary", () => {
   it("exposes only allowlisted internal demo departures", () => {
     expect(getDemoDeparture(departureId)).toMatchObject({
@@ -84,5 +90,36 @@ describe("local demo booking boundary", () => {
       storage,
       now: new Date("2026-09-01T02:31:00.000Z"),
     })).toThrow("Demo payment session expired");
+  });
+
+  it("reprices a booking when local storage contains a tampered quote", () => {
+    const storage = createStorage();
+    const booking = createLocalBooking({ departureId, partySize: 2, storage, now });
+    const key = `locallens.demo.booking.v1:${booking.bookingId}`;
+    const storedBooking = withoutResponseFlag(booking);
+    const tampered = { ...storedBooking, quote: { ...booking.quote, totalMinor: 1 } };
+    storage.setItem(key, JSON.stringify(tampered));
+
+    const repriced = createLocalBooking({ departureId, partySize: 2, storage, now: new Date("2026-09-01T02:05:00.000Z") });
+    expect(repriced.resumed).toBe(false);
+    expect(repriced.quote.totalMinor).toBe(960_000);
+  });
+
+  it("rejects a tampered state or timestamp instead of treating local storage as payment evidence", () => {
+    const storage = createStorage();
+    const booking = createLocalBooking({ departureId, partySize: 1, storage, now });
+    const key = `locallens.demo.booking.v1:${booking.bookingId}`;
+    const storedBooking = withoutResponseFlag(booking);
+    storage.setItem(key, JSON.stringify({ ...storedBooking, status: "paid", paymentStatus: "unpaid" }));
+    expect(() => createTestPayment({ bookingId: booking.bookingId, storage, now: new Date("2026-09-01T02:10:00.000Z") })).toThrow(
+      "Unknown demo booking",
+    );
+
+    const recreated = createLocalBooking({ departureId, partySize: 1, storage, now: new Date("2026-09-01T02:10:00.000Z") });
+    const storedRecreated = withoutResponseFlag(recreated);
+    storage.setItem(key, JSON.stringify({ ...storedRecreated, holdExpiresAt: "not-a-date" }));
+    expect(() => createTestPayment({ bookingId: recreated.bookingId, storage, now: new Date("2026-09-01T02:11:00.000Z") })).toThrow(
+      "Unknown demo booking",
+    );
   });
 });

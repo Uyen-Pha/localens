@@ -18,6 +18,7 @@ export interface BookingCopy {
   demoDisclosure: string;
   loadingLabel: string;
   invalidDepartureTitle: string;
+  invalidPartySizeTitle: string;
   invalidDepartureMessage: string;
   invalidPartySizeMessage: string;
   backToToursLabel: string;
@@ -40,6 +41,8 @@ export interface BookingCopy {
   paymentBanner: string;
   holdLabel: string;
   testSessionLabel: string;
+  holdDurationLabel: string;
+  testSessionDurationLabel: string;
   paymentStatusLabel: string;
   unpaidStatus: string;
   payLabel: string;
@@ -53,6 +56,7 @@ export interface BookingCopy {
   nextStepsValue: string;
   cancelLabel: string;
   cancelledMessage: string;
+  retryFlowMessage: string;
   retryLabel: string;
   errorLabel: string;
   soldOutMessage: string;
@@ -114,6 +118,8 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
   const [paymentError, setPaymentError] = useState<BookingErrorKey | null>(null);
   const partySizeRef = useRef<HTMLInputElement>(null);
   const statusRef = useRef<HTMLElement>(null);
+  const queryErrorRef = useRef<HTMLParagraphElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const paymentTimerRef = useRef<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const setStatusRef = (node: HTMLElement | null) => {
@@ -137,10 +143,18 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
   }, []);
 
   useEffect(() => {
-    if (bookingError !== null || paymentError !== null || paymentPhase === "processing" || paymentPhase === "success" || notice !== null) {
+    if (bookingError !== null || paymentError !== null || paymentPhase === "processing" || notice !== null) {
       window.setTimeout(() => statusRef.current?.focus(), 0);
     }
   }, [bookingError, notice, paymentError, paymentPhase]);
+
+  useEffect(() => {
+    if (queryError !== null) window.setTimeout(() => queryErrorRef.current?.focus(), 0);
+  }, [queryError]);
+
+  useEffect(() => {
+    if (booking !== null) window.setTimeout(() => headingRef.current?.focus(), 0);
+  }, [booking]);
 
   useEffect(() => () => {
     if (paymentTimerRef.current !== null) window.clearTimeout(paymentTimerRef.current);
@@ -150,8 +164,8 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
     return (
       <section className="customer-section booking-flow" aria-labelledby="booking-heading">
         <p className="eyebrow">LocalLens</p>
-        <h1 id="booking-heading">{copy.invalidDepartureTitle}</h1>
-        <p className="booking-flow__error" role="alert" tabIndex={-1}>{errorText(copy, queryError)}</p>
+        <h1 id="booking-heading">{queryError === "invalidPartySize" ? copy.invalidPartySizeTitle : copy.invalidDepartureTitle}</h1>
+        <p ref={queryErrorRef} className="booking-flow__error" role="alert" tabIndex={-1}>{errorText(copy, queryError)}</p>
         <Link className="button button--secondary" href={`/${locale}/tours`}>{copy.backToToursLabel}</Link>
       </section>
     );
@@ -209,6 +223,17 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
     }, 1_000);
   }
 
+  function handlePaymentAction() {
+    if (paymentError === "holdExpired" || paymentError === "sessionExpired") {
+      setBooking(null);
+      setPaymentError(null);
+      setPaymentPhase("idle");
+      setNotice(copy.retryFlowMessage);
+      return;
+    }
+    payInTestMode();
+  }
+
   function cancelCheckout() {
     if (paymentTimerRef.current !== null) {
       window.clearTimeout(paymentTimerRef.current);
@@ -225,7 +250,7 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
     <section className="customer-section booking-flow" aria-labelledby="booking-heading">
       <div className="section-heading section-heading--compact">
         <p className="eyebrow">LocalLens</p>
-        <h1 id="booking-heading">{booking === null ? copy.heading : paymentPhase === "success" ? copy.successHeading : copy.paymentHeading}</h1>
+        <h1 ref={headingRef} id="booking-heading" tabIndex={-1}>{booking === null ? copy.heading : paymentPhase === "success" ? copy.successHeading : copy.paymentHeading}</h1>
         <p>{booking === null ? copy.intro : paymentPhase === "success" ? copy.successMessage : copy.paymentIntro}</p>
       </div>
 
@@ -288,14 +313,14 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
           <p className="booking-flow__payment-banner" role="note">{copy.paymentBanner}</p>
           <dl className="booking-flow__facts">
             <div><dt>{copy.totalLabel}</dt><dd>{formatMoney(booking.quote.totalMinor, locale)}</dd></div>
-            <div><dt>{copy.holdLabel}</dt><dd>35 minutes · {new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { timeStyle: "short", timeZone: departure.timezone }).format(new Date(booking.holdExpiresAt))}</dd></div>
-            <div><dt>{copy.testSessionLabel}</dt><dd>30 minutes · Stripe Test concept</dd></div>
+            <div><dt>{copy.holdLabel}</dt><dd><span>{copy.holdDurationLabel}</span> · {new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { timeStyle: "short", timeZone: departure.timezone }).format(new Date(booking.holdExpiresAt))}</dd></div>
+            <div><dt>{copy.testSessionLabel}</dt><dd>{copy.testSessionDurationLabel}</dd></div>
             <div><dt>{copy.paymentStatusLabel}</dt><dd>{copy.unpaidStatus}</dd></div>
           </dl>
           {paymentError !== null ? <p ref={setStatusRef} className="booking-flow__error" role="alert" tabIndex={-1}>{errorText(copy, paymentError)}</p> : null}
           {paymentPhase === "processing" ? <p ref={setStatusRef} className="booking-flow__pending" role="status" aria-live="polite" tabIndex={-1}>{copy.payingLabel}</p> : null}
           <div className="booking-flow__actions">
-            <button className="button" type="button" disabled={paymentPhase === "processing"} onClick={payInTestMode}>
+            <button className="button" type="button" disabled={paymentPhase === "processing"} onClick={handlePaymentAction}>
               {paymentPhase === "processing" ? copy.payingLabel : paymentError !== null ? copy.retryLabel : copy.payLabel}
             </button>
             <button className="button button--secondary" type="button" onClick={cancelCheckout}>{copy.cancelLabel}</button>

@@ -145,6 +145,7 @@ export type Dictionary = {
     demoDisclosure: string;
     loadingLabel: string;
     invalidDepartureTitle: string;
+    invalidPartySizeTitle: string;
     invalidDepartureMessage: string;
     invalidPartySizeMessage: string;
     backToToursLabel: string;
@@ -167,6 +168,8 @@ export type Dictionary = {
     paymentBanner: string;
     holdLabel: string;
     testSessionLabel: string;
+    holdDurationLabel: string;
+    testSessionDurationLabel: string;
     paymentStatusLabel: string;
     unpaidStatus: string;
     payLabel: string;
@@ -180,6 +183,7 @@ export type Dictionary = {
     nextStepsValue: string;
     cancelLabel: string;
     cancelledMessage: string;
+    retryFlowMessage: string;
     retryLabel: string;
     errorLabel: string;
     soldOutMessage: string;

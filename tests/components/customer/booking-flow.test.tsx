@@ -19,6 +19,7 @@ const copy: BookingCopy = {
   demoDisclosure: "Local demo only. This is not a production booking.",
   loadingLabel: "Loading departure…",
   invalidDepartureTitle: "Departure unavailable",
+  invalidPartySizeTitle: "Party size unavailable",
   invalidDepartureMessage: "This link does not identify an allowlisted demo departure.",
   invalidPartySizeMessage: "Enter a party size from 1 to 20.",
   backToToursLabel: "Back to fixed tours",
@@ -41,6 +42,8 @@ const copy: BookingCopy = {
   paymentBanner: "Demo/Test payment — no real charge.",
   holdLabel: "Demo hold",
   testSessionLabel: "Stripe Test session concept",
+  holdDurationLabel: "35-minute demo hold",
+  testSessionDurationLabel: "30-minute Stripe Test session concept",
   paymentStatusLabel: "Payment status",
   unpaidStatus: "Not paid",
   payLabel: "Pay with Stripe Test simulation",
@@ -54,6 +57,7 @@ const copy: BookingCopy = {
   nextStepsValue: "This is a local prototype; a guide has not been assigned.",
   cancelLabel: "Cancel demo checkout",
   cancelledMessage: "Demo checkout cancelled. No charge was made.",
+  retryFlowMessage: "The expired demo hold was cleared. Review the tour and create a new hold.",
   retryLabel: "Try again",
   errorLabel: "Something went wrong",
   soldOutMessage: "This demo departure does not have enough seats.",
@@ -72,7 +76,9 @@ describe("BookingFlow", () => {
     window.history.replaceState({}, "", "/en/booking?departure=outside-db&partySize=2");
     render(<BookingFlow locale="en" copy={copy} />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(copy.invalidDepartureMessage);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(copy.invalidDepartureMessage);
+    await waitFor(() => expect(alert).toHaveFocus());
     expect(screen.queryByRole("button", { name: copy.continueLabel })).not.toBeInTheDocument();
     expect(screen.queryByText(/VND/)).not.toBeInTheDocument();
   });
@@ -86,13 +92,16 @@ describe("BookingFlow", () => {
     fireEvent.click(screen.getByRole("button", { name: copy.continueLabel }));
 
     expect(await screen.findByRole("heading", { name: copy.paymentHeading })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: copy.paymentHeading })).toHaveFocus());
     expect(screen.getByText(copy.paymentBanner)).toHaveAttribute("role", "note");
     expect(screen.getByText((_content, element) => element?.textContent === "VND 960,000")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: copy.payLabel })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: copy.payLabel }));
     expect(screen.getByRole("status")).toHaveTextContent(copy.payingLabel);
-    expect(await screen.findByRole("heading", { name: copy.successHeading })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveFocus());
+    expect(await screen.findByRole("heading", { name: copy.successHeading }, { timeout: 2_000 })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: copy.successHeading })).toHaveFocus());
     expect(screen.getByText(/demo-booking-/)).toBeInTheDocument();
     expect(screen.getByText(copy.paidStatus)).toBeInTheDocument();
   });
@@ -109,6 +118,66 @@ describe("BookingFlow", () => {
     await waitFor(() => expect(partySize).toHaveFocus());
     expect(screen.getByRole("alert")).toHaveTextContent(copy.invalidPartySizeMessage);
     expect(partySize).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("uses a distinct title and focused alert for an invalid party-size query", async () => {
+    window.history.replaceState({}, "", `/en/booking?departure=${validDeparture}&partySize=0`);
+    render(<BookingFlow locale="en" copy={copy} />);
+
+    expect(await screen.findByRole("heading", { name: copy.invalidPartySizeTitle })).toBeInTheDocument();
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(copy.invalidPartySizeMessage);
+    await waitFor(() => expect(alert).toHaveFocus());
+  });
+
+  it("returns to the booking step after an expired Test session instead of retrying stale state forever", async () => {
+    window.history.replaceState({}, "", `/en/booking?departure=${validDeparture}&partySize=1`);
+    render(<BookingFlow locale="en" copy={copy} />);
+
+    await screen.findByRole("heading", { name: copy.tourTitles["demo-markets-and-street-food"] });
+    fireEvent.click(screen.getByRole("button", { name: copy.continueLabel }));
+    await screen.findByRole("heading", { name: copy.paymentHeading });
+    const bookingKey = Object.keys(window.localStorage).find((key) => key.startsWith("locallens.demo.booking.v1:"));
+    if (bookingKey === undefined) throw new Error("expected local demo booking");
+    const createdAt = new Date(Date.now() - 31 * 60_000);
+    const stored = JSON.parse(window.localStorage.getItem(bookingKey) ?? "{}") as Record<string, unknown>;
+    window.localStorage.setItem(bookingKey, JSON.stringify({
+      ...stored,
+      createdAt: createdAt.toISOString(),
+      updatedAt: createdAt.toISOString(),
+      holdExpiresAt: new Date(createdAt.getTime() + 35 * 60_000).toISOString(),
+      testSessionExpiresAt: new Date(createdAt.getTime() + 30 * 60_000).toISOString(),
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: copy.payLabel }));
+    expect(await screen.findByRole("alert", {}, { timeout: 2_000 })).toHaveTextContent(copy.sessionExpiredMessage);
+    fireEvent.click(screen.getByRole("button", { name: copy.retryLabel }));
+
+    expect(await screen.findByRole("heading", { name: copy.heading })).toBeInTheDocument();
+    expect(screen.getByText(copy.retryFlowMessage)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: copy.continueLabel })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: copy.payLabel })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: copy.continueLabel }));
+    expect(await screen.findByRole("heading", { name: copy.paymentHeading })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: copy.payLabel }));
+    expect(await screen.findByRole("heading", { name: copy.successHeading }, { timeout: 2_000 })).toBeInTheDocument();
+  });
+
+  it("renders localized hold and Test session duration labels", async () => {
+    const viCopy: BookingCopy = {
+      ...copy,
+      holdDurationLabel: "Giữ chỗ demo 35 phút",
+      testSessionDurationLabel: "Khái niệm phiên Stripe Test 30 phút",
+    };
+    window.history.replaceState({}, "", `/vi/booking?departure=${validDeparture}&partySize=1`);
+    render(<BookingFlow locale="vi" copy={viCopy} />);
+
+    await screen.findByRole("heading", { name: viCopy.tourTitles["demo-markets-and-street-food"] });
+    fireEvent.click(screen.getByRole("button", { name: viCopy.continueLabel }));
+    await screen.findByRole("heading", { name: viCopy.paymentHeading });
+    expect(screen.getByText(viCopy.holdDurationLabel)).toBeInTheDocument();
+    expect(screen.getByText(viCopy.testSessionDurationLabel)).toBeInTheDocument();
   });
 
   it("cancels a pending local payment and cannot finish the cancelled checkout later", async () => {

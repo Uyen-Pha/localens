@@ -148,19 +148,80 @@ function validPartySize(value: unknown): number {
   return value;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFiniteDateString(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(new Date(value).getTime());
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const expected = new Set(keys);
+  return Object.keys(value).length === expected.size && Object.keys(value).every((key) => expected.has(key));
+}
+
 function loadBooking(storage: BookingStorage, bookingId: string): Omit<LocalDemoBooking, "resumed"> | undefined {
   const raw = storage.getItem(storageKey(bookingId));
   if (raw === null) return undefined;
   try {
-    const value = JSON.parse(raw) as Omit<LocalDemoBooking, "resumed">;
+    const value: unknown = JSON.parse(raw);
+    if (!isRecord(value) || !hasOnlyKeys(value, [
+      "bookingId",
+      "departureId",
+      "partySize",
+      "status",
+      "paymentStatus",
+      "quote",
+      "holdExpiresAt",
+      "testSessionExpiresAt",
+      "createdAt",
+      "updatedAt",
+    ])) return undefined;
+
+    const departure = getDemoDeparture(value.departureId);
+    const partySize = value.partySize;
+    const quote = value.quote;
     if (
-      typeof value !== "object" ||
-      value === null ||
+      typeof value.bookingId !== "string" ||
       value.bookingId !== bookingId ||
+      departure === undefined ||
+      typeof partySize !== "number" ||
+      !Number.isSafeInteger(partySize) ||
+      partySize < 1 ||
+      partySize > 20 ||
+      partySize > departure.remainingCapacity ||
+      value.bookingId !== `demo-booking-${departure.departureId}-${partySize}` ||
       (value.status !== "held" && value.status !== "paid") ||
-      (value.paymentStatus !== "unpaid" && value.paymentStatus !== "succeeded")
+      (value.paymentStatus !== "unpaid" && value.paymentStatus !== "succeeded") ||
+      (value.status === "held" && value.paymentStatus !== "unpaid") ||
+      (value.status === "paid" && value.paymentStatus !== "succeeded") ||
+      !isRecord(quote) ||
+      !hasOnlyKeys(quote, ["currency", "unitPriceMinor", "partySize", "totalMinor"]) ||
+      quote.currency !== departure.currency ||
+      quote.unitPriceMinor !== departure.unitPriceMinor ||
+      quote.partySize !== partySize ||
+      quote.totalMinor !== departure.unitPriceMinor * partySize ||
+      !Number.isSafeInteger(quote.unitPriceMinor) ||
+      !Number.isSafeInteger(quote.partySize) ||
+      !Number.isSafeInteger(quote.totalMinor) ||
+      !isFiniteDateString(value.createdAt) ||
+      !isFiniteDateString(value.updatedAt) ||
+      !isFiniteDateString(value.holdExpiresAt) ||
+      !isFiniteDateString(value.testSessionExpiresAt)
     ) return undefined;
-    return value;
+
+    const createdAt = new Date(value.createdAt).getTime();
+    const updatedAt = new Date(value.updatedAt).getTime();
+    const holdExpiresAt = new Date(value.holdExpiresAt).getTime();
+    const testSessionExpiresAt = new Date(value.testSessionExpiresAt).getTime();
+    if (
+      updatedAt < createdAt ||
+      holdExpiresAt !== createdAt + 35 * 60_000 ||
+      testSessionExpiresAt !== createdAt + 30 * 60_000
+    ) return undefined;
+
+    return value as Omit<LocalDemoBooking, "resumed">;
   } catch {
     return undefined;
   }
@@ -191,7 +252,10 @@ export function createLocalBooking(input: CreateLocalBookingInput): LocalDemoBoo
   const bookingId = `demo-booking-${departure.departureId}-${partySize}`;
   const existing = loadBooking(storage, bookingId);
   if (existing !== undefined) {
-    const holdIsActive = existing.status === "paid" || new Date(existing.holdExpiresAt).getTime() > clock.getTime();
+    const holdIsActive = existing.status === "paid" || (
+      new Date(existing.holdExpiresAt).getTime() > clock.getTime() &&
+      new Date(existing.testSessionExpiresAt).getTime() > clock.getTime()
+    );
     if (holdIsActive) return { ...existing, resumed: true };
   }
 
