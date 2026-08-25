@@ -1,0 +1,1206 @@
+{
+  "version": 1,
+  "generatedMarkdown": "docs/security/data-access-matrix.md",
+  "migrationOwner": "postgres",
+  "apiSchemas": [
+    "public",
+    "graphql_public"
+  ],
+  "privateSchemas": [
+    "private",
+    "auth"
+  ],
+  "roleProfiles": {
+    "postgres": {
+      "rolcanlogin": true,
+      "rolbypassrls": true,
+      "credential": "migration-owner-only",
+      "bypassJustification": "DDL owner only; never granted to a browser or Edge request"
+    },
+    "anon": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "browser-anonymous",
+      "bypassJustification": "none"
+    },
+    "authenticated": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "browser-jwt",
+      "bypassJustification": "none"
+    },
+    "service_role": {
+      "rolcanlogin": false,
+      "rolbypassrls": true,
+      "credential": "edge-service-role",
+      "bypassJustification": "Supabase infrastructure credential; never used as RLS evidence and never sent to a browser"
+    },
+    "localens_auth_trigger_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "signup trigger only"
+    },
+    "localens_identity_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "identity and audit RPCs"
+    },
+    "localens_admin_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "admin-gated state transitions"
+    },
+    "localens_audit_guard_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "append-only audit trigger"
+    },
+    "localens_catalog_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "catalog snapshot writes"
+    },
+    "localens_catalog_guard_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "catalog immutable guards"
+    },
+    "localens_tour_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "tour lifecycle writes"
+    },
+    "localens_tour_guard_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "tour immutable guards"
+    },
+    "localens_plan_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "plan revision writes"
+    },
+    "localens_plan_guard_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "plan history guards"
+    },
+    "localens_guest_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "guest plan capability writes"
+    },
+    "localens_claim_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "guest claim only"
+    },
+    "localens_quota_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "quota reservation only"
+    },
+    "localens_request_customer_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "customer request submission"
+    },
+    "localens_request_admin_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "admin review and quote"
+    },
+    "localens_request_guard_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "request and quote guards"
+    },
+    "localens_checkout_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "checkout state machine"
+    },
+    "localens_availability_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "hold-aware availability projection"
+    },
+    "localens_booking_projection_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "customer booking projection"
+    },
+    "localens_payment_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "Stripe Test finalizer"
+    },
+    "localens_payment_projection_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "customer payment projection"
+    },
+    "localens_payment_guard_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "payment and webhook guards"
+    },
+    "localens_guide_assignment_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "guide assignment transitions"
+    },
+    "localens_guide_projection_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "guide sanitized projection"
+    },
+    "localens_guide_assignment_guard_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "guide assignment guard"
+    },
+    "localens_content_admin_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "admin content publication"
+    },
+    "localens_content_public_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "public content pointer"
+    },
+    "localens_content_build_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "release capability finalization"
+    },
+    "localens_content_guard_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "content provenance and state guards"
+    },
+    "localens_content_audit_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "allowlisted content audit"
+    },
+    "localens_guest_executor": {
+      "rolcanlogin": true,
+      "rolbypassrls": false,
+      "credential": "edge-internal-guest",
+      "bypassJustification": "internal guest plan Edge function only"
+    },
+    "localens_quota_executor": {
+      "rolcanlogin": true,
+      "rolbypassrls": false,
+      "credential": "edge-internal-quota",
+      "bypassJustification": "internal quota Edge function only"
+    },
+    "localens_webhook_executor": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "edge-internal-webhook",
+      "bypassJustification": "Stripe webhook Edge boundary only"
+    },
+    "localens_build_executor": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "edge-internal-build",
+      "bypassJustification": "SEO build boundary only"
+    },
+    "localens_content_build_executor": {
+      "rolcanlogin": true,
+      "rolbypassrls": false,
+      "credential": "edge-internal-content-build",
+      "bypassJustification": "capability-scoped content build only"
+    }
+  },
+  "defaults": {
+    "owner": "postgres",
+    "rolcanlogin": true,
+    "rolbypassrls": true,
+    "bypassJustification": "migration owner only; no API grant",
+    "apiExposure": "none",
+    "readerRoles": [],
+    "writerOperation": "none",
+    "rlsEnabled": true,
+    "forceRls": true,
+    "grants": [],
+    "credential": "migration-owner-only"
+  },
+  "tables": [
+    {
+      "name": "private.audit_events",
+      "policies": [
+        "audit_events_admin_summary_select",
+        "audit_events_content_admin_owner_insert",
+        "audit_events_content_admin_owner_select",
+        "audit_events_content_build_owner_insert",
+        "audit_events_content_owner_insert",
+        "audit_events_guide_assignment_owner_insert",
+        "audit_events_identity_rpc_insert"
+      ],
+      "writerOperation": "internal audit helper only"
+    },
+    {
+      "name": "private.capacity_holds",
+      "policies": [
+        "capacity_holds_availability_owner_select",
+        "capacity_holds_owner_all",
+        "capacity_holds_payment_owner_all"
+      ],
+      "writerOperation": "checkout/availability RPC only"
+    },
+    {
+      "name": "private.checkout_attempts",
+      "policies": [
+        "checkout_attempts_owner_all",
+        "checkout_attempts_payment_owner_all"
+      ],
+      "writerOperation": "checkout RPC only"
+    },
+    {
+      "name": "private.checkout_idempotency",
+      "policies": [
+        "checkout_idempotency_owner_all",
+        "checkout_idempotency_payment_owner_select"
+      ],
+      "writerOperation": "checkout RPC only"
+    },
+    {
+      "name": "private.content_release_copies",
+      "policies": [
+        "content_release_copies_admin_owner_insert",
+        "content_release_copies_admin_owner_select",
+        "content_release_copies_build_owner_select",
+        "content_release_copies_public_owner_select"
+      ],
+      "writerOperation": "publication RPC only"
+    },
+    {
+      "name": "private.content_source_domains",
+      "policies": [
+        "content_source_domains_admin_select",
+        "content_source_domains_build_select",
+        "content_source_domains_guard_select",
+        "content_source_domains_public_select"
+      ],
+      "writerOperation": "Task 14 approval only"
+    },
+    {
+      "name": "private.custom_request_events",
+      "policies": [
+        "custom_request_events_admin_rpc_owner_insert",
+        "custom_request_events_customer_rpc_owner_insert"
+      ],
+      "writerOperation": "request audit helper only"
+    },
+    {
+      "name": "private.guest_bindings",
+      "policies": [
+        "guest_bindings_claim_owner_select",
+        "guest_bindings_claim_owner_update",
+        "guest_bindings_guest_owner_all",
+        "guest_owner_guest_binding_plan_read"
+      ],
+      "writerOperation": "guest/claim RPC only"
+    },
+    {
+      "name": "private.guest_capabilities",
+      "policies": [
+        "guest_capabilities_claim_owner_select",
+        "guest_capabilities_claim_owner_update",
+        "guest_capabilities_guest_owner_all",
+        "guest_owner_guest_capability_plan_read"
+      ],
+      "writerOperation": "guest/claim RPC only"
+    },
+    {
+      "name": "private.quota_buckets",
+      "policies": [
+        "guest_owner_quota_plan_denied",
+        "quota_buckets_quota_owner_all"
+      ],
+      "writerOperation": "quota RPC only"
+    },
+    {
+      "name": "private.quota_global_buckets",
+      "policies": [
+        "quota_global_quota_owner_all"
+      ],
+      "writerOperation": "quota RPC only"
+    },
+    {
+      "name": "private.quota_reservations",
+      "policies": [
+        "quota_reservations_quota_owner_insert",
+        "quota_reservations_quota_owner_select"
+      ],
+      "writerOperation": "quota RPC only"
+    },
+    {
+      "name": "private.recommendation_runs",
+      "policies": [
+        "recommendation_runs_guest_owner_all",
+        "recommendation_runs_plan_rpc_owner_all"
+      ],
+      "writerOperation": "itinerary RPC only"
+    },
+    {
+      "name": "private.seo_build_capabilities",
+      "policies": [
+        "seo_build_capabilities_admin_owner_insert",
+        "seo_build_capabilities_admin_owner_select",
+        "seo_build_capabilities_admin_owner_update",
+        "seo_build_capabilities_build_owner_all",
+        "seo_build_capabilities_build_owner_update"
+      ],
+      "writerOperation": "capability RPC only"
+    },
+    {
+      "name": "private.seo_live_pointer",
+      "policies": [
+        "seo_live_pointer_build_owner_all",
+        "seo_live_pointer_public_owner_select"
+      ],
+      "writerOperation": "finalize RPC only"
+    },
+    {
+      "name": "private.stripe_test_settings",
+      "policies": [
+        "stripe_test_settings_payment_owner_select"
+      ],
+      "writerOperation": "Stripe Test finalizer only"
+    },
+    {
+      "name": "private.user_roles",
+      "policies": [
+        "user_roles_admin_summary_select",
+        "user_roles_auth_trigger_insert",
+        "user_roles_auth_trigger_select",
+        "user_roles_catalog_rpc_select",
+        "user_roles_checkout_owner_select",
+        "user_roles_claim_rpc_select",
+        "user_roles_content_admin_select",
+        "user_roles_guide_assignment_owner_select",
+        "user_roles_identity_rpc_insert",
+        "user_roles_identity_rpc_select",
+        "user_roles_plan_rpc_select",
+        "user_roles_request_admin_rpc_select",
+        "user_roles_request_customer_rpc_select"
+      ],
+      "writerOperation": "provision_role RPC only"
+    },
+    {
+      "name": "private.webhook_events",
+      "policies": [
+        "webhook_events_payment_owner_all"
+      ],
+      "writerOperation": "Stripe webhook finalizer only"
+    },
+    {
+      "name": "public.area_translations",
+      "policies": [
+        "area_translations_public_select"
+      ]
+    },
+    {
+      "name": "public.areas",
+      "policies": [
+        "areas_public_select"
+      ]
+    },
+    {
+      "name": "public.bookings",
+      "policies": [
+        "bookings_admin_reconciliation",
+        "bookings_admin_reconciliation_update",
+        "bookings_availability_owner_select",
+        "bookings_checkout_owner_all",
+        "bookings_guide_assignment_owner_select",
+        "bookings_payment_owner_all",
+        "bookings_payment_projection_select",
+        "bookings_projection_owner_select"
+      ],
+      "writerOperation": "checkout/payment/admin RPC only"
+    },
+    {
+      "name": "public.catalog_snapshot_area_translations",
+      "policies": [
+        "catalog_snapshot_area_translations_public_select"
+      ]
+    },
+    {
+      "name": "public.catalog_snapshot_areas",
+      "policies": [
+        "catalog_snapshot_areas_public_select"
+      ]
+    },
+    {
+      "name": "public.catalog_snapshot_place_experience_types",
+      "policies": [
+        "catalog_snapshot_place_experience_types_public_select"
+      ]
+    },
+    {
+      "name": "public.catalog_snapshot_place_guide_languages",
+      "policies": [
+        "catalog_snapshot_place_guide_languages_public_select"
+      ]
+    },
+    {
+      "name": "public.catalog_snapshot_place_opening_exception_windows",
+      "policies": [
+        "catalog_snapshot_place_opening_exception_windows_public_select"
+      ]
+    },
+    {
+      "name": "public.catalog_snapshot_place_opening_exceptions",
+      "policies": [
+        "catalog_snapshot_place_opening_exceptions_public_select"
+      ]
+    },
+    {
+      "name": "public.catalog_snapshot_place_opening_hours",
+      "policies": [
+        "catalog_snapshot_place_opening_hours_public_select"
+      ]
+    },
+    {
+      "name": "public.catalog_snapshot_place_supports",
+      "policies": [
+        "catalog_snapshot_place_supports_public_select"
+      ]
+    },
+    {
+      "name": "public.catalog_snapshot_place_translations",
+      "policies": [
+        "catalog_snapshot_place_translations_public_select",
+        "catalog_snapshot_place_translations_tour_guard_select",
+        "catalog_snapshot_place_translations_tour_public_select"
+      ]
+    },
+    {
+      "name": "public.catalog_snapshot_places",
+      "policies": [
+        "catalog_snapshot_places_plan_rpc_select",
+        "catalog_snapshot_places_public_select",
+        "catalog_snapshot_places_tour_guard_select",
+        "catalog_snapshot_places_tour_public_select"
+      ]
+    },
+    {
+      "name": "public.catalog_snapshots",
+      "policies": [
+        "catalog_snapshots_availability_owner_select",
+        "catalog_snapshots_checkout_owner_select",
+        "catalog_snapshots_guard_select",
+        "catalog_snapshots_plan_rpc_select",
+        "catalog_snapshots_public_select",
+        "catalog_snapshots_tour_guard_select"
+      ]
+    },
+    {
+      "name": "public.content_drafts",
+      "policies": [
+        "content_drafts_admin_owner_all"
+      ],
+      "writerOperation": "content admin RPC only"
+    },
+    {
+      "name": "public.custom_quotes",
+      "policies": [
+        "custom_quotes_admin_rpc_owner_all",
+        "custom_quotes_checkout_owner_select",
+        "custom_quotes_checkout_owner_update",
+        "custom_quotes_customer_rpc_owner_select",
+        "custom_quotes_customer_select",
+        "custom_quotes_guide_assignment_owner_select",
+        "custom_quotes_payment_owner_all"
+      ],
+      "writerOperation": "quote RPC only"
+    },
+    {
+      "name": "public.custom_requests",
+      "policies": [
+        "custom_requests_admin_rpc_owner_all",
+        "custom_requests_checkout_owner_select",
+        "custom_requests_customer_rpc_owner_all",
+        "custom_requests_customer_select",
+        "custom_requests_guide_assignment_owner_select"
+      ],
+      "writerOperation": "request RPC only"
+    },
+    {
+      "name": "public.departures",
+      "policies": [
+        "departures_availability_owner_select",
+        "departures_checkout_owner_select",
+        "departures_guide_assignment_owner_select",
+        "departures_payment_owner_select",
+        "tour_guard_departures_select"
+      ],
+      "writerOperation": "departure lifecycle/checkout RPC only"
+    },
+    {
+      "name": "public.fx_snapshots",
+      "policies": [
+        "fx_snapshots_catalog_owner_all",
+        "fx_snapshots_checkout_owner_select",
+        "fx_snapshots_plan_rpc_select",
+        "fx_snapshots_request_admin_rpc_lock",
+        "fx_snapshots_request_admin_rpc_select"
+      ],
+      "writerOperation": "FX snapshot RPC only"
+    },
+    {
+      "name": "public.guide_assignments",
+      "policies": [
+        "guide_assignments_projection_owner_select",
+        "guide_assignments_rpc_owner_all"
+      ],
+      "writerOperation": "guide assignment RPC only"
+    },
+    {
+      "name": "public.guide_profiles",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "grants": [
+        "SELECT -> authenticated"
+      ],
+      "policies": [
+        "guide_profiles_admin_summary_select",
+        "guide_profiles_guide_assignment_owner_select",
+        "guide_profiles_guide_select"
+      ]
+    },
+    {
+      "name": "public.payments",
+      "policies": [
+        "payments_admin_reconciliation_update",
+        "payments_admin_select",
+        "payments_checkout_owner_select",
+        "payments_payment_owner_all",
+        "payments_projection_owner_select"
+      ],
+      "writerOperation": "payment/admin RPC only"
+    },
+    {
+      "name": "public.place_experience_types",
+      "policies": [
+        "place_experience_types_public_select"
+      ]
+    },
+    {
+      "name": "public.place_guide_languages",
+      "policies": [
+        "place_guide_languages_public_select"
+      ]
+    },
+    {
+      "name": "public.place_opening_exception_windows",
+      "policies": [
+        "place_opening_exception_windows_public_select"
+      ]
+    },
+    {
+      "name": "public.place_opening_exceptions",
+      "policies": [
+        "place_opening_exceptions_public_select"
+      ]
+    },
+    {
+      "name": "public.place_opening_hours",
+      "policies": [
+        "place_opening_hours_public_select"
+      ]
+    },
+    {
+      "name": "public.place_supports",
+      "policies": [
+        "place_supports_public_select"
+      ]
+    },
+    {
+      "name": "public.place_translations",
+      "policies": [
+        "place_translations_public_select"
+      ]
+    },
+    {
+      "name": "public.places",
+      "policies": [
+        "places_public_select"
+      ]
+    },
+    {
+      "name": "public.profiles",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "grants": [
+        "SELECT -> authenticated"
+      ],
+      "policies": [
+        "profiles_admin_summary_select",
+        "profiles_auth_trigger_insert",
+        "profiles_auth_trigger_select",
+        "profiles_customer_select",
+        "profiles_request_customer_rpc_language_select"
+      ]
+    },
+    {
+      "name": "public.seo_releases",
+      "policies": [
+        "seo_releases_admin_owner_all",
+        "seo_releases_build_owner_select",
+        "seo_releases_build_owner_update",
+        "seo_releases_public_owner_select"
+      ],
+      "writerOperation": "publication RPC only"
+    },
+    {
+      "name": "public.tour_translations",
+      "policies": [
+        "tour_guard_translations_select",
+        "tour_translations_public_select"
+      ]
+    },
+    {
+      "name": "public.tour_version_stops",
+      "policies": [
+        "tour_guard_version_stops_select",
+        "tour_version_stops_public_select"
+      ]
+    },
+    {
+      "name": "public.tour_version_translations",
+      "policies": [
+        "tour_guard_version_translations_select",
+        "tour_version_translations_checkout_owner_select",
+        "tour_version_translations_public_select"
+      ]
+    },
+    {
+      "name": "public.tour_versions",
+      "policies": [
+        "tour_guard_versions_select",
+        "tour_versions_availability_owner_select",
+        "tour_versions_checkout_owner_select",
+        "tour_versions_public_select"
+      ],
+      "writerOperation": "tour lifecycle RPC only"
+    },
+    {
+      "name": "public.tours",
+      "policies": [
+        "tour_guard_tours_select",
+        "tours_availability_owner_select",
+        "tours_checkout_owner_select",
+        "tours_public_select"
+      ],
+      "writerOperation": "tour lifecycle RPC only"
+    },
+    {
+      "name": "public.travel_edges",
+      "policies": [
+        "travel_edges_catalog_owner_all"
+      ],
+      "writerOperation": "travel snapshot RPC only"
+    },
+    {
+      "name": "public.travel_snapshot_edges",
+      "policies": [
+        "travel_snapshot_edges_catalog_owner_all"
+      ],
+      "writerOperation": "travel snapshot RPC only"
+    },
+    {
+      "name": "public.travel_snapshots",
+      "policies": [
+        "travel_snapshots_catalog_owner_all",
+        "travel_snapshots_checkout_owner_select",
+        "travel_snapshots_guard_select",
+        "travel_snapshots_plan_rpc_select"
+      ],
+      "writerOperation": "travel snapshot RPC only"
+    },
+    {
+      "name": "public.trip_plan_items",
+      "policies": [
+        "trip_plan_items_guest_owner_all",
+        "trip_plan_items_owner_select",
+        "trip_plan_items_plan_guard_select",
+        "trip_plan_items_plan_rpc_owner_all"
+      ],
+      "writerOperation": "plan revision RPC only"
+    },
+    {
+      "name": "public.trip_plan_revisions",
+      "policies": [
+        "trip_plan_revisions_checkout_owner_select",
+        "trip_plan_revisions_guest_owner_all",
+        "trip_plan_revisions_guide_assignment_owner_select",
+        "trip_plan_revisions_owner_select",
+        "trip_plan_revisions_plan_guard_select",
+        "trip_plan_revisions_plan_rpc_owner_all",
+        "trip_plan_revisions_request_admin_rpc_lock",
+        "trip_plan_revisions_request_admin_rpc_select",
+        "trip_plan_revisions_request_customer_rpc_lock",
+        "trip_plan_revisions_request_customer_rpc_select"
+      ],
+      "writerOperation": "plan revision RPC only"
+    },
+    {
+      "name": "public.trip_plans",
+      "policies": [
+        "trip_plans_checkout_owner_select",
+        "trip_plans_claim_owner_select",
+        "trip_plans_claim_owner_update",
+        "trip_plans_guest_owner_all",
+        "trip_plans_guide_assignment_owner_select",
+        "trip_plans_owner_select",
+        "trip_plans_plan_guard_select",
+        "trip_plans_plan_rpc_owner_all",
+        "trip_plans_request_admin_rpc_lock",
+        "trip_plans_request_admin_rpc_select",
+        "trip_plans_request_customer_rpc_lock",
+        "trip_plans_request_customer_rpc_select"
+      ],
+      "writerOperation": "plan revision RPC only"
+    }
+  ],
+  "views": [
+    {
+      "name": "public.admin_audit_events_v",
+      "owner": "localens_content_admin_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "admin-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.admin_content_drafts_v",
+      "owner": "localens_content_admin_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "admin-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.admin_custom_request_queue_v",
+      "owner": "localens_request_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "admin-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.catalog_snapshot_places_v",
+      "owner": "localens_catalog_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated"
+      ],
+      "apiExposure": "published-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.customer_bookings_v",
+      "owner": "localens_booking_projection_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "owner-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.customer_custom_quotes_v",
+      "owner": "localens_request_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "owner-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.customer_custom_requests_v",
+      "owner": "localens_request_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "owner-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.customer_payment_status_v",
+      "owner": "localens_payment_projection_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "owner-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.latest_fx_snapshot_v",
+      "owner": "localens_catalog_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated"
+      ],
+      "apiExposure": "published-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.published_content_release_v",
+      "owner": "localens_content_public_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated"
+      ],
+      "apiExposure": "published-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.published_tours_v",
+      "owner": "localens_tour_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated"
+      ],
+      "apiExposure": "published-view",
+      "securityInvoker": true,
+      "securityBarrier": true,
+      "baseGrantException": [
+        "public.tours:(id,slug,status)",
+        "public.tour_versions:(id,tour_id,status,duration_minutes,price_vnd_per_person,inclusions,exclusions,cancellation_policy,source_url,verified_at,attribution,license,catalog_snapshot_id)",
+        "public.tour_version_translations:(tour_version_id,locale,title,summary,meeting_point)",
+        "public.tour_version_stops:(tour_version_id,catalog_snapshot_id,position,place_id)",
+        "public.catalog_snapshot_places:(snapshot_id,place_id,slug)",
+        "public.catalog_snapshot_place_translations:(snapshot_id,place_id,locale,title)",
+        "public.catalog_snapshots:(id,status)"
+      ],
+      "securityRationale": "RLS-published rows plus narrow source/predicate column grants are required by security_invoker=true; all other base columns remain denied."
+    },
+    {
+      "name": "public.travel_snapshots_v",
+      "owner": "localens_catalog_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated"
+      ],
+      "apiExposure": "published-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    }
+  ],
+  "rpcs": [
+    {
+      "name": "public.accept_guide_assignment",
+      "signature": "public.accept_guide_assignment(uuid)",
+      "owner": "localens_guide_assignment_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "guide accepts own assignment",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.admin_user_summary",
+      "signature": "public.admin_user_summary()",
+      "owner": "localens_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "admin read only",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.advance_trip_plan_revision",
+      "signature": "public.advance_trip_plan_revision(uuid,integer,jsonb)",
+      "owner": "localens_plan_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner revision append",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.assign_guide",
+      "signature": "public.assign_guide(uuid,uuid)",
+      "owner": "localens_guide_assignment_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "admin assigns guide",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.claim_guest_plan",
+      "signature": "public.claim_guest_plan(uuid,text,smallint)",
+      "owner": "localens_claim_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner claims guest plan",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.complete_guide_assignment",
+      "signature": "public.complete_guide_assignment(uuid)",
+      "owner": "localens_guide_assignment_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "guide completes own assignment",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.create_custom_quote",
+      "signature": "public.create_custom_quote(uuid,bigint,public.checkout_currency,text,text,text)",
+      "owner": "localens_request_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "admin creates server-priced quote",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.fail_seo_publish",
+      "signature": "public.fail_seo_publish(uuid,text,text,text)",
+      "owner": "localens_content_build_owner",
+      "readerRoles": [
+        "localens_content_build_executor"
+      ],
+      "writerOperation": "build marks failed",
+      "credential": "edge-internal-content-build"
+    },
+    {
+      "name": "public.finalize_seo_publish",
+      "signature": "public.finalize_seo_publish(uuid,text,text,text,text)",
+      "owner": "localens_content_build_owner",
+      "readerRoles": [
+        "localens_content_build_executor"
+      ],
+      "writerOperation": "build CAS finalizes release",
+      "credential": "edge-internal-content-build"
+    },
+    {
+      "name": "public.get_guide_assigned_bookings",
+      "signature": "public.get_guide_assigned_bookings()",
+      "owner": "localens_guide_projection_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "guide reads sanitized queue",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.get_live_departure_availability",
+      "signature": "public.get_live_departure_availability()",
+      "owner": "localens_availability_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated"
+      ],
+      "writerOperation": "hold-aware published availability read",
+      "credential": "browser-anonymous-or-jwt"
+    },
+    {
+      "name": "public.publish_seo",
+      "signature": "public.publish_seo(text,text)",
+      "owner": "localens_content_admin_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "admin creates one publishing release",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.read_seo_build_release",
+      "signature": "public.read_seo_build_release(uuid,text,text)",
+      "owner": "localens_content_build_owner",
+      "readerRoles": [
+        "localens_content_build_executor"
+      ],
+      "writerOperation": "capability-scoped build read",
+      "credential": "edge-internal-content-build"
+    },
+    {
+      "name": "public.reconcile_payment",
+      "signature": "public.reconcile_payment(uuid,public.booking_status)",
+      "owner": "localens_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "audited admin payment reconciliation",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.review_custom_request",
+      "signature": "public.review_custom_request(uuid,public.request_status,text)",
+      "owner": "localens_request_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "admin reviews request",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.submit_custom_request",
+      "signature": "public.submit_custom_request(uuid,integer)",
+      "owner": "localens_request_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner submits request",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.upsert_content_draft",
+      "signature": "public.upsert_content_draft(public.locale,text,text,text,text,jsonb,date,jsonb)",
+      "owner": "localens_content_admin_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "admin writes sanitized draft",
+      "credential": "browser-jwt"
+    }
+  ],
+  "internalFunctions": [
+    "private.accept_guide_assignment(uuid)",
+    "private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)",
+    "private.advance_trip_plan_revision(uuid,integer,jsonb)",
+    "private.assert_checkout_attempt_mutation()",
+    "private.assert_checkout_transition()",
+    "private.assert_content_admin()",
+    "private.assert_content_json_safe()",
+    "private.assert_departure_insert()",
+    "private.assert_departure_update()",
+    "private.assert_exception_consistency()",
+    "private.assert_exception_window_nonoverlap()",
+    "private.assert_exception_window_parent_open()",
+    "private.assert_guide_assignment_mutation()",
+    "private.assert_opening_window_nonoverlap()",
+    "private.assert_payment_mutation()",
+    "private.assert_published_place_complete(uuid)",
+    "private.assert_published_place_row()",
+    "private.assert_published_place_transition()",
+    "private.assert_published_tour_complete(uuid)",
+    "private.assert_published_tour_row()",
+    "private.assert_seo_live_pointer()",
+    "private.assert_seo_release_transition()",
+    "private.assert_trip_plan_item_snapshot()",
+    "private.assign_guide(uuid,uuid)",
+    "private.catalog_set_updated_at()",
+    "private.checkout_canonical_payload(uuid,text,uuid,integer,public.locale)",
+    "private.checkout_hash_equal(text,text)",
+    "private.claim_guest_binding(uuid,text,smallint,uuid)",
+    "private.compensate_checkout_failure(uuid)",
+    "private.complete_guide_assignment(uuid)",
+    "private.content_provenance_is_allowlisted(jsonb,jsonb)",
+    "private.content_url_is_allowlisted(text)",
+    "private.content_url_is_safe(text)",
+    "private.create_catalog_snapshot()",
+    "private.create_custom_quote(uuid,bigint,public.checkout_currency,text,text,text)",
+    "private.create_fx_snapshot(numeric,text,timestamptz,text,boolean)",
+    "private.create_guest_plan(jsonb)",
+    "private.create_travel_snapshot()",
+    "private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)",
+    "private.guard_custom_request_insert()",
+    "private.guard_custom_request_mutation()",
+    "private.guard_tour_lifecycle()",
+    "private.guard_tour_translation_lifecycle()",
+    "private.guard_tour_version_lifecycle()",
+    "private.guide_requirement_snapshot(uuid)",
+    "private.handle_new_auth_user()",
+    "private.lock_tour_parents(uuid,uuid)",
+    "private.persist_trip_plan_revision(uuid,integer,jsonb,uuid,uuid,text,smallint)",
+    "private.provision_role(uuid,public.app_role)",
+    "private.record_checkout_audit_event(public.audit_event_type,uuid,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)",
+    "private.record_checkout_session(uuid,uuid,text,timestamptz)",
+    "private.record_content_audit_event(public.audit_event_type,uuid,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)",
+    "private.record_guide_assignment_audit_event(public.audit_event_type,uuid,uuid,text,text)",
+    "private.record_payment_audit_event(public.audit_event_type,uuid,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)",
+    "private.record_request_quote_audit_event(public.audit_event_type,uuid,public.app_role,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric)",
+    "private.reject_append_only_change()",
+    "private.reject_audit_mutation()",
+    "private.reject_checkout_idempotency_mutation()",
+    "private.reject_content_copy_mutation()",
+    "private.reject_custom_quote_delete()",
+    "private.reject_custom_quote_mutation()",
+    "private.reject_custom_quote_truncate()",
+    "private.reject_custom_request_event_mutation()",
+    "private.reject_published_snapshot_insert()",
+    "private.reject_published_tour_child_insert()",
+    "private.reject_quota_reservation_mutation()",
+    "private.reject_tour_append_only_change()",
+    "private.reject_travel_fx_append_only_change()",
+    "private.reject_trip_plan_history_mutation()",
+    "private.reject_trip_plan_id_mutation()",
+    "private.reject_webhook_mutation()",
+    "private.reserve_quota(uuid,text,text,text)",
+    "private.review_custom_request(uuid,public.request_status,text)",
+    "private.set_trip_plan_updated_at()",
+    "private.set_updated_at()",
+    "private.start_checkout_tx(text,uuid,integer,public.locale,text,text)",
+    "private.submit_custom_request(uuid,integer)",
+    "private.valid_guide_requirement_flags(text[],text)",
+    "private.valid_tour_copy_array(text[])",
+    "private.validate_trip_plan_revision_dto(jsonb)"
+  ],
+  "edgeBoundaryChecklist": {
+    "corsAllowlist": "fail closed to checked-in production/demo origins; no wildcard with credentials",
+    "requestBodyLimit": "reject oversized JSON before parsing; separate public and internal limits",
+    "turnstile": "verify action and hostname server-side; fail closed on missing/invalid secret or response",
+    "secrets": "Edge environment secret store only; never NEXT_PUBLIC, static bundle, logs, audit, or client DTO",
+    "correlationRedaction": "allow correlation IDs only; redact tokens, signatures, IP/device hashes, payment payloads and PII",
+    "staticBundle": "scan output for service-role, Stripe, AI, HMAC and Turnstile secrets",
+    "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
+  }
+}

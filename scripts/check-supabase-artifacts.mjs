@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
+import { renderMatrixMarkdown } from "./generate-data-access-matrix.mjs";
 
 const MIGRATION_NAME = /^(\d{14})(?:[_-].*)?\.sql$/i;
 const TEMPLATE_TOKEN = /\{\{[^}\r\n]+\}\}|\$\{[^}\r\n]+\}|<%[=-]?[\s\S]*?%>/;
@@ -286,6 +287,185 @@ function checkRequiredSeed(root, errors) {
   }
 }
 
+function databaseInventory(files) {
+  const tables = new Set();
+  const views = new Set();
+  const functions = new Set();
+  const functionSignatures = new Set();
+  const policies = new Set();
+  const viewModes = new Map();
+  const viewOwners = new Map();
+  const functionOwners = new Map();
+  const objectEventPattern = /\b(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?|CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+|CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+|DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?|DROP\s+VIEW\s+(?:IF\s+EXISTS\s+)?|DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?)((?:public|private)\.[A-Za-z_][A-Za-z0-9_]*)/gi;
+  const viewPattern = /\bCREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(public\.[A-Za-z_][A-Za-z0-9_]*)/gi;
+  const functionSignaturePattern = /\bALTER\s+FUNCTION\s+((?:public|private)\.[^;]+?)\s+OWNER\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
+  const viewOwnerPattern = /\bALTER\s+VIEW\s+(public\.[A-Za-z_][A-Za-z0-9_]*)\s+OWNER\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
+  const policyPattern = /\bCREATE\s+POLICY\s+([A-Za-z_][A-Za-z0-9_]*)\s+ON\s+((?:public|private)\.[A-Za-z_][A-Za-z0-9_]*)/gi;
+  for (const file of files) {
+    const source = readFileSync(file.path, "utf8");
+    for (const match of source.matchAll(objectEventPattern)) {
+      const keyword = match[1].trim().toLowerCase().replace("create or replace ", "create ");
+      const name = match[2].toLowerCase();
+      if (keyword.startsWith("drop table")) tables.delete(name);
+      else if (keyword.startsWith("drop view")) { views.delete(name); viewModes.delete(name); viewOwners.delete(name); }
+      else if (keyword.startsWith("drop function")) {
+        functions.delete(name);
+        for (const signature of functionSignatures) if (signature.startsWith(`${name}(`)) functionSignatures.delete(signature);
+      } else if (keyword.startsWith("create table")) tables.add(name);
+      else if (keyword.startsWith("create view")) views.add(name);
+      else if (keyword.startsWith("create function")) functions.add(name);
+    }
+    for (const match of source.matchAll(viewPattern)) {
+      const name = match[1].toLowerCase();
+      const tail = source.slice(match.index + match[0].length, match.index + match[0].length + 220);
+      const invoker = tail.match(/WITH\s*\(\s*security_invoker\s*=\s*(true|false)/i)?.[1];
+      const barrier = tail.match(/security_barrier\s*=\s*(true|false)/i)?.[1];
+      if (invoker || barrier) viewModes.set(name, { securityInvoker: invoker === "true", securityBarrier: barrier === "true" });
+    }
+    for (const match of source.matchAll(functionSignaturePattern)) {
+      const signature = match[1].replace(/\s+/g, "").toLowerCase();
+      functionSignatures.add(signature);
+      functionOwners.set(signature, match[2]);
+    }
+    for (const match of source.matchAll(viewOwnerPattern)) viewOwners.set(match[1].toLowerCase(), match[2]);
+    for (const match of source.matchAll(policyPattern)) policies.add(`${match[2].toLowerCase()}:${match[1].toLowerCase()}`);
+  }
+  return { tables, views, functions, functionSignatures, functionOwners, policies, viewModes, viewOwners };
+}
+
+function checkDataAccessMatrix(root, files, errors) {
+  const matrixPath = join(root, "docs", "security", "data-access-matrix.json");
+  if (!existsSync(matrixPath)) return;
+  let matrix;
+  try {
+    matrix = JSON.parse(readFileSync(matrixPath, "utf8"));
+  } catch (error) {
+    errors.push(`data-access-matrix.json: invalid JSON (${error instanceof Error ? error.message : String(error)})`);
+    return;
+  }
+  const inventory = databaseInventory(files);
+  const listNames = (items) => new Set((items ?? []).map((item) => (typeof item === "string" ? item : item.name).toLowerCase()));
+  const tableNames = listNames(matrix.tables);
+  const viewNames = listNames(matrix.views);
+  const rpcNames = listNames(matrix.rpcs);
+  const rpcSignatures = new Set((matrix.rpcs ?? []).map((item) => item.signature?.replace(/\s+/g, "").toLowerCase()).filter(Boolean));
+  const internalSignatures = new Set((matrix.internalFunctions ?? []).map((name) => name.replace(/\s+/g, "").toLowerCase()));
+  const accountedFunctions = new Set([...rpcNames, ...internalSignatures].map((name) => name.split("(")[0]));
+  const accountedSignatures = new Set([...rpcSignatures, ...internalSignatures]);
+  const missing = (actual, declared, label) => {
+    for (const name of actual) if (!declared.has(name)) errors.push(`data-access-matrix.json: missing ${label} ${name}`);
+    for (const name of declared) if (!actual.has(name)) errors.push(`data-access-matrix.json: stale ${label} ${name}`);
+  };
+  missing(inventory.tables, tableNames, "table");
+  missing(inventory.views, viewNames, "view");
+  missing(inventory.functions, accountedFunctions, "function/RPC");
+  for (const signature of inventory.functionSignatures) if (!accountedSignatures.has(signature)) errors.push(`data-access-matrix.json: missing exact function signature ${signature}`);
+  for (const signature of accountedSignatures) if (!inventory.functionSignatures.has(signature)) errors.push(`data-access-matrix.json: stale exact function signature ${signature}`);
+  for (const item of matrix.tables ?? []) {
+    if (!item.name || !Array.isArray(item.policies) || item.policies.length === 0) errors.push(`data-access-matrix.json: ${item.name ?? "table"} needs explicit policy names`);
+    for (const policy of item.policies ?? []) {
+      if (!inventory.policies.has(`${item.name.toLowerCase()}:${policy.toLowerCase()}`)) errors.push(`data-access-matrix.json: ${item.name} references missing policy ${policy}`);
+    }
+    const actualPolicies = [...inventory.policies].filter((policy) => policy.startsWith(`${item.name.toLowerCase()}:`)).map((policy) => policy.slice(item.name.length + 1)).sort();
+    const declaredPolicies = [...(item.policies ?? [])].map((policy) => policy.toLowerCase()).sort();
+    if (actualPolicies.join("|") !== declaredPolicies.join("|")) errors.push(`data-access-matrix.json: ${item.name} policy drift (actual=${actualPolicies.join(",")}; matrix=${declaredPolicies.join(",")})`);
+    for (const key of ["apiExposure", "writerOperation"]) if (item[key] === undefined && matrix.defaults?.[key] === undefined) errors.push(`data-access-matrix.json: ${item.name} missing ${key}`);
+  }
+  for (const item of matrix.views ?? []) {
+    const mode = inventory.viewModes.get(item.name.toLowerCase());
+    if (!mode) errors.push(`data-access-matrix.json: ${item.name} has no explicit security_invoker/security_barrier source declaration`);
+    else if (mode.securityInvoker !== item.securityInvoker || mode.securityBarrier !== item.securityBarrier) errors.push(`data-access-matrix.json: ${item.name} security mode drift (matrix invoker=${item.securityInvoker}, barrier=${item.securityBarrier}; SQL invoker=${mode.securityInvoker}, barrier=${mode.securityBarrier})`);
+    const actualOwner = inventory.viewOwners.get(item.name.toLowerCase()) ?? "postgres";
+    if (actualOwner !== (item.owner ?? matrix.defaults?.owner)) errors.push(`data-access-matrix.json: ${item.name} owner drift (actual=${actualOwner}; matrix=${item.owner ?? matrix.defaults?.owner})`);
+  }
+  for (const rpc of matrix.rpcs ?? []) {
+    const owner = matrix.roleProfiles?.[rpc.owner];
+    if (!owner) errors.push(`data-access-matrix.json: ${rpc.name} owner ${rpc.owner} has no role profile`);
+    else if (owner.rolcanlogin || owner.rolbypassrls || ["postgres", "service_role"].includes(rpc.owner)) errors.push(`data-access-matrix.json: ${rpc.name} has unsafe owner ${rpc.owner}`);
+    if (!Array.isArray(rpc.readerRoles) || rpc.readerRoles.length === 0) errors.push(`data-access-matrix.json: ${rpc.name} needs explicit reader/execute roles`);
+    if (!rpc.signature || !inventory.functionSignatures.has(rpc.signature.replace(/\s+/g, "").toLowerCase())) errors.push(`data-access-matrix.json: ${rpc.name} missing exact live signature`);
+    if (rpc.signature && inventory.functionOwners.get(rpc.signature.replace(/\s+/g, "").toLowerCase()) !== rpc.owner) errors.push(`data-access-matrix.json: ${rpc.signature} owner drift`);
+  }
+  for (const signature of internalSignatures) {
+    const owner = inventory.functionOwners.get(signature);
+    const profile = owner ? matrix.roleProfiles?.[owner] : undefined;
+    if (!owner || !profile) errors.push(`data-access-matrix.json: ${signature} owner ${owner ?? "missing"} has no role profile`);
+    else if (profile.rolcanlogin || profile.rolbypassrls || ["postgres", "service_role"].includes(owner)) errors.push(`data-access-matrix.json: internal definer ${signature} has unsafe owner ${owner}`);
+  }
+  for (const key of ["corsAllowlist", "requestBodyLimit", "turnstile", "secrets", "correlationRedaction", "staticBundle", "credentialBoundary"]) {
+    if (!matrix.edgeBoundaryChecklist?.[key]) errors.push(`data-access-matrix.json: missing Edge boundary check ${key}`);
+  }
+  const generatedPath = join(root, matrix.generatedMarkdown ?? "docs/security/data-access-matrix.md");
+  if (!existsSync(generatedPath)) errors.push("data-access-matrix.md: generated artifact is missing");
+  else if (readFileSync(generatedPath, "utf8") !== renderMatrixMarkdown(matrix)) errors.push("data-access-matrix.md: generated Markdown drift; run node scripts/generate-data-access-matrix.mjs");
+
+  const task13 = files.find((file) => file.name.startsWith("20260823110000_"));
+  if (!task13) errors.push("data-access-matrix.json: Task 13 RLS/RPC security migration is missing");
+  else {
+    const sql = readFileSync(task13.path, "utf8");
+    if (!/ALTER\s+DEFAULT\s+PRIVILEGES(?:\s+FOR\s+ROLE\s+postgres)?\s+IN\s+SCHEMA\s+private/i.test(sql)) errors.push("Task 13 migration: private default privileges are not revoked for migration owner");
+    if (matrix.migrationOwner !== "postgres" || !/ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+postgres/i.test(sql)) errors.push("Task 13 migration: default privilege owner is not explicitly pinned to postgres");
+    if (!/statement_timeout\s*=\s*%L|statement_timeout\s*=\s*'5s'/i.test(sql)) errors.push("Task 13 migration: definer statement_timeout hardening is missing");
+    if (!/SET\s+search_path\s*=\s*''''/i.test(sql)) errors.push("Task 13 migration: fixed empty search_path hardening is missing");
+    if (!/service_role[\s\S]{0,160}never used as RLS evidence|service_role[\s\S]{0,160}REVOKE/i.test(`${sql}\n${readFileSync(matrixPath, "utf8")}`)) errors.push("Task 13: service_role boundary is undocumented");
+
+    const normalizedSql = sql.replace(/\s+/g, " ").toLowerCase();
+    const rpcSignatures = new Set((matrix.rpcs ?? []).map((rpc) => rpc.signature.replace(/\s+/g, "").toLowerCase()));
+    const grantedPublicRpcSignatures = new Set();
+    for (const grant of sql.matchAll(/GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+(public\.[^;]+?)\s+TO\s+([^;]+);/gi)) {
+      const signature = grant[1].replace(/\s+/g, "").toLowerCase();
+      grantedPublicRpcSignatures.add(signature);
+      if (!rpcSignatures.has(signature)) errors.push(`Task 13 grant drift: public RPC ${signature} is not in the matrix`);
+      const roleText = grant[2].toLowerCase();
+      const matrixRpc = (matrix.rpcs ?? []).find((rpc) => rpc.signature.replace(/\s+/g, "").toLowerCase() === signature);
+      for (const role of matrixRpc?.readerRoles ?? []) if (!roleText.includes(role.toLowerCase())) errors.push(`Task 13 grant drift: ${signature} is missing execute role ${role}`);
+    }
+    for (const signature of rpcSignatures) if (!grantedPublicRpcSignatures.has(signature)) errors.push(`Task 13 grant drift: matrix RPC ${signature} has no final execute grant`);
+
+    const viewNamesByExposure = new Set((matrix.views ?? []).filter((view) => view.readerRoles?.length).map((view) => view.name.toLowerCase()));
+    const grantViewStatements = [...sql.matchAll(/GRANT\s+SELECT\s+ON\s+(?:TABLE\s+)?([^;]+?)\s+TO\s+([^;]+);/gi)];
+    for (const view of matrix.views ?? []) {
+      for (const role of view.readerRoles ?? []) {
+        const granted = grantViewStatements.some((match) => match[1].toLowerCase().includes(view.name.toLowerCase()) && match[2].toLowerCase().includes(role.toLowerCase()));
+        if (!granted) errors.push(`Task 13 grant drift: ${view.name} is missing SELECT grant for ${role}`);
+      }
+    }
+    for (const match of grantViewStatements) {
+      for (const objectName of match[1].split(",").map((value) => value.trim().toLowerCase())) {
+        if (objectName.startsWith("public.") && viewNamesByExposure.has(objectName) === false && objectName.endsWith("_v")) errors.push(`Task 13 grant drift: unlisted public view grant ${objectName}`);
+      }
+    }
+    for (const table of matrix.tables ?? []) {
+      for (const grant of table.grants ?? []) {
+        const arrow = grant.match(/^\s*SELECT\s*->\s*(\w+)\s*$/i);
+        if (!arrow) continue;
+        const expected = `grant select on table ${table.name} to ${arrow[1]}`;
+        if (!normalizedSql.includes(expected.toLowerCase())) {
+          const groupedGrant = normalizedSql.includes(`grant select on table ${table.name}`) && normalizedSql.includes(`to ${arrow[1].toLowerCase()}`);
+          if (!groupedGrant) errors.push(`Task 13 grant drift: ${table.name} is missing ${grant}`);
+        }
+      }
+    }
+    for (const view of matrix.views ?? []) {
+      for (const exception of view.baseGrantException ?? []) {
+        const [tableName, columns] = exception.split(":");
+        const normalizedColumns = columns.replace(/[()\s]/g, "").toLowerCase();
+        const baseGrantPattern = new RegExp(`grantselect\\([^;]*${normalizedColumns}[^;]*\\)ontable${tableName.replace(".", "\\.")}`, "i");
+        const hasGrant = baseGrantPattern.test(normalizedSql.replace(/\s+/g, ""));
+        if (!hasGrant) errors.push(`Task 13 grant drift: ${view.name} base column exception ${exception} is not granted`);
+      }
+    }
+    const matrixTestPath = join(root, "supabase", "tests", "database", "rls_matrix_test.sql");
+    if (!existsSync(matrixTestPath)) errors.push("rls_matrix_test.sql: Task 13 executable pgTAP artifact is missing");
+    else {
+      const matrixTest = readFileSync(matrixTestPath, "utf8");
+      for (const marker of ["SELECT plan(", "INSERT INTO auth.users", "SET LOCAL ROLE authenticated", "customer A", "customer B", "guide A", "guide B", "admin summary", "self-escalate", "pg_temp"]) {
+        if (!matrixTest.toLowerCase().includes(marker.toLowerCase())) errors.push(`rls_matrix_test.sql: missing row-context marker ${marker}`);
+      }
+    }
+  }
+}
+
 export function scanSupabaseArtifacts({ root = process.cwd(), requireSeed = false } = {}) {
   const resolvedRoot = resolve(root);
   const errors = [];
@@ -298,6 +478,8 @@ export function scanSupabaseArtifacts({ root = process.cwd(), requireSeed = fals
     facts.tables.forEach((table) => publicTables.add(table));
     facts.rls.forEach((table) => rlsTables.add(table));
   }
+
+  checkDataAccessMatrix(resolvedRoot, files, errors);
   for (const table of publicTables) {
     if (!rlsTables.has(table)) errors.push(`public.${table.split(".")[1]} is missing ENABLE ROW LEVEL SECURITY`);
   }
