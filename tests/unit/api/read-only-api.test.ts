@@ -62,6 +62,27 @@ describe("read-only API application boundary", () => {
     ]);
   });
 
+  it("localizes Vietnamese fixed-tour detail facts while preserving source URLs and license IDs", () => {
+    const result = createReadOnlyApi().listTours("vi");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const firstTour = result.value.tours[0];
+    expect(firstTour).toMatchObject({
+      title: "Chợ địa phương và ẩm thực đường phố",
+      inclusions: ["hướng dẫn viên địa phương", "các điểm nếm thử"],
+      exclusions: ["đưa đón khách sạn"],
+      cancellationPolicy: "Tour demo: thay đổi được miễn phí trước khi xác nhận.",
+      attribution: "Nhóm biên tập demo LocalLens",
+      license: "CC BY 4.0",
+      sourceUrl: "https://example.invalid/locallens/demo-sources/markets-and-street-food",
+    });
+    expect(firstTour?.stops.map((stop) => stop.title)).toEqual([
+      "Chợ Bến Thành",
+      "Ẩm thực đường phố Sài Gòn",
+    ]);
+  });
+
   it("filters tours deterministically with strict, canonical filter fields", () => {
     const api = createReadOnlyApi();
     const filtered = api.listTours("en", {

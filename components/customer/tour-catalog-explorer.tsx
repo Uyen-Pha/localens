@@ -123,6 +123,7 @@ export function TourCatalogExplorer({
   const [areaId, setAreaId] = useState("");
   const [experienceType, setExperienceType] = useState<ExperienceType | "">("");
   const [isFiltering, setIsFiltering] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const areaLabels = useMemo(
     () => new Map(areaOptions.map((option) => [option.value, option.label])),
@@ -135,7 +136,8 @@ export function TourCatalogExplorer({
 
   useEffect(() => {
     const trimmedKeyword = keyword.trim();
-    if (trimmedKeyword.length === 0 && areaId.length === 0 && experienceType.length === 0) {
+    const hasFilters = trimmedKeyword.length > 0 || areaId.length > 0 || experienceType.length > 0;
+    if (!hasFilters && retryNonce === 0) {
       setCatalog(initialCatalog);
       setError(initialError ?? null);
       return;
@@ -155,12 +157,17 @@ export function TourCatalogExplorer({
     }
     setError(null);
     setCatalog(result.value);
-  }, [areaId, experienceType, initialCatalog, initialError, keyword, locale]);
+  }, [areaId, experienceType, initialCatalog, initialError, keyword, locale, retryNonce]);
 
   function clearFilters() {
     setKeyword("");
     setAreaId("");
     setExperienceType("");
+    setRetryNonce(0);
+  }
+
+  function retryCatalog() {
+    setRetryNonce((value) => value + 1);
   }
 
   return (
@@ -200,6 +207,11 @@ export function TourCatalogExplorer({
         <div className="tour-catalog-error" role="alert">
           <p>{copy.errorMessage}</p>
           {error.retryable ? <p>{copy.retryableMessage}</p> : null}
+          {error.retryable ? (
+            <button className="button button--secondary" type="button" onClick={retryCatalog}>
+              {copy.retryLabel}
+            </button>
+          ) : null}
           <p>{copy.correlationLabel}: <code>{error.correlationId}</code></p>
         </div>
       ) : null}

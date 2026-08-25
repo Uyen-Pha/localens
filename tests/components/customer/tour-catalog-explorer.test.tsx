@@ -42,7 +42,7 @@ describe("TourCatalogExplorer", () => {
     });
   });
 
-  it("renders localized empty and API error states", () => {
+  it("renders localized empty and API error states", async () => {
     const dictionary = getDictionary("vi");
     const catalogResult = createReadOnlyApi().listTours("vi");
     if (!catalogResult.ok) throw new Error("expected demo catalog");
@@ -76,5 +76,11 @@ describe("TourCatalogExplorer", () => {
     );
     expect(screen.getByRole("alert")).toHaveTextContent(dictionary.home.tourCatalog.errorMessage);
     expect(screen.getByRole("alert")).toHaveTextContent(error.correlationId);
+    expect(screen.getByRole("button", { name: dictionary.home.tourCatalog.retryLabel })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: dictionary.home.tourCatalog.retryLabel }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 2, name: "Chợ địa phương và ẩm thực đường phố" })).toBeInTheDocument();
+    });
   });
 });

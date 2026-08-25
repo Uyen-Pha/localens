@@ -228,28 +228,66 @@ const TOUR_COPIES: TourCopy[] = [
   },
 ];
 
-const TOUR_TRANSLATIONS: Record<Locale, Record<string, Pick<DemoTourRecord, "title" | "summary" | "meetingPoint">>> = {
+type TourTranslation = Pick<
+  DemoTourRecord,
+  | "title"
+  | "summary"
+  | "meetingPoint"
+  | "inclusions"
+  | "exclusions"
+  | "cancellationPolicy"
+  | "attribution"
+> & { stopTitles: string[] };
+
+const TOUR_TRANSLATIONS: Record<
+  Locale,
+  Record<string, TourTranslation>
+> = {
   en: {},
   vi: {
     "markets-and-street-food": {
       title: "Chợ địa phương và ẩm thực đường phố",
       summary: "Làm quen với những khu chợ và hương vị đời thường của thành phố.",
       meetingPoint: "Cổng phía bắc chợ Bến Thành",
+      inclusions: ["hướng dẫn viên địa phương", "các điểm nếm thử"],
+      exclusions: ["đưa đón khách sạn"],
+      cancellationPolicy: "Tour demo: thay đổi được miễn phí trước khi xác nhận.",
+      attribution: "Nhóm biên tập demo LocalLens",
+      stopTitles: ["Chợ Bến Thành", "Ẩm thực đường phố Sài Gòn"],
     },
     "history-and-memory": {
       title: "Lịch sử và ký ức",
       summary: "Một hành trình ngắn qua những câu chuyện làm nên Thành phố Hồ Chí Minh.",
       meetingPoint: "Cổng Bảo tàng Chứng tích Chiến tranh",
+      inclusions: ["hướng dẫn viên địa phương", "tuyến đi bộ"],
+      exclusions: ["vé bảo tàng"],
+      cancellationPolicy: "Tour demo: thay đổi được miễn phí trước khi xác nhận.",
+      attribution: "Nhóm biên tập demo LocalLens",
+      stopTitles: ["Khu vực Bảo tàng Chứng tích Chiến tranh", "Chợ Bến Thành"],
     },
     "cho-lon-craft": {
       title: "Nghề thủ công Chợ Lớn",
       summary: "Khám phá câu chuyện nghề và nhịp sống chợ ở khu phố lịch sử.",
       meetingPoint: "Cổng phía đông chợ Bình Tây",
+      inclusions: ["hướng dẫn viên địa phương", "trình diễn nghề thủ công"],
+      exclusions: ["quà lưu niệm"],
+      cancellationPolicy: "Tour demo: thay đổi được miễn phí trước khi xác nhận.",
+      attribution: "Nhóm biên tập demo LocalLens",
+      stopTitles: ["Chợ Bình Tây", "Xưởng thủ công Chợ Lớn"],
     },
     "city-life-mix": {
       title: "Nhịp sống thành phố: từ chợ đến nghề thủ công",
       summary: "Tuyến trải nghiệm demo kết hợp ẩm thực, lịch sử, chợ và nghề thủ công.",
       meetingPoint: "Điểm hẹn trung tâm Quận 1",
+      inclusions: ["hướng dẫn viên địa phương", "điểm nếm thử", "trình diễn nghề thủ công"],
+      exclusions: ["phương tiện riêng"],
+      cancellationPolicy: "Tour demo: thay đổi được miễn phí trước khi xác nhận.",
+      attribution: "Nhóm biên tập demo LocalLens",
+      stopTitles: [
+        "Ẩm thực đường phố Sài Gòn",
+        "Khu vực Bảo tàng Chứng tích Chiến tranh",
+        "Xưởng thủ công Chợ Lớn",
+      ],
     },
   },
 };
@@ -259,6 +297,11 @@ function createTour(copy: TourCopy, locale: Locale): DemoTourRecord {
   const title = translation?.title ?? copy.title;
   const summary = translation?.summary ?? copy.summary;
   const meetingPoint = translation?.meetingPoint ?? copy.meetingPoint;
+  const inclusions = translation?.inclusions ?? copy.inclusions;
+  const exclusions = translation?.exclusions ?? copy.exclusions;
+  const cancellationPolicy = translation?.cancellationPolicy ?? copy.cancellationPolicy;
+  const attribution = translation?.attribution ?? copy.attribution;
+  const stopTitles = translation?.stopTitles ?? copy.stopTitles;
   const stopPlaces = copy.stopIds.map((placeId) => DEMO_PLACES.find((candidate) => candidate.id === placeId));
   const experienceTypes = Array.from(new Set(stopPlaces.flatMap((candidate) => candidate?.types ?? []))).sort() as ExperienceType[];
   const areaIds = Array.from(new Set(stopPlaces.map((candidate) => candidate?.areaId).filter((areaId): areaId is string => areaId !== undefined))).sort();
@@ -270,13 +313,17 @@ function createTour(copy: TourCopy, locale: Locale): DemoTourRecord {
     title,
     summary,
     meetingPoint,
+    inclusions,
+    exclusions,
+    cancellationPolicy,
+    attribution,
     areaIds,
     experienceTypes,
     stops: copy.stopIds.map((placeId, index) => ({
       position: index + 1,
       placeId,
       placeSlug: placeId.replace(/^demo-hcmc-/, ""),
-      title: copy.stopTitles[index] ?? placeId,
+      title: stopTitles[index] ?? placeId,
     })),
   };
 }

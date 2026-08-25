@@ -49,6 +49,7 @@ export type Dictionary = {
       allExperienceTypesLabel: string;
       experienceTypeOptions: Array<{ value: ExperienceType; label: string }>;
       clearFiltersLabel: string;
+      retryLabel: string;
       filteringStatus: string;
       resultCountLabel: string;
       detailsLabel: string;
@@ -243,6 +244,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
         { value: "traditional_market", label: "Traditional market" },
       ],
       clearFiltersLabel: "Clear filters",
+      retryLabel: "Retry",
       filteringStatus: "Refreshing the demo catalog…",
       resultCountLabel: "tours",
       detailsLabel: "View tour facts",
@@ -261,7 +263,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       licenseLabel: "License",
       noResults: "No demo tours match these filters.",
       errorMessage: "The demo tour catalog could not be loaded.",
-      retryableMessage: "Please clear a filter and try again.",
+      retryableMessage: "Please try loading the demo catalog again.",
       correlationLabel: "Reference",
       disclosure: "Demo catalog only: fixed tours are non-bookable and do not accept payment or confirmation yet.",
     },
@@ -453,6 +455,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
         { value: "traditional_market", label: "Chợ truyền thống" },
       ],
       clearFiltersLabel: "Xóa bộ lọc",
+      retryLabel: "Thử lại",
       filteringStatus: "Đang làm mới danh mục demo…",
       resultCountLabel: "tour",
       detailsLabel: "Xem thông tin tour",
@@ -471,7 +474,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       licenseLabel: "Giấy phép",
       noResults: "Không có tour demo phù hợp với bộ lọc này.",
       errorMessage: "Không thể tải danh mục tour demo.",
-      retryableMessage: "Hãy xóa một bộ lọc và thử lại.",
+      retryableMessage: "Hãy thử tải lại danh mục tour demo.",
       correlationLabel: "Mã tham chiếu",
       disclosure: "Chỉ là danh mục demo: tour cố định chưa nhận đặt tour, thanh toán hoặc xác nhận.",
     },
