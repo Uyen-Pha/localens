@@ -3,7 +3,7 @@
 -- the role, provenance, capability, pointer, and audit boundaries together.
 BEGIN;
 
-SELECT plan(109);
+SELECT plan(114);
 
 RESET ROLE;
 DELETE FROM auth.users
