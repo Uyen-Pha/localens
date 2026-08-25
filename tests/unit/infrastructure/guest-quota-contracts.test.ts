@@ -177,6 +177,32 @@ describe("guest quota migration contract", () => {
     expect(databaseFixture).not.toMatch(/private\.reserve_quota\([^,]+,\s*'(?:planner|gemini)',\s*ARRAY\[/);
   });
 
+  it("scrubs memberships for every protected owner and executor identity", () => {
+    const protectedRoles = [
+      "localens_auth_trigger_owner",
+      "localens_identity_rpc_owner",
+      "localens_admin_rpc_owner",
+      "localens_audit_guard_owner",
+      "localens_catalog_rpc_owner",
+      "localens_catalog_guard_owner",
+      "localens_tour_rpc_owner",
+      "localens_tour_guard_owner",
+      "localens_plan_rpc_owner",
+      "localens_plan_guard_owner",
+      "localens_guest_rpc_owner",
+      "localens_claim_rpc_owner",
+      "localens_quota_rpc_owner",
+      "localens_guest_executor",
+      "localens_quota_executor",
+      "localens_webhook_executor",
+      "localens_build_executor",
+    ];
+    for (const role of protectedRoles) {
+      expect(migration).toContain(`'${role}'`);
+    }
+    expect(migration).toMatch(/FROM pg_catalog\.pg_auth_members[\s\S]*WHERE parent_role\.rolname = ANY\(protected_roles\)[\s\S]*OR member_role\.rolname = ANY\(protected_roles\)/);
+  });
+
   it("defines database-owned expiry, claim-once, and atomic quota limits", () => {
     expect(migration).toMatch(/expires_at timestamptz NOT NULL DEFAULT[^\n]*INTERVAL '24 hours'/);
     expect(migration).toMatch(/owner_user_id IS (?:NULL|NOT NULL)[\s\S]*expires_at (?:>|<=) pg_catalog\.clock_timestamp\(\)/);

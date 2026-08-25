@@ -44,6 +44,10 @@ ALTER ROLE localens_build_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
 DO $membership$
 DECLARE
   protected_roles constant text[] := ARRAY[
+    'localens_auth_trigger_owner', 'localens_identity_rpc_owner',
+    'localens_admin_rpc_owner', 'localens_audit_guard_owner',
+    'localens_catalog_rpc_owner', 'localens_catalog_guard_owner',
+    'localens_tour_rpc_owner', 'localens_tour_guard_owner',
     'localens_plan_rpc_owner', 'localens_plan_guard_owner',
     'localens_guest_rpc_owner', 'localens_claim_rpc_owner',
     'localens_quota_rpc_owner', 'localens_guest_executor',

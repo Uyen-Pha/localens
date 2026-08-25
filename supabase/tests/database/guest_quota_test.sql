@@ -2,7 +2,7 @@
 -- execute this file in the Task 16 database/RLS/concurrency gate.
 BEGIN;
 
-SELECT plan(123);
+SELECT plan(124);
 
 CREATE TEMP TABLE task7_guest_fixture ON COMMIT DROP AS
 WITH fixture AS (
@@ -115,13 +115,14 @@ SELECT ok(NOT EXISTS (
 ), 'private capability and quota tables have no browser RLS policies');
 SELECT ok(NOT has_column_privilege('localens_plan_rpc_owner', 'private.guest_bindings', 'id', 'UPDATE') AND NOT has_column_privilege('localens_plan_rpc_owner', 'private.guest_capabilities', 'id', 'UPDATE'), 'plan owner has no child row-lock update grant');
 SELECT ok(NOT has_column_privilege('localens_quota_rpc_owner', 'private.quota_reservations', 'id', 'UPDATE'), 'quota owner has no reservation row-lock update grant');
+SELECT is((SELECT count(*)::integer FROM pg_roles WHERE rolname IN ('localens_auth_trigger_owner', 'localens_identity_rpc_owner', 'localens_admin_rpc_owner', 'localens_audit_guard_owner', 'localens_catalog_rpc_owner', 'localens_catalog_guard_owner', 'localens_tour_rpc_owner', 'localens_tour_guard_owner', 'localens_plan_rpc_owner', 'localens_plan_guard_owner', 'localens_guest_rpc_owner', 'localens_claim_rpc_owner', 'localens_quota_rpc_owner', 'localens_guest_executor', 'localens_quota_executor', 'localens_webhook_executor', 'localens_build_executor')), 17, 'all protected owner and executor roles exist');
 SELECT ok(NOT EXISTS (
   SELECT 1
   FROM pg_auth_members AS memberships
   JOIN pg_roles AS parent_role ON parent_role.oid = memberships.roleid
   JOIN pg_roles AS member_role ON member_role.oid = memberships.member
-  WHERE parent_role.rolname IN ('localens_plan_rpc_owner', 'localens_plan_guard_owner', 'localens_guest_rpc_owner', 'localens_claim_rpc_owner', 'localens_quota_rpc_owner', 'localens_guest_executor', 'localens_quota_executor', 'localens_webhook_executor', 'localens_build_executor')
-     OR member_role.rolname IN ('localens_plan_rpc_owner', 'localens_plan_guard_owner', 'localens_guest_rpc_owner', 'localens_claim_rpc_owner', 'localens_quota_rpc_owner', 'localens_guest_executor', 'localens_quota_executor', 'localens_webhook_executor', 'localens_build_executor')
+  WHERE parent_role.rolname IN ('localens_auth_trigger_owner', 'localens_identity_rpc_owner', 'localens_admin_rpc_owner', 'localens_audit_guard_owner', 'localens_catalog_rpc_owner', 'localens_catalog_guard_owner', 'localens_tour_rpc_owner', 'localens_tour_guard_owner', 'localens_plan_rpc_owner', 'localens_plan_guard_owner', 'localens_guest_rpc_owner', 'localens_claim_rpc_owner', 'localens_quota_rpc_owner', 'localens_guest_executor', 'localens_quota_executor', 'localens_webhook_executor', 'localens_build_executor')
+     OR member_role.rolname IN ('localens_auth_trigger_owner', 'localens_identity_rpc_owner', 'localens_admin_rpc_owner', 'localens_audit_guard_owner', 'localens_catalog_rpc_owner', 'localens_catalog_guard_owner', 'localens_tour_rpc_owner', 'localens_tour_guard_owner', 'localens_plan_rpc_owner', 'localens_plan_guard_owner', 'localens_guest_rpc_owner', 'localens_claim_rpc_owner', 'localens_quota_rpc_owner', 'localens_guest_executor', 'localens_quota_executor', 'localens_webhook_executor', 'localens_build_executor')
 ), 'protected roles have no inherited membership edge');
 SELECT ok((SELECT count(*) = 2 FROM pg_trigger WHERE tgrelid = 'private.quota_reservations'::regclass AND tgname IN ('quota_reservations_append_only_update_delete', 'quota_reservations_append_only_truncate')), 'reservation mutation defenses are installed');
 SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%DEFERRABLE INITIALLY DEFERRED%' FROM pg_constraint WHERE conname = 'trip_plans_guest_binding_fk'), 'guest plan FK is deferrable for atomic creation');
