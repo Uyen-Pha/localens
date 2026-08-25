@@ -99,6 +99,39 @@ describe("Stripe Test payment adapter contracts", () => {
     });
   });
 
+  it("validates each Stripe provider prefix and body-length boundary independently", () => {
+    expect(toFinalizeStripeEventInput({ ...completed, eventId: "cs_localens_001" })).toMatchObject({
+      ok: false,
+      error: { fieldPath: "input.eventId" },
+    });
+    expect(toFinalizeStripeEventInput({ ...completed, sessionId: "evt_localens_001" })).toMatchObject({
+      ok: false,
+      error: { fieldPath: "input.sessionId" },
+    });
+    expect(toFinalizeStripeEventInput({ ...completed, accountId: "we_localens_test" })).toMatchObject({
+      ok: false,
+      error: { fieldPath: "input.accountId" },
+    });
+    expect(toFinalizeStripeEventInput({ ...completed, endpointId: "acct_localens_test" })).toMatchObject({
+      ok: false,
+      error: { fieldPath: "input.endpointId" },
+    });
+    expect(toFinalizeStripeEventInput({ ...completed, eventId: `evt_${"a".repeat(5)}` })).toMatchObject({
+      ok: false,
+      error: { fieldPath: "input.eventId" },
+    });
+    expect(toFinalizeStripeEventInput({ ...completed, eventId: `evt_${"a".repeat(6)}` })).toMatchObject({ ok: true });
+    expect(toFinalizeStripeEventInput({ ...completed, eventId: `evt_${"a".repeat(255)}` })).toMatchObject({ ok: true });
+    expect(toFinalizeStripeEventInput({ ...completed, eventId: `evt_${"a".repeat(256)}` })).toMatchObject({
+      ok: false,
+      error: { fieldPath: "input.eventId" },
+    });
+    expect(toFinalizeStripeEventInput({ ...completed, paymentIntentId: "cs_localens_001" })).toMatchObject({
+      ok: false,
+      error: { fieldPath: "input.paymentIntentId" },
+    });
+  });
+
   it("maps exactly the customer payment projection and rejects leaked columns", () => {
     const row = {
       booking_id: ids.booking,
@@ -136,6 +169,10 @@ describe("Stripe Test payment adapter contracts", () => {
     expect(migration).toContain("livemode = false");
     expect(migration).toContain("stripe_test_account_id");
     expect(migration).toContain("stripe_test_endpoint_id");
+    expect(migration).toContain("payments_checkout_owner_select");
+    expect(migration).toContain("checkout RPC owner");
+    expect(migration).toContain("membership_record");
+    expect(migration).toContain("hold_row.status");
     expect(migration).not.toMatch(/raw_body|stripe_signature|authorization/i);
     expect(pgTap).toContain("webhook event idempotency");
     expect(pgTap).toContain("early webhook");

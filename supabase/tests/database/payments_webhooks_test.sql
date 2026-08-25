@@ -3,7 +3,7 @@
 -- webhook event idempotency and early webhook races are covered below.
 BEGIN;
 
-SELECT plan(93);
+SELECT plan(100);
 RESET ROLE;
 
 SELECT ok(to_regclass('public.payments') IS NOT NULL, 'payments table exists');
@@ -89,7 +89,7 @@ SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'provider_session_id IS NULL', 'early webhook attaches the same provider session');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'provider_expires_at = NULL', 'early webhook does not fabricate provider expiry');
 SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'provider_expires_at IS NULL', 'browser session recording hydrates an early event');
-SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'payment_row.status', 'session replay returns payment status');
+SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'payment_status_value', 'session replay returns payment status');
 
 SELECT ok(pg_get_functiondef('public.reconcile_payment(uuid,public.booking_status)'::regprocedure) ~* 'role.*admin', 'reconciliation derives admin authority');
 SELECT ok(pg_get_functiondef('public.reconcile_payment(uuid,public.booking_status)'::regprocedure) ~* 'payment_reconciled', 'reconciliation writes an audit event');
@@ -106,6 +106,16 @@ SELECT ok(has_schema_privilege('localens_payment_rpc_owner', 'private', 'USAGE')
 SELECT ok(NOT has_table_privilege('localens_payment_projection_owner', 'public.payments', 'INSERT'), 'projection owner cannot insert payments');
 SELECT ok(NOT has_table_privilege('localens_payment_rpc_owner', 'private.webhook_events', 'UPDATE'), 'payment owner cannot mutate webhook events');
 SELECT ok(NOT has_table_privilege('localens_webhook_executor', 'public.payments', 'UPDATE'), 'webhook executor has no direct payment DML');
+SELECT ok(has_column_privilege('localens_checkout_rpc_owner', 'public.payments', 'id', 'SELECT')
+  AND has_column_privilege('localens_checkout_rpc_owner', 'public.payments', 'booking_id', 'SELECT')
+  AND has_column_privilege('localens_checkout_rpc_owner', 'public.payments', 'status', 'SELECT'), 'checkout owner has only named payment replay columns');
+SELECT ok(NOT has_table_privilege('localens_checkout_rpc_owner', 'public.payments', 'INSERT')
+  AND NOT has_column_privilege('localens_checkout_rpc_owner', 'public.payments', 'provider_session_id', 'SELECT'), 'checkout owner cannot write or read provider payment facts');
+SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'SELECT id, booking_id, status', 'session replay uses named payment columns');
+SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'idempotency.*source.*booking.*hold.*attempt.*payment', 'session recorder keeps the common lock order');
+SELECT ok(strpos(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure), 'now_time := pg_catalog.clock_timestamp()') > strpos(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure), 'FOR KEY SHARE'), 'session recorder samples database time after locks');
+SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'NOT hold_found.*hold_row.status.*active.*expires_at', 'fixed departure recording rejects missing or stale holds');
+SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members AS m JOIN pg_catalog.pg_roles AS granted ON granted.oid = m.roleid JOIN pg_catalog.pg_roles AS member ON member.oid = m.member WHERE granted.rolname IN ('localens_payment_rpc_owner', 'localens_payment_projection_owner', 'localens_payment_guard_owner', 'localens_webhook_executor') OR member.rolname IN ('localens_payment_rpc_owner', 'localens_payment_projection_owner', 'localens_payment_guard_owner', 'localens_webhook_executor')), 'payment owners and webhook executor have no parent or member roles');
 
 SELECT * FROM finish();
 ROLLBACK;

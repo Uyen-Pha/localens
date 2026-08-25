@@ -22,6 +22,29 @@ ALTER ROLE localens_payment_projection_owner NOSUPERUSER NOCREATEDB NOCREATEROLE
 ALTER ROLE localens_payment_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
 ALTER ROLE localens_webhook_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
 
+-- Scrub both directions: a protected role cannot inherit another role and no
+-- other role may inherit a protected owner/executor.
+DO $memberships$
+DECLARE
+  membership_record record;
+  protected_roles constant text[] := ARRAY[
+    'localens_payment_rpc_owner', 'localens_payment_projection_owner',
+    'localens_payment_guard_owner', 'localens_webhook_executor'
+  ];
+BEGIN
+  FOR membership_record IN
+    SELECT granted.rolname AS granted_role, member.rolname AS member_role
+    FROM pg_catalog.pg_auth_members AS memberships
+    JOIN pg_catalog.pg_roles AS granted ON granted.oid = memberships.roleid
+    JOIN pg_catalog.pg_roles AS member ON member.oid = memberships.member
+    WHERE granted.rolname = ANY(protected_roles)
+       OR member.rolname = ANY(protected_roles)
+  LOOP
+    EXECUTE pg_catalog.format('REVOKE %I FROM %I', membership_record.granted_role, membership_record.member_role);
+  END LOOP;
+END
+$memberships$;
+
 REVOKE ALL ON SCHEMA public, private, auth FROM localens_payment_rpc_owner, localens_payment_projection_owner, localens_payment_guard_owner, localens_webhook_executor;
 REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_payment_rpc_owner, localens_payment_projection_owner, localens_payment_guard_owner, localens_webhook_executor;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public, private, auth FROM localens_payment_rpc_owner, localens_payment_projection_owner, localens_payment_guard_owner, localens_webhook_executor;
@@ -31,8 +54,8 @@ REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM localens_paymen
 -- exposed through PostgREST and are not accepted from a browser caller.
 CREATE TABLE private.stripe_test_settings (
   id boolean PRIMARY KEY DEFAULT true CHECK (id = true),
-  stripe_test_account_id text NOT NULL CHECK (stripe_test_account_id ~ '^acct_[A-Za-z0-9_-]{6,255}$'),
-  stripe_test_endpoint_id text NOT NULL CHECK (stripe_test_endpoint_id ~ '^we_[A-Za-z0-9_-]{6,255}$'),
+  stripe_test_account_id text NOT NULL CHECK (stripe_test_account_id ~ '^acct_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'),
+  stripe_test_endpoint_id text NOT NULL CHECK (stripe_test_endpoint_id ~ '^we_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'),
   livemode boolean NOT NULL DEFAULT false CHECK (livemode = false),
   mode text NOT NULL DEFAULT 'payment' CHECK (mode = 'payment'),
   created_at timestamptz NOT NULL DEFAULT pg_catalog.clock_timestamp()
@@ -74,10 +97,10 @@ CREATE TABLE public.payments (
   booking_id uuid NOT NULL REFERENCES public.bookings(id) ON DELETE RESTRICT,
   attempt_id uuid NOT NULL,
   owner_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
-  provider_session_id text NOT NULL CHECK (provider_session_id ~ '^cs_[A-Za-z0-9_-]{6,255}$'),
-  provider_payment_intent_id text CHECK (provider_payment_intent_id IS NULL OR provider_payment_intent_id ~ '^pi_[A-Za-z0-9_-]{6,255}$'),
-  provider_account_id text NOT NULL CHECK (provider_account_id ~ '^acct_[A-Za-z0-9_-]{6,255}$'),
-  provider_endpoint_id text NOT NULL CHECK (provider_endpoint_id ~ '^we_[A-Za-z0-9_-]{6,255}$'),
+  provider_session_id text NOT NULL CHECK (provider_session_id ~ '^cs_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'),
+  provider_payment_intent_id text CHECK (provider_payment_intent_id IS NULL OR provider_payment_intent_id ~ '^pi_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'),
+  provider_account_id text NOT NULL CHECK (provider_account_id ~ '^acct_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'),
+  provider_endpoint_id text NOT NULL CHECK (provider_endpoint_id ~ '^we_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'),
   mode text NOT NULL CHECK (mode = 'payment'),
   amount_minor bigint NOT NULL CHECK (amount_minor BETWEEN 1 AND 9007199254740991),
   currency public.checkout_currency NOT NULL,
@@ -95,19 +118,19 @@ CREATE UNIQUE INDEX payments_provider_payment_intent_key
 
 CREATE TABLE private.webhook_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  provider_event_id text NOT NULL CHECK (provider_event_id ~ '^evt_[A-Za-z0-9_-]{6,255}$'),
+  provider_event_id text NOT NULL CHECK (provider_event_id ~ '^evt_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'),
   payload_hash text NOT NULL CHECK (payload_hash ~ '^[0-9a-f]{64}$'),
   event_type text NOT NULL CHECK (event_type IN ('checkout.session.completed', 'checkout.session.expired')),
-  provider_session_id text NOT NULL CHECK (provider_session_id ~ '^cs_[A-Za-z0-9_-]{6,255}$'),
+  provider_session_id text NOT NULL CHECK (provider_session_id ~ '^cs_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'),
   booking_id uuid NOT NULL REFERENCES public.bookings(id) ON DELETE RESTRICT,
   attempt_id uuid NOT NULL,
-  provider_payment_intent_id text CHECK (provider_payment_intent_id IS NULL OR provider_payment_intent_id ~ '^pi_[A-Za-z0-9_-]{6,255}$'),
+  provider_payment_intent_id text CHECK (provider_payment_intent_id IS NULL OR provider_payment_intent_id ~ '^pi_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'),
   amount_minor bigint NOT NULL CHECK (amount_minor BETWEEN 1 AND 9007199254740991),
   currency public.checkout_currency NOT NULL,
   livemode boolean NOT NULL CHECK (livemode = false),
   mode text NOT NULL CHECK (mode = 'payment'),
-  provider_account_id text NOT NULL CHECK (provider_account_id ~ '^acct_[A-Za-z0-9_-]{6,255}$'),
-  provider_endpoint_id text NOT NULL CHECK (provider_endpoint_id ~ '^we_[A-Za-z0-9_-]{6,255}$'),
+  provider_account_id text NOT NULL CHECK (provider_account_id ~ '^acct_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'),
+  provider_endpoint_id text NOT NULL CHECK (provider_endpoint_id ~ '^we_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'),
   status public.webhook_event_status NOT NULL,
   result_booking_status public.booking_status,
   result_payment_status public.payment_status,
@@ -135,6 +158,9 @@ CREATE POLICY payments_payment_owner_all ON public.payments
   FOR ALL TO localens_payment_rpc_owner
   USING (current_user = 'localens_payment_rpc_owner')
   WITH CHECK (current_user = 'localens_payment_rpc_owner');
+CREATE POLICY payments_checkout_owner_select ON public.payments
+  FOR SELECT TO localens_checkout_rpc_owner
+  USING ((SELECT auth.uid()) = owner_user_id);
 CREATE POLICY bookings_payment_owner_all ON public.bookings
   FOR ALL TO localens_payment_rpc_owner
   USING (current_user = 'localens_payment_rpc_owner')
@@ -183,6 +209,10 @@ GRANT UPDATE (status, updated_at) ON TABLE public.payments TO localens_payment_r
 GRANT SELECT, INSERT ON TABLE private.webhook_events TO localens_payment_rpc_owner;
 GRANT UPDATE (status, result_booking_status, result_payment_status, processed_at) ON TABLE private.webhook_events TO localens_payment_rpc_owner;
 GRANT SELECT ON TABLE public.bookings, public.departures, public.custom_quotes TO localens_payment_rpc_owner;
+ -- checkout RPC owner only inspects the owner-scoped payment id/status needed for
+-- replay hydration; it cannot insert or update payment facts.
+GRANT SELECT (id, booking_id, status) ON TABLE public.payments TO localens_checkout_rpc_owner;
+GRANT EXECUTE ON FUNCTION auth.uid() TO localens_checkout_rpc_owner;
 GRANT UPDATE (status) ON TABLE public.bookings, public.custom_quotes TO localens_payment_rpc_owner;
 GRANT SELECT ON TABLE private.checkout_attempts, private.checkout_idempotency, private.capacity_holds TO localens_payment_rpc_owner;
 GRANT UPDATE (provider_session_id, provider_expires_at, status, updated_at) ON TABLE private.checkout_attempts TO localens_payment_rpc_owner;
@@ -417,9 +447,9 @@ DECLARE
   next_booking_status public.booking_status;
   next_payment_status public.payment_status := NULL;
 BEGIN
-  IF p_event_id IS NULL OR p_event_id !~ '^evt_[A-Za-z0-9_-]{6,255}$'
+  IF p_event_id IS NULL OR p_event_id !~ '^evt_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'
      OR p_payload_hash IS NULL OR p_payload_hash !~ '^[0-9a-f]{64}$'
-     OR p_session_id IS NULL OR p_session_id !~ '^cs_[A-Za-z0-9_-]{6,255}$'
+     OR p_session_id IS NULL OR p_session_id !~ '^cs_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'
      OR p_booking_id IS NULL OR p_attempt_id IS NULL
      OR p_amount_minor IS NULL OR p_amount_minor NOT BETWEEN 1 AND 9007199254740991
      OR p_currency IS NULL OR p_livemode IS DISTINCT FROM false
@@ -437,8 +467,8 @@ BEGIN
       ('checkout.session.completed', 'complete', 'paid'),
       ('checkout.session.expired', 'expired', 'unpaid')
     )
-    OR (p_event_type = 'checkout.session.completed' AND (p_payment_intent_id IS NULL OR p_payment_intent_id !~ '^pi_[A-Za-z0-9_-]{6,255}$'))
-    OR (p_event_type = 'checkout.session.expired' AND p_payment_intent_id IS NOT NULL AND p_payment_intent_id !~ '^pi_[A-Za-z0-9_-]{6,255}$') THEN
+    OR (p_event_type = 'checkout.session.completed' AND (p_payment_intent_id IS NULL OR p_payment_intent_id !~ '^pi_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$'))
+    OR (p_event_type = 'checkout.session.expired' AND p_payment_intent_id IS NOT NULL AND p_payment_intent_id !~ '^pi_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$') THEN
     RAISE EXCEPTION 'Stripe event facts rejected' USING ERRCODE = '22023';
   END IF;
 
@@ -654,72 +684,169 @@ AS $function$
 DECLARE
   actor_user_id uuid := auth.uid();
   idempotency_row private.checkout_idempotency%ROWTYPE;
-  attempt_row private.checkout_attempts%ROWTYPE;
+  attempt_booking_id uuid;
+  attempt_owner_user_id uuid;
+  attempt_source_kind text;
+  attempt_departure_id uuid;
+  attempt_quote_id uuid;
+  attempt_status text;
+  attempt_provider_session_id text;
+  attempt_provider_expires_at timestamptz;
   booking_row public.bookings%ROWTYPE;
-  payment_row public.payments%ROWTYPE;
+  departure_row public.departures%ROWTYPE;
   quote_row public.custom_quotes%ROWTYPE;
-  now_time timestamptz := pg_catalog.clock_timestamp();
+  hold_row private.capacity_holds%ROWTYPE;
+  hold_found boolean := false;
+  source_is_quote boolean := false;
+  payment_id uuid;
+  payment_booking_id uuid;
+  payment_status_value public.payment_status;
+  now_time timestamptz;
 BEGIN
   IF actor_user_id IS NULL OR p_booking_id IS NULL OR p_attempt_id IS NULL OR p_provider_session_id IS NULL
-     OR p_provider_session_id !~ '^cs_[A-Za-z0-9_-]{6,255}$' OR p_provider_expires_at IS NULL THEN
+     OR p_provider_session_id !~ '^cs_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$' OR p_provider_expires_at IS NULL THEN
     RAISE EXCEPTION 'checkout session input rejected' USING ERRCODE = '22023';
   END IF;
+
+  -- Lock order is idempotency -> source -> booking -> hold (fixed departure)
+  -- -> attempt -> payment. The initial attempt read is non-locking routing
+  -- data; its authoritative row is locked after the shared source/booking/hold
+  -- locks, matching the webhook finalizer's attempt -> payment order.
   SELECT * INTO idempotency_row FROM private.checkout_idempotency
     WHERE owner_user_id = actor_user_id AND checkout_attempt_id = p_attempt_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'checkout attempt unavailable' USING ERRCODE = '42501'; END IF;
-  SELECT * INTO attempt_row FROM private.checkout_attempts WHERE id = p_attempt_id;
-  IF NOT FOUND OR attempt_row.booking_id IS DISTINCT FROM p_booking_id OR attempt_row.owner_user_id IS DISTINCT FROM actor_user_id THEN
+
+  SELECT booking_id, owner_user_id, source_kind, departure_id, quote_id, status,
+         provider_session_id, provider_expires_at
+    INTO attempt_booking_id, attempt_owner_user_id, attempt_source_kind,
+         attempt_departure_id, attempt_quote_id, attempt_status,
+         attempt_provider_session_id, attempt_provider_expires_at
+  FROM private.checkout_attempts
+  WHERE id = p_attempt_id;
+  IF NOT FOUND OR attempt_booking_id IS DISTINCT FROM p_booking_id OR attempt_owner_user_id IS DISTINCT FROM actor_user_id THEN
     RAISE EXCEPTION 'checkout attempt unavailable' USING ERRCODE = '42501';
   END IF;
-  IF attempt_row.quote_id IS NOT NULL THEN SELECT * INTO quote_row FROM public.custom_quotes WHERE id = attempt_row.quote_id FOR UPDATE;
-  ELSE SELECT NULL::public.custom_quotes INTO quote_row; END IF;
+
+  IF attempt_source_kind = 'departure' AND attempt_departure_id IS NOT NULL THEN
+    SELECT * INTO departure_row FROM public.departures WHERE id = attempt_departure_id FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'checkout departure unavailable' USING ERRCODE = 'P0001'; END IF;
+  ELSIF attempt_source_kind = 'quote' AND attempt_quote_id IS NOT NULL THEN
+    source_is_quote := true;
+    SELECT * INTO quote_row FROM public.custom_quotes WHERE id = attempt_quote_id FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'checkout quote unavailable' USING ERRCODE = 'P0001'; END IF;
+  ELSE
+    RAISE EXCEPTION 'checkout source unavailable' USING ERRCODE = 'P0001';
+  END IF;
+
   SELECT * INTO booking_row FROM public.bookings WHERE id = p_booking_id FOR UPDATE;
-  SELECT * INTO payment_row FROM public.payments WHERE booking_id = p_booking_id FOR UPDATE;
-  SELECT * INTO attempt_row FROM private.checkout_attempts WHERE id = p_attempt_id FOR UPDATE;
-  IF attempt_row.provider_session_id IS NOT NULL THEN
-    IF attempt_row.provider_session_id IS DISTINCT FROM p_provider_session_id THEN
+  IF NOT FOUND OR booking_row.owner_user_id IS DISTINCT FROM actor_user_id THEN
+    RAISE EXCEPTION 'checkout booking unavailable' USING ERRCODE = '42501';
+  END IF;
+  IF (attempt_source_kind = 'departure' AND (booking_row.departure_id IS DISTINCT FROM attempt_departure_id OR booking_row.quote_id IS NOT NULL))
+     OR (attempt_source_kind = 'quote' AND (booking_row.quote_id IS DISTINCT FROM attempt_quote_id OR booking_row.departure_id IS NOT NULL)) THEN
+    RAISE EXCEPTION 'checkout source changed' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF attempt_source_kind = 'departure' THEN
+    SELECT * INTO hold_row
+    FROM private.capacity_holds
+    WHERE booking_id = p_booking_id
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+    FOR UPDATE;
+    hold_found := FOUND;
+  END IF;
+
+  SELECT booking_id, owner_user_id, source_kind, departure_id, quote_id, status,
+         provider_session_id, provider_expires_at
+    INTO attempt_booking_id, attempt_owner_user_id, attempt_source_kind,
+         attempt_departure_id, attempt_quote_id, attempt_status,
+         attempt_provider_session_id, attempt_provider_expires_at
+  FROM private.checkout_attempts
+  WHERE id = p_attempt_id
+  FOR UPDATE;
+  IF NOT FOUND OR attempt_booking_id IS DISTINCT FROM p_booking_id OR attempt_owner_user_id IS DISTINCT FROM actor_user_id THEN
+    RAISE EXCEPTION 'checkout attempt unavailable' USING ERRCODE = '42501';
+  END IF;
+
+  -- Checkout only needs the named payment identity/status columns. FOR KEY
+  -- SHARE provides a stable replay read without granting payment writes, and
+  -- follows the same attempt -> payment order used by the webhook finalizer.
+  SELECT id, booking_id, status
+    INTO payment_id, payment_booking_id, payment_status_value
+  FROM public.payments
+  WHERE booking_id = p_booking_id
+  FOR KEY SHARE;
+  IF FOUND AND payment_booking_id IS DISTINCT FROM p_booking_id THEN
+    RAISE EXCEPTION 'payment booking mismatch' USING ERRCODE = 'P0001';
+  END IF;
+  -- Sample database time only after all shared locks have been acquired.
+  now_time := pg_catalog.clock_timestamp();
+
+  IF attempt_provider_session_id IS NOT NULL THEN
+    IF attempt_provider_session_id IS DISTINCT FROM p_provider_session_id THEN
       RAISE EXCEPTION 'checkout session conflict' USING ERRCODE = 'P0001';
     END IF;
-    IF attempt_row.provider_expires_at IS NULL THEN
-      IF p_provider_expires_at <= now_time OR p_provider_expires_at >= booking_row.hold_expires_at THEN
+
+    -- A finalizer may already have consumed/released the hold and moved the
+    -- booking to a terminal result. Same-session replay remains readable and
+    -- can hydrate the real provider expiry without a downgrade.
+    IF attempt_provider_expires_at IS NULL THEN
+      IF p_provider_expires_at >= booking_row.hold_expires_at
+         OR (booking_row.status NOT IN ('confirmed'::public.booking_status, 'payment_review'::public.booking_status, 'expired'::public.booking_status, 'cancelled'::public.booking_status)
+             AND p_provider_expires_at <= now_time) THEN
         RAISE EXCEPTION 'provider session expiry rejected' USING ERRCODE = 'P0001';
       END IF;
       PERFORM pg_catalog.set_config('localens.checkout_transition', 'on', true);
       UPDATE private.checkout_attempts
         SET provider_expires_at = p_provider_expires_at, updated_at = now_time
-        WHERE id = attempt_row.id;
+        WHERE id = p_attempt_id;
+    ELSIF attempt_provider_expires_at IS DISTINCT FROM p_provider_expires_at THEN
+      RAISE EXCEPTION 'provider session expiry conflict' USING ERRCODE = 'P0001';
+    END IF;
+
+    IF attempt_source_kind = 'departure'
+       AND booking_row.status NOT IN ('confirmed'::public.booking_status, 'payment_review'::public.booking_status, 'expired'::public.booking_status, 'cancelled'::public.booking_status)
+       AND (NOT hold_found OR hold_row.status <> 'active'::public.hold_status OR hold_row.expires_at <= now_time) THEN
+      RAISE EXCEPTION 'checkout hold unavailable' USING ERRCODE = 'P0001';
     END IF;
     booking_id := booking_row.id; booking_status := booking_row.status;
-    payment_status := CASE WHEN payment_row.id IS NULL THEN NULL ELSE payment_row.status END;
-    quote_status := CASE WHEN quote_row.id IS NULL THEN NULL ELSE quote_row.status END;
-    provider_session_id := attempt_row.provider_session_id; state := 'replayed'; RETURN NEXT; RETURN;
+    payment_status := payment_status_value;
+    quote_status := CASE WHEN source_is_quote THEN quote_row.status ELSE NULL END;
+    provider_session_id := attempt_provider_session_id; state := 'replayed'; RETURN NEXT; RETURN;
   END IF;
+
   IF booking_row.status <> 'pending_payment'::public.booking_status THEN
     RAISE EXCEPTION 'checkout booking unavailable' USING ERRCODE = 'P0001';
+  END IF;
+  IF attempt_source_kind = 'departure'
+     AND (NOT hold_found OR hold_row.status <> 'active'::public.hold_status OR hold_row.expires_at <= now_time) THEN
+    RAISE EXCEPTION 'checkout hold unavailable' USING ERRCODE = 'P0001';
+  END IF;
+  IF source_is_quote
+     AND (quote_row.status <> 'checkout_pending'::public.quote_status OR quote_row.valid_until <= now_time) THEN
+    RAISE EXCEPTION 'checkout quote is no longer pending' USING ERRCODE = 'P0001';
   END IF;
   IF p_provider_expires_at <= now_time OR p_provider_expires_at >= booking_row.hold_expires_at THEN
     RAISE EXCEPTION 'provider session expiry rejected' USING ERRCODE = 'P0001';
   END IF;
   PERFORM pg_catalog.set_config('localens.checkout_transition', 'on', true);
-  IF quote_row.id IS NOT NULL THEN
-    IF quote_row.status <> 'checkout_pending'::public.quote_status OR quote_row.valid_until <= now_time THEN
-      RAISE EXCEPTION 'checkout quote is no longer pending' USING ERRCODE = 'P0001';
-    END IF;
+  IF source_is_quote THEN
     PERFORM pg_catalog.set_config('localens.quote_transition', 'on', true);
     UPDATE public.custom_quotes SET status = 'accepted'::public.quote_status WHERE id = quote_row.id;
   END IF;
   UPDATE private.checkout_attempts
     SET provider_session_id = p_provider_session_id, provider_expires_at = p_provider_expires_at,
         status = 'session_recorded', updated_at = now_time
-    WHERE id = attempt_row.id;
+    WHERE id = p_attempt_id;
   UPDATE public.bookings SET status = 'payment_processing'::public.booking_status WHERE id = booking_row.id;
   PERFORM private.record_checkout_audit_event(
     'checkout_session_recorded'::public.audit_event_type, actor_user_id,
-    'checkout_attempt'::public.audit_target_type, attempt_row.id,
+    'checkout_attempt'::public.audit_target_type, p_attempt_id,
     'created', 'session_recorded', 'provider'::public.audit_metadata_key, 'stripe', NULL, NULL
   );
   booking_id := booking_row.id; booking_status := 'payment_processing'::public.booking_status;
-  payment_status := NULL; quote_status := CASE WHEN quote_row.id IS NULL THEN NULL ELSE 'accepted'::public.quote_status END;
+  payment_status := NULL; quote_status := CASE WHEN source_is_quote THEN 'accepted'::public.quote_status ELSE NULL END;
   provider_session_id := p_provider_session_id; state := 'recorded'; RETURN NEXT;
 END;
 $function$;

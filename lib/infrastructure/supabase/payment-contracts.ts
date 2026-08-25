@@ -11,7 +11,7 @@ import type {
 type UnknownRecord = Record<string, unknown>;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const PROVIDER_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{5,255}$/;
+const PROVIDER_BODY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{5,254}$/;
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const UNSIGNED_INTEGER_PATTERN = /^(?:0|[1-9]\d*)$/;
 const TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/;
@@ -51,8 +51,16 @@ function safeUuid(value: unknown, path: string): Result<string, DataAdapterError
   return { ok: true, value };
 }
 
-function safeProviderId(value: unknown, path: string): Result<string, DataAdapterError> {
-  if (typeof value !== "string" || !PROVIDER_ID_PATTERN.test(value) || /[\u0000-\u001F\u007F-\u009F]/.test(value)) {
+function safeProviderId(value: unknown, path: string, prefix: "evt_" | "cs_" | "pi_" | "acct_" | "we_"): Result<string, DataAdapterError> {
+  if (
+    typeof value !== "string" ||
+    !value.startsWith(prefix) ||
+    !PROVIDER_BODY_PATTERN.test(value.slice(prefix.length)) ||
+    value.length - prefix.length < 6 ||
+    value.length - prefix.length > 255 ||
+    !/^[A-Za-z0-9_-]+$/.test(value.slice(prefix.length)) ||
+    /[\u0000-\u001F\u007F-\u009F]/.test(value)
+  ) {
     return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
   }
   return { ok: true, value };
@@ -120,15 +128,15 @@ const COMMON_FIELDS = [
 export function toFinalizeStripeEventInput(input: unknown): Result<FinalizeStripeEventInput, DataAdapterError> {
   const fields = exactFields(input, [...COMMON_FIELDS, "eventType", "sessionStatus", "providerPaymentStatus", "paymentIntentId"], "input");
   if (!fields.ok) return fields;
-  const eventId = safeProviderId(fields.value.eventId, "input.eventId");
+  const eventId = safeProviderId(fields.value.eventId, "input.eventId", "evt_");
   const payloadHash = safeHash(fields.value.payloadHash, "input.payloadHash");
-  const sessionId = safeProviderId(fields.value.sessionId, "input.sessionId");
+  const sessionId = safeProviderId(fields.value.sessionId, "input.sessionId", "cs_");
   const bookingId = safeUuid(fields.value.bookingId, "input.bookingId");
   const attemptId = safeUuid(fields.value.attemptId, "input.attemptId");
   const amountMinor = safeMoney(fields.value.amountMinor, "input.amountMinor");
   const currency = safeEnum(fields.value.currency, new Set<CheckoutCurrency>(["vnd", "usd"]), "input.currency");
-  const accountId = safeProviderId(fields.value.accountId, "input.accountId");
-  const endpointId = safeProviderId(fields.value.endpointId, "input.endpointId");
+  const accountId = safeProviderId(fields.value.accountId, "input.accountId", "acct_");
+  const endpointId = safeProviderId(fields.value.endpointId, "input.endpointId", "we_");
   if (!eventId.ok) return eventId;
   if (!payloadHash.ok) return payloadHash;
   if (!sessionId.ok) return sessionId;
@@ -144,7 +152,7 @@ export function toFinalizeStripeEventInput(input: unknown): Result<FinalizeStrip
   if (eventType === "checkout.session.completed") {
     if (fields.value.sessionStatus !== "complete") return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "input.sessionStatus");
     if (fields.value.providerPaymentStatus !== "paid") return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "input.providerPaymentStatus");
-    const paymentIntentId = safeProviderId(fields.value.paymentIntentId, "input.paymentIntentId");
+    const paymentIntentId = safeProviderId(fields.value.paymentIntentId, "input.paymentIntentId", "pi_");
     if (!paymentIntentId.ok) return paymentIntentId;
     return { ok: true, value: {
       eventId: eventId.value, payloadHash: payloadHash.value, sessionId: sessionId.value,
@@ -159,7 +167,7 @@ export function toFinalizeStripeEventInput(input: unknown): Result<FinalizeStrip
     if (fields.value.providerPaymentStatus !== "unpaid") return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "input.providerPaymentStatus");
     let paymentIntentId: string | null = null;
     if (fields.value.paymentIntentId !== null) {
-      const parsed = safeProviderId(fields.value.paymentIntentId, "input.paymentIntentId");
+      const parsed = safeProviderId(fields.value.paymentIntentId, "input.paymentIntentId", "pi_");
       if (!parsed.ok) return parsed;
       paymentIntentId = parsed.value;
     }
