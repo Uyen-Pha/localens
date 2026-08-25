@@ -453,7 +453,7 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.accept_guide_assignment(assignment_id uuid)
+CREATE OR REPLACE FUNCTION public.accept_guide_assignment(p_assignment_id uuid)
 RETURNS TABLE (assignment_id uuid, status public.assignment_status)
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -461,7 +461,7 @@ SET search_path = ''
 AS $function$
 BEGIN
   RETURN QUERY SELECT accepted.assignment_id, accepted.status
-  FROM private.accept_guide_assignment(assignment_id) AS accepted;
+  FROM private.accept_guide_assignment(p_assignment_id) AS accepted;
 END;
 $function$;
 
@@ -501,7 +501,7 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.complete_guide_assignment(assignment_id uuid)
+CREATE OR REPLACE FUNCTION public.complete_guide_assignment(p_assignment_id uuid)
 RETURNS TABLE (assignment_id uuid, status public.assignment_status)
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -509,7 +509,7 @@ SET search_path = ''
 AS $function$
 BEGIN
   RETURN QUERY SELECT completed.assignment_id, completed.status
-  FROM private.complete_guide_assignment(assignment_id) AS completed;
+  FROM private.complete_guide_assignment(p_assignment_id) AS completed;
 END;
 $function$;
 

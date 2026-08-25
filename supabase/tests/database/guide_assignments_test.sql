@@ -50,8 +50,14 @@ SELECT ok(pg_get_functiondef('private.assign_guide(uuid,uuid)'::regprocedure) ~*
 
 SELECT ok(pg_get_functiondef('private.accept_guide_assignment(uuid)'::regprocedure) ~* 'guide_user_id.*actor_user_id', 'guide accept is assignment scoped');
 SELECT ok(pg_get_functiondef('private.complete_guide_assignment(uuid)'::regprocedure) ~* 'guide_user_id.*actor_user_id', 'guide complete is assignment scoped');
-SELECT ok((SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid = 'private.accept_guide_assignment(uuid)'::regprocedure), 'accept transaction is SECURITY DEFINER');
-SELECT ok((SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid = 'private.complete_guide_assignment(uuid)'::regprocedure), 'complete transaction is SECURITY DEFINER');
+SELECT ok(
+  (SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid = 'private.accept_guide_assignment(uuid)'::regprocedure)
+  AND pg_get_functiondef('public.accept_guide_assignment(uuid)'::regprocedure) ~* 'p_assignment_id uuid',
+  'accept transaction is SECURITY DEFINER and uses a non-conflicting input name');
+SELECT ok(
+  (SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid = 'private.complete_guide_assignment(uuid)'::regprocedure)
+  AND pg_get_functiondef('public.complete_guide_assignment(uuid)'::regprocedure) ~* 'p_assignment_id uuid',
+  'complete transaction is SECURITY DEFINER and uses a non-conflicting input name');
 SELECT ok(pg_get_functiondef('private.accept_guide_assignment(uuid)'::regprocedure) ~* 'status.*assigned', 'accept requires assigned state');
 SELECT ok(pg_get_functiondef('private.complete_guide_assignment(uuid)'::regprocedure) ~* 'status.*accepted', 'complete requires accepted state');
 SELECT ok(pg_get_functiondef('private.accept_guide_assignment(uuid)'::regprocedure) ~* 'guide_accepted', 'accept is audited');
