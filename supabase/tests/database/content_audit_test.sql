@@ -3,7 +3,7 @@
 -- the role, provenance, capability, pointer, and audit boundaries together.
 BEGIN;
 
-SELECT plan(100);
+SELECT plan(109);
 
 RESET ROLE;
 DELETE FROM auth.users
@@ -22,7 +22,7 @@ INSERT INTO private.user_roles (user_id, role)
 VALUES ('00000000-0000-0000-0000-000000001201'::uuid, 'admin'::public.app_role)
 ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO private.content_source_domains (hostname, purpose)
-VALUES ('example.org', 'demo'), ('images.example.org', 'demo')
+VALUES ('example.org', 'approved_source'), ('images.example.org', 'approved_source'), ('official.example.org', 'approved_source')
 ON CONFLICT (hostname) DO NOTHING;
 
 CREATE TEMP TABLE task12_publish (
@@ -33,7 +33,7 @@ CREATE TEMP TABLE task12_finalize (
   release_id uuid, status public.content_status, published_at timestamptz
 ) ON COMMIT DROP;
 CREATE TEMP TABLE task12_failed (release_id uuid, status public.content_status) ON COMMIT DROP;
-GRANT SELECT, INSERT ON task12_publish, task12_finalize, task12_failed TO authenticated, localens_content_build_executor;
+GRANT SELECT, INSERT ON task12_publish, task12_finalize, task12_failed TO authenticated, localens_content_build_executor, localens_content_admin_owner, localens_content_public_owner, localens_content_audit_owner, localens_content_guard_owner;
 
 -- Catalog, state, and privilege surface.
 SELECT ok(to_regclass('public.content_drafts') IS NOT NULL, 'draft table exists');
@@ -42,6 +42,7 @@ SELECT ok(to_regclass('private.content_release_copies') IS NOT NULL, 'immutable 
 SELECT ok(to_regclass('private.seo_build_capabilities') IS NOT NULL, 'build capabilities exist');
 SELECT ok(to_regclass('private.content_source_domains') IS NOT NULL, 'source allowlist exists');
 SELECT ok(to_regclass('private.seo_live_pointer') IS NOT NULL, 'singleton live pointer exists');
+SELECT ok(to_regprocedure('public.upsert_content_draft(public.locale,text,text,text,text,jsonb,date,jsonb)') IS NOT NULL, 'admin draft upsert RPC exists');
 SELECT ok(to_regprocedure('public.publish_seo(text,text)') IS NOT NULL, 'publish RPC exists');
 SELECT ok(to_regprocedure('public.read_seo_build_release(uuid,text,text)') IS NOT NULL, 'build read RPC exists');
 SELECT ok(to_regprocedure('public.finalize_seo_publish(uuid,text,text,text,text)') IS NOT NULL, 'finalize RPC exists');
@@ -74,6 +75,7 @@ SELECT ok((SELECT proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc WHE
 SELECT ok((SELECT proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc WHERE oid = 'public.finalize_seo_publish(uuid,text,text,text,text)'::regprocedure), 'finalize pins empty search_path');
 SELECT ok((SELECT proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc WHERE oid = 'public.fail_seo_publish(uuid,text,text,text)'::regprocedure), 'failure pins empty search_path');
 SELECT ok(has_function_privilege('authenticated', 'public.publish_seo(text,text)', 'EXECUTE'), 'authenticated can request guarded publish');
+SELECT ok(has_function_privilege('authenticated', 'public.upsert_content_draft(public.locale,text,text,text,text,jsonb,date,jsonb)', 'EXECUTE'), 'authenticated can request guarded draft upsert');
 SELECT ok(has_function_privilege('localens_content_build_executor', 'public.read_seo_build_release(uuid,text,text)', 'EXECUTE'), 'build can call read RPC');
 SELECT ok(has_function_privilege('localens_content_build_executor', 'public.finalize_seo_publish(uuid,text,text,text,text)', 'EXECUTE'), 'build can call finalize RPC');
 SELECT ok(has_function_privilege('localens_content_build_executor', 'public.fail_seo_publish(uuid,text,text,text)', 'EXECUTE'), 'build can call failure RPC');
@@ -92,16 +94,20 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001202
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000001202', 'role', 'authenticated')::text, true);
 SELECT throws_ok($$INSERT INTO public.content_drafts (locale, slug, title, description, body, source_urls, verified_at, image_attributions, created_by, updated_by) VALUES ('en'::public.locale, 'task12-denied', 'Denied', 'Denied', 'Denied', '["https://example.org/denied"]'::jsonb, DATE '2026-08-25', '[]'::jsonb, '00000000-0000-0000-0000-000000001202'::uuid, '00000000-0000-0000-0000-000000001202'::uuid)$$, '42501', NULL, 'customer cannot write drafts');
 SELECT is((SELECT count(*)::integer FROM public.admin_content_drafts_v), 0, 'customer sees no admin drafts');
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000001202', 'role', 'admin')::text, true);
+SELECT throws_ok($$SELECT * FROM public.publish_seo('task12-forged-admin', 'task12-build-forged-admin')$$, '42501', NULL, 'forged admin JWT metadata cannot publish');
 RESET ROLE;
 
 -- Owner context writes exactly one EN/VI pair; malformed provenance is
 -- rejected by the trigger before the publication RPC can see it.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001201', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000001201', 'role', 'authenticated')::text, true);
+SELECT lives_ok($$SELECT * FROM public.upsert_content_draft('en'::public.locale, 'task12-market', 'Task 12 Market', 'English market guide', 'Walk through the market with a local guide.', '["https://example.org/task12-market"]'::jsonb, DATE '2026-08-25', '[{"imageUrl":"https://images.example.org/task12-market.jpg","sourceUrl":"https://example.org/task12-market","creator":"LocalLens","license":"CC BY 4.0"}]'::jsonb)$$, 'admin upsert writes the EN draft through its RPC');
+SELECT lives_ok($$SELECT * FROM public.upsert_content_draft('vi'::public.locale, 'task12-market', 'Chợ Task 12', 'Hướng dẫn chợ bằng tiếng Việt', 'Khám phá chợ cùng hướng dẫn viên địa phương.', '["https://example.org/task12-market-vi"]'::jsonb, DATE '2026-08-25', '[{"imageUrl":"https://images.example.org/task12-market-vi.jpg","sourceUrl":"https://example.org/task12-market-vi","creator":"LocalLens","license":"CC BY 4.0"}]'::jsonb)$$, 'admin upsert writes the VI draft through its RPC');
+SELECT is((SELECT count(*)::integer FROM public.admin_content_drafts_v WHERE slug = 'task12-market'), 2, 'admin upsert creates bilingual pair');
+RESET ROLE;
 SET LOCAL ROLE localens_content_admin_owner;
-INSERT INTO public.content_drafts (id, locale, slug, title, description, body, source_urls, verified_at, image_attributions, created_by, updated_by)
-VALUES
-  ('00000000-0000-0000-0000-000000001211'::uuid, 'en'::public.locale, 'task12-market', 'Task 12 Market', 'English market guide', 'Walk through the market with a local guide.', '["https://example.org/task12-market"]'::jsonb, DATE '2026-08-25', '[{"imageUrl":"https://images.example.org/task12-market.jpg","sourceUrl":"https://example.org/task12-market","creator":"LocalLens","license":"CC BY 4.0"}]'::jsonb, '00000000-0000-0000-0000-000000001201'::uuid, '00000000-0000-0000-0000-000000001201'::uuid),
-  ('00000000-0000-0000-0000-000000001212'::uuid, 'vi'::public.locale, 'task12-market', 'Chợ Task 12', 'Hướng dẫn chợ bằng tiếng Việt', 'Khám phá chợ cùng hướng dẫn viên địa phương.', '["https://example.org/task12-market-vi"]'::jsonb, DATE '2026-08-25', '[{"imageUrl":"https://images.example.org/task12-market-vi.jpg","sourceUrl":"https://example.org/task12-market-vi","creator":"LocalLens","license":"CC BY 4.0"}]'::jsonb, '00000000-0000-0000-0000-000000001201'::uuid, '00000000-0000-0000-0000-000000001201'::uuid);
-SELECT is((SELECT count(*)::integer FROM public.content_drafts WHERE slug = 'task12-market'), 2, 'owner writes bilingual pair');
 SELECT throws_ok($$INSERT INTO public.content_drafts (locale, slug, title, description, body, source_urls, verified_at, image_attributions, created_by, updated_by) VALUES ('en'::public.locale, 'task12-http', 'Unsafe', 'Unsafe', 'Unsafe', '["http://example.org/no-tls"]'::jsonb, DATE '2026-08-25', '[]'::jsonb, '00000000-0000-0000-0000-000000001201'::uuid, '00000000-0000-0000-0000-000000001201'::uuid)$$, '23514', NULL, 'non-HTTPS source is rejected');
 SELECT throws_ok($$INSERT INTO public.content_drafts (locale, slug, title, description, body, source_urls, verified_at, image_attributions, created_by, updated_by) VALUES ('en'::public.locale, 'task12-image', 'Unsafe', 'Unsafe', 'Unsafe', '["https://example.org/image"]'::jsonb, DATE '2026-08-25', '[{"imageUrl":"https://images.example.org/a#fragment","sourceUrl":"https://example.org/a","creator":"LocalLens","license":"CC BY 4.0"}]'::jsonb, '00000000-0000-0000-0000-000000001201'::uuid, '00000000-0000-0000-0000-000000001201'::uuid)$$, '23514', NULL, 'unsafe image URL is rejected');
 SELECT throws_ok($$INSERT INTO public.content_drafts (locale, slug, title, description, body, source_urls, verified_at, image_attributions, created_by, updated_by) VALUES ('en'::public.locale, 'task12-attribution', 'Unsafe', 'Unsafe', 'Unsafe', '["https://example.org/attribution"]'::jsonb, DATE '2026-08-25', '[{"imageUrl":"https://images.example.org/a","sourceUrl":"https://example.org/a","creator":"LocalLens"}]'::jsonb, '00000000-0000-0000-0000-000000001201'::uuid, '00000000-0000-0000-0000-000000001201'::uuid)$$, '23514', NULL, 'incomplete image attribution is rejected');
@@ -113,15 +119,24 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001201
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000001201', 'role', 'authenticated')::text, true);
 INSERT INTO task12_publish SELECT * FROM public.publish_seo('task12-commit-001', 'task12-build-001');
 SELECT is((SELECT count(*)::integer FROM task12_publish), 1, 'publish returns one capability');
+SET LOCAL ROLE localens_content_build_owner;
 SELECT is((SELECT count(*)::integer FROM public.seo_releases WHERE status = 'publishing'::public.content_status), 1, 'candidate enters publishing state');
 SELECT is((SELECT count(*)::integer FROM private.content_release_copies WHERE release_id = (SELECT release_id FROM task12_publish)), 2, 'publish snapshots EN and VI copies');
 SELECT is((SELECT count(DISTINCT locale)::integer FROM private.content_release_copies WHERE release_id = (SELECT release_id FROM task12_publish)), 2, 'release has both locales');
+RESET ROLE;
+SET LOCAL ROLE localens_content_admin_owner;
 SELECT is((SELECT read_scope FROM task12_publish), 'published_content_release', 'capability scope is exact');
 SELECT ok((SELECT expires_at > clock_timestamp() AND expires_at <= clock_timestamp() + interval '16 minutes' FROM task12_publish), 'capability expires in fifteen minutes');
 SELECT ok((SELECT length(capability_nonce) = 64 AND capability_nonce ~ '^[0-9a-f]+$' FROM task12_publish), 'capability nonce is opaque hex');
+SET LOCAL ROLE localens_content_build_owner;
 SELECT ok((SELECT nonce_hash = digest(capability_nonce, 'sha256') FROM private.seo_build_capabilities c JOIN task12_publish p ON p.release_id = c.release_id AND p.build_id = c.build_id), 'only nonce digest is stored');
+RESET ROLE;
+SET LOCAL ROLE localens_content_admin_owner;
 SELECT is((SELECT count(*)::integer FROM private.audit_events WHERE event_type = 'content_publish_started'::public.audit_event_type AND target_id = (SELECT release_id FROM task12_publish)), 1, 'publish creates start audit event');
 SELECT is((SELECT count(*)::integer FROM public.admin_content_drafts_v), 2, 'admin projection returns both drafts');
+RESET ROLE;
+SET LOCAL ROLE localens_content_admin_owner;
+SELECT is((SELECT purpose FROM private.content_source_domains WHERE hostname = 'official.example.org'), 'approved_source', 'approved source purpose is preserved');
 RESET ROLE;
 
 -- Missing locale/provenance is rejected before a second release is allocated.
@@ -136,14 +151,15 @@ SET LOCAL ROLE localens_content_admin_owner;
 UPDATE public.content_drafts SET source_urls = '["https://example.org/task12-market"]'::jsonb WHERE locale = 'en'::public.locale AND slug = 'task12-market';
 RESET ROLE;
 SET LOCAL ROLE localens_content_admin_owner;
-UPDATE public.content_drafts SET status = 'published'::public.content_status WHERE locale = 'vi'::public.locale AND slug = 'task12-market';
+INSERT INTO public.content_drafts (id, locale, slug, title, description, body, source_urls, verified_at, image_attributions, created_by, updated_by)
+VALUES ('00000000-0000-0000-0000-000000001213'::uuid, 'en'::public.locale, 'task12-missing-locale', 'Missing locale', 'Missing locale', 'Missing locale', '["https://example.org/missing-locale"]'::jsonb, DATE '2026-08-25', '[]'::jsonb, '00000000-0000-0000-0000-000000001201'::uuid, '00000000-0000-0000-0000-000000001201'::uuid);
 RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001201', true);
 SELECT throws_ok($$SELECT * FROM public.publish_seo('task12-missing-vi', 'task12-build-missing-vi')$$, '23514', NULL, 'publish rejects missing locale');
 RESET ROLE;
+DELETE FROM public.content_drafts WHERE slug = 'task12-missing-locale';
 SET LOCAL ROLE localens_content_admin_owner;
-UPDATE public.content_drafts SET status = 'draft'::public.content_status WHERE locale = 'vi'::public.locale AND slug = 'task12-market';
 SELECT throws_ok($$UPDATE public.content_drafts SET image_attributions = '[{"imageUrl":"https://images.example.org/a","sourceUrl":"https://example.org/a","creator":"LocalLens"}]'::jsonb WHERE locale = 'vi'::public.locale AND slug = 'task12-market'$$, '23514', NULL, 'draft update rejects incomplete attribution');
 RESET ROLE;
 
@@ -162,35 +178,65 @@ RESET ROLE;
 SET LOCAL ROLE localens_content_build_executor;
 INSERT INTO task12_finalize SELECT * FROM public.finalize_seo_publish((SELECT release_id FROM task12_publish), (SELECT build_id FROM task12_publish), repeat('a', 64), 'task12-commit-001', (SELECT capability_nonce FROM task12_publish));
 SELECT is((SELECT status FROM task12_finalize), 'published'::public.content_status, 'finalize publishes exact candidate');
+SET LOCAL ROLE localens_content_build_owner;
 SELECT is((SELECT status FROM public.seo_releases WHERE id = (SELECT release_id FROM task12_publish)), 'published'::public.content_status, 'release state is published');
 SELECT is((SELECT artifact_hash FROM public.seo_releases WHERE id = (SELECT release_id FROM task12_publish)), repeat('a', 64), 'artifact hash is server-bound');
-SELECT ok((SELECT published_at IS NOT NULL FROM public.seo_releases WHERE id = (SELECT release_id FROM task12_publish)), 'published timestamp is stored');
-SELECT is((SELECT count(*)::integer FROM public.published_content_release_v), 2, 'public exposes only published bilingual copies');
+SELECT ok((SELECT publishing_at IS NOT NULL AND published_at IS NOT NULL AND published_at >= publishing_at FROM public.seo_releases WHERE id = (SELECT release_id FROM task12_publish)), 'transition timestamps are database-owned and ordered');
 SELECT is((SELECT count(*)::integer FROM private.seo_build_capabilities WHERE release_id = (SELECT release_id FROM task12_publish) AND consumed_at IS NOT NULL), 1, 'finalize consumes nonce');
+RESET ROLE;
+SET LOCAL ROLE localens_content_public_owner;
+SELECT is((SELECT count(*)::integer FROM public.published_content_release_v), 2, 'public exposes only published bilingual copies');
+RESET ROLE;
+SET LOCAL ROLE localens_content_build_executor;
 SELECT throws_ok($$SELECT * FROM public.read_seo_build_release((SELECT release_id FROM task12_publish), (SELECT build_id FROM task12_publish), (SELECT capability_nonce FROM task12_publish))$$, '42501', NULL, 'consumed nonce cannot be read');
 SELECT lives_ok($$SELECT * FROM public.finalize_seo_publish((SELECT release_id FROM task12_publish), (SELECT build_id FROM task12_publish), repeat('a', 64), 'task12-commit-001', (SELECT capability_nonce FROM task12_publish))$$, 'exact finalize replay is idempotent');
 SELECT throws_ok($$SELECT * FROM public.finalize_seo_publish((SELECT release_id FROM task12_publish), (SELECT build_id FROM task12_publish), repeat('a', 64), 'task12-commit-001', repeat('e', 64))$$, '42501', NULL, 'finalize nonce mismatch is rejected');
+SET LOCAL ROLE localens_content_build_owner;
+SELECT throws_ok($$UPDATE public.seo_releases SET status = 'failed'::public.content_status WHERE id = (SELECT release_id FROM task12_publish WHERE build_id = 'task12-build-001')$$, '42501', NULL, 'published release is terminal and immutable');
 RESET ROLE;
 
 -- The second candidate fails and leaves the old published pointer active.
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001201', true);
 INSERT INTO task12_publish SELECT * FROM public.publish_seo('task12-commit-002', 'task12-build-002');
+RESET ROLE;
+SET LOCAL ROLE localens_content_build_owner;
 SELECT is((SELECT count(*)::integer FROM public.seo_releases WHERE status = 'published'::public.content_status), 1, 'old live release remains during second build');
 SELECT is((SELECT count(*)::integer FROM public.seo_releases WHERE status = 'publishing'::public.content_status), 1, 'second candidate is sole publishing row');
 RESET ROLE;
-SET LOCAL ROLE localens_content_build_executor;
+SET LOCAL ROLE authenticated;
+SELECT throws_ok($$SELECT * FROM public.publish_seo('task12-commit-003', 'task12-build-003')$$, '23505', NULL, 'active candidate blocks another publish');
+RESET ROLE;
+SET LOCAL ROLE localens_content_build_owner;
 UPDATE private.seo_build_capabilities SET expires_at = clock_timestamp() - interval '1 minute' WHERE release_id = (SELECT release_id FROM task12_publish WHERE build_id = 'task12-build-002') AND build_id = 'task12-build-002';
+RESET ROLE;
+SET LOCAL ROLE localens_content_build_executor;
 SELECT throws_ok($$SELECT * FROM public.read_seo_build_release((SELECT release_id FROM task12_publish WHERE build_id = 'task12-build-002'), 'task12-build-002', (SELECT capability_nonce FROM task12_publish WHERE build_id = 'task12-build-002'))$$, '42501', NULL, 'expired capability is rejected');
+SET LOCAL ROLE localens_content_build_owner;
 SELECT is((SELECT status FROM public.seo_releases WHERE build_id = 'task12-build-002'), 'publishing'::public.content_status, 'expired read does not mutate candidate');
 UPDATE private.seo_build_capabilities SET expires_at = clock_timestamp() + interval '15 minutes' WHERE release_id = (SELECT release_id FROM task12_publish WHERE build_id = 'task12-build-002') AND build_id = 'task12-build-002';
+RESET ROLE;
+SET LOCAL ROLE localens_content_build_executor;
 INSERT INTO task12_failed SELECT * FROM public.fail_seo_publish((SELECT release_id FROM task12_publish WHERE build_id = 'task12-build-002'), 'task12-build-002', (SELECT capability_nonce FROM task12_publish WHERE build_id = 'task12-build-002'), 'artifact_invalid');
 SELECT is((SELECT status FROM task12_failed), 'failed'::public.content_status, 'failed candidate is marked failed');
+SET LOCAL ROLE localens_content_build_owner;
 SELECT is((SELECT count(*)::integer FROM public.seo_releases WHERE status = 'published'::public.content_status), 1, 'failure does not replace old live release');
-SELECT is((SELECT release_id FROM public.published_content_release_v LIMIT 1), (SELECT release_id FROM task12_publish WHERE build_id = 'task12-build-001'), 'public pointer remains old release');
 SELECT is((SELECT failure_code FROM public.seo_releases WHERE build_id = 'task12-build-002'), 'artifact_invalid', 'failure code is stored');
+RESET ROLE;
+SET LOCAL ROLE localens_content_build_executor;
 SELECT lives_ok($$SELECT * FROM public.fail_seo_publish((SELECT release_id FROM task12_publish WHERE build_id = 'task12-build-002'), 'task12-build-002', (SELECT capability_nonce FROM task12_publish WHERE build_id = 'task12-build-002'), 'artifact_invalid')$$, 'exact failure replay is idempotent');
 SELECT throws_ok($$SELECT * FROM public.fail_seo_publish((SELECT release_id FROM task12_publish WHERE build_id = 'task12-build-002'), 'task12-build-002', repeat('1', 64), 'artifact_invalid')$$, '42501', NULL, 'failure nonce mismatch is rejected');
+SET LOCAL ROLE localens_content_build_owner;
+SELECT throws_ok($$UPDATE public.seo_releases SET status = 'publishing'::public.content_status WHERE id = (SELECT release_id FROM task12_publish WHERE build_id = 'task12-build-002')$$, '42501', NULL, 'failed release is terminal and immutable');
+RESET ROLE;
+SET LOCAL ROLE localens_content_public_owner;
+SELECT is((SELECT release_id FROM private.seo_live_pointer WHERE id = true), (SELECT release_id FROM task12_publish WHERE build_id = 'task12-build-001'), 'live pointer falls back to old release after failure');
+SELECT is((SELECT release_id FROM public.published_content_release_v LIMIT 1), (SELECT release_id FROM task12_publish WHERE build_id = 'task12-build-001'), 'public view remains on old pointer');
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001201', true);
+INSERT INTO task12_publish SELECT * FROM public.publish_seo('task12-commit-003', 'task12-build-003');
+SELECT is((SELECT count(*)::integer FROM task12_publish WHERE build_id = 'task12-build-003'), 1, 'failed candidate permits a new publish candidate');
 RESET ROLE;
 
 -- Guard helpers remain safe under a hostile search_path and the allowlist
