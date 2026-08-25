@@ -201,7 +201,7 @@ button:focus-visible,
   --customer-line: #d3ddd4;
   --customer-orange: #b8462f;
   overflow: hidden;
-  margin-inline: calc(var(--space-6) * -1);
+  margin-inline: 0;
 }
 
 .customer-hero,
@@ -445,7 +445,7 @@ button:focus-visible,
 .tour-card__topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .tour-card__icon { font-size: 1.75rem; }
 .tour-card__detail { color: var(--customer-ink-soft); font-size: 0.75rem; text-align: right; }
-.tour-card h3 { margin: 3.5rem 0 var(--space-3); font-size: 1.35rem; letter-spacing: -0.025em; }
+.tour-card__title { margin: 3.5rem 0 var(--space-3); font-size: 1.35rem; letter-spacing: -0.025em; }
 .tour-card p { flex: 1; margin: 0; color: var(--customer-ink-soft); line-height: 1.55; }
 .tour-card a { display: inline-flex; min-height: var(--interactive-min); align-items: center; margin-top: var(--space-5); font-size: 0.9rem; font-weight: 700; text-underline-offset: 0.25em; }
 
@@ -490,6 +490,7 @@ button:focus-visible,
 
 .personalization-form__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
 .personalization-form__grid--details { margin-top: var(--space-5); }
+.form-timezone { margin: var(--space-4) 0 0; color: var(--customer-ink-soft); font-size: 0.85rem; line-height: 1.45; }
 .field { display: flex; min-width: 0; flex-direction: column; gap: var(--space-2); color: var(--customer-ink); font-weight: 700; }
 .field > span { line-height: 1.3; }
 .field small, .field-group__hint { color: var(--customer-ink-soft); font-size: 0.8rem; font-weight: 400; line-height: 1.45; }
@@ -504,11 +505,17 @@ button:focus-visible,
 .check-card { display: flex; min-height: var(--interactive-min); align-items: center; gap: var(--space-2); padding: 0.6rem 0.75rem; border: 1px solid var(--customer-line); border-radius: 0.4rem; color: var(--customer-ink); cursor: pointer; font-size: 0.9rem; line-height: 1.35; }
 .check-card:has(input:checked) { border-color: var(--customer-orange); background: #fcf0e8; }
 .check-card input { accent-color: var(--customer-orange); flex: 0 0 auto; width: 1.1rem; height: 1.1rem; }
+.priority-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); }
+.priority-control { display: flex; min-height: var(--interactive-min); flex-direction: column; gap: var(--space-2); padding: 0.6rem 0.75rem; border: 1px solid var(--customer-line); border-radius: 0.4rem; color: var(--customer-ink); font-size: 0.9rem; line-height: 1.35; }
+.priority-control input { width: 100%; min-height: var(--interactive-min); padding: 0.45rem 0.6rem; border: 1px solid var(--customer-line); border-radius: 0.3rem; font: inherit; }
+.priority-control input:focus { border-color: var(--customer-ink); outline: 3px solid rgba(209, 122, 0, 0.35); outline-offset: 1px; }
 .personalization-form__footer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-top: var(--space-5); }
 .form-preview { max-width: 34rem; margin: 0; color: var(--customer-ink-soft); font-size: 0.9rem; line-height: 1.45; }
+.form-validation { max-width: 34rem; margin: 0; color: var(--color-cta-vermilion-dark); font-size: 0.9rem; font-weight: 700; line-height: 1.45; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+  .button:hover, .tour-card:hover { transform: none !important; }
 }
 
 @media (max-width: 720px) {
@@ -532,7 +539,7 @@ button:focus-visible,
     flex-direction: column;
   }
 
-  .customer-home { margin-inline: calc(var(--space-3) * -1); }
+  .customer-home { margin-inline: 0; }
   .customer-hero, .customer-section { width: min(100% - 2rem, var(--content-width)); }
   .customer-hero { min-height: 0; grid-template-columns: 1fr; gap: var(--space-5); padding-block: 2.5rem 2rem; }
   .customer-hero::before { right: -42vw; width: 140vw; }
@@ -544,17 +551,19 @@ button:focus-visible,
   .section-heading > p:last-child { margin-top: var(--space-4); }
   .tour-grid, .trust-grid { grid-template-columns: 1fr; }
   .tour-card { min-height: 17rem; }
-  .tour-card h3 { margin-top: 2.25rem; }
+  .tour-card__title { margin-top: 2.25rem; }
   .trust-grid { gap: 1px; }
   .trust-card { min-height: 12rem; }
   .trust-card h3 { margin-top: 2rem; }
   .personalization-form__grid { grid-template-columns: 1fr; }
   .field--wide { grid-column: auto; }
   .check-grid { grid-template-columns: 1fr; }
+  .priority-grid { grid-template-columns: 1fr; }
 }
 
 @media (min-width: 721px) and (max-width: 1000px) {
   .customer-hero { grid-template-columns: 1fr 0.8fr; gap: 2rem; }
   .tour-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .check-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .priority-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

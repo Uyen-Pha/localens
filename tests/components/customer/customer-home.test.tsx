@@ -18,7 +18,7 @@ describe("CustomerHome", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: dictionary.home.heroPrimaryCta })).toHaveAttribute(
       "href",
-      "/en/tours",
+        "/en/tours",
     );
     expect(
       screen.getByRole("heading", {

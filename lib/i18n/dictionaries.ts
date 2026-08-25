@@ -3,6 +3,12 @@ import vietnamese from "@/messages/vi.json";
 
 import type { Locale } from "@/lib/i18n/config";
 
+export type PersonalizationPriorityKey =
+  | "street_food"
+  | "history"
+  | "traditional_craft"
+  | "traditional_market";
+
 export type Dictionary = {
   brand: string;
   home: {
@@ -14,6 +20,9 @@ export type Dictionary = {
     heroActionsLabel: string;
     heroNote: string;
     heroTrust: string;
+    heroStampTop: string;
+    heroStampLine1: string;
+    heroStampLine2: string;
     discoveryEyebrow: string;
     discoveryTitle: string;
     discoveryIntro: string;
@@ -39,23 +48,26 @@ export type Dictionary = {
     personalizationForm: {
       formLabel: string;
       durationLabel: string;
-      durationOptions: Array<{ value: string; label: string }>;
+      durationHint: string;
       areasLabel: string;
       areasHint: string;
       areaOptions: Array<{ value: string; label: string }>;
       budgetLabel: string;
-      budgetOptions: Array<{ value: string; label: string }>;
+      budgetHint: string;
+      budgetCurrencyLabel: string;
+      budgetCurrencyOptions: Array<{ value: "VND" | "USD"; label: string }>;
       startDateLabel: string;
       startDateHint: string;
       startTimeLabel: string;
+      timezoneHint: string;
       languageLabel: string;
-      languageOptions: Array<{ value: string; label: string }>;
+      languageOptions: Array<{ value: "en" | "vi"; label: string }>;
       partySizeLabel: string;
       partySizeHint: string;
       prioritiesLegend: string;
-      priorities: string[];
+      priorities: Array<{ key: PersonalizationPriorityKey; label: string }>;
       paceLabel: string;
-      paceOptions: Array<{ value: string; label: string }>;
+      paceOptions: Array<{ value: "relaxed" | "active"; label: string }>;
       dietLabel: string;
       dietOptions: Array<{ value: string; label: string }>;
       mobilityLabel: string;
@@ -63,6 +75,7 @@ export type Dictionary = {
       specialNeedsLabel: string;
       specialNeedsHint: string;
       submitLabel: string;
+      validationMessage: string;
       previewMessage: string;
       confirmationMessage: string;
     };
@@ -103,6 +116,9 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     heroActionsLabel: "Start exploring",
     heroNote: "For curious travelers who want more than a checklist.",
     heroTrust: "Company-managed places · Human-reviewed routes · English-friendly",
+    heroStampTop: "SGN",
+    heroStampLine1: "seen",
+    heroStampLine2: "slowly",
     discoveryEyebrow: "Choose your starting point",
     discoveryTitle: "Ways to see Saigon",
     discoveryIntro:
@@ -172,12 +188,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       "Start with a few practical details. This preview keeps your preferences on this page until the planning service is connected.",
     personalizationForm: {
       formLabel: "Personalized route preferences",
-      durationLabel: "How much time do you have?",
-      durationOptions: [
-        { value: "half-day", label: "Half day" },
-        { value: "full-day", label: "Full day" },
-        { value: "two-days", label: "Two days" },
-      ],
+      durationLabel: "How many minutes do you have?",
+      durationHint: "Choose between 15 and 720 minutes.",
       areasLabel: "Which areas interest you?",
       areasHint: "Choose one or more areas.",
       areaOptions: [
@@ -186,36 +198,35 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
         { value: "thuduc", label: "Thu Duc" },
         { value: "riverside", label: "Riverside" },
       ],
-      budgetLabel: "Comfortable budget per person",
-      budgetOptions: [
-        { value: "under-30", label: "Under US$30" },
-        { value: "30-60", label: "US$30–60" },
-        { value: "60-100", label: "US$60–100" },
-        { value: "100-plus", label: "US$100+" },
+      budgetLabel: "Budget for your whole group",
+      budgetHint: "Enter one positive group total. USD is converted to cents for amountMinor.",
+      budgetCurrencyLabel: "Budget currency",
+      budgetCurrencyOptions: [
+        { value: "VND", label: "Vietnamese đồng (VND)" },
+        { value: "USD", label: "US dollars (USD)" },
       ],
       startDateLabel: "Preferred start date",
       startDateHint: "Use your local travel date.",
       startTimeLabel: "Preferred start time",
+      timezoneHint: "Start date and time use Ho Chi Minh City (Asia/Ho_Chi_Minh), UTC+07:00.",
       languageLabel: "Experience language",
       languageOptions: [
-        { value: "english", label: "English" },
-        { value: "vietnamese", label: "Vietnamese" },
-        { value: "either", label: "English or Vietnamese" },
+        { value: "en", label: "English" },
+        { value: "vi", label: "Vietnamese" },
       ],
       partySizeLabel: "People in your party",
       partySizeHint: "Including children.",
       prioritiesLegend: "What should lead the route?",
       priorities: [
-        "Food & everyday flavor",
-        "History & living culture",
-        "Craft & local makers",
-        "Markets & neighborhood life",
+        { key: "street_food", label: "Food & everyday flavor" },
+        { key: "history", label: "History & living culture" },
+        { key: "traditional_craft", label: "Craft & local makers" },
+        { key: "traditional_market", label: "Markets & neighborhood life" },
       ],
       paceLabel: "Preferred pace",
       paceOptions: [
-        { value: "easy", label: "Easy and spacious" },
-        { value: "balanced", label: "A balanced mix" },
-        { value: "curious", label: "Curious and full" },
+        { value: "relaxed", label: "Relaxed and spacious" },
+        { value: "active", label: "Active and full" },
       ],
       dietLabel: "Dietary preferences",
       dietOptions: [
@@ -233,6 +244,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       specialNeedsLabel: "Anything else we should plan around?",
       specialNeedsHint: "Optional — tell us about accessibility, celebrations, or a must-see detail.",
       submitLabel: "Preview my route brief",
+      validationMessage: "Add a start date, start time, and at least one area before previewing your brief.",
       previewMessage: "Preview only: your preferences stay on this page and are not sent yet.",
       confirmationMessage: "Your route is confirmed.",
     },
@@ -246,6 +258,9 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     heroActionsLabel: "Bắt đầu khám phá",
     heroNote: "Dành cho những người muốn hiểu thành phố, không chỉ ghé qua.",
     heroTrust: "Địa điểm do công ty quản lý · Lịch trình được kiểm duyệt · Hỗ trợ tiếng Anh",
+    heroStampTop: "SGN",
+    heroStampLine1: "nhìn",
+    heroStampLine2: "chậm lại",
     discoveryEyebrow: "Chọn cách bắt đầu",
     discoveryTitle: "Nhìn Sài Gòn theo cách của bạn",
     discoveryIntro:
@@ -315,12 +330,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       "Bắt đầu từ vài thông tin thực tế. Bản xem trước này giữ lựa chọn trên trang cho đến khi dịch vụ lập kế hoạch được kết nối.",
     personalizationForm: {
       formLabel: "Tùy chọn lịch trình riêng",
-      durationLabel: "Bạn có bao nhiêu thời gian?",
-      durationOptions: [
-        { value: "half-day", label: "Nửa ngày" },
-        { value: "full-day", label: "Một ngày" },
-        { value: "two-days", label: "Hai ngày" },
-      ],
+      durationLabel: "Bạn có bao nhiêu phút?",
+      durationHint: "Chọn từ 15 đến 720 phút.",
       areasLabel: "Bạn quan tâm khu vực nào?",
       areasHint: "Chọn một hoặc nhiều khu vực.",
       areaOptions: [
@@ -329,36 +340,35 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
         { value: "thuduc", label: "Thủ Đức" },
         { value: "riverside", label: "Khu ven sông" },
       ],
-      budgetLabel: "Ngân sách phù hợp mỗi người",
-      budgetOptions: [
-        { value: "under-30", label: "Dưới 30 USD" },
-        { value: "30-60", label: "30–60 USD" },
-        { value: "60-100", label: "60–100 USD" },
-        { value: "100-plus", label: "Trên 100 USD" },
+      budgetLabel: "Ngân sách cho cả nhóm",
+      budgetHint: "Nhập một tổng ngân sách dương cho cả nhóm. USD sẽ được đổi sang cent trong amountMinor.",
+      budgetCurrencyLabel: "Đơn vị tiền tệ",
+      budgetCurrencyOptions: [
+        { value: "VND", label: "Đồng Việt Nam (VND)" },
+        { value: "USD", label: "Đô la Mỹ (USD)" },
       ],
       startDateLabel: "Ngày bắt đầu mong muốn",
       startDateHint: "Dùng ngày bạn sẽ đi du lịch.",
       startTimeLabel: "Thời gian bắt đầu mong muốn",
+      timezoneHint: "Ngày và giờ bắt đầu dùng múi giờ Thành phố Hồ Chí Minh (Asia/Ho_Chi_Minh), UTC+07:00.",
       languageLabel: "Ngôn ngữ trải nghiệm",
       languageOptions: [
-        { value: "english", label: "Tiếng Anh" },
-        { value: "vietnamese", label: "Tiếng Việt" },
-        { value: "either", label: "Tiếng Anh hoặc tiếng Việt" },
+        { value: "en", label: "Tiếng Anh" },
+        { value: "vi", label: "Tiếng Việt" },
       ],
       partySizeLabel: "Số người trong nhóm",
       partySizeHint: "Bao gồm cả trẻ em.",
       prioritiesLegend: "Điều gì nên dẫn dắt lịch trình?",
       priorities: [
-        "Ẩm thực & hương vị đời thường",
-        "Lịch sử & văn hóa sống",
-        "Làng nghề & người làm nghề",
-        "Chợ & đời sống khu phố",
+        { key: "street_food", label: "Ẩm thực & hương vị đời thường" },
+        { key: "history", label: "Lịch sử & văn hóa sống" },
+        { key: "traditional_craft", label: "Làng nghề & người làm nghề" },
+        { key: "traditional_market", label: "Chợ & đời sống khu phố" },
       ],
       paceLabel: "Nhịp độ mong muốn",
       paceOptions: [
-        { value: "easy", label: "Thư thả và rộng rãi" },
-        { value: "balanced", label: "Cân bằng" },
-        { value: "curious", label: "Tò mò và nhiều điểm" },
+        { value: "relaxed", label: "Thư thả và rộng rãi" },
+        { value: "active", label: "Năng động và nhiều điểm" },
       ],
       dietLabel: "Nhu cầu ăn uống",
       dietOptions: [
@@ -376,6 +386,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       specialNeedsLabel: "Có điều gì khác cần lưu ý?",
       specialNeedsHint: "Không bắt buộc — hãy chia sẻ nhu cầu tiếp cận, dịp đặc biệt hoặc điều nhất định phải xem.",
       submitLabel: "Xem trước yêu cầu lịch trình",
+      validationMessage: "Hãy thêm ngày, giờ bắt đầu và ít nhất một khu vực trước khi xem trước yêu cầu.",
       previewMessage: "Chỉ là bản xem trước: lựa chọn của bạn vẫn ở trên trang và chưa được gửi đi.",
       confirmationMessage: "Lịch trình của bạn đã được xác nhận.",
     },

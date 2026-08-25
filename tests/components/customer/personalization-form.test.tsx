@@ -1,7 +1,10 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { PersonalizationForm } from "@/components/customer/personalization-form";
+import {
+  buildPersonalizationRequest,
+  PersonalizationForm,
+} from "@/components/customer/personalization-form";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
 afterEach(cleanup);
@@ -13,14 +16,26 @@ describe("PersonalizationForm", () => {
     render(<PersonalizationForm copy={dictionary.home.personalizationForm} />);
 
     expect(screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel })).toBeInTheDocument();
-    expect(screen.getByLabelText(dictionary.home.personalizationForm.durationLabel)).toBeInTheDocument();
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.durationLabel)).toHaveAttribute(
+      "name",
+      "durationMinutes",
+    );
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.durationLabel)).toHaveAttribute("min", "15");
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.durationLabel)).toHaveAttribute("max", "720");
     expect(screen.getByRole("group", { name: dictionary.home.personalizationForm.areasLabel })).toBeInTheDocument();
-    expect(screen.getByLabelText(dictionary.home.personalizationForm.budgetLabel)).toBeInTheDocument();
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.budgetLabel)).toHaveAttribute(
+      "name",
+      "budgetAmount",
+    );
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.budgetCurrencyLabel)).toHaveAttribute(
+      "name",
+      "budgetCurrency",
+    );
     expect(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel)).toBeInTheDocument();
     expect(screen.getByLabelText(dictionary.home.personalizationForm.startTimeLabel)).toBeInTheDocument();
-    expect(screen.getByLabelText(dictionary.home.personalizationForm.languageLabel)).toBeInTheDocument();
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.languageLabel)).toHaveAttribute("name", "guideLanguage");
     expect(screen.getByLabelText(dictionary.home.personalizationForm.partySizeLabel)).toBeInTheDocument();
-    expect(screen.getByLabelText(dictionary.home.personalizationForm.paceLabel)).toBeInTheDocument();
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.paceLabel)).toHaveAttribute("name", "pace");
     expect(screen.getByLabelText(dictionary.home.personalizationForm.dietLabel)).toBeInTheDocument();
     expect(screen.getByLabelText(dictionary.home.personalizationForm.mobilityLabel)).toBeInTheDocument();
     expect(screen.getByLabelText(dictionary.home.personalizationForm.specialNeedsLabel)).toBeInTheDocument();
@@ -30,20 +45,73 @@ describe("PersonalizationForm", () => {
     });
     expect(priorityGroup).toBeInTheDocument();
     for (const priority of dictionary.home.personalizationForm.priorities) {
-      expect(screen.getByLabelText(priority)).toBeInTheDocument();
+      expect(screen.getByLabelText(priority.label)).toHaveAttribute(
+        "name",
+        `priorityWeights.${priority.key}`,
+      );
+      expect(screen.getByLabelText(priority.label)).toHaveAttribute("min", "0");
+      expect(screen.getByLabelText(priority.label)).toHaveAttribute("max", "5");
     }
   });
 
-  it("explains that submit is only a local preview until the planning API is connected", () => {
+  it("requires a date, time, and at least one area before showing the local preview", () => {
     const dictionary = getDictionary("en");
 
     render(<PersonalizationForm copy={dictionary.home.personalizationForm} />);
+    const form = screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel });
 
-    fireEvent.submit(screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel }));
+    fireEvent.submit(form);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      dictionary.home.personalizationForm.validationMessage,
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel), {
+      target: { value: "2026-09-05" },
+    });
+    fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startTimeLabel), {
+      target: { value: "09:00" },
+    });
+    fireEvent.click(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[0].label));
+    fireEvent.submit(form);
 
     expect(screen.getByRole("status")).toHaveTextContent(
       dictionary.home.personalizationForm.previewMessage,
     );
     expect(screen.queryByText(dictionary.home.personalizationForm.confirmationMessage)).not.toBeInTheDocument();
+  });
+
+  it("maps controls to the itinerary request contract with an explicit HCMC offset", () => {
+    const formData = new FormData();
+    formData.set("startDate", "2026-09-05");
+    formData.set("startTime", "09:00");
+    formData.set("durationMinutes", "180");
+    formData.append("areas", "district-1");
+    formData.set("budgetAmount", "123.45");
+    formData.set("budgetCurrency", "USD");
+    formData.set("partySize", "2");
+    formData.set("guideLanguage", "vi");
+    formData.set("priorityWeights.street_food", "5");
+    formData.set("priorityWeights.history", "2");
+    formData.set("priorityWeights.traditional_craft", "1");
+    formData.set("priorityWeights.traditional_market", "0");
+    formData.set("pace", "active");
+
+    expect(buildPersonalizationRequest(formData)).toMatchObject({
+      startAt: "2026-09-05T09:00:00+07:00",
+      durationMinutes: 180,
+      areas: ["district-1"],
+      budget: { currency: "USD", amountMinor: 12345 },
+      partySize: 2,
+      guideLanguage: "vi",
+      priorityWeights: {
+        street_food: 5,
+        history: 2,
+        traditional_craft: 1,
+        traditional_market: 0,
+      },
+      pace: "active",
+    });
   });
 });

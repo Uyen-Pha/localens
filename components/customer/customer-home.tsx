@@ -4,6 +4,7 @@ import type { Dictionary } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/config";
 
 import { PersonalizationForm } from "@/components/customer/personalization-form";
+import { FixedToursGrid } from "@/components/customer/fixed-tours-grid";
 
 type HomeCopy = Dictionary["home"];
 
@@ -36,8 +37,8 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
           <div className="hero-orbit hero-orbit--one" />
           <div className="hero-orbit hero-orbit--two" />
           <div className="hero-stamp">
-            <span>SGN</span>
-            <strong>seen<br />slowly</strong>
+            <span>{copy.heroStampTop}</span>
+            <strong>{copy.heroStampLine1}<br />{copy.heroStampLine2}</strong>
           </div>
           <span className="hero-spark hero-spark--one">✦</span>
           <span className="hero-spark hero-spark--two">✦</span>
@@ -51,23 +52,7 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
           <h2 id="discovery-title">{copy.discoveryTitle}</h2>
           <p>{copy.discoveryIntro}</p>
         </div>
-        <div className="tour-grid">
-          {copy.fixedTours.map((tour) => (
-            <article className={`tour-card tour-card--${tour.id}`} key={tour.id}>
-              <div className="tour-card__topline">
-                <span className="tour-card__icon" aria-hidden="true">{tour.icon}</span>
-                <span className="tour-card__detail">{tour.detail}</span>
-              </div>
-              <h3>{tour.title}</h3>
-              <p>{tour.description}</p>
-              <Link href={`/${locale}/tours/?theme=${tour.id}`}>
-                <span className="sr-only">{tour.title}: </span>
-                {copy.fixedToursCta}
-                <span aria-hidden="true"> ↗</span>
-              </Link>
-            </article>
-          ))}
-        </div>
+        <FixedToursGrid locale={locale} copy={copy} />
       </section>
 
       <section className="customer-section customer-section--trust" aria-labelledby="trust-title">
