@@ -224,14 +224,12 @@ CREATE POLICY custom_requests_admin_rpc_owner_all ON public.custom_requests
   USING (current_user = 'localens_request_admin_rpc_owner')
   WITH CHECK (current_user = 'localens_request_admin_rpc_owner');
 
-CREATE POLICY custom_request_events_customer_rpc_owner_all ON private.custom_request_events
-  FOR ALL TO localens_request_customer_rpc_owner
-  USING (current_user = 'localens_request_customer_rpc_owner')
+CREATE POLICY custom_request_events_customer_rpc_owner_insert ON private.custom_request_events
+  FOR INSERT TO localens_request_customer_rpc_owner
   WITH CHECK (current_user = 'localens_request_customer_rpc_owner');
 
-CREATE POLICY custom_request_events_admin_rpc_owner_all ON private.custom_request_events
-  FOR ALL TO localens_request_admin_rpc_owner
-  USING (current_user = 'localens_request_admin_rpc_owner')
+CREATE POLICY custom_request_events_admin_rpc_owner_insert ON private.custom_request_events
+  FOR INSERT TO localens_request_admin_rpc_owner
   WITH CHECK (current_user = 'localens_request_admin_rpc_owner');
 
 CREATE POLICY custom_quotes_customer_select ON public.custom_quotes
@@ -280,10 +278,6 @@ CREATE POLICY trip_plan_revisions_request_admin_rpc_lock ON public.trip_plan_rev
   FOR UPDATE TO localens_request_admin_rpc_owner
   USING (current_user = 'localens_request_admin_rpc_owner')
   WITH CHECK (current_user = 'localens_request_admin_rpc_owner');
-CREATE POLICY catalog_snapshots_request_admin_rpc_select ON public.catalog_snapshots
-  FOR SELECT TO localens_request_admin_rpc_owner USING (true);
-CREATE POLICY travel_snapshots_request_admin_rpc_select ON public.travel_snapshots
-  FOR SELECT TO localens_request_admin_rpc_owner USING (true);
 CREATE POLICY fx_snapshots_request_admin_rpc_select ON public.fx_snapshots
   FOR SELECT TO localens_request_admin_rpc_owner USING (true);
 CREATE POLICY fx_snapshots_request_admin_rpc_lock ON public.fx_snapshots
@@ -338,7 +332,7 @@ ALTER FUNCTION private.reject_trip_plan_id_mutation() OWNER TO localens_request_
 REVOKE ALL ON FUNCTION private.reject_trip_plan_id_mutation() FROM PUBLIC, anon, authenticated;
 
 CREATE TRIGGER trip_plans_request_id_immutable
-BEFORE UPDATE ON public.trip_plans
+BEFORE UPDATE OF id ON public.trip_plans
 FOR EACH ROW EXECUTE FUNCTION private.reject_trip_plan_id_mutation();
 
 CREATE OR REPLACE FUNCTION private.reject_custom_quote_mutation()
@@ -361,9 +355,28 @@ BEGIN
      OR OLD.title_vi IS DISTINCT FROM NEW.title_vi
      OR OLD.policy IS DISTINCT FROM NEW.policy
      OR OLD.created_at IS DISTINCT FROM NEW.created_at
-     OR OLD.valid_until IS DISTINCT FROM NEW.valid_until
-     OR pg_catalog.current_setting('localens.quote_transition', true) IS DISTINCT FROM 'on' THEN
-    RAISE EXCEPTION 'custom quote commercial facts are immutable' USING ERRCODE = '42501';
+     OR OLD.valid_until IS DISTINCT FROM NEW.valid_until THEN
+     RAISE EXCEPTION 'custom quote commercial facts are immutable' USING ERRCODE = '42501';
+  END IF;
+  IF pg_catalog.current_setting('localens.quote_transition', true) IS DISTINCT FROM 'on'
+     OR OLD.status IS NOT DISTINCT FROM NEW.status
+     OR NOT (
+       (OLD.status = 'active'::public.quote_status
+         AND NEW.status IN (
+           'checkout_pending'::public.quote_status,
+           'expired'::public.quote_status,
+           'revoked'::public.quote_status
+         ))
+       OR
+       (OLD.status = 'checkout_pending'::public.quote_status
+         AND NEW.status IN (
+           'accepted'::public.quote_status,
+           'active'::public.quote_status,
+           'expired'::public.quote_status,
+           'revoked'::public.quote_status
+         ))
+     ) THEN
+    RAISE EXCEPTION 'custom quote state transition is invalid' USING ERRCODE = '42501';
   END IF;
   RETURN NEW;
 END;
@@ -441,7 +454,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 BEGIN
-  IF OLD.plan_id IS DISTINCT FROM NEW.plan_id
+  IF OLD.id IS DISTINCT FROM NEW.id
+     OR OLD.plan_id IS DISTINCT FROM NEW.plan_id
      OR OLD.owner_user_id IS DISTINCT FROM NEW.owner_user_id
      OR OLD.created_at IS DISTINCT FROM NEW.created_at
      OR pg_catalog.current_setting('localens.request_transition', true) IS DISTINCT FROM 'on' THEN
@@ -674,7 +688,8 @@ BEGIN
 
   IF FOUND AND (
     request_row.status <> 'changes_requested'::public.request_status
-    OR request_row.owner_user_id IS DISTINCT FROM actor_user_id
+     OR request_row.owner_user_id IS DISTINCT FROM actor_user_id
+     OR p_revision_no <= request_row.revision_no
   ) THEN
     RAISE EXCEPTION 'custom request operation failed' USING ERRCODE = 'P0001';
   END IF;
@@ -951,6 +966,10 @@ BEGIN
       RAISE EXCEPTION 'custom request operation failed' USING ERRCODE = 'P0001';
     END IF;
     authority_time := pg_catalog.clock_timestamp();
+    IF fx_row.observed_at > authority_time
+       OR fx_row.observed_at < authority_time - interval '7 days' THEN
+      RAISE EXCEPTION 'custom request operation failed' USING ERRCODE = 'P0001';
+    END IF;
     checkout_amount := ceil(p_amount_vnd_minor::numeric * 100 / fx_row.vnd_per_usd);
   ELSE
     checkout_amount := p_amount_vnd_minor::numeric;
@@ -1040,7 +1059,7 @@ GRANT UPDATE (revision_id, revision_no, status, submitted_at, updated_at)
 GRANT SELECT ON TABLE public.custom_requests TO localens_request_admin_rpc_owner;
 GRANT UPDATE (status, latest_decision_at, updated_at)
   ON TABLE public.custom_requests TO localens_request_admin_rpc_owner;
-GRANT SELECT, INSERT ON TABLE private.custom_request_events TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
+GRANT INSERT ON TABLE private.custom_request_events TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
 GRANT SELECT ON TABLE public.custom_quotes TO localens_request_customer_rpc_owner;
 GRANT SELECT, INSERT ON TABLE public.custom_quotes TO localens_request_admin_rpc_owner;
 GRANT UPDATE (id) ON TABLE public.custom_quotes TO localens_request_admin_rpc_owner;
@@ -1049,8 +1068,7 @@ GRANT SELECT ON TABLE public.trip_plans, public.trip_plan_revisions
 GRANT UPDATE (id) ON TABLE public.trip_plans TO localens_request_customer_rpc_owner;
 GRANT UPDATE (id) ON TABLE public.trip_plan_revisions TO localens_request_customer_rpc_owner;
 GRANT SELECT ON TABLE public.trip_plans, public.trip_plan_revisions,
-  public.catalog_snapshots,
-  public.travel_snapshots, public.fx_snapshots TO localens_request_admin_rpc_owner;
+  public.fx_snapshots TO localens_request_admin_rpc_owner;
 GRANT UPDATE (id) ON TABLE public.trip_plans TO localens_request_admin_rpc_owner;
 GRANT UPDATE (id) ON TABLE public.trip_plan_revisions TO localens_request_admin_rpc_owner;
 GRANT UPDATE (id) ON TABLE public.fx_snapshots TO localens_request_admin_rpc_owner;

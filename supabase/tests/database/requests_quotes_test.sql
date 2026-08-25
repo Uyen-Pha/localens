@@ -3,7 +3,7 @@
 -- fixtures and the authenticated JWT roles.
 BEGIN;
 
-SELECT plan(119);
+SELECT plan(133);
 
 RESET ROLE;
 DELETE FROM auth.users
@@ -38,11 +38,17 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET language = EXCLUDED.language;
 
 INSERT INTO public.catalog_snapshots (id, status, published_at)
-VALUES ('00000000-0000-0000-0000-000000000811'::uuid, 'published'::public.snapshot_status, now())
+VALUES ('00000000-0000-0000-0000-000000000811'::uuid, 'building'::public.snapshot_status, NULL)
 ON CONFLICT (id) DO NOTHING;
+UPDATE public.catalog_snapshots
+SET status = 'published'::public.snapshot_status, published_at = now()
+WHERE id = '00000000-0000-0000-0000-000000000811'::uuid;
 INSERT INTO public.travel_snapshots (id, catalog_snapshot_id, status, published_at)
-VALUES ('00000000-0000-0000-0000-000000000812'::uuid, '00000000-0000-0000-0000-000000000811'::uuid, 'published'::public.snapshot_status, now())
+VALUES ('00000000-0000-0000-0000-000000000812'::uuid, '00000000-0000-0000-0000-000000000811'::uuid, 'building'::public.snapshot_status, NULL)
 ON CONFLICT (id) DO NOTHING;
+UPDATE public.travel_snapshots
+SET status = 'published'::public.snapshot_status, published_at = now()
+WHERE id = '00000000-0000-0000-0000-000000000812'::uuid;
 INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)
 VALUES ('00000000-0000-0000-0000-000000000813'::uuid, 25000.00000000, 'task8-fixture', now(), 'demo', true)
 ON CONFLICT (id) DO NOTHING;
@@ -169,6 +175,8 @@ SELECT ok(has_column_privilege('localens_request_admin_rpc_owner', 'public.custo
 SELECT ok(has_column_privilege('localens_request_customer_rpc_owner', 'public.trip_plans', 'id', 'UPDATE') AND has_column_privilege('localens_request_customer_rpc_owner', 'public.trip_plan_revisions', 'id', 'UPDATE') AND NOT has_column_privilege('localens_request_customer_rpc_owner', 'public.trip_plans', 'owner_user_id', 'UPDATE') AND NOT has_column_privilege('localens_request_customer_rpc_owner', 'public.trip_plan_revisions', 'revision_no', 'UPDATE'), 'customer request owner has only source lock writes');
 SELECT ok(has_column_privilege('localens_request_admin_rpc_owner', 'public.trip_plans', 'id', 'UPDATE') AND has_column_privilege('localens_request_admin_rpc_owner', 'public.trip_plan_revisions', 'id', 'UPDATE') AND NOT has_column_privilege('localens_request_admin_rpc_owner', 'public.trip_plans', 'owner_user_id', 'UPDATE') AND NOT has_column_privilege('localens_request_admin_rpc_owner', 'public.trip_plan_revisions', 'revision_no', 'UPDATE'), 'admin request owner has only source lock writes');
 SELECT ok(has_column_privilege('localens_request_admin_rpc_owner', 'public.custom_quotes', 'id', 'UPDATE') AND has_column_privilege('localens_request_admin_rpc_owner', 'public.fx_snapshots', 'id', 'UPDATE') AND NOT has_column_privilege('localens_request_admin_rpc_owner', 'public.custom_quotes', 'amount_vnd_minor', 'UPDATE') AND NOT has_column_privilege('localens_request_admin_rpc_owner', 'public.fx_snapshots', 'vnd_per_usd', 'UPDATE'), 'admin quote owner has only quote and FX lock writes');
+SELECT ok(NOT has_table_privilege('localens_request_customer_rpc_owner', 'private.custom_request_events', 'SELECT') AND NOT has_table_privilege('localens_request_admin_rpc_owner', 'private.custom_request_events', 'SELECT'), 'request owners have no event read grants');
+SELECT ok(NOT has_table_privilege('localens_request_admin_rpc_owner', 'public.catalog_snapshots', 'SELECT') AND NOT has_table_privilege('localens_request_admin_rpc_owner', 'public.travel_snapshots', 'SELECT'), 'admin request owner has no unused snapshot grants');
 SELECT ok(
   (SELECT count(*) FROM pg_catalog.pg_policies
    WHERE schemaname = 'public'
@@ -183,7 +191,10 @@ SELECT ok(
   'source lock UPDATE policies are owner-scoped'
 );
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'trip_plans_request_id_immutable'), 'trip plan id immutable trigger exists');
+SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'trip_plans_request_id_immutable' AND pg_get_triggerdef(oid) LIKE '%BEFORE UPDATE OF id%'), 'trip plan id guard fires only for id updates');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_proc WHERE proname = 'reject_custom_quote_mutation' AND pg_get_functiondef(oid) LIKE '%OLD.id IS DISTINCT FROM NEW.id%'), 'quote immutable guard protects id');
+SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_proc WHERE proname = 'guard_custom_request_mutation' AND pg_get_functiondef(oid) LIKE '%OLD.id IS DISTINCT FROM NEW.id%'), 'request immutable guard protects id');
+SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND policyname IN ('catalog_snapshots_request_admin_rpc_select', 'travel_snapshots_request_admin_rpc_select')), 'request RPC has no unused catalog/travel policies');
 SELECT ok(has_table_privilege('localens_request_customer_rpc_owner', 'private.custom_request_events', 'INSERT'), 'customer request owner can append events');
 SELECT ok(NOT has_table_privilege('authenticated', 'private.custom_request_events', 'SELECT'), 'API roles cannot read request events');
 SELECT ok(has_function_privilege('authenticated', 'public.submit_custom_request(uuid,integer)', 'EXECUTE'), 'customer submit wrapper is callable');
@@ -202,7 +213,11 @@ SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'publi
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.custom_quotes'::regclass AND pg_get_constraintdef(oid) LIKE '%fx_snapshot_id%'), 'quote FX nullability is guarded');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'custom_requests' AND policyname = 'custom_requests_customer_select'), 'customer request ownership policy exists');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'custom_quotes' AND policyname = 'custom_quotes_customer_select'), 'customer quote ownership policy exists');
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'private' AND tablename = 'custom_request_events' AND policyname = 'custom_request_events_customer_rpc_owner_all'), 'event owner policy exists');
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'private' AND tablename = 'custom_request_events' AND policyname = 'custom_request_events_customer_rpc_owner_insert' AND cmd = 'INSERT')
+  AND EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'private' AND tablename = 'custom_request_events' AND policyname = 'custom_request_events_admin_rpc_owner_insert' AND cmd = 'INSERT'),
+  'event owners have INSERT-only policies'
+);
 SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname IN ('submit_custom_request', 'review_custom_request', 'create_custom_quote') AND pg_get_functiondef(p.oid) ~ 'request\.headers'), 'RPCs do not inspect HTTP headers');
 
 -- Customer submission derives the actor, locks the plan/revision, and emits a
@@ -213,10 +228,6 @@ SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000
 SELECT ok((SELECT count(*) = 0 FROM public.customer_custom_requests_v), 'customer starts without a request');
 SELECT is((SELECT status FROM public.submit_custom_request('00000000-0000-0000-0000-000000000821'::uuid, 3)), 'pending_review'::public.request_status, 'submit creates pending review');
 SELECT ok((SELECT count(*) = 1 FROM public.customer_custom_requests_v), 'customer sees own request');
-RESET ROLE;
-SET LOCAL ROLE localens_request_customer_rpc_owner;
-SELECT ok((SELECT count(*) = 1 FROM private.custom_request_events WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid)), 'submit appends one request event');
-SELECT is((SELECT revision_id FROM private.custom_request_events WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-000000000821'::uuid) ORDER BY created_at, id LIMIT 1), '00000000-0000-0000-0000-000000000822'::uuid, 'submit snapshots revision identity');
 RESET ROLE;
 SELECT is((SELECT status FROM public.custom_requests WHERE id = '00000000-0000-0000-0000-000000000901'::uuid), NULL::public.request_status, 'unknown request does not enumerate through a guessed id');
 SELECT ok((SELECT count(*) = 1 FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid AND status = 'pending_review'), 'one active request exists');
@@ -233,17 +244,29 @@ SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000
 SELECT throws_ok($$SELECT public.create_custom_quote('00000000-0000-0000-0000-000000000901'::uuid, 1, 'vnd'::public.checkout_currency, 'No', 'Không', 'No')$$, 'P0001', 'custom request operation failed', 'forged service role JWT is ignored');
 RESET ROLE;
 
+CREATE TEMP TABLE custom_requests (id uuid);
+CREATE TEMP TABLE trip_plans (id uuid);
+CREATE TEMP TABLE custom_quotes (id uuid);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000801', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000801', 'role', 'authenticated')::text, true);
+SELECT set_config('search_path', 'pg_temp, public, pg_catalog', true);
+SELECT throws_ok($$SELECT public.submit_custom_request('00000000-0000-0000-0000-000000000901'::uuid, 1)$$, 'P0001', 'custom request operation failed', 'submit ignores hostile temp shadows');
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000802', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000802', 'role', 'authenticated')::text, true);
+SELECT throws_ok($$SELECT public.review_custom_request('00000000-0000-0000-0000-000000000901'::uuid, 'approved'::public.request_status, NULL)$$, 'P0001', 'custom request operation failed', 'review ignores hostile temp shadows');
+SELECT throws_ok($$SELECT public.create_custom_quote('00000000-0000-0000-0000-000000000901'::uuid, 1, 'vnd'::public.checkout_currency, 'No', 'Không', 'No')$$, 'P0001', 'custom request operation failed', 'quote ignores hostile temp shadows');
+SELECT set_config('search_path', 'public, pg_catalog', true);
+RESET ROLE;
+
 -- Admin review follows the exact transition table and stores note only in the
 -- private event stream, never in the customer projection.
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000802', true);
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000802', 'role', 'authenticated')::text, true);
 SELECT is((SELECT count(*)::integer FROM public.admin_custom_request_queue_v WHERE status = 'pending_review'), 1, 'admin sees the pending queue row');
-SELECT throws_ok($$SELECT public.review_custom_request((SELECT id FROM public.custom_requests LIMIT 1), 'changes_requested'::public.request_status, NULL)$$, 'P0001', 'custom request operation failed', 'changes request requires a note');
-SELECT is((SELECT status FROM public.review_custom_request((SELECT id FROM public.custom_requests LIMIT 1), 'changes_requested'::public.request_status, 'Please adjust the route.')), 'changes_requested'::public.request_status, 'admin can request changes');
-RESET ROLE;
-SET LOCAL ROLE localens_request_admin_rpc_owner;
-SELECT ok((SELECT count(*) = 1 FROM private.custom_request_events WHERE request_id = (SELECT id FROM public.custom_requests LIMIT 1) AND event_type = 'request_changes_requested' AND note = 'Please adjust the route.'), 'admin note stays in private event');
+SELECT throws_ok($$SELECT public.review_custom_request((SELECT id FROM public.admin_custom_request_queue_v WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid), 'changes_requested'::public.request_status, NULL)$$, 'P0001', 'custom request operation failed', 'changes request requires a note');
+SELECT is((SELECT status FROM public.review_custom_request((SELECT id FROM public.admin_custom_request_queue_v WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid), 'changes_requested'::public.request_status, 'Please adjust the route.')), 'changes_requested'::public.request_status, 'admin can request changes');
 RESET ROLE;
 SELECT is((SELECT status FROM public.custom_requests LIMIT 1), 'changes_requested'::public.request_status, 'changes requested state is persisted');
 SELECT throws_ok($$SELECT public.review_custom_request((SELECT id FROM public.custom_requests LIMIT 1), 'approved'::public.request_status, NULL)$$, 'P0001', 'custom request operation failed', 'only pending review can be reviewed');
@@ -251,20 +274,15 @@ RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000801', true);
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000801', 'role', 'authenticated')::text, true);
+SELECT throws_ok($$SELECT public.submit_custom_request('00000000-0000-0000-0000-000000000821'::uuid, 3)$$, 'P0001', 'custom request operation failed', 'resubmit rejects the current revision');
+SELECT throws_ok($$SELECT public.submit_custom_request('00000000-0000-0000-0000-000000000821'::uuid, 2)$$, 'P0001', 'custom request operation failed', 'resubmit rejects an older revision');
 SELECT is((SELECT status FROM public.submit_custom_request('00000000-0000-0000-0000-000000000821'::uuid, 4)), 'pending_review'::public.request_status, 'customer can resubmit after changes with a new revision');
-SELECT is((SELECT revision_no FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid), 4, 'resubmit binds revision four');
-RESET ROLE;
-SET LOCAL ROLE localens_request_customer_rpc_owner;
-SELECT is((SELECT array_agg(revision_no ORDER BY created_at, id) FROM private.custom_request_events WHERE request_id = (SELECT id FROM public.custom_requests LIMIT 1)), ARRAY[3, 3, 4]::integer[], 'request events preserve every submitted revision');
+SELECT is((SELECT revision_no FROM public.customer_custom_requests_v WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid), 4, 'resubmit binds revision four');
 RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000802', true);
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000802', 'role', 'authenticated')::text, true);
-SELECT is((SELECT status FROM public.review_custom_request((SELECT id FROM public.custom_requests LIMIT 1), 'approved'::public.request_status, NULL)), 'approved'::public.request_status, 'admin can approve pending review');
-RESET ROLE;
-SET LOCAL ROLE localens_request_customer_rpc_owner;
-SELECT is((SELECT count(*)::integer FROM private.custom_request_events WHERE request_id = (SELECT id FROM public.custom_requests LIMIT 1)), 4, 'request event stream is append-only across review and resubmit');
-SELECT is((SELECT array_agg(revision_no ORDER BY created_at, id) FROM private.custom_request_events WHERE request_id = (SELECT id FROM public.custom_requests LIMIT 1)), ARRAY[3, 3, 4, 4]::integer[], 'review event snapshots the approved revision');
+SELECT is((SELECT status FROM public.review_custom_request((SELECT id FROM public.admin_custom_request_queue_v WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid), 'approved'::public.request_status, NULL)), 'approved'::public.request_status, 'admin can approve pending review');
 RESET ROLE;
 
 -- Quote creation derives every snapshot and commercial fact from the approved
@@ -272,12 +290,16 @@ RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000802', true);
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000802', 'role', 'admin')::text, true);
-SELECT is((SELECT status FROM public.create_custom_quote((SELECT id FROM public.custom_requests LIMIT 1), 2500000, 'vnd'::public.checkout_currency, 'Cho Lon walk', 'Đi bộ Chợ Lớn', 'Demo policy')), 'active'::public.quote_status, 'admin creates an active VND quote');
+SELECT is((SELECT status FROM public.create_custom_quote((SELECT id FROM public.admin_custom_request_queue_v WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid), 2500000, 'vnd'::public.checkout_currency, 'Cho Lon walk', 'Đi bộ Chợ Lớn', 'Demo policy')), 'active'::public.quote_status, 'admin creates an active VND quote');
+SELECT throws_ok($$SELECT public.create_custom_quote((SELECT id FROM public.admin_custom_request_queue_v WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid), 2500000, 'vnd'::public.checkout_currency, 'Duplicate', 'Trùng', 'Policy')$$, 'P0001', 'custom request operation failed', 'duplicate sellable quote is safe');
+RESET ROLE;
 SELECT is((SELECT count(*)::integer FROM public.custom_quotes WHERE request_id = (SELECT id FROM public.custom_requests LIMIT 1)), 1, 'one quote is created');
 SELECT is((SELECT checkout_amount_minor FROM public.custom_quotes LIMIT 1), 2500000::bigint, 'VND checkout amount is server-owned');
 SELECT ok((SELECT fx_snapshot_id IS NULL AND fx_vnd_per_usd IS NULL FROM public.custom_quotes LIMIT 1), 'VND quote has no FX snapshot');
 SELECT ok((SELECT valid_until = created_at + interval '48 hours' FROM public.custom_quotes LIMIT 1), 'quote validity is exactly 48 hours');
-SELECT throws_ok($$SELECT public.create_custom_quote((SELECT id FROM public.custom_requests LIMIT 1), 2500000, 'vnd'::public.checkout_currency, 'Duplicate', 'Trùng', 'Policy')$$, 'P0001', 'custom request operation failed', 'duplicate sellable quote is safe');
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000802', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000802', 'role', 'admin')::text, true);
 SELECT is((SELECT count(*)::integer FROM public.customer_custom_quotes_v), 0, 'admin cannot see the customer quote projection');
 RESET ROLE;
 SET LOCAL ROLE authenticated;
@@ -320,8 +342,8 @@ RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000802', true);
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000802', 'role', 'authenticated')::text, true);
-SELECT is((SELECT status FROM public.review_custom_request((SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid), 'approved'::public.request_status, NULL)), 'approved'::public.request_status, 'second request is approved for USD quote');
-SELECT is((SELECT status FROM public.create_custom_quote((SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid), 2500001, 'usd'::public.checkout_currency, 'USD walk', 'Đi bộ USD', 'USD policy')), 'active'::public.quote_status, 'admin creates USD quote with fresh FX');
+SELECT is((SELECT status FROM public.review_custom_request((SELECT id FROM public.admin_custom_request_queue_v WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid), 'approved'::public.request_status, NULL)), 'approved'::public.request_status, 'second request is approved for USD quote');
+SELECT is((SELECT status FROM public.create_custom_quote((SELECT id FROM public.admin_custom_request_queue_v WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid), 2500001, 'usd'::public.checkout_currency, 'USD walk', 'Đi bộ USD', 'USD policy')), 'active'::public.quote_status, 'admin creates USD quote with fresh FX');
 RESET ROLE;
 SELECT is((SELECT checkout_amount_minor FROM public.custom_quotes WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid)), 10001::bigint, 'USD quote uses exact ceiling conversion');
 SELECT is((SELECT fx_snapshot_id FROM public.custom_quotes WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid)), '00000000-0000-0000-0000-000000000813'::uuid, 'USD quote stores fresh demo FX snapshot');
@@ -342,6 +364,33 @@ SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc AS p WHERE pg_get_userbyi
 SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members AS m JOIN pg_catalog.pg_roles AS parent_role ON parent_role.oid = m.roleid JOIN pg_catalog.pg_roles AS member_role ON member_role.oid = m.member WHERE parent_role.rolname LIKE 'localens_%' OR member_role.rolname LIKE 'localens_%'), 'protected request roles have no inherited grants');
 SELECT ok((SELECT count(*) = 1 FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid), 'one active request invariant holds');
 SELECT ok((SELECT count(*) = 1 FROM public.custom_quotes WHERE request_id = (SELECT id FROM public.custom_requests LIMIT 1) AND status IN ('active', 'checkout_pending')), 'one sellable quote invariant holds');
+SELECT throws_ok($$UPDATE public.trip_plans SET id = id WHERE id = '00000000-0000-0000-0000-000000000821'::uuid$$, '42501', 'trip plan id is immutable', 'row-lock id update cannot mutate updated_at');
+SELECT throws_ok($$UPDATE public.custom_requests SET id = gen_random_uuid() WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid$$, '42501', 'custom request facts are immutable', 'request id is immutable');
+SELECT throws_ok($$UPDATE public.custom_quotes SET status = 'accepted'::public.quote_status WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid)$$, '42501', 'custom quote state transition is invalid', 'active cannot jump to accepted');
+SELECT set_config('localens.quote_transition', 'on', true);
+UPDATE public.custom_quotes
+SET status = 'checkout_pending'::public.quote_status
+WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid);
+SELECT is((SELECT status FROM public.custom_quotes WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid)), 'checkout_pending'::public.quote_status, 'active quote enters checkout pending');
+UPDATE public.custom_quotes
+SET status = 'accepted'::public.quote_status
+WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid);
+SELECT is((SELECT status FROM public.custom_quotes WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000821'::uuid)), 'accepted'::public.quote_status, 'checkout pending quote can be accepted');
+UPDATE public.custom_quotes
+SET status = 'checkout_pending'::public.quote_status
+WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid);
+SELECT is((SELECT status FROM public.custom_quotes WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid)), 'checkout_pending'::public.quote_status, 'second active quote enters checkout pending');
+UPDATE public.custom_quotes
+SET status = 'active'::public.quote_status
+WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid);
+SELECT is((SELECT status FROM public.custom_quotes WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid)), 'active'::public.quote_status, 'checkout pending quote can reactivate');
+UPDATE public.custom_quotes
+SET status = 'expired'::public.quote_status
+WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid);
+SELECT is((SELECT status FROM public.custom_quotes WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid)), 'expired'::public.quote_status, 'active quote can expire');
+SELECT throws_ok($$UPDATE public.custom_quotes SET status = 'active'::public.quote_status WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid)$$, '42501', 'custom quote state transition is invalid', 'expired quote cannot reactivate');
+SELECT throws_ok($$UPDATE public.custom_quotes SET status = 'expired'::public.quote_status WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid)$$, '42501', 'custom quote state transition is invalid', 'same quote state is rejected');
+SELECT set_config('localens.quote_transition', 'off', true);
 
 SELECT * FROM finish();
 ROLLBACK;
