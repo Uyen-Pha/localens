@@ -14,6 +14,7 @@ RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
+SET statement_timeout = '5s'
 AS $function$
 DECLARE
   tour_row public.tours%ROWTYPE;

@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -48,5 +48,38 @@ describe("Task 13 RLS/RPC access matrix", () => {
     ]));
     expect(readFileSync(markdownPath, "utf8")).toContain("# LocalLens data-access matrix");
     expect(readFileSync(markdownPath, "utf8")).toContain("Migration owner for default privileges: postgres");
+  });
+
+  it("fails closed when generated policies or later definer hardening drift", () => {
+    const originalMatrix = readFileSync(matrixPath, "utf8");
+    const matrix = JSON.parse(originalMatrix);
+    const areas = matrix.tables.find((table: { name: string }) => table.name === "public.areas");
+    areas.policies = areas.policies.filter((policy: string) => policy !== "catalog_owner_all");
+    writeFileSync(matrixPath, `${JSON.stringify(matrix, null, 2)}\n`);
+    try {
+      expect(() => execFileSync(process.execPath, [join(repoRoot, "scripts", "check-supabase-artifacts.mjs"), "--root", repoRoot], { encoding: "utf8" })).toThrow(/public\.areas policy drift/);
+    } finally {
+      writeFileSync(matrixPath, originalMatrix);
+    }
+
+    const grantManifestPath = join(repoRoot, "docs", "security", "grants-manifest.json");
+    const originalGrantManifest = readFileSync(grantManifestPath, "utf8");
+    const grantManifest = JSON.parse(originalGrantManifest);
+    grantManifest.grants.pop();
+    writeFileSync(grantManifestPath, `${JSON.stringify(grantManifest, null, 2)}\n`);
+    try {
+      expect(() => execFileSync(process.execPath, [join(repoRoot, "scripts", "check-supabase-artifacts.mjs"), "--root", repoRoot], { encoding: "utf8" })).toThrow(/grant manifest drift/);
+    } finally {
+      writeFileSync(grantManifestPath, originalGrantManifest);
+    }
+
+    const guardPath = join(repoRoot, "supabase", "migrations", "20260824100000_guard_lock_privileges.sql");
+    const originalGuard = readFileSync(guardPath, "utf8");
+    writeFileSync(guardPath, originalGuard.replace("SET statement_timeout = '5s'", "SET statement_timeout = '10s'"));
+    try {
+      expect(() => execFileSync(process.execPath, [join(repoRoot, "scripts", "check-supabase-artifacts.mjs"), "--root", repoRoot], { encoding: "utf8" })).toThrow(/later SECURITY DEFINER replacement/);
+    } finally {
+      writeFileSync(guardPath, originalGuard);
+    }
   });
 });

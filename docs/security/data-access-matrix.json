@@ -271,7 +271,8 @@
         "audit_events_guide_assignment_owner_insert",
         "audit_events_identity_rpc_insert"
       ],
-      "writerOperation": "internal audit helper only"
+      "writerOperation": "internal audit helper only",
+      "owner": "postgres"
     },
     {
       "name": "private.capacity_holds",
@@ -280,7 +281,8 @@
         "capacity_holds_owner_all",
         "capacity_holds_payment_owner_all"
       ],
-      "writerOperation": "checkout/availability RPC only"
+      "writerOperation": "checkout/availability RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.checkout_attempts",
@@ -288,7 +290,8 @@
         "checkout_attempts_owner_all",
         "checkout_attempts_payment_owner_all"
       ],
-      "writerOperation": "checkout RPC only"
+      "writerOperation": "checkout RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.checkout_idempotency",
@@ -296,7 +299,8 @@
         "checkout_idempotency_owner_all",
         "checkout_idempotency_payment_owner_select"
       ],
-      "writerOperation": "checkout RPC only"
+      "writerOperation": "checkout RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.content_release_copies",
@@ -306,7 +310,8 @@
         "content_release_copies_build_owner_select",
         "content_release_copies_public_owner_select"
       ],
-      "writerOperation": "publication RPC only"
+      "writerOperation": "publication RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.content_source_domains",
@@ -316,7 +321,8 @@
         "content_source_domains_guard_select",
         "content_source_domains_public_select"
       ],
-      "writerOperation": "Task 14 approval only"
+      "writerOperation": "Task 14 approval only",
+      "owner": "postgres"
     },
     {
       "name": "private.custom_request_events",
@@ -324,7 +330,8 @@
         "custom_request_events_admin_rpc_owner_insert",
         "custom_request_events_customer_rpc_owner_insert"
       ],
-      "writerOperation": "request audit helper only"
+      "writerOperation": "request audit helper only",
+      "owner": "postgres"
     },
     {
       "name": "private.guest_bindings",
@@ -334,7 +341,8 @@
         "guest_bindings_guest_owner_all",
         "guest_owner_guest_binding_plan_read"
       ],
-      "writerOperation": "guest/claim RPC only"
+      "writerOperation": "guest/claim RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.guest_capabilities",
@@ -344,7 +352,8 @@
         "guest_capabilities_guest_owner_all",
         "guest_owner_guest_capability_plan_read"
       ],
-      "writerOperation": "guest/claim RPC only"
+      "writerOperation": "guest/claim RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.quota_buckets",
@@ -352,14 +361,16 @@
         "guest_owner_quota_plan_denied",
         "quota_buckets_quota_owner_all"
       ],
-      "writerOperation": "quota RPC only"
+      "writerOperation": "quota RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.quota_global_buckets",
       "policies": [
         "quota_global_quota_owner_all"
       ],
-      "writerOperation": "quota RPC only"
+      "writerOperation": "quota RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.quota_reservations",
@@ -367,7 +378,8 @@
         "quota_reservations_quota_owner_insert",
         "quota_reservations_quota_owner_select"
       ],
-      "writerOperation": "quota RPC only"
+      "writerOperation": "quota RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.recommendation_runs",
@@ -375,7 +387,8 @@
         "recommendation_runs_guest_owner_all",
         "recommendation_runs_plan_rpc_owner_all"
       ],
-      "writerOperation": "itinerary RPC only"
+      "writerOperation": "itinerary RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.seo_build_capabilities",
@@ -386,7 +399,8 @@
         "seo_build_capabilities_build_owner_all",
         "seo_build_capabilities_build_owner_update"
       ],
-      "writerOperation": "capability RPC only"
+      "writerOperation": "capability RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.seo_live_pointer",
@@ -394,14 +408,16 @@
         "seo_live_pointer_build_owner_all",
         "seo_live_pointer_public_owner_select"
       ],
-      "writerOperation": "finalize RPC only"
+      "writerOperation": "finalize RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.stripe_test_settings",
       "policies": [
         "stripe_test_settings_payment_owner_select"
       ],
-      "writerOperation": "Stripe Test finalizer only"
+      "writerOperation": "Stripe Test finalizer only",
+      "owner": "postgres"
     },
     {
       "name": "private.user_roles",
@@ -420,26 +436,32 @@
         "user_roles_request_admin_rpc_select",
         "user_roles_request_customer_rpc_select"
       ],
-      "writerOperation": "provision_role RPC only"
+      "writerOperation": "provision_role RPC only",
+      "owner": "postgres"
     },
     {
       "name": "private.webhook_events",
       "policies": [
         "webhook_events_payment_owner_all"
       ],
-      "writerOperation": "Stripe webhook finalizer only"
+      "writerOperation": "Stripe webhook finalizer only",
+      "owner": "postgres"
     },
     {
       "name": "public.area_translations",
       "policies": [
-        "area_translations_public_select"
-      ]
+        "area_translations_public_select",
+        "catalog_owner_all"
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.areas",
       "policies": [
-        "areas_public_select"
-      ]
+        "areas_public_select",
+        "catalog_owner_all"
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.bookings",
@@ -453,90 +475,114 @@
         "bookings_payment_projection_select",
         "bookings_projection_owner_select"
       ],
-      "writerOperation": "checkout/payment/admin RPC only"
+      "writerOperation": "checkout/payment/admin RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.catalog_snapshot_area_translations",
       "policies": [
+        "catalog_owner_all",
         "catalog_snapshot_area_translations_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.catalog_snapshot_areas",
       "policies": [
+        "catalog_owner_all",
         "catalog_snapshot_areas_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.catalog_snapshot_place_experience_types",
       "policies": [
+        "catalog_owner_all",
         "catalog_snapshot_place_experience_types_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.catalog_snapshot_place_guide_languages",
       "policies": [
+        "catalog_owner_all",
         "catalog_snapshot_place_guide_languages_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.catalog_snapshot_place_opening_exception_windows",
       "policies": [
+        "catalog_owner_all",
         "catalog_snapshot_place_opening_exception_windows_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.catalog_snapshot_place_opening_exceptions",
       "policies": [
+        "catalog_owner_all",
         "catalog_snapshot_place_opening_exceptions_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.catalog_snapshot_place_opening_hours",
       "policies": [
+        "catalog_owner_all",
         "catalog_snapshot_place_opening_hours_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.catalog_snapshot_place_supports",
       "policies": [
+        "catalog_owner_all",
         "catalog_snapshot_place_supports_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.catalog_snapshot_place_translations",
       "policies": [
+        "catalog_owner_all",
         "catalog_snapshot_place_translations_public_select",
         "catalog_snapshot_place_translations_tour_guard_select",
         "catalog_snapshot_place_translations_tour_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.catalog_snapshot_places",
       "policies": [
+        "catalog_owner_all",
         "catalog_snapshot_places_plan_rpc_select",
         "catalog_snapshot_places_public_select",
         "catalog_snapshot_places_tour_guard_select",
         "catalog_snapshot_places_tour_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.catalog_snapshots",
       "policies": [
+        "catalog_owner_all",
         "catalog_snapshots_availability_owner_select",
         "catalog_snapshots_checkout_owner_select",
         "catalog_snapshots_guard_select",
         "catalog_snapshots_plan_rpc_select",
         "catalog_snapshots_public_select",
         "catalog_snapshots_tour_guard_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.content_drafts",
       "policies": [
         "content_drafts_admin_owner_all"
       ],
-      "writerOperation": "content admin RPC only"
+      "writerOperation": "content admin RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.custom_quotes",
@@ -549,7 +595,8 @@
         "custom_quotes_guide_assignment_owner_select",
         "custom_quotes_payment_owner_all"
       ],
-      "writerOperation": "quote RPC only"
+      "writerOperation": "quote RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.custom_requests",
@@ -560,7 +607,8 @@
         "custom_requests_customer_select",
         "custom_requests_guide_assignment_owner_select"
       ],
-      "writerOperation": "request RPC only"
+      "writerOperation": "request RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.departures",
@@ -569,9 +617,11 @@
         "departures_checkout_owner_select",
         "departures_guide_assignment_owner_select",
         "departures_payment_owner_select",
-        "tour_guard_departures_select"
+        "tour_guard_departures_select",
+        "tour_owner_all"
       ],
-      "writerOperation": "departure lifecycle/checkout RPC only"
+      "writerOperation": "departure lifecycle/checkout RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.fx_snapshots",
@@ -582,7 +632,8 @@
         "fx_snapshots_request_admin_rpc_lock",
         "fx_snapshots_request_admin_rpc_select"
       ],
-      "writerOperation": "FX snapshot RPC only"
+      "writerOperation": "FX snapshot RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.guide_assignments",
@@ -590,7 +641,8 @@
         "guide_assignments_projection_owner_select",
         "guide_assignments_rpc_owner_all"
       ],
-      "writerOperation": "guide assignment RPC only"
+      "writerOperation": "guide assignment RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.guide_profiles",
@@ -604,7 +656,8 @@
         "guide_profiles_admin_summary_select",
         "guide_profiles_guide_assignment_owner_select",
         "guide_profiles_guide_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.payments",
@@ -615,55 +668,72 @@
         "payments_payment_owner_all",
         "payments_projection_owner_select"
       ],
-      "writerOperation": "payment/admin RPC only"
+      "writerOperation": "payment/admin RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.place_experience_types",
       "policies": [
+        "catalog_owner_all",
         "place_experience_types_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.place_guide_languages",
       "policies": [
+        "catalog_owner_all",
         "place_guide_languages_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.place_opening_exception_windows",
       "policies": [
+        "catalog_owner_all",
         "place_opening_exception_windows_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.place_opening_exceptions",
       "policies": [
+        "catalog_owner_all",
         "place_opening_exceptions_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.place_opening_hours",
       "policies": [
+        "catalog_owner_all",
         "place_opening_hours_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.place_supports",
       "policies": [
+        "catalog_owner_all",
         "place_supports_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.place_translations",
       "policies": [
+        "catalog_owner_all",
         "place_translations_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.places",
       "policies": [
+        "catalog_owner_all",
         "places_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.profiles",
@@ -679,7 +749,8 @@
         "profiles_auth_trigger_select",
         "profiles_customer_select",
         "profiles_request_customer_rpc_language_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.seo_releases",
@@ -689,63 +760,76 @@
         "seo_releases_build_owner_update",
         "seo_releases_public_owner_select"
       ],
-      "writerOperation": "publication RPC only"
+      "writerOperation": "publication RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.tour_translations",
       "policies": [
         "tour_guard_translations_select",
+        "tour_owner_all",
         "tour_translations_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.tour_version_stops",
       "policies": [
         "tour_guard_version_stops_select",
+        "tour_owner_all",
         "tour_version_stops_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.tour_version_translations",
       "policies": [
         "tour_guard_version_translations_select",
+        "tour_owner_all",
         "tour_version_translations_checkout_owner_select",
         "tour_version_translations_public_select"
-      ]
+      ],
+      "owner": "postgres"
     },
     {
       "name": "public.tour_versions",
       "policies": [
         "tour_guard_versions_select",
+        "tour_owner_all",
         "tour_versions_availability_owner_select",
         "tour_versions_checkout_owner_select",
         "tour_versions_public_select"
       ],
-      "writerOperation": "tour lifecycle RPC only"
+      "writerOperation": "tour lifecycle RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.tours",
       "policies": [
         "tour_guard_tours_select",
+        "tour_owner_all",
         "tours_availability_owner_select",
         "tours_checkout_owner_select",
         "tours_public_select"
       ],
-      "writerOperation": "tour lifecycle RPC only"
+      "writerOperation": "tour lifecycle RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.travel_edges",
       "policies": [
         "travel_edges_catalog_owner_all"
       ],
-      "writerOperation": "travel snapshot RPC only"
+      "writerOperation": "travel snapshot RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.travel_snapshot_edges",
       "policies": [
         "travel_snapshot_edges_catalog_owner_all"
       ],
-      "writerOperation": "travel snapshot RPC only"
+      "writerOperation": "travel snapshot RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.travel_snapshots",
@@ -755,7 +839,8 @@
         "travel_snapshots_guard_select",
         "travel_snapshots_plan_rpc_select"
       ],
-      "writerOperation": "travel snapshot RPC only"
+      "writerOperation": "travel snapshot RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.trip_plan_items",
@@ -765,7 +850,8 @@
         "trip_plan_items_plan_guard_select",
         "trip_plan_items_plan_rpc_owner_all"
       ],
-      "writerOperation": "plan revision RPC only"
+      "writerOperation": "plan revision RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.trip_plan_revisions",
@@ -781,7 +867,8 @@
         "trip_plan_revisions_request_customer_rpc_lock",
         "trip_plan_revisions_request_customer_rpc_select"
       ],
-      "writerOperation": "plan revision RPC only"
+      "writerOperation": "plan revision RPC only",
+      "owner": "postgres"
     },
     {
       "name": "public.trip_plans",
@@ -799,7 +886,8 @@
         "trip_plans_request_customer_rpc_lock",
         "trip_plans_request_customer_rpc_select"
       ],
-      "writerOperation": "plan revision RPC only"
+      "writerOperation": "plan revision RPC only",
+      "owner": "postgres"
     }
   ],
   "views": [
@@ -1202,5 +1290,7 @@
     "correlationRedaction": "allow correlation IDs only; redact tokens, signatures, IP/device hashes, payment payloads and PII",
     "staticBundle": "scan output for service-role, Stripe, AI, HMAC and Turnstile secrets",
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
-  }
+  },
+  "grantManifest": "docs/security/grants-manifest.json",
+  "grantCount": 471
 }

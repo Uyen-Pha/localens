@@ -69,6 +69,8 @@ export function renderMatrixMarkdown(matrix = loadMatrix()) {
   lines.push("", "## Internal functions", "", `Enumerated internal functions: ${matrix.internalFunctions.length}. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.`);
   lines.push("", matrix.internalFunctions.slice().sort().map((name) => `- \`${name}\``).join("\n"));
 
+  lines.push("", "## Explicit grants", "", `Final explicit GRANT/REVOKE state is enumerated in [${matrix.grantManifest ?? "docs/security/grants-manifest.json"}] (${matrix.grantCount ?? "machine-readable"} records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.`);
+
   lines.push("", "## Edge boundary checklist", "");
   for (const [key, value] of Object.entries(matrix.edgeBoundaryChecklist)) lines.push(`- **${key}**: ${value}`);
   lines.push("");

@@ -1,0 +1,3569 @@
+{
+  "version": 1,
+  "source": "Final explicit GRANT/REVOKE state derived from ordered Supabase migrations; dynamic RLS policies are enumerated in data-access-matrix.json.",
+  "grants": [
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_booking_projection_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_claim_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_guide_projection_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_payment_projection_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.accept_guide_assignment(uuid)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_guest_executor"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.assert_content_admin()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.assign_guide(uuid,uuid)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.claim_guest_binding(uuid,text,smallint,uuid)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_claim_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.compensate_checkout_failure(uuid)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.complete_guide_assignment(uuid)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.content_provenance_is_allowlisted(jsonb,jsonb)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.content_provenance_is_allowlisted(jsonb,jsonb)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.content_provenance_is_allowlisted(jsonb,jsonb)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_guard_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.content_url_is_allowlisted(text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.content_url_is_allowlisted(text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.content_url_is_allowlisted(text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_guard_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.content_url_is_safe(text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.content_url_is_safe(text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.content_url_is_safe(text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_guard_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.create_catalog_snapshot()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.create_custom_quote(uuid,bigint,public.checkout_currency,text,text,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.create_fx_snapshot(numeric,text,timestamptz,text,boolean)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.create_guest_plan(jsonb)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_guest_executor"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.create_travel_snapshot()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_webhook_executor"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.guide_requirement_snapshot(uuid)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.persist_trip_plan_revision(uuid,integer,jsonb,uuid,uuid,text,smallint)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.record_checkout_audit_event(public.audit_event_type,uuid,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.record_checkout_session(uuid,uuid,text,timestamptz)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.record_content_audit_event(public.audit_event_type,uuid,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.record_content_audit_event(public.audit_event_type,uuid,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_audit_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.record_content_audit_event(public.audit_event_type,uuid,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.record_guide_assignment_audit_event(public.audit_event_type,uuid,uuid,text,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.record_payment_audit_event(public.audit_event_type,uuid,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.record_payment_audit_event(public.audit_event_type,uuid,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.record_request_quote_audit_event(public.audit_event_type,uuid,public.app_role,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.record_request_quote_audit_event(public.audit_event_type,uuid,public.app_role,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.reserve_quota(uuid,text,text,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_quota_executor"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.review_custom_request(uuid,public.request_status,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.start_checkout_tx(text,uuid,integer,public.locale,text,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.submit_custom_request(uuid,integer)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.valid_guide_requirement_flags(text[],text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.valid_tour_copy_array(text[])",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.accept_guide_assignment(uuid)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.admin_user_summary()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.advance_trip_plan_revision(uuid,integer,jsonb)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.assign_guide(uuid,uuid)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.claim_guest_plan(uuid,text,smallint)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.complete_guide_assignment(uuid)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.create_custom_quote(uuid,bigint,public.checkout_currency,text,text,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.fail_seo_publish(uuid,text,text,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_build_executor"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.finalize_seo_publish(uuid,text,text,text,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_build_executor"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.get_guide_assigned_bookings()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.get_live_departure_availability()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.get_live_departure_availability()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.publish_seo(text,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.read_seo_build_release(uuid,text,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_content_build_executor"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.reconcile_payment(uuid,public.booking_status)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.review_custom_request(uuid,public.request_status,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.submit_custom_request(uuid,integer)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.upsert_content_draft(public.locale,text,text,text,text,jsonb,date,jsonb)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_booking_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_claim_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guide_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_payment_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_auth_trigger_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_availability_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_claim_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_content_audit_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_content_build_executor"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_content_guard_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_content_public_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guest_executor"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guide_assignment_guard_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guide_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_payment_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_quota_executor"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_quota_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_webhook_executor"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_auth_trigger_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_availability_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_booking_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_catalog_guard_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_claim_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_content_build_executor"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_content_guard_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_content_public_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guide_assignment_guard_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guide_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_payment_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_plan_guard_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_quota_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_request_guard_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_webhook_executor"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.audit_events",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_content_audit_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.audit_events",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.audit_events",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.audit_events",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.audit_events",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.audit_events",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.capacity_holds",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.capacity_holds",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_availability_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.capacity_holds",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.capacity_holds",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.capacity_holds",
+      "privilege": "update",
+      "columns": [
+        "consumed_at",
+        "released_at",
+        "status"
+      ],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.capacity_holds",
+      "privilege": "update",
+      "columns": [
+        "consumed_at",
+        "released_at",
+        "status"
+      ],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_attempts",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_attempts",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_attempts",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_attempts",
+      "privilege": "update",
+      "columns": [
+        "provider_expires_at",
+        "provider_session_id",
+        "status",
+        "updated_at"
+      ],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_attempts",
+      "privilege": "update",
+      "columns": [
+        "provider_expires_at",
+        "provider_session_id",
+        "status",
+        "updated_at"
+      ],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_idempotency",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_idempotency",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_idempotency",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.content_release_copies",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.content_release_copies",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.content_release_copies",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.content_release_copies",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.content_release_copies",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.content_release_copies",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.content_source_domains",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.custom_request_events",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.custom_request_events",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.guest_bindings",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.guest_bindings",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_claim_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.guest_bindings",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.guest_bindings",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.guest_bindings",
+      "privilege": "update",
+      "columns": [
+        "claimed_at",
+        "claimed_by"
+      ],
+      "grantee": "localens_claim_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.guest_capabilities",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.guest_capabilities",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_claim_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.guest_capabilities",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.guest_capabilities",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.guest_capabilities",
+      "privilege": "update",
+      "columns": [
+        "revoked_at"
+      ],
+      "grantee": "localens_claim_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.quota_buckets",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_quota_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.quota_buckets",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_quota_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.quota_buckets",
+      "privilege": "update",
+      "columns": [
+        "used_count"
+      ],
+      "grantee": "localens_quota_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.quota_global_buckets",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_quota_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.quota_global_buckets",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_quota_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.quota_global_buckets",
+      "privilege": "update",
+      "columns": [
+        "used_count"
+      ],
+      "grantee": "localens_quota_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.quota_reservations",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_quota_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.quota_reservations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_quota_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.recommendation_runs",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.recommendation_runs",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.recommendation_runs",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.recommendation_runs",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.seo_build_capabilities",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.seo_build_capabilities",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.seo_build_capabilities",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.seo_build_capabilities",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.seo_build_capabilities",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.seo_build_capabilities",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.seo_live_pointer",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.seo_live_pointer",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.seo_live_pointer",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_public_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.seo_live_pointer",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.stripe_test_settings",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_auth_trigger_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_auth_trigger_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_claim_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [
+        "role",
+        "user_id"
+      ],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [
+        "role",
+        "user_id"
+      ],
+      "grantee": "localens_guide_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.webhook_events",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.webhook_events",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.webhook_events",
+      "privilege": "update",
+      "columns": [
+        "processed_at",
+        "result_booking_status",
+        "result_payment_status",
+        "status"
+      ],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.admin_audit_events_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.admin_audit_events_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.admin_content_drafts_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.admin_content_drafts_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.admin_custom_request_queue_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.area_translations",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.area_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.area_translations",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.areas",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.areas",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.areas",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_availability_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "select",
+      "columns": [
+        "cancellation_policy",
+        "catalog_snapshot_id",
+        "checkout_amount_minor",
+        "checkout_currency",
+        "created_at",
+        "fx_snapshot_id",
+        "fx_vnd_per_usd",
+        "hold_expires_at",
+        "id",
+        "language",
+        "meeting_point",
+        "party_size",
+        "per_person_vnd_minor",
+        "quote_id",
+        "source_id",
+        "source_kind",
+        "status",
+        "title_en",
+        "title_vi",
+        "total_vnd_minor",
+        "tour_version_id",
+        "travel_snapshot_id"
+      ],
+      "grantee": "localens_booking_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "select",
+      "columns": [
+        "departure_id",
+        "id",
+        "language",
+        "meeting_point",
+        "party_size",
+        "source_kind",
+        "status",
+        "title_en",
+        "title_vi",
+        "tour_version_id"
+      ],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "select",
+      "columns": [
+        "departure_id",
+        "id",
+        "language",
+        "meeting_point",
+        "party_size",
+        "source_kind",
+        "status",
+        "title_en",
+        "title_vi",
+        "tour_version_id"
+      ],
+      "grantee": "localens_guide_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "select",
+      "columns": [
+        "id",
+        "status"
+      ],
+      "grantee": "localens_payment_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "update",
+      "columns": [
+        "status"
+      ],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "update",
+      "columns": [
+        "status"
+      ],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "update",
+      "columns": [
+        "status"
+      ],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_area_translations",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_area_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_area_translations",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_areas",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_areas",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_areas",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_experience_types",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_experience_types",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_experience_types",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_guide_languages",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_guide_languages",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_guide_languages",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_opening_exception_windows",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_opening_exception_windows",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_opening_exception_windows",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_opening_exceptions",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_opening_exceptions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_opening_exceptions",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_opening_hours",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_opening_hours",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_opening_hours",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_supports",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_supports",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_supports",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_translations",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_translations",
+      "privilege": "select",
+      "columns": [
+        "locale",
+        "place_id",
+        "snapshot_id",
+        "title"
+      ],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_translations",
+      "privilege": "select",
+      "columns": [
+        "locale",
+        "place_id",
+        "snapshot_id",
+        "title"
+      ],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_place_translations",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_places_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_places_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_places",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_places",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_places",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_places",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_places",
+      "privilege": "select",
+      "columns": [
+        "place_id",
+        "slug",
+        "snapshot_id"
+      ],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_places",
+      "privilege": "select",
+      "columns": [
+        "place_id",
+        "slug",
+        "snapshot_id"
+      ],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_places",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshots",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_availability_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshots",
+      "privilege": "select",
+      "columns": [
+        "id",
+        "status"
+      ],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshots",
+      "privilege": "select",
+      "columns": [
+        "id",
+        "status"
+      ],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshots",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshots",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_catalog_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.content_drafts",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.content_drafts",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.content_drafts",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
+      "privilege": "select",
+      "columns": [
+        "id",
+        "request_id"
+      ],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
+      "privilege": "update",
+      "columns": [
+        "status"
+      ],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
+      "privilege": "update",
+      "columns": [
+        "status"
+      ],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_requests",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_requests",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_requests",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_requests",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_requests",
+      "privilege": "select",
+      "columns": [
+        "id",
+        "plan_id",
+        "revision_id",
+        "revision_no"
+      ],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_requests",
+      "privilege": "update",
+      "columns": [
+        "latest_decision_at",
+        "status",
+        "updated_at"
+      ],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_requests",
+      "privilege": "update",
+      "columns": [
+        "revision_id",
+        "revision_no",
+        "status",
+        "submitted_at",
+        "updated_at"
+      ],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.customer_bookings_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.customer_custom_quotes_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.customer_custom_requests_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.customer_payment_status_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_availability_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "select",
+      "columns": [
+        "end_at",
+        "id",
+        "start_at",
+        "status",
+        "tour_version_id"
+      ],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "select",
+      "columns": [
+        "end_at",
+        "id",
+        "start_at",
+        "status",
+        "tour_version_id"
+      ],
+      "grantee": "localens_guide_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.fx_snapshots",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.fx_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.fx_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.fx_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.fx_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.fx_snapshots",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.guide_assignments",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.guide_assignments",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.guide_assignments",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_guide_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.guide_assignments",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.guide_profiles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.guide_profiles",
+      "privilege": "select",
+      "columns": [
+        "language",
+        "user_id"
+      ],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.guide_profiles",
+      "privilege": "select",
+      "columns": [
+        "language",
+        "user_id"
+      ],
+      "grantee": "localens_guide_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.latest_fx_snapshot_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.latest_fx_snapshot_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.payments",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.payments",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.payments",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.payments",
+      "privilege": "select",
+      "columns": [
+        "amount_minor",
+        "booking_id",
+        "currency",
+        "id",
+        "owner_user_id",
+        "status",
+        "updated_at"
+      ],
+      "grantee": "localens_payment_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.payments",
+      "privilege": "select",
+      "columns": [
+        "booking_id",
+        "id",
+        "status"
+      ],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.payments",
+      "privilege": "update",
+      "columns": [
+        "status",
+        "updated_at"
+      ],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.payments",
+      "privilege": "update",
+      "columns": [
+        "status",
+        "updated_at"
+      ],
+      "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_experience_types",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_experience_types",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_experience_types",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_guide_languages",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_guide_languages",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_guide_languages",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_opening_exception_windows",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_opening_exception_windows",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_opening_exception_windows",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_opening_exceptions",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_opening_exceptions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_opening_exceptions",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_opening_hours",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_opening_hours",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_opening_hours",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_supports",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_supports",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_supports",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_translations",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.place_translations",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.places",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.places",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.places",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.profiles",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_auth_trigger_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.profiles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.profiles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.profiles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_auth_trigger_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.profiles",
+      "privilege": "select",
+      "columns": [
+        "id",
+        "language"
+      ],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.published_content_release_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.published_content_release_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.published_tours_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.published_tours_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.seo_releases",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.seo_releases",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.seo_releases",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.seo_releases",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_content_public_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.seo_releases",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_content_admin_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.seo_releases",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_content_build_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_translations",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_translations",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_stops",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_stops",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_stops",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_stops",
+      "privilege": "select",
+      "columns": [
+        "catalog_snapshot_id",
+        "place_id",
+        "position",
+        "tour_version_id"
+      ],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_stops",
+      "privilege": "select",
+      "columns": [
+        "catalog_snapshot_id",
+        "place_id",
+        "position",
+        "tour_version_id"
+      ],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_stops",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_translations",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_translations",
+      "privilege": "select",
+      "columns": [
+        "locale",
+        "meeting_point",
+        "summary",
+        "title",
+        "tour_version_id"
+      ],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_translations",
+      "privilege": "select",
+      "columns": [
+        "locale",
+        "meeting_point",
+        "summary",
+        "title",
+        "tour_version_id"
+      ],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_version_translations",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_versions",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_versions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_availability_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_versions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_versions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_versions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_versions",
+      "privilege": "select",
+      "columns": [
+        "attribution",
+        "cancellation_policy",
+        "catalog_snapshot_id",
+        "duration_minutes",
+        "exclusions",
+        "id",
+        "inclusions",
+        "license",
+        "price_vnd_per_person",
+        "source_url",
+        "status",
+        "tour_id",
+        "verified_at"
+      ],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_versions",
+      "privilege": "select",
+      "columns": [
+        "attribution",
+        "cancellation_policy",
+        "catalog_snapshot_id",
+        "duration_minutes",
+        "exclusions",
+        "id",
+        "inclusions",
+        "license",
+        "price_vnd_per_person",
+        "source_url",
+        "status",
+        "tour_id",
+        "verified_at"
+      ],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_versions",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tour_versions",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tours",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tours",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_availability_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tours",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tours",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tours",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tours",
+      "privilege": "select",
+      "columns": [
+        "id",
+        "slug",
+        "status"
+      ],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tours",
+      "privilege": "select",
+      "columns": [
+        "id",
+        "slug",
+        "status"
+      ],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tours",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_tour_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.tours",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_tour_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_edges",
+      "privilege": "delete",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_edges",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_edges",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_edges",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_snapshot_edges",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_snapshot_edges",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_snapshot_edges",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_snapshots_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_snapshots_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_snapshots",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_snapshots",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_snapshots",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.travel_snapshots",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_catalog_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_items",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_items",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_items",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_items",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_items",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "select",
+      "columns": [
+        "id",
+        "plan_id",
+        "request_json",
+        "revision_no"
+      ],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_claim_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "update",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "update",
+      "columns": [
+        "guest_binding_id",
+        "latest_revision_no",
+        "owner_user_id"
+      ],
+      "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plans",
+      "privilege": "update",
+      "columns": [
+        "owner_user_id"
+      ],
+      "grantee": "localens_claim_rpc_owner"
+    }
+  ]
+}

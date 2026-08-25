@@ -73,43 +73,43 @@ Migration owner for default privileges: postgres
 | private.stripe_test_settings | postgres | none |  | Stripe Test finalizer only | true | true | stripe_test_settings_payment_owner_select |  | migration-owner-only |
 | private.user_roles | postgres | none |  | provision_role RPC only | true | true | user_roles_admin_summary_select, user_roles_auth_trigger_insert, user_roles_auth_trigger_select, user_roles_catalog_rpc_select, user_roles_checkout_owner_select, user_roles_claim_rpc_select, user_roles_content_admin_select, user_roles_guide_assignment_owner_select, user_roles_identity_rpc_insert, user_roles_identity_rpc_select, user_roles_plan_rpc_select, user_roles_request_admin_rpc_select, user_roles_request_customer_rpc_select |  | migration-owner-only |
 | private.webhook_events | postgres | none |  | Stripe webhook finalizer only | true | true | webhook_events_payment_owner_all |  | migration-owner-only |
-| public.area_translations | postgres | none |  | none | true | true | area_translations_public_select |  | migration-owner-only |
-| public.areas | postgres | none |  | none | true | true | areas_public_select |  | migration-owner-only |
+| public.area_translations | postgres | none |  | none | true | true | area_translations_public_select, catalog_owner_all |  | migration-owner-only |
+| public.areas | postgres | none |  | none | true | true | areas_public_select, catalog_owner_all |  | migration-owner-only |
 | public.bookings | postgres | none |  | checkout/payment/admin RPC only | true | true | bookings_admin_reconciliation, bookings_admin_reconciliation_update, bookings_availability_owner_select, bookings_checkout_owner_all, bookings_guide_assignment_owner_select, bookings_payment_owner_all, bookings_payment_projection_select, bookings_projection_owner_select |  | migration-owner-only |
-| public.catalog_snapshot_area_translations | postgres | none |  | none | true | true | catalog_snapshot_area_translations_public_select |  | migration-owner-only |
-| public.catalog_snapshot_areas | postgres | none |  | none | true | true | catalog_snapshot_areas_public_select |  | migration-owner-only |
-| public.catalog_snapshot_place_experience_types | postgres | none |  | none | true | true | catalog_snapshot_place_experience_types_public_select |  | migration-owner-only |
-| public.catalog_snapshot_place_guide_languages | postgres | none |  | none | true | true | catalog_snapshot_place_guide_languages_public_select |  | migration-owner-only |
-| public.catalog_snapshot_place_opening_exception_windows | postgres | none |  | none | true | true | catalog_snapshot_place_opening_exception_windows_public_select |  | migration-owner-only |
-| public.catalog_snapshot_place_opening_exceptions | postgres | none |  | none | true | true | catalog_snapshot_place_opening_exceptions_public_select |  | migration-owner-only |
-| public.catalog_snapshot_place_opening_hours | postgres | none |  | none | true | true | catalog_snapshot_place_opening_hours_public_select |  | migration-owner-only |
-| public.catalog_snapshot_place_supports | postgres | none |  | none | true | true | catalog_snapshot_place_supports_public_select |  | migration-owner-only |
-| public.catalog_snapshot_place_translations | postgres | none |  | none | true | true | catalog_snapshot_place_translations_public_select, catalog_snapshot_place_translations_tour_guard_select, catalog_snapshot_place_translations_tour_public_select |  | migration-owner-only |
-| public.catalog_snapshot_places | postgres | none |  | none | true | true | catalog_snapshot_places_plan_rpc_select, catalog_snapshot_places_public_select, catalog_snapshot_places_tour_guard_select, catalog_snapshot_places_tour_public_select |  | migration-owner-only |
-| public.catalog_snapshots | postgres | none |  | none | true | true | catalog_snapshots_availability_owner_select, catalog_snapshots_checkout_owner_select, catalog_snapshots_guard_select, catalog_snapshots_plan_rpc_select, catalog_snapshots_public_select, catalog_snapshots_tour_guard_select |  | migration-owner-only |
+| public.catalog_snapshot_area_translations | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_area_translations_public_select |  | migration-owner-only |
+| public.catalog_snapshot_areas | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_areas_public_select |  | migration-owner-only |
+| public.catalog_snapshot_place_experience_types | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_experience_types_public_select |  | migration-owner-only |
+| public.catalog_snapshot_place_guide_languages | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_guide_languages_public_select |  | migration-owner-only |
+| public.catalog_snapshot_place_opening_exception_windows | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_opening_exception_windows_public_select |  | migration-owner-only |
+| public.catalog_snapshot_place_opening_exceptions | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_opening_exceptions_public_select |  | migration-owner-only |
+| public.catalog_snapshot_place_opening_hours | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_opening_hours_public_select |  | migration-owner-only |
+| public.catalog_snapshot_place_supports | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_supports_public_select |  | migration-owner-only |
+| public.catalog_snapshot_place_translations | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_translations_public_select, catalog_snapshot_place_translations_tour_guard_select, catalog_snapshot_place_translations_tour_public_select |  | migration-owner-only |
+| public.catalog_snapshot_places | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_places_plan_rpc_select, catalog_snapshot_places_public_select, catalog_snapshot_places_tour_guard_select, catalog_snapshot_places_tour_public_select |  | migration-owner-only |
+| public.catalog_snapshots | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshots_availability_owner_select, catalog_snapshots_checkout_owner_select, catalog_snapshots_guard_select, catalog_snapshots_plan_rpc_select, catalog_snapshots_public_select, catalog_snapshots_tour_guard_select |  | migration-owner-only |
 | public.content_drafts | postgres | none |  | content admin RPC only | true | true | content_drafts_admin_owner_all |  | migration-owner-only |
 | public.custom_quotes | postgres | none |  | quote RPC only | true | true | custom_quotes_admin_rpc_owner_all, custom_quotes_checkout_owner_select, custom_quotes_checkout_owner_update, custom_quotes_customer_rpc_owner_select, custom_quotes_customer_select, custom_quotes_guide_assignment_owner_select, custom_quotes_payment_owner_all |  | migration-owner-only |
 | public.custom_requests | postgres | none |  | request RPC only | true | true | custom_requests_admin_rpc_owner_all, custom_requests_checkout_owner_select, custom_requests_customer_rpc_owner_all, custom_requests_customer_select, custom_requests_guide_assignment_owner_select |  | migration-owner-only |
-| public.departures | postgres | none |  | departure lifecycle/checkout RPC only | true | true | departures_availability_owner_select, departures_checkout_owner_select, departures_guide_assignment_owner_select, departures_payment_owner_select, tour_guard_departures_select |  | migration-owner-only |
+| public.departures | postgres | none |  | departure lifecycle/checkout RPC only | true | true | departures_availability_owner_select, departures_checkout_owner_select, departures_guide_assignment_owner_select, departures_payment_owner_select, tour_guard_departures_select, tour_owner_all |  | migration-owner-only |
 | public.fx_snapshots | postgres | none |  | FX snapshot RPC only | true | true | fx_snapshots_catalog_owner_all, fx_snapshots_checkout_owner_select, fx_snapshots_plan_rpc_select, fx_snapshots_request_admin_rpc_lock, fx_snapshots_request_admin_rpc_select |  | migration-owner-only |
 | public.guide_assignments | postgres | none |  | guide assignment RPC only | true | true | guide_assignments_projection_owner_select, guide_assignments_rpc_owner_all |  | migration-owner-only |
 | public.guide_profiles | postgres | none | authenticated (login=false, bypassrls=false, browser-jwt) | none | true | true | guide_profiles_admin_summary_select, guide_profiles_guide_assignment_owner_select, guide_profiles_guide_select | SELECT -> authenticated | migration-owner-only |
 | public.payments | postgres | none |  | payment/admin RPC only | true | true | payments_admin_reconciliation_update, payments_admin_select, payments_checkout_owner_select, payments_payment_owner_all, payments_projection_owner_select |  | migration-owner-only |
-| public.place_experience_types | postgres | none |  | none | true | true | place_experience_types_public_select |  | migration-owner-only |
-| public.place_guide_languages | postgres | none |  | none | true | true | place_guide_languages_public_select |  | migration-owner-only |
-| public.place_opening_exception_windows | postgres | none |  | none | true | true | place_opening_exception_windows_public_select |  | migration-owner-only |
-| public.place_opening_exceptions | postgres | none |  | none | true | true | place_opening_exceptions_public_select |  | migration-owner-only |
-| public.place_opening_hours | postgres | none |  | none | true | true | place_opening_hours_public_select |  | migration-owner-only |
-| public.place_supports | postgres | none |  | none | true | true | place_supports_public_select |  | migration-owner-only |
-| public.place_translations | postgres | none |  | none | true | true | place_translations_public_select |  | migration-owner-only |
-| public.places | postgres | none |  | none | true | true | places_public_select |  | migration-owner-only |
+| public.place_experience_types | postgres | none |  | none | true | true | catalog_owner_all, place_experience_types_public_select |  | migration-owner-only |
+| public.place_guide_languages | postgres | none |  | none | true | true | catalog_owner_all, place_guide_languages_public_select |  | migration-owner-only |
+| public.place_opening_exception_windows | postgres | none |  | none | true | true | catalog_owner_all, place_opening_exception_windows_public_select |  | migration-owner-only |
+| public.place_opening_exceptions | postgres | none |  | none | true | true | catalog_owner_all, place_opening_exceptions_public_select |  | migration-owner-only |
+| public.place_opening_hours | postgres | none |  | none | true | true | catalog_owner_all, place_opening_hours_public_select |  | migration-owner-only |
+| public.place_supports | postgres | none |  | none | true | true | catalog_owner_all, place_supports_public_select |  | migration-owner-only |
+| public.place_translations | postgres | none |  | none | true | true | catalog_owner_all, place_translations_public_select |  | migration-owner-only |
+| public.places | postgres | none |  | none | true | true | catalog_owner_all, places_public_select |  | migration-owner-only |
 | public.profiles | postgres | none | authenticated (login=false, bypassrls=false, browser-jwt) | none | true | true | profiles_admin_summary_select, profiles_auth_trigger_insert, profiles_auth_trigger_select, profiles_customer_select, profiles_request_customer_rpc_language_select | SELECT -> authenticated | migration-owner-only |
 | public.seo_releases | postgres | none |  | publication RPC only | true | true | seo_releases_admin_owner_all, seo_releases_build_owner_select, seo_releases_build_owner_update, seo_releases_public_owner_select |  | migration-owner-only |
-| public.tour_translations | postgres | none |  | none | true | true | tour_guard_translations_select, tour_translations_public_select |  | migration-owner-only |
-| public.tour_version_stops | postgres | none |  | none | true | true | tour_guard_version_stops_select, tour_version_stops_public_select |  | migration-owner-only |
-| public.tour_version_translations | postgres | none |  | none | true | true | tour_guard_version_translations_select, tour_version_translations_checkout_owner_select, tour_version_translations_public_select |  | migration-owner-only |
-| public.tour_versions | postgres | none |  | tour lifecycle RPC only | true | true | tour_guard_versions_select, tour_versions_availability_owner_select, tour_versions_checkout_owner_select, tour_versions_public_select |  | migration-owner-only |
-| public.tours | postgres | none |  | tour lifecycle RPC only | true | true | tour_guard_tours_select, tours_availability_owner_select, tours_checkout_owner_select, tours_public_select |  | migration-owner-only |
+| public.tour_translations | postgres | none |  | none | true | true | tour_guard_translations_select, tour_owner_all, tour_translations_public_select |  | migration-owner-only |
+| public.tour_version_stops | postgres | none |  | none | true | true | tour_guard_version_stops_select, tour_owner_all, tour_version_stops_public_select |  | migration-owner-only |
+| public.tour_version_translations | postgres | none |  | none | true | true | tour_guard_version_translations_select, tour_owner_all, tour_version_translations_checkout_owner_select, tour_version_translations_public_select |  | migration-owner-only |
+| public.tour_versions | postgres | none |  | tour lifecycle RPC only | true | true | tour_guard_versions_select, tour_owner_all, tour_versions_availability_owner_select, tour_versions_checkout_owner_select, tour_versions_public_select |  | migration-owner-only |
+| public.tours | postgres | none |  | tour lifecycle RPC only | true | true | tour_guard_tours_select, tour_owner_all, tours_availability_owner_select, tours_checkout_owner_select, tours_public_select |  | migration-owner-only |
 | public.travel_edges | postgres | none |  | travel snapshot RPC only | true | true | travel_edges_catalog_owner_all |  | migration-owner-only |
 | public.travel_snapshot_edges | postgres | none |  | travel snapshot RPC only | true | true | travel_snapshot_edges_catalog_owner_all |  | migration-owner-only |
 | public.travel_snapshots | postgres | none |  | travel snapshot RPC only | true | true | travel_snapshots_catalog_owner_all, travel_snapshots_checkout_owner_select, travel_snapshots_guard_select, travel_snapshots_plan_rpc_select |  | migration-owner-only |
@@ -240,6 +240,10 @@ Enumerated internal functions: 80. All are non-API and must use a named NOLOGIN/
 - `private.valid_guide_requirement_flags(text[],text)`
 - `private.valid_tour_copy_array(text[])`
 - `private.validate_trip_plan_revision_dto(jsonb)`
+
+## Explicit grants
+
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (471 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Edge boundary checklist
 
