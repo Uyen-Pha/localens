@@ -208,7 +208,20 @@ SELECT ok((SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid = 'public.create_c
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'custom_request_events_append_only_truncate'), 'request events reject TRUNCATE');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'custom_quotes_immutable_facts'), 'quote immutable trigger exists');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'custom_request_events_append_only'), 'request events reject UPDATE/DELETE');
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.custom_quotes'::regclass AND pg_get_constraintdef(oid) LIKE '%48 hours%'), 'quote validity is 48 hours');
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_attribute AS attrs
+    JOIN pg_catalog.pg_attrdef AS defs
+      ON defs.adrelid = attrs.attrelid
+     AND defs.adnum = attrs.attnum
+    WHERE attrs.attrelid = 'public.custom_quotes'::regclass
+      AND attrs.attname = 'valid_until'
+      AND attrs.attgenerated = 's'
+      AND pg_catalog.pg_get_expr(defs.adbin, defs.adrelid) ~ '(48 hours|48:00:00).*created_at|created_at.*(48 hours|48:00:00)'
+  ),
+  'quote validity is 48 hours'
+);
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.custom_quotes'::regclass AND pg_get_constraintdef(oid) LIKE '%checkout_amount_minor%amount_vnd_minor%'), 'VND amount equality is guarded');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.custom_quotes'::regclass AND pg_get_constraintdef(oid) LIKE '%fx_snapshot_id%'), 'quote FX nullability is guarded');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'custom_requests' AND policyname = 'custom_requests_customer_select'), 'customer request ownership policy exists');

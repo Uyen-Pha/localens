@@ -341,6 +341,7 @@ describe("Task 8 SQL contract", () => {
     expect(assertions.length).toBe(planned);
     expect(pgTap).toMatch(/SET LOCAL ROLE authenticated/);
     expect(pgTap).toMatch(/hostile search_path|search_path/i);
+    expect(pgTap).toMatch(/pg_catalog\.pg_attribute[\s\S]*pg_catalog\.pg_attrdef[\s\S]*pg_get_expr\(defs\.adbin, defs\.adrelid\)\s*~[\s\S]*48 hours[\s\S]*48:00:00[\s\S]*created_at/);
     expect(pgTap).toMatch(/one active request|one sellable quote/i);
   });
 });
