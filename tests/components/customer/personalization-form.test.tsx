@@ -135,6 +135,7 @@ describe("PersonalizationForm", () => {
     expect(screen.getByText(previewCopy.proposalOnly)).toBeInTheDocument();
     expect(screen.getByText(previewCopy.totalsHeading)).toBeInTheDocument();
     expect(screen.getAllByRole("listitem").length).toBeGreaterThan(0);
+    expect(screen.getByRole("region", { name: previewCopy.heading })).toHaveFocus();
   });
 
   it("blocks a preview when party size, budget, or every priority weight is invalid", () => {

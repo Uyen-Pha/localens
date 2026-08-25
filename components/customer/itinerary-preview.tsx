@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+
 import type { ItineraryPreviewDto } from "@/lib/application/api/read-only-api";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
@@ -38,6 +42,14 @@ export function ItineraryPreview({
   preview?: ItineraryPreviewDto | null;
   error?: ItineraryPreviewError | null;
 }) {
+  const previewRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (preview !== undefined && preview !== null) {
+      previewRef.current?.focus();
+    }
+  }, [preview]);
+
   if (preview === undefined && error === undefined) return null;
 
   const warning = preview?.items.some(
@@ -45,7 +57,12 @@ export function ItineraryPreview({
   );
 
   return (
-    <section className="itinerary-preview" aria-labelledby="itinerary-preview-title">
+    <section
+      ref={previewRef}
+      className="itinerary-preview"
+      aria-labelledby="itinerary-preview-title"
+      tabIndex={-1}
+    >
       <h3 id="itinerary-preview-title">{copy.heading}</h3>
 
       {error ? (
