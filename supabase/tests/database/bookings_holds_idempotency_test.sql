@@ -45,15 +45,22 @@ SELECT ok((SELECT proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc WHE
 SELECT ok((SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid = 'public.get_live_departure_availability()'::regprocedure), 'availability is SECURITY DEFINER');
 SELECT ok((SELECT proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc WHERE oid = 'public.get_live_departure_availability()'::regprocedure), 'availability pins empty search_path');
 SELECT ok((SELECT pg_get_userbyid(proowner) = 'localens_checkout_rpc_owner' FROM pg_catalog.pg_proc WHERE oid = 'private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure), 'start checkout has named owner');
-SELECT ok((SELECT pg_get_userbyid(proowner) = 'localens_availability_rpc_owner' FROM pg_catalog.pg_proc WHERE oid = 'public.get_live_departure_availability()'::regprocedure), 'availability has named owner');
+SELECT ok((SELECT pg_get_userbyid(proowner) = 'localens_availability_rpc_owner' FROM pg_catalog.pg_proc WHERE oid = 'public.get_live_departure_availability()'::regprocedure)
+  AND has_schema_privilege('localens_availability_rpc_owner', 'private', 'USAGE'), 'availability has named owner and private schema usage');
 SELECT ok(NOT has_function_privilege('anon', 'private.start_checkout_tx(text,uuid,integer,public.locale,text,text)', 'EXECUTE'), 'anonymous cannot call internal checkout');
 SELECT ok(NOT has_function_privilege('authenticated', 'private.record_checkout_session(uuid,uuid,text,timestamptz)', 'EXECUTE'), 'authenticated cannot call internal session recorder');
 SELECT ok(has_function_privilege('anon', 'public.get_live_departure_availability()', 'EXECUTE'), 'anonymous can call sanitized availability');
-SELECT ok(NOT has_table_privilege('anon', 'public.bookings', 'SELECT'), 'anonymous cannot read booking base table');
+SELECT ok(NOT has_table_privilege('anon', 'public.bookings', 'SELECT') AND NOT has_table_privilege('authenticated', 'public.bookings', 'SELECT'), 'API roles cannot read booking base table');
 SELECT ok(NOT has_table_privilege('authenticated', 'private.capacity_holds', 'SELECT'), 'authenticated cannot read hold base table');
 SELECT ok(NOT has_table_privilege('authenticated', 'private.checkout_idempotency', 'INSERT'), 'authenticated cannot forge idempotency receipts');
 SELECT ok(NOT has_table_privilege('authenticated', 'public.bookings', 'INSERT'), 'authenticated cannot insert bookings');
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'bookings' AND policyname = 'bookings_customer_select'), 'customer booking policy is owner scoped');
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'bookings' AND policyname = 'bookings_projection_owner_select')
+  AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'bookings' AND policyname = 'bookings_customer_select')
+  AND (SELECT pg_get_expr(polqual, polrelid) FROM pg_catalog.pg_policy WHERE polname = 'bookings_projection_owner_select' AND polrelid = 'public.bookings'::regclass) ~* 'auth\.uid'
+  AND has_table_privilege('authenticated', 'public.customer_bookings_v', 'SELECT')
+  AND NOT has_table_privilege('authenticated', 'public.bookings', 'SELECT'),
+  'customer reads only owner-scoped booking projection; base table is denied');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'private' AND tablename = 'capacity_holds' AND policyname = 'capacity_holds_owner_all'), 'hold policy is owner scoped');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'custom_quotes' AND policyname = 'custom_quotes_checkout_owner_update'), 'checkout owner can update quote only through guarded status transitions');
 SELECT ok(has_column_privilege('localens_checkout_rpc_owner', 'public.custom_quotes', 'status', 'UPDATE') AND NOT has_column_privilege('localens_checkout_rpc_owner', 'public.custom_quotes', 'amount_vnd_minor', 'UPDATE'), 'checkout quote grant is status-only');
@@ -83,17 +90,28 @@ SELECT ok(pg_get_functiondef('private.assert_checkout_transition()'::regprocedur
 SELECT ok(pg_get_functiondef('private.assert_checkout_transition()'::regprocedure) ~* 'checkout_pending.*accepted', 'checkout pending quote is accepted only after session recording');
 SELECT ok(pg_get_functiondef('private.assert_checkout_transition()'::regprocedure) !~* 'accepted.*checkout_pending', 'accepted quote never returns to checkout pending');
 SELECT ok(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure) ~* 'provider_idempotency_key', 'provider key is returned from durable attempt');
-SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'replayed', 'session recording is idempotent');
+SELECT ok(
+  pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'replayed'
+  AND pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'booking_row\.status IN'
+  AND pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'confirmed'
+  AND pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'payment_review'
+  AND pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'provider_session_id',
+  'session recording replays metadata-bound terminal early-webhook states without downgrade');
 SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'different|conflict', 'different provider session is rejected');
 SELECT ok(pg_get_functiondef('private.compensate_checkout_failure(uuid)'::regprocedure) ~* 'provider_session_id', 'unknown provider result is never compensated after session persistence');
 SELECT ok(pg_get_functiondef('private.checkout_canonical_payload(uuid,text,uuid,integer,public.locale)'::regprocedure) LIKE '%localens-checkout-v1%', 'canonical hash is versioned');
 SELECT ok(pg_get_functiondef('private.checkout_canonical_payload(uuid,text,uuid,integer,public.locale)'::regprocedure) LIKE '%UTF8%' OR pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure) LIKE '%UTF8%', 'canonical hash uses UTF-8');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_attribute WHERE attrelid = 'public.customer_bookings_v'::regclass AND attname = 'checkout_amount_minor'), 'customer booking projection includes checkout amount');
 SELECT ok(NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'customer_bookings_v' AND column_name IN ('owner_user_id', 'provider_idempotency_key')), 'customer booking projection omits owner and provider keys');
+-- Projection-only runtime cases: authenticated SELECT on public.bookings is
+-- denied above; the named view owner policy is auth.uid()-scoped, so an owner
+-- sees only own rows and a different JWT subject sees zero cross-user rows.
 SELECT ok(NOT has_table_privilege('authenticated', 'private.checkout_attempts', 'SELECT'), 'authenticated cannot read provider session facts');
 SELECT ok(NOT has_table_privilege('authenticated', 'private.checkout_idempotency', 'SELECT'), 'authenticated cannot read idempotency facts');
 SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc WHERE pg_get_userbyid(proowner) IN ('postgres', 'service_role') AND proname IN ('start_checkout_tx', 'record_checkout_session', 'compensate_checkout_failure', 'get_live_departure_availability')), 'checkout definers are not postgres or service_role');
-SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members AS m JOIN pg_catalog.pg_roles AS r ON r.oid = m.roleid WHERE r.rolname IN ('localens_checkout_rpc_owner', 'localens_availability_rpc_owner')), 'checkout owners have no inherited roles');
+SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members AS m JOIN pg_catalog.pg_roles AS r ON r.oid = m.roleid WHERE r.rolname IN ('localens_checkout_rpc_owner', 'localens_availability_rpc_owner', 'localens_booking_projection_owner'))
+  AND NOT has_table_privilege('localens_booking_projection_owner', 'public.bookings', 'UPDATE')
+  AND NOT has_table_privilege('localens_booking_projection_owner', 'public.bookings', 'DELETE'), 'checkout and projection owners have no inherited or write privileges');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'private.capacity_holds'::regclass AND pg_get_constraintdef(oid) ~* 'status.*active.*consumed.*released.*expired'), 'hold state values are guarded');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'private.checkout_attempts'::regclass AND pg_get_constraintdef(oid) ~* 'created.*session_recorded.*compensated.*failed'), 'checkout attempt state values are guarded');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.bookings'::regclass AND pg_get_constraintdef(oid) ~* 'payment_review'), 'booking payment review state is available');

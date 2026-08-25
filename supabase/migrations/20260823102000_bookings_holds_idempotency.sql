@@ -11,16 +11,20 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_availability_rpc_owner') THEN
     CREATE ROLE localens_availability_rpc_owner NOLOGIN NOBYPASSRLS;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_booking_projection_owner') THEN
+    CREATE ROLE localens_booking_projection_owner NOLOGIN NOBYPASSRLS;
+  END IF;
 END
 $roles$;
 
 ALTER ROLE localens_checkout_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
 ALTER ROLE localens_availability_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
+ALTER ROLE localens_booking_projection_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
 
-REVOKE ALL ON SCHEMA public, private, auth FROM localens_checkout_rpc_owner, localens_availability_rpc_owner;
-REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_checkout_rpc_owner, localens_availability_rpc_owner;
-REVOKE ALL ON ALL SEQUENCES IN SCHEMA public, private FROM localens_checkout_rpc_owner, localens_availability_rpc_owner;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM localens_checkout_rpc_owner, localens_availability_rpc_owner;
+REVOKE ALL ON SCHEMA public, private, auth FROM localens_checkout_rpc_owner, localens_availability_rpc_owner, localens_booking_projection_owner;
+REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_checkout_rpc_owner, localens_availability_rpc_owner, localens_booking_projection_owner;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public, private FROM localens_checkout_rpc_owner, localens_availability_rpc_owner, localens_booking_projection_owner;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM localens_checkout_rpc_owner, localens_availability_rpc_owner, localens_booking_projection_owner;
 
 CREATE TABLE public.bookings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -136,8 +140,8 @@ ALTER TABLE private.checkout_idempotency FORCE ROW LEVEL SECURITY;
 ALTER TABLE private.capacity_holds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE private.capacity_holds FORCE ROW LEVEL SECURITY;
 
-CREATE POLICY bookings_customer_select ON public.bookings
-  FOR SELECT TO authenticated USING ((SELECT auth.uid()) = owner_user_id);
+CREATE POLICY bookings_projection_owner_select ON public.bookings
+  FOR SELECT TO localens_booking_projection_owner USING ((SELECT auth.uid()) = owner_user_id);
 CREATE POLICY bookings_checkout_owner_all ON public.bookings
   FOR ALL TO localens_checkout_rpc_owner
   USING (current_user = 'localens_checkout_rpc_owner')
@@ -214,9 +218,10 @@ CREATE POLICY catalog_snapshots_availability_owner_select ON public.catalog_snap
   USING (current_user = 'localens_availability_rpc_owner');
 
 REVOKE ALL ON TABLE public.bookings, private.checkout_attempts, private.checkout_idempotency, private.capacity_holds FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON TABLE public.bookings TO authenticated;
+REVOKE ALL ON TABLE public.bookings FROM authenticated;
 GRANT USAGE ON SCHEMA public, private, auth TO localens_checkout_rpc_owner;
-GRANT USAGE ON SCHEMA public TO localens_availability_rpc_owner;
+GRANT USAGE ON SCHEMA public, private TO localens_availability_rpc_owner;
+GRANT USAGE ON SCHEMA public, auth TO localens_booking_projection_owner;
 GRANT SELECT, INSERT ON TABLE public.bookings TO localens_checkout_rpc_owner;
 GRANT UPDATE (status) ON TABLE public.bookings TO localens_checkout_rpc_owner;
 GRANT SELECT, INSERT ON TABLE private.checkout_attempts TO localens_checkout_rpc_owner;
@@ -232,6 +237,13 @@ GRANT SELECT ON TABLE public.departures TO localens_availability_rpc_owner;
 GRANT SELECT ON TABLE public.bookings, private.capacity_holds TO localens_availability_rpc_owner;
 GRANT SELECT ON TABLE public.tour_versions, public.tours, public.catalog_snapshots TO localens_availability_rpc_owner;
 GRANT EXECUTE ON FUNCTION auth.uid() TO localens_checkout_rpc_owner;
+GRANT EXECUTE ON FUNCTION auth.uid() TO localens_booking_projection_owner;
+GRANT SELECT (
+  id, status, source_kind, source_id, tour_version_id, quote_id, title_en, title_vi,
+  cancellation_policy, catalog_snapshot_id, travel_snapshot_id, fx_snapshot_id, fx_vnd_per_usd,
+  per_person_vnd_minor, total_vnd_minor, checkout_currency, checkout_amount_minor, party_size,
+  language, meeting_point, hold_expires_at, created_at
+) ON TABLE public.bookings TO localens_booking_projection_owner;
 
 -- Append-only idempotency receipts make a retry provably reuse the same
 -- provider key and attempt.  The attempt/session rows remain mutable only via
@@ -461,6 +473,7 @@ DECLARE
   new_attempt_id uuid := gen_random_uuid();
   idempotency_row private.checkout_idempotency%ROWTYPE;
   booking_row public.bookings%ROWTYPE;
+  retry_attempt_row private.checkout_attempts%ROWTYPE;
   departure_row public.departures%ROWTYPE;
   quote_row public.custom_quotes%ROWTYPE;
   request_row public.custom_requests%ROWTYPE;
@@ -504,6 +517,17 @@ BEGIN
     RAISE EXCEPTION 'checkout input rejected' USING ERRCODE = '22023';
   END IF;
 
+  -- Recompute the request hash from the authenticated actor and every
+  -- normalized source fact before consulting the idempotency receipt.  A
+  -- retry that reuses the old hash with changed parameters must conflict even
+  -- when the idempotency key itself is already present.
+  canonical_hash := pg_catalog.encode(pg_catalog.digest(pg_catalog.convert_to(
+    private.checkout_canonical_payload(actor_user_id, p_source_kind, p_source_id, p_party_size, p_locale), 'UTF8'
+  ), 'sha256'), 'hex');
+  IF NOT private.checkout_hash_equal(canonical_hash, p_canonical_request_hash) THEN
+    RAISE EXCEPTION 'checkout request hash mismatch' USING ERRCODE = 'P0001';
+  END IF;
+
   -- This insert is the first lock in every checkout path.  Target IDs are
   -- allocated before it so the immutable receipt is complete on first write.
   INSERT INTO private.checkout_idempotency (
@@ -523,8 +547,39 @@ BEGIN
     RAISE EXCEPTION 'IDEMPOTENCY_CONFLICT' USING ERRCODE = 'P0001';
   END IF;
   IF NOT inserted THEN
+    -- Preserve the common lock order on a retry: idempotency -> source ->
+    -- booking.  The source and attempt facts are then checked against the
+    -- authenticated request before any durable response is replayed.
+    IF p_source_kind = 'departure' THEN
+      SELECT * INTO departure_row FROM public.departures WHERE id = p_source_id FOR UPDATE;
+    ELSE
+      SELECT * INTO quote_row FROM public.custom_quotes WHERE id = p_source_id FOR UPDATE;
+    END IF;
     SELECT * INTO booking_row FROM public.bookings WHERE id = idempotency_row.booking_id;
-    IF NOT FOUND THEN RAISE EXCEPTION 'checkout retry is incomplete' USING ERRCODE = 'P0001'; END IF;
+    SELECT * INTO retry_attempt_row FROM private.checkout_attempts WHERE id = idempotency_row.checkout_attempt_id;
+    IF NOT FOUND OR booking_row.owner_user_id IS DISTINCT FROM actor_user_id
+       OR booking_row.source_kind IS DISTINCT FROM p_source_kind
+       OR booking_row.source_id IS DISTINCT FROM p_source_id
+       OR booking_row.party_size IS DISTINCT FROM p_party_size
+       OR booking_row.language IS DISTINCT FROM p_locale
+       OR retry_attempt_row.booking_id IS DISTINCT FROM booking_row.id
+       OR retry_attempt_row.owner_user_id IS DISTINCT FROM actor_user_id
+       OR retry_attempt_row.source_kind IS DISTINCT FROM p_source_kind
+       OR (p_source_kind = 'departure' AND retry_attempt_row.departure_id IS DISTINCT FROM p_source_id)
+       OR (p_source_kind = 'quote' AND retry_attempt_row.quote_id IS DISTINCT FROM p_source_id)
+       OR retry_attempt_row.provider_idempotency_key IS DISTINCT FROM idempotency_row.provider_idempotency_key THEN
+      RAISE EXCEPTION 'IDEMPOTENCY_CONFLICT' USING ERRCODE = 'P0001';
+    END IF;
+    canonical_hash := pg_catalog.encode(pg_catalog.digest(pg_catalog.convert_to(
+      private.checkout_canonical_payload(
+        booking_row.owner_user_id, booking_row.source_kind, booking_row.source_id,
+        booking_row.party_size, booking_row.language
+      ), 'UTF8'
+    ), 'sha256'), 'hex');
+    IF NOT private.checkout_hash_equal(canonical_hash, idempotency_row.canonical_request_hash)
+       OR NOT private.checkout_hash_equal(canonical_hash, p_canonical_request_hash) THEN
+      RAISE EXCEPTION 'IDEMPOTENCY_CONFLICT' USING ERRCODE = 'P0001';
+    END IF;
     booking_id := booking_row.id;
     attempt_id := idempotency_row.checkout_attempt_id;
     provider_idempotency_key := idempotency_row.provider_idempotency_key;
@@ -753,6 +808,15 @@ BEGIN
     IF attempt_row.provider_session_id IS DISTINCT FROM p_provider_session_id THEN
       RAISE EXCEPTION 'checkout session conflict' USING ERRCODE = 'P0001';
     END IF;
+    -- Task 10 may attach the same metadata-bound provider session from an
+    -- early webhook.  A browser retry must replay terminal webhook states and
+    -- never downgrade them; payment_status remains NULL until Task 10 owns
+    -- the payment row/status mapping.
+    IF booking_row.status IN ('confirmed'::public.booking_status, 'payment_review'::public.booking_status) THEN
+      booking_id := booking_row.id; booking_status := booking_row.status; payment_status := NULL;
+      quote_status := CASE WHEN quote_row.id IS NULL THEN NULL ELSE quote_row.status END;
+      provider_session_id := attempt_row.provider_session_id; state := 'replayed'; RETURN NEXT; RETURN;
+    END IF;
     booking_id := booking_row.id; booking_status := booking_row.status; payment_status := NULL;
     quote_status := CASE WHEN quote_row.id IS NULL THEN NULL ELSE quote_row.status END;
     provider_session_id := attempt_row.provider_session_id; state := 'replayed'; RETURN NEXT; RETURN;
@@ -871,7 +935,7 @@ REVOKE ALL ON FUNCTION private.compensate_checkout_failure(uuid) FROM PUBLIC, an
 GRANT EXECUTE ON FUNCTION private.compensate_checkout_failure(uuid) TO localens_checkout_rpc_owner;
 
 CREATE OR REPLACE VIEW public.customer_bookings_v
-WITH (security_invoker = true, security_barrier = true)
+WITH (security_invoker = false, security_barrier = true)
 AS
 SELECT id, status, source_kind, source_id, tour_version_id, quote_id, title_en, title_vi,
   cancellation_policy, catalog_snapshot_id, travel_snapshot_id, fx_snapshot_id, fx_vnd_per_usd,
@@ -879,6 +943,7 @@ SELECT id, status, source_kind, source_id, tour_version_id, quote_id, title_en, 
   checkout_currency, checkout_amount_minor::text AS checkout_amount_minor, party_size, language,
   meeting_point, hold_expires_at, created_at
 FROM public.bookings;
+ALTER VIEW public.customer_bookings_v OWNER TO localens_booking_projection_owner;
 REVOKE ALL ON public.customer_bookings_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.customer_bookings_v TO authenticated;
 

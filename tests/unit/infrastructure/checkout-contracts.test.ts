@@ -113,6 +113,8 @@ describe("Task 9 checkout contracts", () => {
       "99f0749c0121ab0743e50cab996292652be5b71de6fae33a1f8b85e8c361ce6e",
     );
     expect(migration).toMatch(/checkout_canonical_payload[\s\S]*localens-checkout-v1\|.*p_owner_user_id::text.*p_source_kind.*p_source_id::text.*p_party_size::text.*p_locale::text/i);
+    expect(migration).toMatch(/canonical_hash\s*:=\s*[\s\S]*private\.checkout_canonical_payload\(actor_user_id, p_source_kind, p_source_id, p_party_size, p_locale\)/i);
+    expect(migration).toMatch(/IF NOT inserted THEN[\s\S]*booking_row\.source_kind IS DISTINCT FROM p_source_kind[\s\S]*booking_row\.source_id IS DISTINCT FROM p_source_id[\s\S]*booking_row\.party_size IS DISTINCT FROM p_party_size[\s\S]*booking_row\.language IS DISTINCT FROM p_locale/i);
   });
 
   it("builds a card-only Stripe session with server-owned amount, metadata, allowlisted URLs, and a 30-minute expiry", () => {
@@ -144,6 +146,7 @@ describe("Task 9 checkout contracts", () => {
     for (const urls of [
       { successUrl: "javascript:alert(1)", cancelUrl: "https://locallens.example/cancel" },
       { successUrl: "https://evil.example/success", cancelUrl: "https://locallens.example/cancel" },
+      { successUrl: "https://locallens.vn:444/success", cancelUrl: "https://locallens.example/cancel" },
       { successUrl: "https://locallens.example/success#token", cancelUrl: "https://locallens.example/cancel" },
       { successUrl: "https://locallens.example/success?utm_source=x", cancelUrl: "https://locallens.example/cancel" },
     ]) {
@@ -248,5 +251,13 @@ describe("Task 9 checkout contracts", () => {
     expect(pgTap).toMatch(/idempotency conflict|IDEMPOTENCY_CONFLICT/i);
     expect(pgTap).toMatch(/oversell|capacity/i);
     expect(pgTap).toMatch(/hostile search path|search_path/i);
+    expect(migration).toMatch(/CREATE ROLE localens_booking_projection_owner[\s\S]*NOLOGIN[\s\S]*NOBYPASSRLS/i);
+    expect(migration).toMatch(/CREATE POLICY bookings_projection_owner_select[\s\S]*auth\.uid\(\)/i);
+    expect(migration).toMatch(/WITH \(security_invoker\s*=\s*false,\s*security_barrier\s*=\s*true\)/i);
+    expect(migration).not.toMatch(/security_invoker\s*=\s*true/i);
+    expect(migration).toMatch(/REVOKE ALL ON TABLE public\.bookings[\s\S]*FROM PUBLIC, anon, authenticated/i);
+    expect(migration).toMatch(/GRANT USAGE ON SCHEMA public, private TO localens_availability_rpc_owner/i);
+    expect(migration).toMatch(/booking_row\.status IN \([\s\S]*confirmed[\s\S]*payment_review[\s\S]*state := 'replayed'/i);
+    expect(pgTap).toMatch(/base table|terminal.*replay|early-webhook/i);
   });
 });

@@ -32,7 +32,19 @@ const DEPARTURE_STATUSES = new Set<DepartureStatus>([
 ]);
 const LOCALES = new Set<Locale>(["en", "vi"]);
 const CURRENCIES = new Set<CheckoutCurrency>(["vnd", "usd"]);
-const URL_HOSTS = new Set(["locallens.vn", "www.locallens.vn", "locallens.example", "localhost", "127.0.0.1"]);
+// Compare canonical full origins, including ports.  Hostname-only checks
+// would silently permit an untrusted service on an arbitrary production port.
+const URL_ORIGINS = new Set([
+  "https://locallens.vn",
+  "https://www.locallens.vn",
+  "https://locallens.example",
+  "http://localhost",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://127.0.0.1",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:3001",
+]);
 
 /** Cross-runtime checkout hash payload. Keep field order and delimiters stable. */
 export function canonicalCheckoutRequestPayload(
@@ -176,8 +188,7 @@ function safeUrl(value: unknown, path: string): Result<string, DataAdapterError>
   } catch {
     return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
   }
-  if ((parsed.protocol !== "https:" && !(parsed.protocol === "http:" && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1"))) ||
-      parsed.username || parsed.password || parsed.hash || !URL_HOSTS.has(parsed.hostname.toLowerCase())) {
+  if (!URL_ORIGINS.has(parsed.origin.toLowerCase()) || parsed.username || parsed.password || parsed.hash) {
     return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
   }
   for (const key of parsed.searchParams.keys()) {
