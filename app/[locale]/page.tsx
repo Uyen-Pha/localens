@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { CustomerHome } from "@/components/customer/customer-home";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import {
@@ -41,18 +41,7 @@ export default async function LocaleHomePage({
 
   return (
     <>
-      <section>
-        <h1>{dictionary.home.title}</h1>
-        <p>{dictionary.home.subtitle}</p>
-        <nav aria-label={dictionary.navigation.explore}>
-          <Link href={`/${locale}/explore/`}>
-            {dictionary.navigation.explore}
-          </Link>
-          <Link href={`/${locale}/plan/`}>
-            {dictionary.navigation.planTrip}
-          </Link>
-        </nav>
-      </section>
+      <CustomerHome locale={locale} dictionary={dictionary} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLd }}
