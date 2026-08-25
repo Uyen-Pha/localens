@@ -11,8 +11,20 @@ export const DEMO_CATALOG_SNAPSHOT_ID = "demo-hcmc-catalog-v1" as const;
 export const DEMO_TRAVEL_SNAPSHOT_ID = "demo-hcmc-travel-v1" as const;
 export const DEMO_FX_SNAPSHOT_ID = "demo-hcmc-fx-v1" as const;
 export const DEMO_AS_OF_UTC = "2026-09-05T01:00:00Z" as const;
+export const DEMO_DATA_SCOPE = "partial_demo_sample" as const;
+export const DEMO_CATALOG_STATUS = "pending_approved_task15_seed" as const;
+export const DEMO_SOURCE_STATUS = "demo_placeholder" as const;
+export const DEMO_PLACE_COUNT = 6 as const;
+export const DEMO_TOUR_COUNT = 4 as const;
 
 type Weekday = PlaceCandidate["openingHours"][number]["weekday"];
+type DeepReadonly<T> = T extends (...args: never[]) => unknown
+  ? T
+  : T extends readonly unknown[]
+    ? ReadonlyArray<DeepReadonly<T[number]>>
+    : T extends object
+      ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+      : T;
 
 const ALL_DAY_HOURS = Array.from({ length: 7 }, (_, weekday) => ({
   weekday: weekday as Weekday,
@@ -42,7 +54,14 @@ function place(
   };
 }
 
-export const DEMO_PLACES = Object.freeze([
+function deepFreeze<T>(value: T): T {
+  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
+  return value;
+}
+
+const DEMO_PLACES = deepFreeze([
   place("demo-hcmc-ben-thanh-market", "demo-hcmc-district-1", "traditional_market", 80_000, 60),
   place("demo-hcmc-street-food", "demo-hcmc-district-1", "street_food", 150_000, 60),
   place("demo-hcmc-war-remnants", "demo-hcmc-district-3", "history", 120_000, 75),
@@ -52,7 +71,7 @@ export const DEMO_PLACES = Object.freeze([
 ]);
 
 const placeIds = DEMO_PLACES.map((candidate) => candidate.id);
-const DEMO_TRAVEL_EDGES = Object.freeze(
+const DEMO_TRAVEL_EDGES = deepFreeze(
   placeIds.flatMap((fromPlaceId, fromIndex) =>
     placeIds
       .filter((toPlaceId) => toPlaceId !== fromPlaceId)
@@ -67,7 +86,7 @@ const DEMO_TRAVEL_EDGES = Object.freeze(
   ),
 );
 
-export const DEMO_ENGINE_INPUT: EngineInput = {
+const DEMO_ENGINE_INPUT: EngineInput = {
   request: {
     startAt: DEMO_AS_OF_UTC,
     durationMinutes: 360,
@@ -101,6 +120,7 @@ export const DEMO_ENGINE_INPUT: EngineInput = {
   },
   asOfUtc: DEMO_AS_OF_UTC,
 };
+deepFreeze(DEMO_ENGINE_INPUT);
 
 export interface DemoTourRecord {
   id: string;
@@ -119,11 +139,12 @@ export interface DemoTourRecord {
   verifiedAt: string;
   attribution: string;
   license: string;
+  areaIds: string[];
   experienceTypes: ExperienceType[];
   stops: Array<{ position: number; placeId: string; placeSlug: string; title: string }>;
 }
 
-type TourCopy = Omit<DemoTourRecord, "locale" | "id" | "versionId" | "stops"> & {
+type TourCopy = Omit<DemoTourRecord, "locale" | "id" | "versionId" | "stops" | "areaIds" | "experienceTypes"> & {
   key: string;
   stopIds: string[];
   stopTitles: string[];
@@ -141,11 +162,10 @@ const TOUR_COPIES: TourCopy[] = [
     inclusions: ["local guide", "tasting stops"],
     exclusions: ["hotel transfer"],
     cancellationPolicy: "Demo booking: changes are free before confirmation.",
-    sourceUrl: "https://example.com/locallens/demo-markets-and-street-food",
+    sourceUrl: "https://example.invalid/locallens/demo-sources/markets-and-street-food",
     verifiedAt: "2026-08-24",
     attribution: "LocalLens demo editorial team",
     license: "CC BY 4.0",
-    experienceTypes: ["traditional_market", "street_food"],
     stopIds: ["demo-hcmc-ben-thanh-market", "demo-hcmc-street-food"],
     stopTitles: ["Ben Thanh Market", "Saigon Street Food"],
   },
@@ -160,11 +180,10 @@ const TOUR_COPIES: TourCopy[] = [
     inclusions: ["local guide", "walking route"],
     exclusions: ["museum ticket"],
     cancellationPolicy: "Demo booking: changes are free before confirmation.",
-    sourceUrl: "https://example.com/locallens/demo-history-and-memory",
+    sourceUrl: "https://example.invalid/locallens/demo-sources/history-and-memory",
     verifiedAt: "2026-08-24",
     attribution: "LocalLens demo editorial team",
     license: "CC BY 4.0",
-    experienceTypes: ["history"],
     stopIds: ["demo-hcmc-war-remnants", "demo-hcmc-ben-thanh-market"],
     stopTitles: ["War Remnants Museum area", "Ben Thanh Market"],
   },
@@ -179,11 +198,10 @@ const TOUR_COPIES: TourCopy[] = [
     inclusions: ["local guide", "craft demonstration"],
     exclusions: ["souvenirs"],
     cancellationPolicy: "Demo booking: changes are free before confirmation.",
-    sourceUrl: "https://example.com/locallens/demo-cho-lon-craft",
+    sourceUrl: "https://example.invalid/locallens/demo-sources/cho-lon-craft",
     verifiedAt: "2026-08-24",
     attribution: "LocalLens demo editorial team",
     license: "CC BY 4.0",
-    experienceTypes: ["traditional_craft", "traditional_market"],
     stopIds: ["demo-hcmc-binh-tay-market", "demo-hcmc-cho-lon-craft"],
     stopTitles: ["Binh Tay Market", "Cho Lon Craft Workshop"],
   },
@@ -198,11 +216,10 @@ const TOUR_COPIES: TourCopy[] = [
     inclusions: ["local guide", "tasting stop", "craft demonstration"],
     exclusions: ["private transport"],
     cancellationPolicy: "Demo booking: changes are free before confirmation.",
-    sourceUrl: "https://example.com/locallens/demo-city-life-mix",
+    sourceUrl: "https://example.invalid/locallens/demo-sources/city-life-mix",
     verifiedAt: "2026-08-24",
     attribution: "LocalLens demo editorial team",
     license: "CC BY 4.0",
-    experienceTypes: ["street_food", "history", "traditional_craft", "traditional_market"],
     stopIds: ["demo-hcmc-street-food", "demo-hcmc-war-remnants", "demo-hcmc-cho-lon-craft"],
     stopTitles: ["Saigon Street Food", "War Remnants Museum area", "Cho Lon Craft Workshop"],
   },
@@ -239,6 +256,9 @@ function createTour(copy: TourCopy, locale: Locale): DemoTourRecord {
   const title = translation?.title ?? copy.title;
   const summary = translation?.summary ?? copy.summary;
   const meetingPoint = translation?.meetingPoint ?? copy.meetingPoint;
+  const stopPlaces = copy.stopIds.map((placeId) => DEMO_PLACES.find((candidate) => candidate.id === placeId));
+  const experienceTypes = Array.from(new Set(stopPlaces.flatMap((candidate) => candidate?.types ?? []))).sort() as ExperienceType[];
+  const areaIds = Array.from(new Set(stopPlaces.map((candidate) => candidate?.areaId).filter((areaId): areaId is string => areaId !== undefined))).sort();
   return {
     ...copy,
     id: `demo-tour-${copy.key}-${locale}`,
@@ -247,6 +267,8 @@ function createTour(copy: TourCopy, locale: Locale): DemoTourRecord {
     title,
     summary,
     meetingPoint,
+    areaIds,
+    experienceTypes,
     stops: copy.stopIds.map((placeId, index) => ({
       position: index + 1,
       placeId,
@@ -256,7 +278,7 @@ function createTour(copy: TourCopy, locale: Locale): DemoTourRecord {
   };
 }
 
-export const DEMO_TOURS = Object.freeze(
+const DEMO_TOURS = deepFreeze(
   (["en", "vi"] as const).flatMap((locale) => TOUR_COPIES.map((copy) => createTour(copy, locale))),
 );
 
@@ -264,7 +286,7 @@ export interface InternalDemoCatalogRepository {
   readonly environment: typeof DEMO_ENVIRONMENT;
   readonly city: typeof DEMO_CITY;
   listTours(locale: Locale): readonly DemoTourRecord[];
-  getEngineInput(request: EngineInput["request"]): EngineInput;
+  getEngineInput(request: DeepReadonly<EngineInput["request"]>): EngineInput;
   hasArea(areaId: string): boolean;
   hasPlace(placeId: string): boolean;
   getPlaceTitle(placeId: string, locale: Locale): string | undefined;
@@ -275,11 +297,22 @@ class HcmcDemoCatalogRepository implements InternalDemoCatalogRepository {
   readonly city = DEMO_CITY;
 
   listTours(locale: Locale): readonly DemoTourRecord[] {
-    return DEMO_TOURS.filter((tour) => tour.locale === locale);
+    return Object.freeze(DEMO_TOURS.filter((tour) => tour.locale === locale));
   }
 
-  getEngineInput(request: EngineInput["request"]): EngineInput {
-    return { ...DEMO_ENGINE_INPUT, request };
+  getEngineInput(request: DeepReadonly<EngineInput["request"]>): EngineInput {
+    return {
+      ...DEMO_ENGINE_INPUT,
+      request: {
+        ...request,
+        areas: [...request.areas],
+        budget: { ...request.budget },
+        priorityWeights: { ...request.priorityWeights },
+        dietaryRequirements: [...request.dietaryRequirements],
+        mobilityRequirements: [...request.mobilityRequirements],
+        lockedStopIds: [...request.lockedStopIds],
+      },
+    };
   }
 
   hasArea(areaId: string): boolean {
