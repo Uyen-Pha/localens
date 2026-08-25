@@ -173,7 +173,9 @@ State transitions are explicit:
 - `create-custom-quote(requestId, quote)`
 - `start-checkout(departureId | quoteId, partySize, locale, idempotencyKey)`
 - `stripe-webhook(rawBody)`
-- `publish-seo(contentVersion)`
+- `publish-seo(sourceCommit, buildId)`; the server snapshots all current,
+  complete EN/VI draft pairs into one immutable whole-site content version and
+  returns its release ID plus a short-lived build capability.
 - `finalize-seo-publish(releaseId, buildId, artifactHash)`
 - `get-fx-rate()`
 
@@ -243,6 +245,11 @@ Content versions transition `draft -> publishing -> published | failed`.
 Only one candidate can publish. The build validates complete English and
 Vietnamese copy, source, verification date, and image attribution before
 export. A failed build leaves the previous Cloudflare deployment active.
+
+For this MVP, one content version is the atomic snapshot of every current
+draft slug that has exactly one English and one Vietnamese copy. Publishing a
+single slug independently is out of scope; an incomplete draft pair blocks the
+whole-site release so the static export cannot mix content versions.
 
 `publish-seo` creates and locks one immutable release, then calls the protected
 Cloudflare deploy hook. The build reads that release with a public, RLS-limited
