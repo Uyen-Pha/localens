@@ -3,7 +3,7 @@
 -- fixtures and the authenticated JWT roles.
 BEGIN;
 
-SELECT plan(113);
+SELECT plan(119);
 
 RESET ROLE;
 DELETE FROM auth.users
@@ -166,6 +166,24 @@ SELECT ok(NOT has_table_privilege('anon', 'public.custom_requests', 'SELECT'), '
 SELECT ok(NOT has_table_privilege('authenticated', 'public.custom_quotes', 'SELECT'), 'authenticated cannot read quote base table');
 SELECT ok(has_table_privilege('localens_request_customer_rpc_owner', 'public.custom_requests', 'INSERT') AND has_column_privilege('localens_request_customer_rpc_owner', 'public.custom_requests', 'revision_id', 'UPDATE') AND has_column_privilege('localens_request_customer_rpc_owner', 'public.custom_requests', 'revision_no', 'UPDATE') AND NOT has_column_privilege('localens_request_customer_rpc_owner', 'public.custom_requests', 'owner_user_id', 'UPDATE'), 'customer request owner has only guarded request writes');
 SELECT ok(has_column_privilege('localens_request_admin_rpc_owner', 'public.custom_requests', 'status', 'UPDATE') AND has_column_privilege('localens_request_admin_rpc_owner', 'public.custom_requests', 'latest_decision_at', 'UPDATE') AND NOT has_column_privilege('localens_request_admin_rpc_owner', 'public.custom_requests', 'revision_id', 'UPDATE'), 'admin request owner has only review writes');
+SELECT ok(has_column_privilege('localens_request_customer_rpc_owner', 'public.trip_plans', 'id', 'UPDATE') AND has_column_privilege('localens_request_customer_rpc_owner', 'public.trip_plan_revisions', 'id', 'UPDATE') AND NOT has_column_privilege('localens_request_customer_rpc_owner', 'public.trip_plans', 'owner_user_id', 'UPDATE') AND NOT has_column_privilege('localens_request_customer_rpc_owner', 'public.trip_plan_revisions', 'revision_no', 'UPDATE'), 'customer request owner has only source lock writes');
+SELECT ok(has_column_privilege('localens_request_admin_rpc_owner', 'public.trip_plans', 'id', 'UPDATE') AND has_column_privilege('localens_request_admin_rpc_owner', 'public.trip_plan_revisions', 'id', 'UPDATE') AND NOT has_column_privilege('localens_request_admin_rpc_owner', 'public.trip_plans', 'owner_user_id', 'UPDATE') AND NOT has_column_privilege('localens_request_admin_rpc_owner', 'public.trip_plan_revisions', 'revision_no', 'UPDATE'), 'admin request owner has only source lock writes');
+SELECT ok(has_column_privilege('localens_request_admin_rpc_owner', 'public.custom_quotes', 'id', 'UPDATE') AND has_column_privilege('localens_request_admin_rpc_owner', 'public.fx_snapshots', 'id', 'UPDATE') AND NOT has_column_privilege('localens_request_admin_rpc_owner', 'public.custom_quotes', 'amount_vnd_minor', 'UPDATE') AND NOT has_column_privilege('localens_request_admin_rpc_owner', 'public.fx_snapshots', 'vnd_per_usd', 'UPDATE'), 'admin quote owner has only quote and FX lock writes');
+SELECT ok(
+  (SELECT count(*) FROM pg_catalog.pg_policies
+   WHERE schemaname = 'public'
+     AND cmd = 'UPDATE'
+     AND (
+       (policyname = 'trip_plans_request_customer_rpc_lock' AND tablename = 'trip_plans' AND roles = ARRAY['localens_request_customer_rpc_owner']::name[])
+       OR (policyname = 'trip_plan_revisions_request_customer_rpc_lock' AND tablename = 'trip_plan_revisions' AND roles = ARRAY['localens_request_customer_rpc_owner']::name[])
+       OR (policyname = 'trip_plans_request_admin_rpc_lock' AND tablename = 'trip_plans' AND roles = ARRAY['localens_request_admin_rpc_owner']::name[])
+       OR (policyname = 'trip_plan_revisions_request_admin_rpc_lock' AND tablename = 'trip_plan_revisions' AND roles = ARRAY['localens_request_admin_rpc_owner']::name[])
+       OR (policyname = 'fx_snapshots_request_admin_rpc_lock' AND tablename = 'fx_snapshots' AND roles = ARRAY['localens_request_admin_rpc_owner']::name[])
+     )) = 5,
+  'source lock UPDATE policies are owner-scoped'
+);
+SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'trip_plans_request_id_immutable'), 'trip plan id immutable trigger exists');
+SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_proc WHERE proname = 'reject_custom_quote_mutation' AND pg_get_functiondef(oid) LIKE '%OLD.id IS DISTINCT FROM NEW.id%'), 'quote immutable guard protects id');
 SELECT ok(has_table_privilege('localens_request_customer_rpc_owner', 'private.custom_request_events', 'INSERT'), 'customer request owner can append events');
 SELECT ok(NOT has_table_privilege('authenticated', 'private.custom_request_events', 'SELECT'), 'API roles cannot read request events');
 SELECT ok(has_function_privilege('authenticated', 'public.submit_custom_request(uuid,integer)', 'EXECUTE'), 'customer submit wrapper is callable');
@@ -251,6 +269,9 @@ RESET ROLE;
 
 -- Quote creation derives every snapshot and commercial fact from the approved
 -- revision; only one active quote can win.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000802', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000802', 'role', 'admin')::text, true);
 SELECT is((SELECT status FROM public.create_custom_quote((SELECT id FROM public.custom_requests LIMIT 1), 2500000, 'vnd'::public.checkout_currency, 'Cho Lon walk', 'Đi bộ Chợ Lớn', 'Demo policy')), 'active'::public.quote_status, 'admin creates an active VND quote');
 SELECT is((SELECT count(*)::integer FROM public.custom_quotes WHERE request_id = (SELECT id FROM public.custom_requests LIMIT 1)), 1, 'one quote is created');
 SELECT is((SELECT checkout_amount_minor FROM public.custom_quotes LIMIT 1), 2500000::bigint, 'VND checkout amount is server-owned');

@@ -264,12 +264,32 @@ CREATE POLICY trip_plan_revisions_request_customer_rpc_select ON public.trip_pla
   FOR SELECT TO localens_request_customer_rpc_owner USING (true);
 CREATE POLICY trip_plan_revisions_request_admin_rpc_select ON public.trip_plan_revisions
   FOR SELECT TO localens_request_admin_rpc_owner USING (true);
+CREATE POLICY trip_plans_request_customer_rpc_lock ON public.trip_plans
+  FOR UPDATE TO localens_request_customer_rpc_owner
+  USING (current_user = 'localens_request_customer_rpc_owner')
+  WITH CHECK (current_user = 'localens_request_customer_rpc_owner');
+CREATE POLICY trip_plan_revisions_request_customer_rpc_lock ON public.trip_plan_revisions
+  FOR UPDATE TO localens_request_customer_rpc_owner
+  USING (current_user = 'localens_request_customer_rpc_owner')
+  WITH CHECK (current_user = 'localens_request_customer_rpc_owner');
+CREATE POLICY trip_plans_request_admin_rpc_lock ON public.trip_plans
+  FOR UPDATE TO localens_request_admin_rpc_owner
+  USING (current_user = 'localens_request_admin_rpc_owner')
+  WITH CHECK (current_user = 'localens_request_admin_rpc_owner');
+CREATE POLICY trip_plan_revisions_request_admin_rpc_lock ON public.trip_plan_revisions
+  FOR UPDATE TO localens_request_admin_rpc_owner
+  USING (current_user = 'localens_request_admin_rpc_owner')
+  WITH CHECK (current_user = 'localens_request_admin_rpc_owner');
 CREATE POLICY catalog_snapshots_request_admin_rpc_select ON public.catalog_snapshots
   FOR SELECT TO localens_request_admin_rpc_owner USING (true);
 CREATE POLICY travel_snapshots_request_admin_rpc_select ON public.travel_snapshots
   FOR SELECT TO localens_request_admin_rpc_owner USING (true);
 CREATE POLICY fx_snapshots_request_admin_rpc_select ON public.fx_snapshots
   FOR SELECT TO localens_request_admin_rpc_owner USING (true);
+CREATE POLICY fx_snapshots_request_admin_rpc_lock ON public.fx_snapshots
+  FOR UPDATE TO localens_request_admin_rpc_owner
+  USING (current_user = 'localens_request_admin_rpc_owner')
+  WITH CHECK (current_user = 'localens_request_admin_rpc_owner');
 CREATE POLICY user_roles_request_customer_rpc_select ON private.user_roles
   FOR SELECT TO localens_request_customer_rpc_owner USING (current_user = 'localens_request_customer_rpc_owner');
 CREATE POLICY user_roles_request_admin_rpc_select ON private.user_roles
@@ -300,6 +320,27 @@ CREATE TRIGGER custom_request_events_append_only_truncate
 BEFORE TRUNCATE ON private.custom_request_events
 FOR EACH STATEMENT EXECUTE FUNCTION private.reject_custom_request_event_mutation();
 
+CREATE OR REPLACE FUNCTION private.reject_trip_plan_id_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+BEGIN
+  IF OLD.id IS DISTINCT FROM NEW.id THEN
+    RAISE EXCEPTION 'trip plan id is immutable' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+ALTER FUNCTION private.reject_trip_plan_id_mutation() OWNER TO localens_request_guard_owner;
+REVOKE ALL ON FUNCTION private.reject_trip_plan_id_mutation() FROM PUBLIC, anon, authenticated;
+
+CREATE TRIGGER trip_plans_request_id_immutable
+BEFORE UPDATE ON public.trip_plans
+FOR EACH ROW EXECUTE FUNCTION private.reject_trip_plan_id_mutation();
+
 CREATE OR REPLACE FUNCTION private.reject_custom_quote_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -307,7 +348,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 BEGIN
-  IF OLD.request_id IS DISTINCT FROM NEW.request_id
+  IF OLD.id IS DISTINCT FROM NEW.id
+     OR OLD.request_id IS DISTINCT FROM NEW.request_id
      OR OLD.amount_vnd_minor IS DISTINCT FROM NEW.amount_vnd_minor
      OR OLD.checkout_currency IS DISTINCT FROM NEW.checkout_currency
      OR OLD.checkout_amount_minor IS DISTINCT FROM NEW.checkout_amount_minor
@@ -1001,11 +1043,17 @@ GRANT UPDATE (status, latest_decision_at, updated_at)
 GRANT SELECT, INSERT ON TABLE private.custom_request_events TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
 GRANT SELECT ON TABLE public.custom_quotes TO localens_request_customer_rpc_owner;
 GRANT SELECT, INSERT ON TABLE public.custom_quotes TO localens_request_admin_rpc_owner;
+GRANT UPDATE (id) ON TABLE public.custom_quotes TO localens_request_admin_rpc_owner;
 GRANT SELECT ON TABLE public.trip_plans, public.trip_plan_revisions
   TO localens_request_customer_rpc_owner;
+GRANT UPDATE (id) ON TABLE public.trip_plans TO localens_request_customer_rpc_owner;
+GRANT UPDATE (id) ON TABLE public.trip_plan_revisions TO localens_request_customer_rpc_owner;
 GRANT SELECT ON TABLE public.trip_plans, public.trip_plan_revisions,
   public.catalog_snapshots,
   public.travel_snapshots, public.fx_snapshots TO localens_request_admin_rpc_owner;
+GRANT UPDATE (id) ON TABLE public.trip_plans TO localens_request_admin_rpc_owner;
+GRANT UPDATE (id) ON TABLE public.trip_plan_revisions TO localens_request_admin_rpc_owner;
+GRANT UPDATE (id) ON TABLE public.fx_snapshots TO localens_request_admin_rpc_owner;
 GRANT SELECT ON TABLE private.user_roles TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
 GRANT SELECT (id, language) ON TABLE public.profiles TO localens_request_customer_rpc_owner;
 GRANT EXECUTE ON FUNCTION auth.uid() TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
