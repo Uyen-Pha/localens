@@ -99,6 +99,8 @@ CREATE POLICY content_source_domains_public_select ON private.content_source_dom
   FOR SELECT TO localens_content_public_owner USING (current_user = 'localens_content_public_owner');
 CREATE POLICY content_source_domains_build_select ON private.content_source_domains
   FOR SELECT TO localens_content_build_owner USING (current_user = 'localens_content_build_owner');
+CREATE POLICY content_source_domains_guard_select ON private.content_source_domains
+  FOR SELECT TO localens_content_guard_owner USING (current_user = 'localens_content_guard_owner');
 REVOKE ALL ON TABLE private.content_source_domains FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION private.content_url_is_safe(p_url text)

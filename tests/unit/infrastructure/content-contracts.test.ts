@@ -198,6 +198,7 @@ describe("content contract adapters", () => {
 describe("Task 12 SQL contract", () => {
   it("defines immutable drafts, release copies, one publishing release, and a singleton live pointer", () => {
     expect(migration).toMatch(/CREATE TABLE public\.content_drafts/);
+    expect(migration).toMatch(/content_source_domains_guard_select[\s\S]*TO localens_content_guard_owner[\s\S]*current_user = 'localens_content_guard_owner'/);
     expect(migration).toMatch(/CREATE TABLE private\.content_release_copies/);
     expect(migration).toMatch(/CREATE TABLE public\.seo_releases/);
     expect(migration).toMatch(/CREATE TABLE private\.seo_build_capabilities/);
