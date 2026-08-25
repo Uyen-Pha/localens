@@ -3,7 +3,7 @@
 -- webhook event idempotency and early webhook races are covered below.
 BEGIN;
 
-SELECT plan(100);
+SELECT plan(101);
 RESET ROLE;
 
 SELECT ok(to_regclass('public.payments') IS NOT NULL, 'payments table exists');
@@ -86,6 +86,7 @@ SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'confirmed.*payment_review', 'confirmed or reviewed bookings are never downgraded');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'terminal/incompatible', 'terminal booking status remains unchanged on late payment');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'idempotency_row.*source.*booking.*hold.*attempt.*payment', 'finalizer documents the common lock order');
+SELECT ok(strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'current_time := pg_catalog.clock_timestamp()') > strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'SELECT * INTO payment_row FROM public.payments WHERE booking_id = booking_row.id FOR UPDATE') AND strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'current_time := pg_catalog.clock_timestamp()') < strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'hold_is_active :='), 'finalizer samples time after payment lock before hold evaluation');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'provider_session_id IS NULL', 'early webhook attaches the same provider session');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'provider_expires_at = NULL', 'early webhook does not fabricate provider expiry');
 SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'provider_expires_at IS NULL', 'browser session recording hydrates an early event');

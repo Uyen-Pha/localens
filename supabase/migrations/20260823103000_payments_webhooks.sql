@@ -441,7 +441,7 @@ DECLARE
   hold_row private.capacity_holds%ROWTYPE;
   payment_row public.payments%ROWTYPE;
   event_row private.webhook_events%ROWTYPE;
-  current_time timestamptz := pg_catalog.clock_timestamp();
+  current_time timestamptz;
   hold_is_active boolean := false;
   payment_was_finalized boolean := false;
   next_booking_status public.booking_status;
@@ -533,17 +533,22 @@ BEGIN
   END IF;
   SELECT * INTO hold_row FROM private.capacity_holds
     WHERE booking_id = booking_row.id AND status = 'active'::public.hold_status FOR UPDATE;
-  hold_is_active := FOUND AND hold_row.expires_at > current_time AND booking_row.status IN ('pending_payment'::public.booking_status, 'payment_processing'::public.booking_status);
-  IF FOUND AND NOT hold_is_active AND hold_row.expires_at <= current_time THEN
-    PERFORM pg_catalog.set_config('localens.checkout_transition', 'on', true);
-    UPDATE private.capacity_holds SET status = 'expired'::public.hold_status, released_at = current_time WHERE id = hold_row.id;
-  END IF;
   SELECT * INTO attempt_row FROM private.checkout_attempts WHERE id = p_attempt_id FOR UPDATE;
   IF NOT FOUND OR attempt_row.booking_id IS DISTINCT FROM booking_row.id THEN
     RAISE EXCEPTION 'checkout attempt unavailable' USING ERRCODE = '42501';
   END IF;
   IF attempt_row.provider_session_id IS NOT NULL AND attempt_row.provider_session_id IS DISTINCT FROM p_session_id THEN
     RAISE EXCEPTION 'provider session conflict' USING ERRCODE = 'P0001';
+  END IF;
+  SELECT * INTO payment_row FROM public.payments WHERE booking_id = booking_row.id FOR UPDATE;
+  -- Sample only after the final payment lock. All expiry decisions and
+  -- timestamps below use this post-lock time, so a wait cannot validate a
+  -- hold or session against stale time.
+  current_time := pg_catalog.clock_timestamp();
+  hold_is_active := hold_row.id IS NOT NULL AND hold_row.expires_at > current_time AND booking_row.status IN ('pending_payment'::public.booking_status, 'payment_processing'::public.booking_status);
+  IF hold_row.id IS NOT NULL AND NOT hold_is_active AND hold_row.expires_at <= current_time THEN
+    PERFORM pg_catalog.set_config('localens.checkout_transition', 'on', true);
+    UPDATE private.capacity_holds SET status = 'expired'::public.hold_status, released_at = current_time WHERE id = hold_row.id;
   END IF;
   IF attempt_row.provider_session_id IS NULL THEN
     PERFORM pg_catalog.set_config('localens.checkout_transition', 'on', true);
@@ -554,8 +559,6 @@ BEGIN
           updated_at = current_time
       WHERE id = attempt_row.id;
   END IF;
-
-  SELECT * INTO payment_row FROM public.payments WHERE booking_id = booking_row.id FOR UPDATE;
   IF p_event_type = 'checkout.session.completed' THEN
     IF payment_row.id IS NOT NULL THEN
       IF payment_row.provider_session_id IS DISTINCT FROM p_session_id
