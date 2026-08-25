@@ -78,6 +78,7 @@ REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM
 
 -- This is a checked-in source-domain registry. Task 14 may extend it from its
 -- approved source manifest; callers cannot modify it through PostgREST.
+-- SQL and the build never fetch these URLs; they are provenance links only.
 CREATE TABLE private.content_source_domains (
   hostname text PRIMARY KEY CHECK (
     hostname = lower(hostname)
@@ -138,6 +139,7 @@ AS $function$
     AND EXISTS (
       SELECT 1 FROM private.content_source_domains AS domains
       WHERE domains.hostname = lower(pg_catalog.regexp_replace(p_url, '^https://([^/?#]+).*$', '\1'))
+        AND domains.purpose = 'approved_source'
     );
 $function$;
 ALTER FUNCTION private.content_url_is_allowlisted(text) OWNER TO localens_content_guard_owner;
@@ -149,6 +151,66 @@ GRANT USAGE ON SCHEMA private TO localens_content_admin_owner, localens_content_
   localens_content_build_executor;
 GRANT SELECT ON TABLE private.content_source_domains TO localens_content_guard_owner;
 GRANT EXECUTE ON FUNCTION private.content_url_is_safe(text), private.content_url_is_allowlisted(text)
+  TO localens_content_guard_owner, localens_content_admin_owner, localens_content_build_owner;
+
+CREATE OR REPLACE FUNCTION private.content_provenance_is_allowlisted(
+  p_source_urls jsonb,
+  p_image_attributions jsonb
+)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  source_url text;
+  image_row jsonb;
+  image_creator text;
+  image_license text;
+BEGIN
+  IF p_source_urls IS NULL OR jsonb_typeof(p_source_urls) <> 'array' THEN
+    RETURN false;
+  END IF;
+  IF jsonb_array_length(p_source_urls) < 1 OR jsonb_array_length(p_source_urls) > 32 THEN
+    RETURN false;
+  END IF;
+  FOR source_url IN SELECT value FROM pg_catalog.jsonb_array_elements_text(p_source_urls)
+  LOOP
+    IF NOT private.content_url_is_allowlisted(source_url) THEN
+      RETURN false;
+    END IF;
+  END LOOP;
+  IF p_image_attributions IS NULL OR jsonb_typeof(p_image_attributions) <> 'array' THEN
+    RETURN false;
+  END IF;
+  IF jsonb_array_length(p_image_attributions) > 32 THEN
+    RETURN false;
+  END IF;
+  FOR image_row IN SELECT value FROM pg_catalog.jsonb_array_elements(p_image_attributions)
+  LOOP
+    IF jsonb_typeof(image_row) <> 'object'
+       OR NOT (image_row ?& ARRAY['imageUrl', 'sourceUrl', 'creator', 'license'])
+       OR (SELECT count(*) FROM jsonb_object_keys(image_row)) <> 4
+       OR NOT private.content_url_is_allowlisted(image_row ->> 'imageUrl')
+       OR NOT private.content_url_is_allowlisted(image_row ->> 'sourceUrl') THEN
+      RETURN false;
+    END IF;
+    image_creator := image_row ->> 'creator';
+    image_license := image_row ->> 'license';
+    IF image_creator IS NULL OR btrim(image_creator) = ''
+       OR image_creator <> btrim(image_creator) OR image_creator ~ '[[:cntrl:]<>]'
+       OR image_license IS NULL OR btrim(image_license) = ''
+       OR image_license <> btrim(image_license) OR image_license ~ '[[:cntrl:]<>]' THEN
+      RETURN false;
+    END IF;
+  END LOOP;
+  RETURN true;
+END;
+$function$;
+ALTER FUNCTION private.content_provenance_is_allowlisted(jsonb, jsonb) OWNER TO localens_content_guard_owner;
+REVOKE ALL ON FUNCTION private.content_provenance_is_allowlisted(jsonb, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION private.content_provenance_is_allowlisted(jsonb, jsonb)
   TO localens_content_guard_owner, localens_content_admin_owner, localens_content_build_owner;
 
 CREATE TABLE public.content_drafts (
@@ -334,6 +396,9 @@ BEGIN
       RAISE EXCEPTION 'image attribution safety failed' USING ERRCODE = '23514';
     END IF;
   END LOOP;
+  IF NOT private.content_provenance_is_allowlisted(NEW.source_urls, NEW.image_attributions) THEN
+    RAISE EXCEPTION 'content provenance allowlist failed' USING ERRCODE = '23514';
+  END IF;
   RETURN NEW;
 END;
 $function$;
@@ -356,7 +421,8 @@ AS $function$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     IF NEW.status <> 'draft'::public.content_status OR NEW.artifact_hash IS NOT NULL
-       OR NEW.publishing_at IS NOT NULL OR NEW.published_at IS NOT NULL OR NEW.failed_at IS NOT NULL THEN
+       OR NEW.publishing_at IS NOT NULL OR NEW.published_at IS NOT NULL
+       OR NEW.failed_at IS NOT NULL OR NEW.failure_code IS NOT NULL THEN
       RAISE EXCEPTION 'invalid initial content release state' USING ERRCODE = '42501';
     END IF;
     RETURN NEW;
@@ -364,13 +430,28 @@ BEGIN
   IF OLD.id IS DISTINCT FROM NEW.id OR OLD.created_by IS DISTINCT FROM NEW.created_by
      OR OLD.created_at IS DISTINCT FROM NEW.created_at OR OLD.source_commit IS DISTINCT FROM NEW.source_commit
      OR OLD.build_id IS DISTINCT FROM NEW.build_id
-     OR (OLD.artifact_hash IS DISTINCT FROM NEW.artifact_hash AND NOT (OLD.artifact_hash IS NULL AND NEW.artifact_hash IS NOT NULL AND NEW.status = 'published'::public.content_status))
-       OR NOT ((OLD.status = 'draft'::public.content_status AND NEW.status = 'publishing'::public.content_status)
+     OR OLD.publishing_at IS DISTINCT FROM NEW.publishing_at AND OLD.status <> 'draft'::public.content_status
+     OR NOT ((OLD.status = 'draft'::public.content_status AND NEW.status = 'publishing'::public.content_status)
        OR (OLD.status = 'publishing'::public.content_status AND NEW.status IN ('published'::public.content_status, 'failed'::public.content_status))) THEN
     RAISE EXCEPTION 'content release state transition is invalid' USING ERRCODE = '42501';
   END IF;
-  IF NEW.status = 'published'::public.content_status AND (NEW.artifact_hash IS NULL OR NEW.published_at IS NULL) THEN
-    RAISE EXCEPTION 'published release provenance is incomplete' USING ERRCODE = '23514';
+  IF OLD.status = 'draft'::public.content_status THEN
+    IF NEW.publishing_at IS NULL OR NEW.artifact_hash IS NOT NULL
+       OR NEW.published_at IS NOT NULL OR NEW.failed_at IS NOT NULL OR NEW.failure_code IS NOT NULL THEN
+      RAISE EXCEPTION 'draft publishing transition is incomplete' USING ERRCODE = '23514';
+    END IF;
+  ELSIF OLD.status = 'publishing'::public.content_status AND NEW.status = 'published'::public.content_status THEN
+    IF NEW.publishing_at IS DISTINCT FROM OLD.publishing_at
+       OR NEW.artifact_hash IS NULL OR NEW.published_at IS NULL
+       OR NEW.failed_at IS NOT NULL OR NEW.failure_code IS NOT NULL THEN
+      RAISE EXCEPTION 'published release provenance is incomplete' USING ERRCODE = '23514';
+    END IF;
+  ELSIF OLD.status = 'publishing'::public.content_status AND NEW.status = 'failed'::public.content_status THEN
+    IF NEW.publishing_at IS DISTINCT FROM OLD.publishing_at
+       OR NEW.artifact_hash IS NOT NULL OR NEW.published_at IS NOT NULL
+       OR NEW.failed_at IS NULL OR NEW.failure_code IS NULL THEN
+      RAISE EXCEPTION 'failed release transition is incomplete' USING ERRCODE = '23514';
+    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -548,6 +629,95 @@ GRANT EXECUTE ON FUNCTION private.assert_content_admin() TO localens_content_adm
 CREATE POLICY user_roles_content_admin_select ON private.user_roles
   FOR SELECT TO localens_content_admin_owner USING (current_user = 'localens_content_admin_owner');
 
+CREATE OR REPLACE FUNCTION public.upsert_content_draft(
+  p_locale public.locale,
+  p_slug text,
+  p_title text,
+  p_description text,
+  p_body text,
+  p_source_urls jsonb,
+  p_verified_at date,
+  p_image_attributions jsonb
+)
+RETURNS TABLE (
+  id uuid,
+  locale public.locale,
+  slug text,
+  title text,
+  description text,
+  body text,
+  source_urls jsonb,
+  verified_at text,
+  image_attributions jsonb,
+  status public.content_status,
+  updated_at timestamptz
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  actor uuid;
+  result_id uuid;
+  result_locale public.locale;
+  result_slug text;
+  result_title text;
+  result_description text;
+  result_body text;
+  result_source_urls jsonb;
+  result_verified_at date;
+  result_image_attributions jsonb;
+  result_status public.content_status;
+  result_updated_at timestamptz;
+BEGIN
+  actor := private.assert_content_admin();
+  IF NOT private.content_provenance_is_allowlisted(p_source_urls, p_image_attributions) THEN
+    RAISE EXCEPTION 'content provenance is not allowlisted' USING ERRCODE = '23514';
+  END IF;
+  INSERT INTO public.content_drafts AS drafts (
+    locale, slug, title, description, body, source_urls, verified_at,
+    image_attributions, created_by, updated_by
+  )
+  VALUES (
+    p_locale, p_slug, p_title, p_description, p_body, p_source_urls,
+    p_verified_at, p_image_attributions, actor, actor
+  )
+  ON CONFLICT ON CONSTRAINT content_drafts_locale_slug_key DO UPDATE
+  SET title = EXCLUDED.title,
+      description = EXCLUDED.description,
+      body = EXCLUDED.body,
+      source_urls = EXCLUDED.source_urls,
+      verified_at = EXCLUDED.verified_at,
+      image_attributions = EXCLUDED.image_attributions,
+      updated_by = actor,
+      updated_at = pg_catalog.clock_timestamp()
+  RETURNING drafts.id, drafts.locale, drafts.slug, drafts.title, drafts.description,
+    drafts.body, drafts.source_urls, drafts.verified_at, drafts.image_attributions,
+    drafts.status, drafts.updated_at
+  INTO result_id, result_locale, result_slug, result_title, result_description,
+    result_body, result_source_urls, result_verified_at, result_image_attributions,
+    result_status, result_updated_at;
+  id := result_id;
+  locale := result_locale;
+  slug := result_slug;
+  title := result_title;
+  description := result_description;
+  body := result_body;
+  source_urls := result_source_urls;
+  verified_at := result_verified_at::text;
+  image_attributions := result_image_attributions;
+  status := result_status;
+  updated_at := result_updated_at;
+  RETURN NEXT;
+END;
+$function$;
+ALTER FUNCTION public.upsert_content_draft(public.locale, text, text, text, text, jsonb, date, jsonb)
+  OWNER TO localens_content_admin_owner;
+REVOKE ALL ON FUNCTION public.upsert_content_draft(public.locale, text, text, text, text, jsonb, date, jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_content_draft(public.locale, text, text, text, text, jsonb, date, jsonb)
+  TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.publish_seo(p_source_commit text, p_build_id text)
 RETURNS TABLE (release_id uuid, build_id text, capability_nonce text, expires_at timestamptz, read_scope text)
 LANGUAGE plpgsql
@@ -557,14 +727,66 @@ AS $function$
 DECLARE
   actor uuid;
   release_row public.seo_releases%ROWTYPE;
+  active_release public.seo_releases%ROWTYPE;
+  active_capability private.seo_build_capabilities%ROWTYPE;
   draft_row record;
   nonce text;
   capability_expiry timestamptz;
+  authority_time timestamptz;
 BEGIN
   actor := private.assert_content_admin();
   IF p_source_commit IS NULL OR p_source_commit !~ '^[A-Za-z0-9._/-]{7,200}$'
      OR p_build_id IS NULL OR p_build_id !~ '^[A-Za-z0-9._/-]{1,200}$' THEN
     RAISE EXCEPTION 'invalid content release identity' USING ERRCODE = '22023';
+  END IF;
+  -- A content release is atomic: every complete EN/VI draft slug in this
+  -- table forms one content version and is snapshotted together.  Do not
+  -- fetch source URLs here or in the build; they are provenance links only.
+  SELECT releases.id, releases.status, releases.source_commit, releases.build_id,
+    releases.artifact_hash, releases.created_by, releases.created_at,
+    releases.publishing_at, releases.published_at, releases.failed_at, releases.failure_code
+  INTO active_release
+  FROM public.seo_releases AS releases
+  WHERE releases.status = 'publishing'::public.content_status
+  ORDER BY releases.publishing_at, releases.created_at
+  LIMIT 1
+  FOR UPDATE;
+  IF active_release.id IS NOT NULL THEN
+    SELECT capabilities.id, capabilities.release_id, capabilities.build_id, capabilities.source_commit,
+      capabilities.artifact_hash, capabilities.nonce_hash, capabilities.expires_at,
+      capabilities.read_scope, capabilities.consumed_at, capabilities.created_at
+    INTO active_capability
+    FROM private.seo_build_capabilities AS capabilities
+    WHERE capabilities.release_id = active_release.id
+    FOR UPDATE;
+    authority_time := pg_catalog.clock_timestamp();
+    IF active_capability.id IS NULL
+       OR active_capability.consumed_at IS NOT NULL
+       OR active_capability.expires_at <= authority_time THEN
+      UPDATE public.seo_releases
+      SET status = 'failed'::public.content_status,
+          failed_at = authority_time,
+          failure_code = 'capability_expired'
+      WHERE id = active_release.id;
+      IF active_capability.id IS NOT NULL AND active_capability.consumed_at IS NULL THEN
+        UPDATE private.seo_build_capabilities
+        SET consumed_at = authority_time
+        WHERE id = active_capability.id;
+      END IF;
+      PERFORM private.record_content_audit_event(
+        'content_publish_failed'::public.audit_event_type,
+        active_release.created_by,
+        active_release.id,
+        'publishing',
+        'failed',
+        'source'::public.audit_metadata_key,
+        'build',
+        NULL,
+        NULL
+      );
+    ELSE
+      RAISE EXCEPTION 'content release already publishing' USING ERRCODE = '55006';
+    END IF;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.content_drafts WHERE status = 'draft'::public.content_status)
      OR EXISTS (
@@ -629,11 +851,15 @@ REVOKE ALL ON FUNCTION public.publish_seo(text, text) FROM PUBLIC, anon, authent
 GRANT EXECUTE ON FUNCTION public.publish_seo(text, text) TO authenticated;
 GRANT INSERT, UPDATE ON TABLE public.content_drafts, public.seo_releases TO localens_content_admin_owner;
 GRANT INSERT ON TABLE private.content_release_copies, private.seo_build_capabilities TO localens_content_admin_owner;
+GRANT UPDATE ON TABLE private.seo_build_capabilities TO localens_content_admin_owner;
 GRANT EXECUTE ON FUNCTION private.record_content_audit_event(public.audit_event_type, uuid, uuid, text, text, public.audit_metadata_key, text, numeric, boolean) TO localens_content_admin_owner;
 CREATE POLICY content_release_copies_admin_owner_insert ON private.content_release_copies
   FOR INSERT TO localens_content_admin_owner WITH CHECK (current_user = 'localens_content_admin_owner');
 CREATE POLICY seo_build_capabilities_admin_owner_insert ON private.seo_build_capabilities
   FOR INSERT TO localens_content_admin_owner WITH CHECK (current_user = 'localens_content_admin_owner');
+CREATE POLICY seo_build_capabilities_admin_owner_update ON private.seo_build_capabilities
+  FOR UPDATE TO localens_content_admin_owner USING (current_user = 'localens_content_admin_owner')
+  WITH CHECK (current_user = 'localens_content_admin_owner');
 CREATE POLICY audit_events_content_admin_owner_insert ON private.audit_events
   FOR INSERT TO localens_content_admin_owner WITH CHECK (current_user = 'localens_content_admin_owner' AND target_type = 'content_release'::public.audit_target_type);
 
@@ -842,6 +1068,7 @@ BEGIN
   authority_time := pg_catalog.clock_timestamp();
   IF release_row.status = 'failed'::public.content_status
      AND capability_row.consumed_at IS NOT NULL
+     AND release_row.failure_code = p_failure_code
      AND capability_row.nonce_hash = pg_catalog.digest(pg_catalog.convert_to(p_capability_nonce, 'utf8'), 'sha256') THEN
     release_id := release_row.id;
     status := release_row.status;

@@ -9,6 +9,7 @@ import {
   mapAdminAuditEvent,
   mapAdminContentDraft,
   mapPublishedContent,
+  toContentDraftRpcArgs,
   toContentDraft,
 } from "@/lib/infrastructure/supabase/content-contracts";
 
@@ -91,7 +92,24 @@ const auditRow = {
 describe("content contract adapters", () => {
   it("accepts only sanitized bilingual draft input and strips no server authority", () => {
     expect(toContentDraft(draftInput)).toEqual({ ok: true, value: draftInput });
+    expect(toContentDraftRpcArgs(draftInput)).toEqual({
+      ok: true,
+      value: {
+        locale: "en",
+        slug: "cho-lon-market",
+        title: "Cho Lon Market",
+        description: "A short guide to a traditional market.",
+        body: "Visit the market with a local guide.",
+        source_urls: ["https://example.org/market"],
+        verified_at: "2026-08-24",
+        image_attributions: [attribution],
+      },
+    });
     expect(toContentDraft({ ...draftInput, id: ids.draft } as never)).toMatchObject({
+      ok: false,
+      error: { code: "UNKNOWN_FIELD" },
+    });
+    expect(toContentDraftRpcArgs({ ...draftInput, createdBy: ids.actor })).toMatchObject({
       ok: false,
       error: { code: "UNKNOWN_FIELD" },
     });
@@ -193,6 +211,11 @@ describe("Task 12 SQL contract", () => {
     expect(migration).toMatch(/release_id uuid NOT NULL REFERENCES public\.seo_releases\(id\) ON DELETE RESTRICT/);
     expect(migration).toMatch(/source_commit text NOT NULL/);
     expect(migration).toMatch(/artifact_hash text CHECK \(artifact_hash IS NULL OR artifact_hash/);
+    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.upsert_content_draft\([\s\S]*p_locale public\.locale[\s\S]*p_image_attributions jsonb/);
+    expect(migration).toMatch(/private\.assert_content_admin\(\)/);
+    expect(migration).toMatch(/ON CONFLICT ON CONSTRAINT content_drafts_locale_slug_key DO UPDATE/);
+    expect(migration).toMatch(/RETURNING drafts\.id, drafts\.locale, drafts\.slug, drafts\.title/);
+    expect(migration).not.toMatch(/SET ROLE|service_role/i);
   });
 
   it("enforces source and attribution completeness and safe publish/finalize transitions", () => {
@@ -201,10 +224,15 @@ describe("Task 12 SQL contract", () => {
     expect(migration).toMatch(/complete.*en.*vi|en.*vi.*complete/i);
     expect(migration).toMatch(/https:\/\//);
     expect(migration).toMatch(/content_publish_started[\s\S]*content_published[\s\S]*content_publish_failed/);
+    expect(migration).toMatch(/assert_content_json_safe[\s\S]*content_provenance_is_allowlisted\(NEW\.source_urls, NEW\.image_attributions\)/);
     expect(migration).toMatch(/FOR UPDATE[\s\S]*nonce_hash[\s\S]*consumed_at/);
     expect(migration).toMatch(/previous.*published|published.*active|prior.*published/i);
     expect(migration).toMatch(/ON CONFLICT \(id\) DO UPDATE[\s\S]*release_id = EXCLUDED\.release_id/);
     expect(migration).not.toMatch(/'archived'::public\.content_status/);
+    expect(migration).toMatch(/purpose = 'approved_source'/);
+    expect(migration).toMatch(/failure_code IS DISTINCT FROM p_failure_code|failure_code = p_failure_code/);
+    expect(migration).toMatch(/publishing[\s\S]*FOR UPDATE|FOR UPDATE[\s\S]*publishing/i);
+    expect(migration).toMatch(/URLs are provenance links|never fetch/i);
   });
 
   it("exposes strict admin/public/audit projections without build facts", () => {
@@ -220,7 +248,7 @@ describe("Task 12 SQL contract", () => {
   it("contains executable pgTAP with an exact assertion plan and hostile path coverage", () => {
     expect(pgTap).toMatch(/BEGIN;/);
     expect(pgTap).toMatch(/SELECT plan\(\d+\);/);
-    const assertions = pgTap.match(/^SELECT (?:ok|is|isnt|like|unlike|throws_ok|has_table_privilege|has_function_privilege)\(/gim) ?? [];
+    const assertions = pgTap.match(/^SELECT (?:ok|is|isnt|like|unlike|throws_ok|lives_ok|has_table_privilege|has_function_privilege)\(/gim) ?? [];
     const planned = Number(pgTap.match(/SELECT plan\((\d+)\);/)?.[1]);
     expect(assertions.length).toBe(planned);
     expect(pgTap).toMatch(/search_path/i);

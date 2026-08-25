@@ -14,6 +14,17 @@ import type {
 
 type UnknownRecord = Record<string, unknown>;
 
+export interface ContentDraftRpcArgs {
+  locale: Locale;
+  slug: string;
+  title: string;
+  description: string;
+  body: string;
+  source_urls: string[];
+  verified_at: string;
+  image_attributions: ImageAttribution[];
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/;
@@ -239,11 +250,29 @@ function mapContentFields(row: UnknownRecord, path: string): Result<ContentDraft
   return { ok: true, value: { locale: locale as Locale, slug: slug.value, title: title.value, description: description.value, body: body.value, sourceUrls: sourceUrls.value, verifiedAt: verifiedAt.value, imageAttributions: imageAttributions.value } };
 }
 
-export function toContentDraft(input: ContentDraftWrite): Result<ContentDraftWrite, DataAdapterError> {
+export function toContentDraft(input: unknown): Result<ContentDraftWrite, DataAdapterError> {
   const fields = exactFields(input, ["locale", "slug", "title", "description", "body", "sourceUrls", "verifiedAt", "imageAttributions"], "input");
   if (!fields.ok) return fields;
   const mapped = mapContentFields({ ...fields.value, source_urls: fields.value.sourceUrls, verified_at: fields.value.verifiedAt, image_attributions: fields.value.imageAttributions }, "input");
   return mapped;
+}
+
+export function toContentDraftRpcArgs(input: unknown): Result<ContentDraftRpcArgs, DataAdapterError> {
+  const mapped = toContentDraft(input);
+  if (!mapped.ok) return mapped;
+  return {
+    ok: true,
+    value: {
+      locale: mapped.value.locale,
+      slug: mapped.value.slug,
+      title: mapped.value.title,
+      description: mapped.value.description,
+      body: mapped.value.body,
+      source_urls: mapped.value.sourceUrls,
+      verified_at: mapped.value.verifiedAt,
+      image_attributions: mapped.value.imageAttributions,
+    },
+  };
 }
 
 export function mapAdminContentDraft(row: unknown): Result<AdminContentDraft, DataAdapterError> {
