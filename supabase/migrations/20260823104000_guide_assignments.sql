@@ -568,6 +568,7 @@ BEGIN
   JOIN public.bookings AS bookings ON bookings.id = assignments.booking_id
   JOIN public.departures AS departures ON departures.id = bookings.departure_id
   WHERE assignments.guide_user_id = actor_user_id
+    AND assignments.status IN ('assigned'::public.assignment_status, 'accepted'::public.assignment_status)
   ORDER BY departures.start_at, assignments.id;
 END;
 $function$;
