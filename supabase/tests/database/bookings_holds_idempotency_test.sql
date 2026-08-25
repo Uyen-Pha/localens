@@ -70,7 +70,12 @@ SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'checkout_a
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'bookings_transition_guard'), 'booking transition guard exists');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'capacity_holds_transition_guard'), 'hold transition guard exists');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'custom_quotes_checkout_transition_guard'), 'quote checkout transition guard exists');
-SELECT ok(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure) ~* 'idempotency.*quote|idempotency.*departure', 'start checkout documents source lock order');
+SELECT ok(
+  pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure) ~* 'idempotency.*quote|idempotency.*departure'
+  AND strpos(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure), 'SELECT * INTO booking_row FROM public.bookings WHERE id = idempotency_row.booking_id FOR UPDATE') > 0
+  AND strpos(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure), 'SELECT * INTO retry_attempt_row FROM private.checkout_attempts WHERE id = idempotency_row.checkout_attempt_id FOR UPDATE')
+    > strpos(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure), 'SELECT * INTO booking_row FROM public.bookings WHERE id = idempotency_row.booking_id FOR UPDATE'),
+  'start checkout documents and enforces source -> booking -> attempt lock order on retry');
 SELECT ok(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure) ~* 'canonical.*hash|checkout_hash_equal', 'SQL independently verifies canonical hash');
 SELECT ok(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure) ~* '35 minutes', 'start checkout creates a 35-minute hold');
 SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* '30 minutes', 'session recording bounds provider expiry');

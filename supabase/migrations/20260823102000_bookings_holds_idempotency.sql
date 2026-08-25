@@ -548,15 +548,16 @@ BEGIN
   END IF;
   IF NOT inserted THEN
     -- Preserve the common lock order on a retry: idempotency -> source ->
-    -- booking.  The source and attempt facts are then checked against the
-    -- authenticated request before any durable response is replayed.
+    -- booking -> attempt.  The source and attempt facts are then checked
+    -- against the authenticated request before any durable response is
+    -- replayed.
     IF p_source_kind = 'departure' THEN
       SELECT * INTO departure_row FROM public.departures WHERE id = p_source_id FOR UPDATE;
     ELSE
       SELECT * INTO quote_row FROM public.custom_quotes WHERE id = p_source_id FOR UPDATE;
     END IF;
-    SELECT * INTO booking_row FROM public.bookings WHERE id = idempotency_row.booking_id;
-    SELECT * INTO retry_attempt_row FROM private.checkout_attempts WHERE id = idempotency_row.checkout_attempt_id;
+    SELECT * INTO booking_row FROM public.bookings WHERE id = idempotency_row.booking_id FOR UPDATE;
+    SELECT * INTO retry_attempt_row FROM private.checkout_attempts WHERE id = idempotency_row.checkout_attempt_id FOR UPDATE;
     IF NOT FOUND OR booking_row.owner_user_id IS DISTINCT FROM actor_user_id
        OR booking_row.source_kind IS DISTINCT FROM p_source_kind
        OR booking_row.source_id IS DISTINCT FROM p_source_id

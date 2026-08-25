@@ -115,6 +115,7 @@ describe("Task 9 checkout contracts", () => {
     expect(migration).toMatch(/checkout_canonical_payload[\s\S]*localens-checkout-v1\|.*p_owner_user_id::text.*p_source_kind.*p_source_id::text.*p_party_size::text.*p_locale::text/i);
     expect(migration).toMatch(/canonical_hash\s*:=\s*[\s\S]*private\.checkout_canonical_payload\(actor_user_id, p_source_kind, p_source_id, p_party_size, p_locale\)/i);
     expect(migration).toMatch(/IF NOT inserted THEN[\s\S]*booking_row\.source_kind IS DISTINCT FROM p_source_kind[\s\S]*booking_row\.source_id IS DISTINCT FROM p_source_id[\s\S]*booking_row\.party_size IS DISTINCT FROM p_party_size[\s\S]*booking_row\.language IS DISTINCT FROM p_locale/i);
+    expect(migration).toMatch(/IF NOT inserted THEN[\s\S]*SELECT \* INTO booking_row FROM public\.bookings[\s\S]*FOR UPDATE[\s\S]*SELECT \* INTO retry_attempt_row FROM private\.checkout_attempts[\s\S]*FOR UPDATE/i);
   });
 
   it("builds a card-only Stripe session with server-owned amount, metadata, allowlisted URLs, and a 30-minute expiry", () => {
