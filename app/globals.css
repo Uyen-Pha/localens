@@ -541,6 +541,22 @@ button:focus-visible,
 .demo-tour-card__details-body h3 { margin: 0; color: var(--customer-ink); font-size: 0.95rem; }
 .demo-tour-card__details-body ul { margin: 0.4rem 0 0; padding-left: 1.2rem; color: var(--customer-ink-soft); line-height: 1.5; }
 .demo-tour-card__details-body code { color: var(--customer-ink-soft); font-size: 0.75rem; overflow-wrap: anywhere; }
+.demo-tour-card__booking-link { width: 100%; justify-content: center; margin-top: var(--space-4); text-decoration: none; }
+.booking-flow { max-width: 60rem; }
+.booking-flow__card { display: grid; gap: var(--space-4); margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: 0.75rem; background: var(--customer-paper); box-shadow: 0 1rem 2.5rem rgba(24, 53, 45, 0.06); }
+.booking-flow__card h2 { margin: 0; color: var(--customer-ink); font-size: clamp(1.35rem, 2vw, 1.8rem); }
+.booking-flow__facts, .booking-flow__price-summary { display: grid; gap: var(--space-2); margin: 0; }
+.booking-flow__facts div, .booking-flow__price-summary div { display: grid; grid-template-columns: minmax(9rem, 0.75fr) 1.25fr; gap: var(--space-3); border-bottom: 1px solid var(--customer-line); padding-bottom: 0.45rem; }
+.booking-flow__facts dt, .booking-flow__price-summary dt { color: var(--customer-ink-soft); font-size: 0.85rem; }
+.booking-flow__facts dd, .booking-flow__price-summary dd { min-width: 0; margin: 0; color: var(--customer-ink); font-weight: 700; overflow-wrap: anywhere; }
+.booking-flow__party-field { max-width: 24rem; }
+.booking-flow__price-summary { padding-top: var(--space-3); border-top: 2px solid var(--customer-line); }
+.booking-flow__price-summary div:last-child dd { color: var(--customer-orange); font-size: 1.15rem; }
+.booking-flow__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.booking-flow__error, .booking-flow__pending, .booking-flow__success, .booking-flow__payment-banner { margin: 0; padding: var(--space-3) var(--space-4); border-left: 3px solid var(--customer-orange); background: rgba(209, 122, 0, 0.08); color: var(--customer-ink); line-height: 1.5; }
+.booking-flow__error { border-left-color: var(--color-cta-vermilion); background: rgba(190, 58, 36, 0.08); color: var(--color-cta-vermilion-dark); font-weight: 700; }
+.booking-flow__payment-banner, .booking-flow__success { border-left-color: var(--color-brand-forest); background: var(--color-brand-forest-soft); font-size: 1rem; font-weight: 700; }
+.booking-flow__pending { margin-top: var(--space-4); }
 .itinerary-preview { margin-top: var(--space-6); padding: var(--space-5); border: 1px solid var(--customer-line); border-radius: 0.6rem; background: var(--customer-paper); }
 .itinerary-preview > h3 { margin: 0; color: var(--customer-ink); font-size: clamp(1.25rem, 2vw, 1.6rem); }
 .itinerary-preview__disclosure, .itinerary-preview__proposal, .itinerary-preview__warning { margin: var(--space-3) 0 0; color: var(--customer-ink-soft); line-height: 1.5; }
@@ -600,6 +616,8 @@ button:focus-visible,
   .tour-catalog-filters { grid-template-columns: 1fr; }
   .tour-catalog-filters legend { grid-column: auto; }
   .demo-tour-grid { grid-template-columns: 1fr; }
+  .booking-flow__facts div, .booking-flow__price-summary div { grid-template-columns: 1fr; gap: 0.15rem; }
+  .booking-flow__actions > * { width: 100%; justify-content: center; }
   .tour-card { min-height: 17rem; }
   .tour-card__title { margin-top: 2.25rem; }
   .trust-grid { gap: 1px; }

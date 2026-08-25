@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import ToursPage, { generateMetadata } from "@/app/[locale]/tours/page";
 import { createReadOnlyApi } from "@/lib/application/api/read-only-api";
+import { getDemoDepartureForTourSlug } from "@/lib/application/booking/mock-booking";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
 describe("localized fixed tours page", () => {
@@ -29,6 +30,13 @@ describe("localized fixed tours page", () => {
       expect(screen.getAllByText(tour.attribution).length).toBeGreaterThan(0);
       expect(screen.getAllByText(tour.verifiedAt).length).toBeGreaterThan(0);
     }
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    for (const tour of catalogResult.value.tours) {
+      const departure = getDemoDepartureForTourSlug(tour.slug);
+      if (departure === undefined) throw new Error(`missing demo departure for ${tour.slug}`);
+      expect(screen.getByRole("link", { name: `${dictionary.home.tourCatalog.bookLabel} ${tour.title}` })).toHaveAttribute(
+        "href",
+        `/en/booking?departure=${departure.departureId}&partySize=1`,
+      );
+    }
   });
 });

@@ -26,6 +26,10 @@ describe("TourCatalogExplorer", () => {
     );
 
     expect(screen.getByRole("heading", { level: 2, name: "Markets and Street Food" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: `${dictionary.home.tourCatalog.bookLabel} Markets and Street Food` })).toHaveAttribute(
+      "href",
+      "/en/booking?departure=demo-departure-markets-and-street-food-2026-09-05&partySize=1",
+    );
     fireEvent.change(screen.getByLabelText(dictionary.home.tourCatalog.keywordLabel), {
       target: { value: "CHO LON" },
     });

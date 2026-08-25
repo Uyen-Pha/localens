@@ -85,5 +85,8 @@ describe("localized public SEO helpers", () => {
       { url: "https://example.com/en/tours/" },
       { url: "https://example.com/vi/tours/" },
     ]);
+    for (const entry of getSitemapEntries("https://example.com")) {
+      expect(entry.url.includes("/booking")).toBe(false);
+    }
   });
 });

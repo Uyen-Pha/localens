@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -8,6 +9,7 @@ import {
 } from "@/lib/application/api/read-only-api";
 import type { ExperienceType, Locale } from "@/lib/domain/itinerary/contracts";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
+import { getDemoDepartureForTourSlug } from "@/lib/application/booking/mock-booking";
 
 type TourCatalogCopy = Dictionary["home"]["tourCatalog"];
 
@@ -43,6 +45,8 @@ function TourCard({
   areaLabels: ReadonlyMap<string, string>;
   experienceLabels: ReadonlyMap<ExperienceType, string>;
 }) {
+  const departure = getDemoDepartureForTourSlug(tour.slug);
+
   return (
     <article className="demo-tour-card">
       <h2 className="demo-tour-card__title">{tour.title}</h2>
@@ -100,6 +104,15 @@ function TourCard({
           </dl>
         </div>
       </details>
+      {departure !== undefined ? (
+        <Link
+          className="button demo-tour-card__booking-link"
+          href={`/${locale}/booking?departure=${encodeURIComponent(departure.departureId)}&partySize=1`}
+          aria-label={`${copy.bookLabel} ${tour.title}`}
+        >
+          {copy.bookLabel}
+        </Link>
+      ) : null}
     </article>
   );
 }

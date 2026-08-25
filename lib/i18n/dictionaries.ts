@@ -71,6 +71,7 @@ export type Dictionary = {
       retryableMessage: string;
       correlationLabel: string;
       disclosure: string;
+      bookLabel: string;
     };
     trustEyebrow: string;
     trustTitle: string;
@@ -137,6 +138,55 @@ export type Dictionary = {
         correlationLabel: string;
       };
     };
+  };
+  booking: {
+    heading: string;
+    intro: string;
+    demoDisclosure: string;
+    loadingLabel: string;
+    invalidDepartureTitle: string;
+    invalidDepartureMessage: string;
+    invalidPartySizeMessage: string;
+    backToToursLabel: string;
+    partySizeLabel: string;
+    partySizeHint: string;
+    availabilityLabel: string;
+    dateLabel: string;
+    startLabel: string;
+    timezoneLabel: string;
+    meetingPointLabel: string;
+    sourceLabel: string;
+    sourceValue: string;
+    unitPriceLabel: string;
+    totalLabel: string;
+    inclusionsLabel: string;
+    inclusionsValue: string;
+    continueLabel: string;
+    paymentHeading: string;
+    paymentIntro: string;
+    paymentBanner: string;
+    holdLabel: string;
+    testSessionLabel: string;
+    paymentStatusLabel: string;
+    unpaidStatus: string;
+    payLabel: string;
+    payingLabel: string;
+    successHeading: string;
+    successMessage: string;
+    successReferenceLabel: string;
+    successStatusLabel: string;
+    paidStatus: string;
+    nextStepsLabel: string;
+    nextStepsValue: string;
+    cancelLabel: string;
+    cancelledMessage: string;
+    retryLabel: string;
+    errorLabel: string;
+    soldOutMessage: string;
+    holdExpiredMessage: string;
+    sessionExpiredMessage: string;
+    genericErrorMessage: string;
+    tourTitles: Record<string, string>;
   };
   navigation: {
     primary: string;
@@ -265,7 +315,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       errorMessage: "The demo tour catalog could not be loaded.",
       retryableMessage: "Please try loading the demo catalog again.",
       correlationLabel: "Reference",
-      disclosure: "Demo catalog only: fixed tours are non-bookable and do not accept payment or confirmation yet.",
+      disclosure: "Demo catalog: booking buttons open a local test flow only. No production booking or charge is made.",
+      bookLabel: "Book",
     },
     trustEyebrow: "A considered way to wander",
     trustTitle: "Local, clear, and made around you",
@@ -476,7 +527,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       errorMessage: "Không thể tải danh mục tour demo.",
       retryableMessage: "Hãy thử tải lại danh mục tour demo.",
       correlationLabel: "Mã tham chiếu",
-      disclosure: "Chỉ là danh mục demo: tour cố định chưa nhận đặt tour, thanh toán hoặc xác nhận.",
+      disclosure: "Danh mục demo: nút đặt tour chỉ mở luồng thử nghiệm cục bộ. Chưa có đặt tour thực tế hay khoản tiền nào bị trừ.",
+      bookLabel: "Đặt tour",
     },
     trustEyebrow: "Một cách khám phá có cân nhắc",
     trustTitle: "Địa phương, rõ ràng và xoay quanh bạn",
