@@ -1,10 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import ToursPage from "@/app/[locale]/tours/page";
+import ToursPage, { generateMetadata } from "@/app/[locale]/tours/page";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
 describe("localized fixed tours page", () => {
+  it("keeps the browser title and Open Graph title aligned", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ locale: "en" }) });
+
+    expect(metadata.title).toBe(metadata.openGraph?.title);
+  });
+
   it("renders a static, localized destination for every fixed-tour card", async () => {
     const dictionary = getDictionary("en");
 

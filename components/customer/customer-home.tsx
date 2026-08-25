@@ -52,6 +52,9 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
           <h2 id="discovery-title">{copy.discoveryTitle}</h2>
           <p>{copy.discoveryIntro}</p>
         </div>
+        <p className="demo-disclosure" role="note">
+          {copy.demoDisclosure}
+        </p>
         <FixedToursGrid locale={locale} copy={copy} />
       </section>
 

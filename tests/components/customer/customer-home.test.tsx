@@ -1,8 +1,10 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { CustomerHome } from "@/components/customer/customer-home";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+
+afterEach(cleanup);
 
 describe("CustomerHome", () => {
   it("introduces local discovery, trust, and the four fixed-tour themes", () => {
@@ -26,6 +28,7 @@ describe("CustomerHome", () => {
         name: dictionary.home.discoveryTitle,
       }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(dictionary.home.demoDisclosure);
 
     for (const tour of dictionary.home.fixedTours) {
       expect(screen.getByRole("heading", { level: 3, name: tour.title })).toBeInTheDocument();
@@ -47,5 +50,6 @@ describe("CustomerHome", () => {
       "/vi/tours",
     );
     expect(screen.getByRole("heading", { level: 2, name: dictionary.home.discoveryTitle })).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(dictionary.home.demoDisclosure);
   });
 });

@@ -10,6 +10,9 @@ import type {
 type PersonalizationFormCopy = Dictionary["home"]["personalizationForm"];
 
 const MAX_SAFE_MINOR = Number.MAX_SAFE_INTEGER;
+const MAX_SAFE_USD_AMOUNT = `${Math.floor(MAX_SAFE_MINOR / 100)}.${String(
+  MAX_SAFE_MINOR % 100,
+).padStart(2, "0")}`;
 const PRIORITY_KEYS: PersonalizationPriorityKey[] = [
   "street_food",
   "history",
@@ -35,6 +38,24 @@ function numericValue(formData: FormData, name: string): number {
   return Number(formData.get(name) ?? 0);
 }
 
+export function parseBudgetAmountMinor(
+  currency: "VND" | "USD",
+  rawValue: unknown,
+): number | null {
+  const raw = rawValue == null ? "" : String(rawValue).trim();
+
+  if (currency === "VND") {
+    if (!/^\d+$/.test(raw)) return null;
+    const amountMinor = Number(raw);
+    return Number.isSafeInteger(amountMinor) && amountMinor > 0 ? amountMinor : null;
+  }
+
+  if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) return null;
+  const [whole, fraction = ""] = raw.split(".");
+  const amountMinor = Number(`${whole}${fraction.padEnd(2, "0")}`);
+  return Number.isSafeInteger(amountMinor) && amountMinor > 0 ? amountMinor : null;
+}
+
 function weightValue(formData: FormData, key: PersonalizationPriorityKey): 0 | 1 | 2 | 3 | 4 | 5 {
   const value = Math.min(5, Math.max(0, Math.round(numericValue(formData, `priorityWeights.${key}`))));
   return value as 0 | 1 | 2 | 3 | 4 | 5;
@@ -48,7 +69,8 @@ function optionalRequirement(formData: FormData, name: string): string[] {
 /** Map the visible shell to the itinerary contract without making a network call. */
 export function buildPersonalizationRequest(formData: FormData): PersonalizationRequest {
   const currency = String(formData.get("budgetCurrency") ?? "VND") as "VND" | "USD";
-  const amount = numericValue(formData, "budgetAmount");
+  const amountMinor = parseBudgetAmountMinor(currency, formData.get("budgetAmount"));
+  if (amountMinor === null) throw new Error("Invalid budget amount");
 
   return {
     startAt: `${String(formData.get("startDate") ?? "")}T${String(formData.get("startTime") ?? "")}:00+07:00`,
@@ -56,7 +78,7 @@ export function buildPersonalizationRequest(formData: FormData): Personalization
     areas: formData.getAll("areas").map(String),
     budget: {
       currency,
-      amountMinor: currency === "USD" ? Math.round(amount * 100) : amount,
+      amountMinor,
     },
     partySize: numericValue(formData, "partySize"),
     guideLanguage: String(formData.get("guideLanguage") ?? "en") as "en" | "vi",
@@ -87,18 +109,14 @@ export function PersonalizationForm({ copy }: { copy: PersonalizationFormCopy })
     const durationMinutes = numericValue(formData, "durationMinutes");
     const partySize = numericValue(formData, "partySize");
     const currency = String(formData.get("budgetCurrency") ?? "VND");
-    const amount = numericValue(formData, "budgetAmount");
-    const amountMinor = currency === "USD" ? Math.round(amount * 100) : amount;
+    const amountMinor = parseBudgetAmountMinor(currency as "VND" | "USD", formData.get("budgetAmount"));
     const hasValidDuration =
       Number.isInteger(durationMinutes) && durationMinutes >= 60 && durationMinutes <= 720;
     const hasValidPartySize =
       Number.isSafeInteger(partySize) && partySize >= 1 && partySize <= 20;
     const hasValidBudget =
       (currency === "VND" || currency === "USD") &&
-      Number.isFinite(amount) &&
-      amount > 0 &&
-      (currency === "USD" || Number.isInteger(amount)) &&
-      Number.isSafeInteger(amountMinor);
+      amountMinor !== null;
     const hasPriority = PRIORITY_KEYS.some(
       (key) => weightValue(formData, key) > 0,
     );
@@ -133,7 +151,7 @@ export function PersonalizationForm({ copy }: { copy: PersonalizationFormCopy })
 
         <label className="field">
           <span>{copy.budgetLabel}</span>
-          <input name="budgetAmount" type="number" min={1} max={budgetCurrency === "USD" ? MAX_SAFE_MINOR / 100 : MAX_SAFE_MINOR} step={budgetCurrency === "USD" ? "0.01" : "1"} defaultValue={1000000} required aria-label={copy.budgetLabel} aria-describedby="budget-hint" />
+          <input name="budgetAmount" type="number" min={1} max={budgetCurrency === "USD" ? MAX_SAFE_USD_AMOUNT : MAX_SAFE_MINOR} step={budgetCurrency === "USD" ? "0.01" : "1"} defaultValue={1000000} required aria-label={copy.budgetLabel} aria-describedby="budget-hint" />
           <small id="budget-hint">{copy.budgetHint}</small>
         </label>
 

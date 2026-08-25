@@ -22,12 +22,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
-  const dictionary = getDictionary(locale);
-  const metadata = getLocalizedToursMetadata(locale, getPublicSiteUrl());
-  return {
-    ...metadata,
-    title: `${dictionary.home.discoveryTitle} | LocalLens`,
-  };
+  return getLocalizedToursMetadata(locale, getPublicSiteUrl());
 }
 
 export default async function ToursPage({

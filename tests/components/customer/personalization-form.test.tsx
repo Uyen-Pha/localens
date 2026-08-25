@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   buildPersonalizationRequest,
+  parseBudgetAmountMinor,
   PersonalizationForm,
 } from "@/components/customer/personalization-form";
 import { getDictionary } from "@/lib/i18n/dictionaries";
@@ -150,5 +151,28 @@ describe("PersonalizationForm", () => {
       target: { value: "USD" },
     });
     expect(amount).toHaveAttribute("step", "0.01");
+  });
+
+  it("maps USD decimals to exact positive cents and rejects sub-cent or fractional VND", () => {
+    const formData = new FormData();
+    formData.set("startDate", "2026-09-05");
+    formData.set("startTime", "09:00");
+    formData.set("durationMinutes", "180");
+    formData.set("areas", "demo-hcmc-district-1");
+    formData.set("budgetCurrency", "USD");
+    formData.set("budgetAmount", "1.01");
+
+    expect(buildPersonalizationRequest(formData).budget.amountMinor).toBe(101);
+    expect(parseBudgetAmountMinor("USD", "90071992547409.91")).toBe(Number.MAX_SAFE_INTEGER);
+    expect(parseBudgetAmountMinor("USD", "90071992547409.92")).toBeNull();
+
+    for (const invalidAmount of ["1.001", "0.001"]) {
+      formData.set("budgetAmount", invalidAmount);
+      expect(() => buildPersonalizationRequest(formData)).toThrow(/budget/i);
+    }
+
+    formData.set("budgetCurrency", "VND");
+    formData.set("budgetAmount", "1000.5");
+    expect(() => buildPersonalizationRequest(formData)).toThrow(/budget/i);
   });
 });
