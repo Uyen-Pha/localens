@@ -2,7 +2,7 @@
 -- execute this file in the Task 16 database/RLS/concurrency gate.
 BEGIN;
 
-SELECT plan(124);
+SELECT plan(125);
 
 CREATE TEMP TABLE task7_guest_fixture ON COMMIT DROP AS
 WITH fixture AS (
@@ -124,6 +124,16 @@ SELECT ok(NOT EXISTS (
   WHERE parent_role.rolname IN ('localens_auth_trigger_owner', 'localens_identity_rpc_owner', 'localens_admin_rpc_owner', 'localens_audit_guard_owner', 'localens_catalog_rpc_owner', 'localens_catalog_guard_owner', 'localens_tour_rpc_owner', 'localens_tour_guard_owner', 'localens_plan_rpc_owner', 'localens_plan_guard_owner', 'localens_guest_rpc_owner', 'localens_claim_rpc_owner', 'localens_quota_rpc_owner', 'localens_guest_executor', 'localens_quota_executor', 'localens_webhook_executor', 'localens_build_executor')
      OR member_role.rolname IN ('localens_auth_trigger_owner', 'localens_identity_rpc_owner', 'localens_admin_rpc_owner', 'localens_audit_guard_owner', 'localens_catalog_rpc_owner', 'localens_catalog_guard_owner', 'localens_tour_rpc_owner', 'localens_tour_guard_owner', 'localens_plan_rpc_owner', 'localens_plan_guard_owner', 'localens_guest_rpc_owner', 'localens_claim_rpc_owner', 'localens_quota_rpc_owner', 'localens_guest_executor', 'localens_quota_executor', 'localens_webhook_executor', 'localens_build_executor')
 ), 'protected roles have no inherited membership edge');
+SELECT ok((
+  WITH source AS (
+    SELECT pg_get_functiondef('private.claim_guest_binding(uuid,text,smallint,uuid)'::regprocedure)::text AS definition
+  )
+  SELECT strpos(definition, 'claim_time := pg_catalog.clock_timestamp();')
+      > length(definition) - strpos(reverse(definition), reverse('FOR UPDATE;')) + 1
+     AND strpos(definition, 'claim_time := pg_catalog.clock_timestamp();')
+      < strpos(definition, 'IF NOT binding_found')
+  FROM source
+), 'claim expiry clock is sampled after all authority locks and before the decision');
 SELECT ok((SELECT count(*) = 2 FROM pg_trigger WHERE tgrelid = 'private.quota_reservations'::regclass AND tgname IN ('quota_reservations_append_only_update_delete', 'quota_reservations_append_only_truncate')), 'reservation mutation defenses are installed');
 SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%DEFERRABLE INITIALLY DEFERRED%' FROM pg_constraint WHERE conname = 'trip_plans_guest_binding_fk'), 'guest plan FK is deferrable for atomic creation');
 SELECT ok((SELECT column_default LIKE '%24 hours%' FROM information_schema.columns WHERE table_schema = 'private' AND table_name = 'guest_bindings' AND column_name = 'expires_at'), 'expiry uses database clock plus 24 hours');

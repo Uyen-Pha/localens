@@ -1161,7 +1161,6 @@ DECLARE
   capability_found boolean := false;
   claim_time timestamptz;
 BEGIN
-  claim_time := pg_catalog.clock_timestamp();
   IF p_plan_id IS NULL OR p_actor_user_id IS NULL
      OR p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$'
      OR p_pepper_version IS NULL OR p_pepper_version NOT BETWEEN 1 AND 2 THEN
@@ -1198,6 +1197,11 @@ BEGIN
       AND capabilities.pepper_version = p_pepper_version
     FOR UPDATE;
   END IF;
+  -- Sample the authoritative clock only after every row participating in the
+  -- claim decision is locked. This prevents a long lock wait from turning an
+  -- expired capability into a valid claim while preserving one deterministic
+  -- timestamp for the expiry check, claim update, and return value.
+  claim_time := pg_catalog.clock_timestamp();
   IF NOT binding_found OR NOT capability_found
      OR binding_row.plan_id IS DISTINCT FROM p_plan_id
      OR plan_row.owner_user_id IS NOT NULL

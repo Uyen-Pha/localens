@@ -203,6 +203,15 @@ describe("guest quota migration contract", () => {
     expect(migration).toMatch(/FROM pg_catalog\.pg_auth_members[\s\S]*WHERE parent_role\.rolname = ANY\(protected_roles\)[\s\S]*OR member_role\.rolname = ANY\(protected_roles\)/);
   });
 
+  it("samples claim expiry time after all authority locks", () => {
+    const claimFunction = migration.slice(
+      migration.indexOf("CREATE OR REPLACE FUNCTION private.claim_guest_binding"),
+      migration.indexOf("ALTER FUNCTION private.claim_guest_binding"),
+    );
+    expect(claimFunction).toMatch(/SELECT \* INTO plan_row[\s\S]*FROM public\.trip_plans[\s\S]*FOR UPDATE[\s\S]*SELECT \* INTO binding_row[\s\S]*FROM private\.guest_bindings[\s\S]*FOR UPDATE[\s\S]*SELECT \* INTO capability_row[\s\S]*FROM private\.guest_capabilities[\s\S]*FOR UPDATE[\s\S]*claim_time := pg_catalog\.clock_timestamp\(\);[\s\S]*binding_row\.expires_at <= claim_time[\s\S]*UPDATE public\.trip_plans/);
+    expect(claimFunction).not.toMatch(/claim_time := pg_catalog\.clock_timestamp\(\);[\s\S]*SELECT \* INTO plan_row/);
+  });
+
   it("defines database-owned expiry, claim-once, and atomic quota limits", () => {
     expect(migration).toMatch(/expires_at timestamptz NOT NULL DEFAULT[^\n]*INTERVAL '24 hours'/);
     expect(migration).toMatch(/owner_user_id IS (?:NULL|NOT NULL)[\s\S]*expires_at (?:>|<=) pg_catalog\.clock_timestamp\(\)/);
