@@ -10,6 +10,7 @@ const SECRET_ASSIGNMENT = /\b(?:SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|STRIP
 const IDENTIFIER = `(?:"(?:[^"]|"")*"|[A-Za-z_][A-Za-z0-9_$]*|\uE000\\d+\uE001)`;
 const DATABASE_TABLE = new RegExp(`\\bCREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(${IDENTIFIER})\\s*\\.\\s*(${IDENTIFIER})`, "gi");
 const ENABLE_RLS = new RegExp(`\\bALTER\\s+TABLE\\s+(?:ONLY\\s+)?(${IDENTIFIER})\\s*\\.\\s*(${IDENTIFIER})\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY\\b`, "gi");
+const FORCE_RLS = new RegExp(`\\bALTER\\s+TABLE\\s+(?:ONLY\\s+)?(${IDENTIFIER})\\s*\\.\\s*(${IDENTIFIER})\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY\\b`, "gi");
 
 function maskRange(text, start, end) {
   return text.slice(start, end).replace(/[^\r\n]/g, " ");
@@ -266,9 +267,20 @@ function applyGrantRecords(state, records) {
 
 function parseDynamicPolicies(source) {
   const policies = [];
-  const loopPattern = /FOREACH\s+\w+\s+IN\s+ARRAY\s+ARRAY\[([\s\S]*?)\][\s\S]*?EXECUTE\s+format\(\s*'CREATE\s+POLICY\s+([A-Za-z_][A-Za-z0-9_]*)\s+ON\s+(public|private)\.%I\s+FOR\s+(ALL|SELECT|INSERT|UPDATE|DELETE)[\s\S]*?\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
+  const loopPattern = /FOREACH\s+\w+\s+IN\s+ARRAY\s+ARRAY\[([\s\S]*?)\][\s\S]*?EXECUTE\s+format\(\s*'CREATE\s+POLICY\s+([A-Za-z_][A-Za-z0-9_]*)\s+ON\s+(public|private)\.%I\s+FOR\s+(ALL|SELECT|INSERT|UPDATE|DELETE)\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)\s+USING\s*\(([^)]*)\)\s+WITH\s+CHECK\s*\(([^)]*)\)'/gi;
   for (const match of source.matchAll(loopPattern)) {
-    for (const table of match[1].matchAll(/'([A-Za-z_][A-Za-z0-9_]*)'/g)) policies.push({ schema: match[3].toLowerCase(), table: table[1].toLowerCase(), policy: match[2].toLowerCase(), role: match[5].toLowerCase() });
+    const role = match[5].toLowerCase();
+    const using = match[6].replaceAll("%L", `'${role}'`).replaceAll("%I", "table_name").replace(/\s+/g, " ").trim();
+    const withCheck = match[7].replaceAll("%L", `'${role}'`).replaceAll("%I", "table_name").replace(/\s+/g, " ").trim();
+    for (const table of match[1].matchAll(/'([A-Za-z_][A-Za-z0-9_]*)'/g)) policies.push({
+      schema: match[3].toLowerCase(),
+      table: table[1].toLowerCase(),
+      policy: match[2].toLowerCase(),
+      command: match[4].toUpperCase(),
+      roles: [role],
+      using,
+      withCheck,
+    });
   }
   return policies;
 }
@@ -351,13 +363,18 @@ function checkSqlFile(file, errors) {
     const schema = normalizeIdentifier(match[1], structure.quotedIdentifiers).toLowerCase();
     if (schema === "public" || schema === "private") rls.push(tableKey(match[1], match[2], structure.quotedIdentifiers));
   }
+  const forceRls = [];
+  for (const match of structure.text.matchAll(FORCE_RLS)) {
+    const schema = normalizeIdentifier(match[1], structure.quotedIdentifiers).toLowerCase();
+    if (schema === "public" || schema === "private") forceRls.push(tableKey(match[1], match[2], structure.quotedIdentifiers));
+  }
 
   const nestedLexerErrors = [];
   const secretScan = commentsMaskedOnly(tokens, nestedLexerErrors);
   for (const error of nestedLexerErrors) errors.push(`${file.name}: ${error}`);
   if (TEMPLATE_TOKEN.test(secretScan)) errors.push(`${file.name}: unresolved template token`);
   if (RAW_SECRET.test(secretScan) || SECRET_ASSIGNMENT.test(secretScan)) errors.push(`${file.name}: forbidden raw secret pattern`);
-  return { tables, rls };
+  return { tables, rls, forceRls };
 }
 
 function checkRequiredSeed(root, errors) {
@@ -388,6 +405,8 @@ export function databaseInventory(files) {
   const viewOwners = new Map();
   const functionOwners = new Map();
   const tableOwners = new Map();
+  const forceRls = new Set();
+  const policyDefinitions = [];
   const grantState = new Map();
   const unsafeLaterDefinerReplacements = [];
   const objectEventPattern = /\b(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?|CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+|CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+|DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?|DROP\s+VIEW\s+(?:IF\s+EXISTS\s+)?|DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?)((?:public|private)\.[A-Za-z_][A-Za-z0-9_]*)/gi;
@@ -424,8 +443,23 @@ export function databaseInventory(files) {
     }
     for (const match of source.matchAll(viewOwnerPattern)) viewOwners.set(match[1].toLowerCase(), match[2]);
     for (const match of source.matchAll(policyPattern)) policies.add(`${match[2].toLowerCase()}:${match[1].toLowerCase()}`);
-    for (const dynamicPolicy of parseDynamicPolicies(source)) policies.add(`${dynamicPolicy.schema}.${dynamicPolicy.table}:${dynamicPolicy.policy}`);
+    for (const dynamicPolicy of parseDynamicPolicies(source)) {
+      policies.add(`${dynamicPolicy.schema}.${dynamicPolicy.table}:${dynamicPolicy.policy}`);
+      policyDefinitions.push({
+        table: `${dynamicPolicy.schema}.${dynamicPolicy.table}`,
+        name: dynamicPolicy.policy,
+        command: dynamicPolicy.command,
+        roles: dynamicPolicy.roles,
+        using: dynamicPolicy.using,
+        withCheck: dynamicPolicy.withCheck,
+      });
+    }
     for (const match of source.matchAll(tableOwnerPattern)) tableOwners.set(match[1].toLowerCase(), match[2]);
+    const structure = normalizedStructure(lexSql(source).tokens);
+    for (const match of structure.text.matchAll(FORCE_RLS)) {
+      const schema = normalizeIdentifier(match[1], structure.quotedIdentifiers).toLowerCase();
+      if (schema === "public" || schema === "private") forceRls.add(tableKey(match[1], match[2], structure.quotedIdentifiers));
+    }
     const { tokens } = lexSql(source);
     const statements = splitStatements(tokens);
     for (const statement of statements) applyGrantRecords(grantState, parseGrantStatement(statement));
@@ -437,7 +471,8 @@ export function databaseInventory(files) {
     }
   }
   const grants = [...grantState.values()].sort((left, right) => grantKey(left).localeCompare(grantKey(right)));
-  return { tables, views, functions, functionSignatures, functionOwners, policies, viewModes, viewOwners, tableOwners, grants, unsafeLaterDefinerReplacements };
+  policyDefinitions.sort((left, right) => `${left.table}|${left.name}`.localeCompare(`${right.table}|${right.name}`));
+  return { tables, views, functions, functionSignatures, functionOwners, policies, policyDefinitions, viewModes, viewOwners, tableOwners, forceRls, grants, unsafeLaterDefinerReplacements };
 }
 
 function checkDataAccessMatrix(root, files, errors) {
@@ -482,6 +517,7 @@ function checkDataAccessMatrix(root, files, errors) {
     if (!declaredOwner) errors.push(`data-access-matrix.json: ${item.name} has no table owner`);
     else if (actualOwner !== declaredOwner) errors.push(`data-access-matrix.json: ${item.name} owner drift (actual=${actualOwner}; matrix=${declaredOwner})`);
     else if (!matrix.roleProfiles?.[declaredOwner]) errors.push(`data-access-matrix.json: ${item.name} owner ${declaredOwner} has no role profile`);
+    if (item.forceRls !== true) errors.push(`data-access-matrix.json: ${item.name} must explicitly declare forceRls=true`);
     for (const key of ["apiExposure", "writerOperation"]) if (item[key] === undefined && matrix.defaults?.[key] === undefined) errors.push(`data-access-matrix.json: ${item.name} missing ${key}`);
   }
   for (const item of matrix.views ?? []) {
@@ -519,6 +555,17 @@ function checkDataAccessMatrix(root, files, errors) {
     if (actualGrants !== declaredGrants) errors.push(`grant manifest drift (actual=${inventory.grants?.length ?? 0}; matrix=${manifest?.grants?.length ?? 0})`);
     if (matrix.grantCount !== (manifest?.grants?.length ?? 0)) errors.push(`data-access-matrix.json: grantCount drift (matrix=${matrix.grantCount ?? "missing"}; manifest=${manifest?.grants?.length ?? 0})`);
   }
+  const policyManifestPath = join(root, matrix.policyManifest ?? "docs/security/policies-manifest.json");
+  if (!existsSync(policyManifestPath)) errors.push("data-access-matrix.json: policy manifest is missing");
+  else {
+    let manifest;
+    try { manifest = JSON.parse(readFileSync(policyManifestPath, "utf8")); }
+    catch (error) { errors.push(`policies-manifest.json: invalid JSON (${error instanceof Error ? error.message : String(error)})`); }
+    const actualPolicies = JSON.stringify(inventory.policyDefinitions ?? []);
+    const declaredPolicies = JSON.stringify(manifest?.policies ?? []);
+    if (actualPolicies !== declaredPolicies) errors.push(`policy manifest drift (actual=${inventory.policyDefinitions?.length ?? 0}; matrix=${manifest?.policies?.length ?? 0})`);
+    if (matrix.policyCount !== (manifest?.policies?.length ?? 0)) errors.push(`data-access-matrix.json: policyCount drift (matrix=${matrix.policyCount ?? "missing"}; manifest=${manifest?.policies?.length ?? 0})`);
+  }
   const generatedPath = join(root, matrix.generatedMarkdown ?? "docs/security/data-access-matrix.md");
   if (!existsSync(generatedPath)) errors.push("data-access-matrix.md: generated artifact is missing");
   else if (readFileSync(generatedPath, "utf8") !== renderMatrixMarkdown(matrix)) errors.push("data-access-matrix.md: generated Markdown drift; run node scripts/generate-data-access-matrix.mjs");
@@ -531,6 +578,7 @@ function checkDataAccessMatrix(root, files, errors) {
     if (matrix.migrationOwner !== "postgres" || !/ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+postgres/i.test(sql)) errors.push("Task 13 migration: default privilege owner is not explicitly pinned to postgres");
     if (!/statement_timeout\s*=\s*%L|statement_timeout\s*=\s*'5s'/i.test(sql)) errors.push("Task 13 migration: definer statement_timeout hardening is missing");
     if (!/SET\s+search_path\s*=\s*''''/i.test(sql)) errors.push("Task 13 migration: fixed empty search_path hardening is missing");
+    if (!/ALTER\s+TABLE\s+%I\.%I\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/i.test(sql) || !/n\.nspname\s+IN\s*\('public',\s*'private'\)/i.test(sql)) errors.push("Task 13 migration: final public/private FORCE RLS coverage is missing");
     if (!/service_role[\s\S]{0,160}never used as RLS evidence|service_role[\s\S]{0,160}REVOKE/i.test(`${sql}\n${readFileSync(matrixPath, "utf8")}`)) errors.push("Task 13: service_role boundary is undocumented");
 
     const finalGrants = inventory.grants ?? [];
@@ -569,8 +617,7 @@ function checkDataAccessMatrix(root, files, errors) {
       for (const exception of view.baseGrantException ?? []) {
         const [tableName, columns] = exception.split(":");
         const expectedColumns = columns.replace(/[()\s]/g, "").split(",").filter(Boolean);
-        const role = (view.readerRoles ?? [])[0];
-        if (!role || !hasGrant({ objectName: tableName, privilege: "select", grantee: role, columns: expectedColumns })) errors.push(`Task 13 grant drift: ${view.name} base column exception ${exception} is not granted to ${role ?? "a declared reader"}`);
+        for (const role of view.readerRoles ?? []) if (!hasGrant({ objectName: tableName, privilege: "select", grantee: role, columns: expectedColumns })) errors.push(`Task 13 grant drift: ${view.name} base column exception ${exception} is not granted to ${role}`);
       }
     }
     const matrixTestPath = join(root, "supabase", "tests", "database", "rls_matrix_test.sql");
@@ -591,15 +638,19 @@ export function scanSupabaseArtifacts({ root = process.cwd(), requireSeed = fals
   checkMigrationNames(files, errors);
   const databaseTables = new Set();
   const rlsTables = new Set();
+  const forceRlsTables = new Set();
+  const enforceForceRls = existsSync(join(resolvedRoot, "docs", "security", "data-access-matrix.json"));
   for (const file of files) {
     const facts = checkSqlFile(file, errors);
     facts.tables.forEach((table) => databaseTables.add(table));
     facts.rls.forEach((table) => rlsTables.add(table));
+    facts.forceRls.forEach((table) => forceRlsTables.add(table));
   }
 
   checkDataAccessMatrix(resolvedRoot, files, errors);
   for (const table of databaseTables) {
     if (!rlsTables.has(table)) errors.push(`${table} is missing ENABLE ROW LEVEL SECURITY`);
+    if (enforceForceRls && !forceRlsTables.has(table)) errors.push(`${table} is missing FORCE ROW LEVEL SECURITY`);
   }
 
   if (requireSeed) {

@@ -245,6 +245,10 @@ Enumerated internal functions: 80. All are non-API and must use a named NOLOGIN/
 
 Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (471 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
+## Dynamic policy semantics
+
+Expanded dynamic owner policies are enumerated in [docs/security/policies-manifest.json] (27 records). The checker compares command, roles, USING, and WITH CHECK predicates bidirectionally.
+
 ## Edge boundary checklist
 
 - **corsAllowlist**: fail closed to checked-in production/demo origins; no wildcard with credentials

@@ -1,0 +1,276 @@
+{
+  "version": 1,
+  "source": "Dynamic catalog/tour owner policies expanded from ordered migration arrays; semantics are compared against the SQL template.",
+  "policies": [
+    {
+      "table": "public.area_translations",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.areas",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.catalog_snapshot_area_translations",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.catalog_snapshot_areas",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.catalog_snapshot_place_experience_types",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.catalog_snapshot_place_guide_languages",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.catalog_snapshot_place_opening_exception_windows",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.catalog_snapshot_place_opening_exceptions",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.catalog_snapshot_place_opening_hours",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.catalog_snapshot_place_supports",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.catalog_snapshot_place_translations",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.catalog_snapshot_places",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.catalog_snapshots",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.departures",
+      "name": "tour_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_tour_rpc_owner"
+      ],
+      "using": "current_user = 'localens_tour_rpc_owner'",
+      "withCheck": "current_user = 'localens_tour_rpc_owner'"
+    },
+    {
+      "table": "public.place_experience_types",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.place_guide_languages",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.place_opening_exception_windows",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.place_opening_exceptions",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.place_opening_hours",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.place_supports",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.place_translations",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.places",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.tour_translations",
+      "name": "tour_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_tour_rpc_owner"
+      ],
+      "using": "current_user = 'localens_tour_rpc_owner'",
+      "withCheck": "current_user = 'localens_tour_rpc_owner'"
+    },
+    {
+      "table": "public.tour_version_stops",
+      "name": "tour_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_tour_rpc_owner"
+      ],
+      "using": "current_user = 'localens_tour_rpc_owner'",
+      "withCheck": "current_user = 'localens_tour_rpc_owner'"
+    },
+    {
+      "table": "public.tour_version_translations",
+      "name": "tour_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_tour_rpc_owner"
+      ],
+      "using": "current_user = 'localens_tour_rpc_owner'",
+      "withCheck": "current_user = 'localens_tour_rpc_owner'"
+    },
+    {
+      "table": "public.tour_versions",
+      "name": "tour_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_tour_rpc_owner"
+      ],
+      "using": "current_user = 'localens_tour_rpc_owner'",
+      "withCheck": "current_user = 'localens_tour_rpc_owner'"
+    },
+    {
+      "table": "public.tours",
+      "name": "tour_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_tour_rpc_owner"
+      ],
+      "using": "current_user = 'localens_tour_rpc_owner'",
+      "withCheck": "current_user = 'localens_tour_rpc_owner'"
+    }
+  ]
+}

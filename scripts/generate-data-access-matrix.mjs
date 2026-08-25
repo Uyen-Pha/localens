@@ -70,6 +70,7 @@ export function renderMatrixMarkdown(matrix = loadMatrix()) {
   lines.push("", matrix.internalFunctions.slice().sort().map((name) => `- \`${name}\``).join("\n"));
 
   lines.push("", "## Explicit grants", "", `Final explicit GRANT/REVOKE state is enumerated in [${matrix.grantManifest ?? "docs/security/grants-manifest.json"}] (${matrix.grantCount ?? "machine-readable"} records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.`);
+  lines.push("", "## Dynamic policy semantics", "", `Expanded dynamic owner policies are enumerated in [${matrix.policyManifest ?? "docs/security/policies-manifest.json"}] (${matrix.policyCount ?? "machine-readable"} records). The checker compares command, roles, USING, and WITH CHECK predicates bidirectionally.`);
 
   lines.push("", "## Edge boundary checklist", "");
   for (const [key, value] of Object.entries(matrix.edgeBoundaryChecklist)) lines.push(`- **${key}**: ${value}`);
