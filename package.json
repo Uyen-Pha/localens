@@ -18,6 +18,15 @@
     "test:e2e": "playwright test",
     "db:static": "node scripts/check-supabase-artifacts.mjs",
     "db:static:seed": "node scripts/generate-supabase-seed.mjs --check-readiness",
+    "db:start": "node scripts/supabase-local.mjs start",
+    "db:reset": "node scripts/supabase-local.mjs db reset --local",
+    "db:lint": "node scripts/supabase-local.mjs db lint --local --level error --fail-on error",
+    "db:test": "node scripts/supabase-local.mjs test db --local",
+    "db:types": "node scripts/write-generated-db-types.mjs",
+    "db:types:check": "node scripts/check-generated-db-types.mjs",
+    "db:concurrency": "node scripts/test-db-concurrency.mjs",
+    "db:stop": "node scripts/supabase-local.mjs stop --no-backup",
+    "db:verify": "node scripts/run-db-gate.mjs",
     "check": "pnpm lint && pnpm typecheck && pnpm test:run && pnpm build"
   },
   "dependencies": {
