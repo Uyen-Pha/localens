@@ -67,6 +67,15 @@ describe("PlannerFlow", () => {
     const copy = getDictionary("en").planner;
     const staleAdapter: PlannerAdapter = {
       createInitial: () => createDemoPlannerAdapter().createInitial(),
+      getLatest: (state) => ({
+        ...state,
+        current: {
+          ...state.current,
+          revision: 2,
+          items: state.current.items.map((item, index) => ({ ...item, locked: index === 0 })),
+        },
+        history: [...state.history, state.current],
+      }),
       refine: (state) => ({
         ok: false,
         error: { code: "STALE_REVISION", expectedRevision: state.current.revision + 1 },
@@ -81,6 +90,32 @@ describe("PlannerFlow", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent(copy.staleRevisionMessage);
     expect(screen.getByRole("button", { name: copy.refreshLabel })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: copy.refreshLabel }));
+
+    expect(screen.getByRole("heading", { name: "Revision 2" })).toBeInTheDocument();
+    expect(screen.getByText("Revision 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `${copy.unlockLabel}: Ben Thanh Market` })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("handles a typed invalid-feedback adapter error", () => {
+    const copy = getDictionary("en").planner;
+    const invalidAdapter: PlannerAdapter = {
+      createInitial: () => createDemoPlannerAdapter().createInitial(),
+      getLatest: (state) => state,
+      refine: () => ({ ok: false, error: { code: "INVALID_FEEDBACK" } }),
+    };
+
+    render(<PlannerFlow locale="en" copy={copy} adapter={invalidAdapter} />);
+    fireEvent.change(screen.getByRole("textbox", { name: copy.feedbackLabel }), {
+      target: { value: "Change one stop." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: copy.refineLabel }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(copy.feedbackRequiredMessage);
   });
 
   it("requires refinement feedback before creating a revision", () => {

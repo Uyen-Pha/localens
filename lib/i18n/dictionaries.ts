@@ -149,6 +149,8 @@ export type Dictionary = {
       validationMessage: string;
       previewMessage: string;
       confirmationMessage: string;
+      plannerLinkLabel: string;
+      plannerLinkDisclosure: string;
       preview: {
         heading: string;
         deterministicDisclosure: string;
@@ -441,6 +443,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       validationMessage: "Add a start date, start time, group size from 1 to 20, a positive budget, at least one area, and at least one priority before previewing your brief.",
       previewMessage: "Preview only: your preferences stay on this page and are not sent yet.",
       confirmationMessage: "Your route is confirmed.",
+      plannerLinkLabel: "Open the separate simulated refinement demo",
+      plannerLinkDisclosure: "Your form preferences are not transferred to this demo yet. No backend request is created.",
       preview: {
         heading: "Your route proposal",
         deterministicDisclosure:
@@ -653,6 +657,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       validationMessage: "Hãy thêm ngày, giờ bắt đầu, số người từ 1 đến 20, ngân sách dương, ít nhất một khu vực và một ưu tiên trước khi xem trước yêu cầu.",
       previewMessage: "Chỉ là bản xem trước: lựa chọn của bạn vẫn ở trên trang và chưa được gửi đi.",
       confirmationMessage: "Lịch trình của bạn đã được xác nhận.",
+      plannerLinkLabel: "Mở bản demo điều chỉnh mô phỏng riêng",
+      plannerLinkDisclosure: "Lựa chọn trong biểu mẫu chưa được chuyển sang bản demo này. Chưa có request backend nào được tạo.",
       preview: {
         heading: "Đề xuất lịch trình của bạn",
         deterministicDisclosure:

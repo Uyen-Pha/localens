@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 import {
@@ -280,6 +281,14 @@ export function PersonalizationForm({
         {validationError ? <p className="form-validation" role="alert">{validationError}</p> : null}
         {isPreviewed ? <p className="form-preview" role="status">{copy.previewMessage}</p> : null}
       </div>
+      {isPreviewed ? (
+        <div className="personalization-form__planner-cta">
+          <Link className="button button--secondary" href={`/${locale}/planner/`}>
+            {copy.plannerLinkLabel}
+          </Link>
+          <p className="form-preview" role="note">{copy.plannerLinkDisclosure}</p>
+        </div>
+      ) : null}
       <ItineraryPreview
         locale={locale}
         copy={copy.preview}

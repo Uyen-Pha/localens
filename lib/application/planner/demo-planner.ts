@@ -42,6 +42,8 @@ export type DemoPlannerRefineInput = Readonly<{
 export type DemoPlannerError = Readonly<{
   code: "STALE_REVISION";
   expectedRevision: number;
+}> | Readonly<{
+  code: "INVALID_FEEDBACK";
 }>;
 
 export type DemoPlannerResult =
@@ -50,6 +52,7 @@ export type DemoPlannerResult =
 
 export type PlannerAdapter = Readonly<{
   createInitial: (locale?: Locale) => DemoPlannerState;
+  getLatest: (current: DemoPlannerState, planId: string, locale: Locale) => DemoPlannerState;
   refine: (state: DemoPlannerState, input: DemoPlannerRefineInput) => DemoPlannerResult;
 }>;
 
@@ -166,7 +169,24 @@ function initialState(locale: Locale = "en"): DemoPlannerState {
   };
 }
 
-function adjustedActivity(item: DemoPlannerItem, feedback: string, locale: Locale): string {
+function cloneState(state: DemoPlannerState, planId: string, locale: Locale): DemoPlannerState {
+  return {
+    planId,
+    locale,
+    current: {
+      ...state.current,
+      items: state.current.items.map((item) => cloneItem(item)),
+      warnings: [...state.current.warnings],
+    },
+    history: state.history.map((revision) => ({
+      ...revision,
+      items: revision.items.map((item) => cloneItem(item)),
+      warnings: [...revision.warnings],
+    })),
+  };
+}
+
+function adjustedActivity(feedback: string, locale: Locale): string {
   const normalized = feedback.toLocaleLowerCase("en-US");
   if (normalized.includes("food") || normalized.includes("ẩm thực")) {
     return locale === "vi"
@@ -186,6 +206,9 @@ function adjustedActivity(item: DemoPlannerItem, feedback: string, locale: Local
 export function createDemoPlannerAdapter(): PlannerAdapter {
   return {
     createInitial: initialState,
+    getLatest(current, planId, locale) {
+      return cloneState(current, planId, locale);
+    },
     refine(state, input) {
       if (input.baseRevision !== state.current.revision) {
         return {
@@ -198,11 +221,14 @@ export function createDemoPlannerAdapter(): PlannerAdapter {
       }
 
       const feedback = input.feedback.trim();
+      if (feedback.length === 0) {
+        return { ok: false, error: { code: "INVALID_FEEDBACK" } };
+      }
       const lockedIds = new Set(input.lockedItemIds);
       const items = state.current.items.map((item) => {
         const locked = lockedIds.has(item.id);
         if (locked) return cloneItem(item, true);
-        return { ...cloneItem(item, false), activity: adjustedActivity(item, feedback, state.locale) };
+        return { ...cloneItem(item, false), activity: adjustedActivity(feedback, state.locale) };
       });
 
       const nextRevision: DemoPlannerRevision = {

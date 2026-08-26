@@ -78,6 +78,38 @@ describe("demo planner adapter", () => {
     expect(initial.history).toHaveLength(0);
   });
 
+  it("rejects empty feedback with a typed invalid-feedback error", () => {
+    const adapter = createDemoPlannerAdapter();
+    const initial = adapter.createInitial();
+
+    expect(adapter.refine(initial, {
+      baseRevision: initial.current.revision,
+      feedback: "  ",
+      lockedItemIds: [],
+    })).toEqual({
+      ok: false,
+      error: { code: "INVALID_FEEDBACK" },
+    });
+  });
+
+  it("gets the latest demo state without resetting an existing revision history", () => {
+    const adapter = createDemoPlannerAdapter();
+    const initial = adapter.createInitial();
+    const revised = adapter.refine(initial, {
+      baseRevision: 1,
+      feedback: "Change the pace.",
+      lockedItemIds: [initial.current.items[0]!.id],
+    });
+    if (!revised.ok) throw new Error("expected a revision");
+
+    const latest = adapter.getLatest(revised.state, revised.state.planId, "en");
+
+    expect(latest.current.revision).toBe(2);
+    expect(latest.history).toHaveLength(1);
+    expect(latest.current.items[0]?.locked).toBe(true);
+    expect(latest.planId).toBe(revised.state.planId);
+  });
+
   it("does not mutate a supplied state when producing a revision", () => {
     const adapter = createDemoPlannerAdapter();
     const initial = adapter.createInitial();

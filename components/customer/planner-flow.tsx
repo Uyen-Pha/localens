@@ -84,7 +84,12 @@ export function PlannerFlow({
     setIsRefining(false);
 
     if (!result.ok) {
-      setStaleError(result.error.code === "STALE_REVISION");
+      if (result.error.code === "INVALID_FEEDBACK") {
+        setValidationError(copy.feedbackRequiredMessage);
+        setStaleError(false);
+        return;
+      }
+      setStaleError(true);
       return;
     }
 
@@ -94,7 +99,7 @@ export function PlannerFlow({
   }
 
   function refreshLatest() {
-    setState(adapter.createInitial(locale));
+    setState(adapter.getLatest(state, state.planId, locale));
     setFeedback("");
     setValidationError(null);
     setStaleError(false);

@@ -138,6 +138,24 @@ describe("PersonalizationForm", () => {
     expect(screen.getByRole("region", { name: previewCopy.heading })).toHaveFocus();
   });
 
+  it("reveals a separate simulated planner CTA only after the local preview exists", () => {
+    const dictionary = getDictionary("en");
+    const copy = dictionary.home.personalizationForm;
+
+    render(<PersonalizationForm copy={copy} locale="en" />);
+    expect(screen.queryByRole("link", { name: copy.plannerLinkLabel })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
+      target: { value: "2026-09-05" },
+    });
+    fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+
+    expect(screen.getByRole("link", { name: copy.plannerLinkLabel }).getAttribute("href"))
+      .toMatch(/^\/en\/planner\/?$/);
+    expect(screen.getByText(copy.plannerLinkDisclosure)).toBeInTheDocument();
+  });
+
   it("blocks a preview when party size, budget, or every priority weight is invalid", () => {
     const dictionary = getDictionary("en");
 
