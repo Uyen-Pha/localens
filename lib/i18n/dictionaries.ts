@@ -15,6 +15,22 @@ export type PlannerCopy = {
   intro: string;
   simulatedDisclosure: string;
   proposalOnly: string;
+  preferencesHeading: string;
+  preferenceDateLabel: string;
+  preferenceDurationLabel: string;
+  preferenceBudgetLabel: string;
+  preferenceAreasLabel: string;
+  preferenceLanguageLabel: string;
+  preferencePartySizeLabel: string;
+  preferencePrioritiesLabel: string;
+  preferencePaceLabel: string;
+  preferenceDietaryLabel: string;
+  preferenceMobilityLabel: string;
+  preferenceNoneLabel: string;
+  preferenceLanguageEnglish: string;
+  preferenceLanguageVietnamese: string;
+  preferencePaceRelaxed: string;
+  preferencePaceActive: string;
   revisionLabel: string;
   currentRevisionLabel: string;
   activityLabel: string;
@@ -690,6 +706,22 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     intro: "Review the sequence, activities, timing, and estimated group cost before asking for a refinement.",
     simulatedDisclosure: "Simulated proposal only — no backend authority, AI service, booking, or payment is connected.",
     proposalOnly: "This is a suggestion for discussion. It does not confirm or book a tour automatically.",
+    preferencesHeading: "Preferences received from your form",
+    preferenceDateLabel: "Date and start time",
+    preferenceDurationLabel: "Requested duration",
+    preferenceBudgetLabel: "Budget",
+    preferenceAreasLabel: "Areas",
+    preferenceLanguageLabel: "Guide language",
+    preferencePartySizeLabel: "Group size",
+    preferencePrioritiesLabel: "Experience priorities",
+    preferencePaceLabel: "Pace",
+    preferenceDietaryLabel: "Dietary needs",
+    preferenceMobilityLabel: "Mobility needs",
+    preferenceNoneLabel: "None specified",
+    preferenceLanguageEnglish: "English",
+    preferenceLanguageVietnamese: "Vietnamese",
+    preferencePaceRelaxed: "Relaxed",
+    preferencePaceActive: "Active",
     revisionLabel: "Revision",
     currentRevisionLabel: "Current proposal",
     activityLabel: "Planned activity",
@@ -721,6 +753,22 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     intro: "Xem trình tự, hoạt động, thời gian và chi phí nhóm dự kiến trước khi yêu cầu điều chỉnh.",
     simulatedDisclosure: "Chỉ là đề xuất mô phỏng — chưa có quyền backend, dịch vụ AI, đặt tour hay thanh toán nào được kết nối.",
     proposalOnly: "Đây là gợi ý để trao đổi. Hệ thống không tự xác nhận hoặc đặt tour.",
+    preferencesHeading: "Nhu cầu đã nhận từ biểu mẫu",
+    preferenceDateLabel: "Ngày và giờ bắt đầu",
+    preferenceDurationLabel: "Thời lượng yêu cầu",
+    preferenceBudgetLabel: "Ngân sách",
+    preferenceAreasLabel: "Khu vực",
+    preferenceLanguageLabel: "Ngôn ngữ hướng dẫn",
+    preferencePartySizeLabel: "Số người",
+    preferencePrioritiesLabel: "Ưu tiên trải nghiệm",
+    preferencePaceLabel: "Nhịp độ",
+    preferenceDietaryLabel: "Nhu cầu ăn uống",
+    preferenceMobilityLabel: "Nhu cầu di chuyển",
+    preferenceNoneLabel: "Chưa nêu",
+    preferenceLanguageEnglish: "Tiếng Anh",
+    preferenceLanguageVietnamese: "Tiếng Việt",
+    preferencePaceRelaxed: "Thư thả",
+    preferencePaceActive: "Năng động",
     revisionLabel: "Phiên bản",
     currentRevisionLabel: "Đề xuất hiện tại",
     activityLabel: "Hoạt động dự kiến",

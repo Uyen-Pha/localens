@@ -1,3 +1,6 @@
+import type { Locale } from "@/lib/i18n/config";
+import type { PersonalizationRequest } from "@/lib/application/planner/personalization-session";
+
 export type DemoPlannerItem = Readonly<{
   id: string;
   placeId: string;
@@ -29,6 +32,7 @@ export type DemoPlannerRevision = Readonly<{
 export type DemoPlannerState = Readonly<{
   planId: string;
   locale: Locale;
+  preferences: PersonalizationRequest | null;
   current: DemoPlannerRevision;
   history: readonly DemoPlannerRevision[];
 }>;
@@ -51,7 +55,7 @@ export type DemoPlannerResult =
   | { ok: false; error: DemoPlannerError };
 
 export type PlannerAdapter = Readonly<{
-  createInitial: (locale?: Locale) => DemoPlannerState;
+  createInitial: (locale?: Locale, preferences?: PersonalizationRequest | null) => DemoPlannerState;
   getLatest: (current: DemoPlannerState, planId: string, locale: Locale) => DemoPlannerState;
   refine: (state: DemoPlannerState, input: DemoPlannerRefineInput) => DemoPlannerResult;
 }>;
@@ -149,15 +153,60 @@ function totalsFor(items: readonly DemoPlannerItem[]): DemoPlannerTotals {
   };
 }
 
-function initialState(locale: Locale = "en"): DemoPlannerState {
-  const items = INITIAL_ITEM_FACTS.map((item) => cloneItem({
+type HcmDateTime = Readonly<{ date: string; minute: number }>;
+
+function parseHcmDateTime(value: string): HcmDateTime | null {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):00\+07:00$/.exec(value);
+  if (!match) return null;
+  const hour = Number(match[2]);
+  const minute = Number(match[3]);
+  if (hour > 23 || minute > 59) return null;
+  return { date: match[1]!, minute: hour * 60 + minute };
+}
+
+function formatHcmDateTime(date: string, minute: number): string {
+  const dateValue = new Date(`${date}T00:00:00Z`);
+  dateValue.setUTCMinutes(minute);
+  const nextDate = dateValue.toISOString().slice(0, 10);
+  const hour = String(dateValue.getUTCHours()).padStart(2, "0");
+  const nextMinute = String(dateValue.getUTCMinutes()).padStart(2, "0");
+  return `${nextDate} ${hour}:${nextMinute}`;
+}
+
+function shiftedItems(
+  items: readonly DemoPlannerItem[],
+  preferences: PersonalizationRequest | null,
+): DemoPlannerItem[] {
+  if (!preferences) return items.map((item) => cloneItem(item));
+  const requestedStart = parseHcmDateTime(preferences.startAt);
+  if (!requestedStart) return items.map((item) => cloneItem(item));
+
+  const defaultStart = 9 * 60;
+  return items.map((item) => {
+    const itemStart = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(item.startAt);
+    const itemEnd = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(item.endAt);
+    if (!itemStart || !itemEnd) return cloneItem(item);
+    const startMinute = Number(itemStart[1]) * 60 + Number(itemStart[2]);
+    const endMinute = Number(itemEnd[1]) * 60 + Number(itemEnd[2]);
+    const offset = requestedStart.minute - defaultStart;
+    return {
+      ...cloneItem(item),
+      startAt: formatHcmDateTime(requestedStart.date, startMinute + offset),
+      endAt: formatHcmDateTime(requestedStart.date, endMinute + offset),
+    };
+  });
+}
+
+function initialState(locale: Locale = "en", preferences: PersonalizationRequest | null = null): DemoPlannerState {
+  const items = shiftedItems(INITIAL_ITEM_FACTS.map((item) => ({
     ...item,
     title: item.title[locale],
     activity: item.activity[locale],
-  }));
+  })), preferences);
   return {
     planId: PLAN_ID,
     locale,
+    preferences,
     current: {
       revision: 1,
       items,
@@ -173,6 +222,7 @@ function cloneState(state: DemoPlannerState, planId: string, locale: Locale): De
   return {
     planId,
     locale,
+    preferences: state.preferences,
     current: {
       ...state.current,
       items: state.current.items.map((item) => cloneItem(item)),
@@ -244,6 +294,7 @@ export function createDemoPlannerAdapter(): PlannerAdapter {
         state: {
           planId: state.planId,
           locale: state.locale,
+          preferences: state.preferences,
           current: nextRevision,
           history: [...state.history, state.current],
         },
@@ -253,4 +304,3 @@ export function createDemoPlannerAdapter(): PlannerAdapter {
 }
 
 export const demoPlannerAdapter = createDemoPlannerAdapter();
-import type { Locale } from "@/lib/i18n/config";

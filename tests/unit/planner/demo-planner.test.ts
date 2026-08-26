@@ -4,6 +4,26 @@ import {
   createDemoPlannerAdapter,
   type DemoPlannerState,
 } from "@/lib/application/planner/demo-planner";
+import type { PersonalizationRequest } from "@/lib/application/planner/personalization-session";
+
+const personalizedRequest: PersonalizationRequest = {
+  startAt: "2026-09-05T10:30:00+07:00",
+  durationMinutes: 240,
+  areas: ["demo-hcmc-district-1"],
+  budget: { currency: "USD", amountMinor: 25_00 },
+  partySize: 4,
+  guideLanguage: "vi",
+  priorityWeights: {
+    street_food: 5,
+    history: 0,
+    traditional_craft: 2,
+    traditional_market: 1,
+  },
+  pace: "active",
+  dietaryRequirements: ["vegetarian"],
+  mobilityRequirements: ["step-free"],
+  lockedStopIds: [],
+};
 
 describe("demo planner adapter", () => {
   it("starts with a typed proposal containing activities, totals, and warnings", () => {
@@ -31,6 +51,16 @@ describe("demo planner adapter", () => {
     expect(state.current.items[0]?.activity).toContain("Khám phá");
     expect(state.current.warnings[0]).toContain("Chỉ là đề xuất demo");
     expect(state.current.items.map((item) => item.title)).not.toContain("War Remnants Museum");
+  });
+
+  it("seeds the local proposal with submitted preferences and requested start time", () => {
+    const state = createDemoPlannerAdapter().createInitial("vi", personalizedRequest);
+
+    expect(state.preferences).toEqual(personalizedRequest);
+    expect(state.current.items[0]).toMatchObject({
+      startAt: "2026-09-05 10:30",
+      endAt: "2026-09-05 11:30",
+    });
   });
 
   it("creates a new revision while preserving a locked stop", () => {
@@ -108,6 +138,7 @@ describe("demo planner adapter", () => {
     expect(latest.history).toHaveLength(1);
     expect(latest.current.items[0]?.locked).toBe(true);
     expect(latest.planId).toBe(revised.state.planId);
+    expect(latest.preferences).toBeNull();
   });
 
   it("does not mutate a supplied state when producing a revision", () => {

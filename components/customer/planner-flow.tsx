@@ -8,6 +8,7 @@ import {
   type DemoPlannerState,
   type PlannerAdapter,
 } from "@/lib/application/planner/demo-planner";
+import { readPersonalizationRequest, type PersonalizationRequest } from "@/lib/application/planner/personalization-session";
 import type { Locale } from "@/lib/i18n/config";
 import type { PlannerCopy } from "@/lib/i18n/dictionaries";
 
@@ -21,6 +22,45 @@ function formatVnd(value: number, locale: Locale): string {
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatBudget(request: PersonalizationRequest, locale: Locale): string {
+  return new Intl.NumberFormat(locale === "vi" ? "vi-VN" : "en-US", {
+    style: "currency",
+    currency: request.budget.currency,
+    maximumFractionDigits: request.budget.currency === "USD" ? 2 : 0,
+  }).format(request.budget.currency === "USD" ? request.budget.amountMinor / 100 : request.budget.amountMinor);
+}
+
+function formatAreas(areas: readonly string[], locale: Locale): string {
+  const labels: Record<string, { en: string; vi: string }> = {
+    "demo-hcmc-district-1": { en: "District 1 & central", vi: "Quận 1 và khu trung tâm" },
+    "demo-hcmc-district-3": { en: "District 3 & museum district", vi: "Quận 3 và khu bảo tàng" },
+    "demo-hcmc-district-5": { en: "Cho Lon & District 5", vi: "Chợ Lớn và Quận 5" },
+    "demo-hcmc-thu-duc": { en: "Thu Duc", vi: "Thành phố Thủ Đức" },
+  };
+  return areas.map((area) => labels[area]?.[locale] ?? area).join(", ");
+}
+
+function formatPriorities(
+  request: PersonalizationRequest,
+  locale: Locale,
+  noneLabel: string,
+): string {
+  const labels: Record<string, { en: string; vi: string }> = {
+    street_food: { en: "Street food", vi: "Ẩm thực đường phố" },
+    history: { en: "History", vi: "Di tích lịch sử" },
+    traditional_craft: { en: "Traditional craft", vi: "Làng nghề truyền thống" },
+    traditional_market: { en: "Traditional market", vi: "Chợ truyền thống" },
+  };
+  const priorities = Object.entries(request.priorityWeights)
+    .filter(([, weight]) => weight > 0)
+    .map(([key, weight]) => `${labels[key]?.[locale] ?? key} (${weight}/5)`);
+  return priorities.length > 0 ? priorities.join(", ") : noneLabel;
+}
+
+function formatRequirements(values: readonly string[], noneLabel: string): string {
+  return values.length > 0 ? values.join(", ") : noneLabel;
 }
 
 export function PlannerFlow({
@@ -40,6 +80,18 @@ export function PlannerFlow({
   const [isRefining, setIsRefining] = useState(false);
   const resultRef = useRef<HTMLElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const preferences = readPersonalizationRequest();
+    if (!preferences) return;
+
+    setState((current) => {
+      if (current.preferences !== null || current.current.revision !== 1 || current.history.length > 0) {
+        return current;
+      }
+      return adapter.createInitial(locale, preferences);
+    });
+  }, [adapter, locale]);
 
   useEffect(() => {
     if (statusMessage !== null) resultRef.current?.focus();
@@ -116,6 +168,24 @@ export function PlannerFlow({
 
       <p className="demo-disclosure" role="note">{copy.simulatedDisclosure}</p>
       <p className="planner-flow__proposal">{copy.proposalOnly}</p>
+
+      {state.preferences ? (
+        <section className="planner-flow__preferences" aria-labelledby="planner-preferences-heading">
+          <h2 id="planner-preferences-heading">{copy.preferencesHeading}</h2>
+          <dl>
+            <div><dt>{copy.preferenceDateLabel}</dt><dd>{state.preferences.startAt.replace("T", " ").replace("+07:00", "")}</dd></div>
+            <div><dt>{copy.preferenceDurationLabel}</dt><dd>{formatMinutes(state.preferences.durationMinutes, locale)}</dd></div>
+            <div><dt>{copy.preferenceBudgetLabel}</dt><dd>{formatBudget(state.preferences, locale)}</dd></div>
+            <div><dt>{copy.preferenceAreasLabel}</dt><dd>{formatAreas(state.preferences.areas, locale)}</dd></div>
+            <div><dt>{copy.preferenceLanguageLabel}</dt><dd>{state.preferences.guideLanguage === "vi" ? copy.preferenceLanguageVietnamese : copy.preferenceLanguageEnglish}</dd></div>
+            <div><dt>{copy.preferencePartySizeLabel}</dt><dd>{state.preferences.partySize}</dd></div>
+            <div><dt>{copy.preferencePrioritiesLabel}</dt><dd>{formatPriorities(state.preferences, locale, copy.preferenceNoneLabel)}</dd></div>
+            <div><dt>{copy.preferencePaceLabel}</dt><dd>{state.preferences.pace === "active" ? copy.preferencePaceActive : copy.preferencePaceRelaxed}</dd></div>
+            <div><dt>{copy.preferenceDietaryLabel}</dt><dd>{formatRequirements(state.preferences.dietaryRequirements, copy.preferenceNoneLabel)}</dd></div>
+            <div><dt>{copy.preferenceMobilityLabel}</dt><dd>{formatRequirements(state.preferences.mobilityRequirements, copy.preferenceNoneLabel)}</dd></div>
+          </dl>
+        </section>
+      ) : null}
 
       {staleError ? (
         <div ref={alertRef} className="planner-flow__error" role="alert" tabIndex={-1}>

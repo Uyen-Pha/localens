@@ -578,6 +578,12 @@ button:focus-visible,
 
 .planner-flow { max-width: 66rem; }
 .planner-flow__proposal { margin: var(--space-3) 0 0; color: var(--customer-ink); font-weight: 700; line-height: 1.5; }
+.planner-flow__preferences { margin-top: var(--space-5); padding: clamp(1rem, 3vw, 1.5rem); border: 1px solid var(--customer-line); border-radius: 0.6rem; background: var(--customer-paper); }
+.planner-flow__preferences h2 { margin: 0; color: var(--customer-ink); font-size: clamp(1.2rem, 2vw, 1.5rem); }
+.planner-flow__preferences dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-5); margin: var(--space-4) 0 0; }
+.planner-flow__preferences dl div { display: flex; justify-content: space-between; gap: var(--space-3); border-bottom: 1px solid var(--customer-line); padding-bottom: 0.35rem; }
+.planner-flow__preferences dt { color: var(--customer-ink-soft); font-size: 0.82rem; }
+.planner-flow__preferences dd { margin: 0; color: var(--customer-ink); font-weight: 700; text-align: right; }
 .planner-flow__proposal-card { margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: 0.75rem; background: var(--customer-paper); box-shadow: 0 1rem 2.5rem rgba(24, 53, 45, 0.06); }
 .planner-flow__proposal-card:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 4px; }
 .planner-flow__proposal-header, .planner-timeline__item-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
@@ -660,6 +666,7 @@ button:focus-visible,
   .itinerary-timeline__details, .itinerary-preview__totals dl { grid-template-columns: 1fr; }
   .planner-flow__proposal-header, .planner-timeline__item-header { flex-direction: column; }
   .planner-flow__plan-id { max-width: none; }
+  .planner-flow__preferences dl { grid-template-columns: 1fr; }
   .planner-timeline__details, .planner-flow__totals dl { grid-template-columns: 1fr; }
   .planner-timeline__lock { width: 100%; justify-content: center; }
   .field--wide { grid-column: auto; }

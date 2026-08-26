@@ -7,6 +7,7 @@ import {
   PersonalizationForm,
 } from "@/components/customer/personalization-form";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { readPersonalizationRequest } from "@/lib/application/planner/personalization-session";
 
 afterEach(cleanup);
 
@@ -154,6 +155,34 @@ describe("PersonalizationForm", () => {
     expect(screen.getByRole("link", { name: copy.plannerLinkLabel }).getAttribute("href"))
       .toMatch(/^\/en\/planner\/?$/);
     expect(screen.getByText(copy.plannerLinkDisclosure)).toBeInTheDocument();
+  });
+
+  it("stores the submitted preferences for the separate planner demo after preview", () => {
+    const dictionary = getDictionary("en");
+    const copy = dictionary.home.personalizationForm;
+
+    render(<PersonalizationForm copy={copy} locale="en" />);
+    fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
+      target: { value: "2026-09-05" },
+    });
+    fireEvent.change(screen.getByLabelText(copy.startTimeLabel), {
+      target: { value: "10:30" },
+    });
+    fireEvent.change(screen.getByLabelText(copy.durationLabel), {
+      target: { value: "240" },
+    });
+    fireEvent.change(screen.getByLabelText(copy.partySizeLabel), {
+      target: { value: "4" },
+    });
+    fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+
+    expect(readPersonalizationRequest()).toMatchObject({
+      startAt: "2026-09-05T10:30:00+07:00",
+      durationMinutes: 240,
+      partySize: 4,
+      areas: [copy.areaOptions[0].value],
+    });
   });
 
   it("blocks a preview when party size, budget, or every priority weight is invalid", () => {

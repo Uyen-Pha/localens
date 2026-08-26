@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { PlannerFlow } from "@/components/customer/planner-flow";
@@ -7,8 +7,15 @@ import {
   type PlannerAdapter,
 } from "@/lib/application/planner/demo-planner";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import {
+  clearPersonalizationRequest,
+  savePersonalizationRequest,
+} from "@/lib/application/planner/personalization-session";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  clearPersonalizationRequest();
+});
 
 describe("PlannerFlow", () => {
   it("renders a bilingual-safe proposal with activities, totals, warnings, and no booking action", () => {
@@ -24,6 +31,37 @@ describe("PlannerFlow", () => {
     expect(screen.getByRole("heading", { name: copy.warningsHeading })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: copy.revisionHistoryHeading })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /book|đặt/i })).not.toBeInTheDocument();
+  });
+
+  it("shows submitted preferences in the local proposal without adding a booking action", () => {
+    const copy = getDictionary("vi").planner;
+    savePersonalizationRequest({
+      startAt: "2026-09-05T10:30:00+07:00",
+      durationMinutes: 240,
+      areas: ["demo-hcmc-district-1"],
+      budget: { currency: "VND", amountMinor: 1_500_000 },
+      partySize: 3,
+      guideLanguage: "vi",
+      priorityWeights: {
+        street_food: 5,
+        history: 3,
+        traditional_craft: 0,
+        traditional_market: 0,
+      },
+      pace: "active",
+      dietaryRequirements: ["vegetarian"],
+      mobilityRequirements: ["step-free"],
+      lockedStopIds: [],
+    });
+
+    render(<PlannerFlow locale="vi" copy={copy} />);
+
+    const preferences = screen.getByRole("region", { name: copy.preferencesHeading });
+    expect(within(preferences).getByRole("heading", { name: copy.preferencesHeading })).toBeInTheDocument();
+    expect(within(preferences).getByText("2026-09-05 10:30:00")).toBeInTheDocument();
+    expect(within(preferences).getByText(/1\.500\.000/)).toBeInTheDocument();
+    expect(within(preferences).getByText("Quận 1 và khu trung tâm")).toBeInTheDocument();
+    expect(within(preferences).getByText("3")).toBeInTheDocument();
   });
 
   it("locks and unlocks a stop with an accessible pressed state", () => {

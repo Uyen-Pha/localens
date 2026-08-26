@@ -13,6 +13,10 @@ import type {
   PersonalizationPriorityKey,
 } from "@/lib/i18n/dictionaries";
 import {
+  savePersonalizationRequest,
+  type PersonalizationRequest,
+} from "@/lib/application/planner/personalization-session";
+import {
   ItineraryPreview,
   type ItineraryPreviewError,
 } from "@/components/customer/itinerary-preview";
@@ -31,19 +35,7 @@ const PRIORITY_KEYS: PersonalizationPriorityKey[] = [
 ];
 const readOnlyApi = createReadOnlyApi();
 
-export type PersonalizationRequest = {
-  startAt: string;
-  durationMinutes: number;
-  areas: string[];
-  budget: { currency: "VND" | "USD"; amountMinor: number };
-  partySize: number;
-  guideLanguage: "en" | "vi";
-  priorityWeights: Record<PersonalizationPriorityKey, 0 | 1 | 2 | 3 | 4 | 5>;
-  pace: "relaxed" | "active";
-  dietaryRequirements: string[];
-  mobilityRequirements: string[];
-  lockedStopIds: string[];
-};
+export type { PersonalizationRequest } from "@/lib/application/planner/personalization-session";
 
 function numericValue(formData: FormData, name: string): number {
   return Number(formData.get(name) ?? 0);
@@ -174,6 +166,7 @@ export function PersonalizationForm({
     setIsPreviewed(true);
     setPreviewError(null);
     setPreview(result.value);
+    savePersonalizationRequest(request);
   }
 
   return (
