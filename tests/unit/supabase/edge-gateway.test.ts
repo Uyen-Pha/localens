@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_EDGE_BODY_LIMIT,
+  MAX_LOG_BYTES,
+  MAX_LOG_ENTRIES,
   type GatewayPolicy,
   createCorrelationId,
   errorResponse,
@@ -191,12 +193,59 @@ describe("Edge gateway contract", () => {
     expect(parsed).toEqual({ ok: true, value: { value: "ok" } });
   });
 
+  it("bounds chunked bodies while reading and handles a null body safely", async () => {
+    let canceled = false;
+    let chunkNumber = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        chunkNumber += 1;
+        controller.enqueue(new TextEncoder().encode(chunkNumber === 1 ? '{"value":"' : "x".repeat(80)));
+      },
+      cancel() {
+        canceled = true;
+      },
+    });
+    const oversized = await readJsonBody(
+      new Request("https://functions.example/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: stream,
+        duplex: "half",
+      } as RequestInit & { duplex: "half" }),
+      { maxBodyBytes: 20, correlationId: "88888888-8888-4888-8888-888888888888" },
+    );
+    expect(oversized.ok).toBe(false);
+    if (!oversized.ok) expect(oversized.response.status).toBe(413);
+    expect(canceled).toBe(true);
+
+    const empty = await readJsonBody(
+      new Request("https://functions.example/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      }),
+      { maxBodyBytes: 20, correlationId: "88888888-8888-4888-8888-888888888888" },
+    );
+    expect(empty.ok).toBe(false);
+    if (!empty.ok) expect(empty.response.status).toBe(400);
+  });
+
   it("parses only a single non-empty Bearer token", () => {
     expect(parseBearerToken("Bearer token-value")).toEqual({ ok: true, token: "token-value" });
     expect(parseBearerToken("bearer token-value")).toEqual({ ok: true, token: "token-value" });
+    expect(parseBearerToken("Bearer abc+/._~123==")).toEqual({ ok: true, token: "abc+/._~123==" });
     expect(parseBearerToken("Basic token-value").ok).toBe(false);
     expect(parseBearerToken("Bearer token one").ok).toBe(false);
     expect(parseBearerToken("Bearer").ok).toBe(false);
+    for (const value of [
+      "Bearer a,b",
+      'Bearer "quoted-token"',
+      "Bearer token;param",
+      "Bearer token Bearer second",
+      "Bearer ",
+      "Bearer =",
+    ]) {
+      expect(parseBearerToken(value).ok, value).toBe(false);
+    }
   });
 
   it("keeps authentication failures inside the public envelope", async () => {
@@ -267,5 +316,30 @@ describe("Edge gateway contract", () => {
     expect(serialized).not.toContain("guest@example.com");
     expect(serialized).not.toContain("raw-token");
     expect(serialized).toContain("[REDACTED]");
+  });
+
+  it("keeps wide and deep log metadata within the global budget", () => {
+    const sink = vi.fn();
+    const deep = { level: { level: { level: { level: { secret: "hidden" } } } } };
+    const wide = Object.fromEntries(Array.from({ length: 500 }, (_, index) => [`field${index}`, "x".repeat(100)]));
+    safeLog(sink, { deep, wide });
+
+    expect(sink).toHaveBeenCalledTimes(1);
+    const entry = sink.mock.calls[0]?.[0] as Record<string, unknown>;
+    const serialized = JSON.stringify(entry);
+    expect(Object.keys(entry).length).toBeLessThanOrEqual(MAX_LOG_ENTRIES);
+    expect(new TextEncoder().encode(serialized).byteLength).toBeLessThanOrEqual(MAX_LOG_BYTES);
+    expect(serialized).not.toContain('"secret":"hidden"');
+  });
+
+  it("redacts recognizable tokens under unknown keys but documents the opaque-value limit", () => {
+    const sink = vi.fn();
+    const opaqueValue = "opaque-secret-value";
+    const recognizableToken = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature";
+    safeLog(sink, { unknownToken: recognizableToken, unknownValue: opaqueValue });
+
+    const serialized = JSON.stringify(sink.mock.calls[0]?.[0]);
+    expect(serialized).not.toContain(recognizableToken);
+    expect(serialized).toContain(opaqueValue);
   });
 });

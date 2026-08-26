@@ -9,7 +9,8 @@ The module currently provides:
 - explicit-origin CORS validation and preflight responses;
 - method and JSON content-type gates;
 - a 64 KiB default request-body limit, checked from both `Content-Length` and
-  the actual UTF-8 bytes read from the request;
+  the actual UTF-8 bytes read from the request; chunked bodies are cancelled as
+  soon as the cumulative limit is exceeded;
 - internally generated correlation IDs;
 - strict `Bearer` authorization parsing;
 - the stable error envelope:
@@ -24,7 +25,8 @@ The module currently provides:
   }
   ```
 
-- bounded, redacted logging helpers.
+- bounded, redacted logging helpers (at most 128 log entries and approximately
+  8 KiB of serialized metadata per call).
 
 ## Public client versus Edge-only client
 
@@ -32,6 +34,12 @@ The browser may use the Supabase publishable key and the signed-in user's JWT
 for public-schema projections and authenticated public RPCs. The browser must
 not use a service-role key, query the `private` schema, or send provider
 secrets, raw guest tokens, Stripe signatures, or request bodies to logs.
+
+`safeLog` redacts sensitive field names and recognizable Bearer/JWT/Stripe
+signature values, and bounds unknown fields and nesting. It cannot identify an
+arbitrary opaque secret stored under an unknown key, so callers must pass only
+deliberately selected metadata and never pass request DTOs, bodies, or provider
+payloads.
 
 An Edge Function may hold Edge-only secrets, including a service-role key, but
 this shared module does not create that client and does not grant it authority.

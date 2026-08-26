@@ -12,9 +12,16 @@ const ALLOWED_CORS_HEADERS = "authorization, content-type, x-correlation-id";
 const ALLOWED_CORS_HEADER_NAMES = new Set(ALLOWED_CORS_HEADERS.split(",").map((header) => header.trim()));
 const CORRELATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
-const AUTHORIZATION_PATTERN = /^Bearer ([^\s]+)$/i;
-const SENSITIVE_KEY_PATTERN = /(?:authorization|token|secret|password|signature|cookie|credential|api[-_]?key|payload|body|email|phone|address|name)/i;
+const AUTHORIZATION_PATTERN = /^Bearer ([A-Za-z0-9\-._~+/]+=*)$/i;
+const SENSITIVE_KEY_PATTERN = /(?:authorization|access[-_]?token|refresh[-_]?token|id[-_]?token|token|secret|password|signature|cookie|credential|api[-_]?key|private[-_]?key|payload|body|email|phone|address|name|jwt)/i;
+const SENSITIVE_VALUE_PATTERN = /^(?:Bearer\s+\S+|t=\d+(?:,[^,\s=]+=[^,\s]*)+|[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})$/i;
 const MAX_LOG_STRING_LENGTH = 240;
+const MAX_LOG_KEY_LENGTH = 120;
+const MAX_LOG_DEPTH = 3;
+const MAX_LOG_OBJECT_ENTRIES = 40;
+const MAX_LOG_ARRAY_ENTRIES = 20;
+export const MAX_LOG_ENTRIES = 128;
+export const MAX_LOG_BYTES = 8 * 1024;
 let fallbackCorrelationCounter = 0;
 
 export interface GatewayPolicy {
@@ -290,10 +297,8 @@ export async function readJsonBody<T = unknown>(
     };
   }
 
-  let bytes: ArrayBuffer;
-  try {
-    bytes = await request.arrayBuffer();
-  } catch {
+  const body = request.body;
+  if (body === null) {
     return {
       ok: false,
       response: errorResponse(
@@ -303,15 +308,52 @@ export async function readJsonBody<T = unknown>(
       ),
     };
   }
-  if (bytes.byteLength > maxBodyBytes) {
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const result = await reader.read();
+      if (result.done) break;
+      const chunk = result.value;
+      if (chunk === undefined) continue;
+      totalBytes += chunk.byteLength;
+      if (totalBytes > maxBodyBytes) {
+        try {
+          await reader.cancel("body too large");
+        } catch {
+          // The request is already rejected; cancellation is best effort.
+        }
+        return {
+          ok: false,
+          response: errorResponse(
+            { code: "BODY_TOO_LARGE", messageKey: "gateway.body_too_large", retryable: false, status: 413 },
+            options.correlationId,
+            headers,
+          ),
+        };
+      }
+      chunks.push(chunk);
+    }
+  } catch {
     return {
       ok: false,
       response: errorResponse(
-        { code: "BODY_TOO_LARGE", messageKey: "gateway.body_too_large", retryable: false, status: 413 },
+        { code: "INVALID_BODY", messageKey: "gateway.body_invalid", retryable: false, status: 400 },
         options.correlationId,
         headers,
       ),
     };
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
   }
 
   let text: string;
@@ -418,34 +460,99 @@ export function errorResponse(
   });
 }
 
-function redactLogValue(key: string, value: unknown, depth: number): unknown {
-  if (SENSITIVE_KEY_PATTERN.test(key)) return "[REDACTED]";
-  if (depth > 3) return "[TRUNCATED]";
+interface LogBudget {
+  entries: number;
+  bytes: number;
+  truncated: boolean;
+}
+
+function encodedByteLength(value: string): number {
+  try {
+    return new TextEncoder().encode(value).byteLength;
+  } catch {
+    return value.length;
+  }
+}
+
+function serializedByteLength(value: unknown): number {
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized === undefined ? 0 : encodedByteLength(serialized);
+  } catch {
+    return encodedByteLength("[UNSUPPORTED]");
+  }
+}
+
+function reserveLogBudget(budget: LogBudget, bytes: number, entries: number): boolean {
+  if (budget.entries + entries > MAX_LOG_ENTRIES || budget.bytes + bytes > MAX_LOG_BYTES) {
+    budget.truncated = true;
+    return false;
+  }
+  budget.entries += entries;
+  budget.bytes += bytes;
+  return true;
+}
+
+function redactedLogScalar(value: unknown, budget: LogBudget): unknown {
+  if (!reserveLogBudget(budget, serializedByteLength(value), 0)) return undefined;
+  return value;
+}
+
+function redactLogValue(key: string, value: unknown, depth: number, budget: LogBudget): unknown {
+  if (SENSITIVE_KEY_PATTERN.test(key)) return redactedLogScalar("[REDACTED]", budget);
+  if (depth > MAX_LOG_DEPTH) return redactedLogScalar("[TRUNCATED]", budget);
+
   if (typeof value === "string") {
-    return value.length > MAX_LOG_STRING_LENGTH
+    if (SENSITIVE_VALUE_PATTERN.test(value)) return redactedLogScalar("[REDACTED]", budget);
+    const bounded = value.length > MAX_LOG_STRING_LENGTH
       ? `${value.slice(0, MAX_LOG_STRING_LENGTH)}…[TRUNCATED]`
       : value;
+    return redactedLogScalar(bounded, budget);
   }
-  if (typeof value === "number" || typeof value === "boolean" || value === null) return value;
-  if (Array.isArray(value)) return value.slice(0, 20).map((item) => redactLogValue("item", item, depth + 1));
-  if (typeof value === "object") {
-    const result: Record<string, unknown> = {};
-    for (const [childKey, childValue] of Object.entries(value as Record<string, unknown>).slice(0, 40)) {
-      result[childKey] = redactLogValue(childKey, childValue, depth + 1);
+  if (typeof value === "number" || typeof value === "boolean" || value === null) {
+    return redactedLogScalar(value, budget);
+  }
+  if (Array.isArray(value)) {
+    if (!reserveLogBudget(budget, 2, 0)) return undefined;
+    const result: unknown[] = [];
+    for (const item of value.slice(0, MAX_LOG_ARRAY_ENTRIES)) {
+      const safeItem = redactLogValue("item", item, depth + 1, budget);
+      if (safeItem === undefined || !reserveLogBudget(budget, 1, 1)) break;
+      result.push(safeItem);
     }
     return result;
   }
-  return "[UNSUPPORTED]";
+  if (typeof value === "object") {
+    if (!reserveLogBudget(budget, 2, 0)) return undefined;
+    const result: Record<string, unknown> = {};
+    for (const [childKey, childValue] of Object.entries(value as Record<string, unknown>).slice(0, MAX_LOG_OBJECT_ENTRIES)) {
+      const safeValue = redactLogValue(childKey, childValue, depth + 1, budget);
+      if (safeValue === undefined) break;
+      const boundedKey = childKey.length > MAX_LOG_KEY_LENGTH
+        ? `${childKey.slice(0, MAX_LOG_KEY_LENGTH)}…[TRUNCATED]`
+        : childKey;
+      const propertyBytes = serializedByteLength(boundedKey) + 2;
+      if (!reserveLogBudget(budget, propertyBytes, 1)) break;
+      result[boundedKey] = safeValue;
+    }
+    return result;
+  }
+  return redactedLogScalar("[UNSUPPORTED]", budget);
 }
 
-/** Log only bounded, redacted metadata; never log request bodies or secrets. */
+/** Log bounded, redacted metadata; arbitrary opaque secrets under unknown keys cannot be detected. */
 export function safeLog(
   sink: (entry: Record<string, unknown>) => void,
   fields: Record<string, unknown>,
 ): void {
   try {
-    const safe = redactLogValue("root", fields, 0);
+    const budget: LogBudget = { entries: 0, bytes: 0, truncated: false };
+    const safe = redactLogValue("root", fields, 0, budget);
     if (typeof safe === "object" && safe !== null && !Array.isArray(safe)) {
+      const markerBytes = serializedByteLength("__logTruncated") + serializedByteLength(true) + 2;
+      if (budget.truncated && reserveLogBudget(budget, markerBytes, 1)) {
+        (safe as Record<string, unknown>).__logTruncated = true;
+      }
       sink(safe as Record<string, unknown>);
     }
   } catch {
