@@ -37,7 +37,7 @@ export function SiteHeader({ locale, labels, pathname }: SiteHeaderProps) {
           <Link href={`/${locale}/tours/`}>
             {labels.navigation.fixedTours}
           </Link>
-          <Link href={`/${locale}/planner/`}>{labels.navigation.planTrip}</Link>
+          <Link href={`/${locale}/#personalize`}>{labels.navigation.planTrip}</Link>
         </nav>
 
         <div className="site-header__actions">

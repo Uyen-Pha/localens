@@ -53,7 +53,7 @@ describe("SiteHeader", () => {
     );
     expect(screen.getByRole("link", { name: "Plan my trip" })).toHaveAttribute(
       "href",
-      "/en/planner",
+      "/en#personalize",
     );
     expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
     expect(screen.getByText("Sign in")).toHaveAttribute("aria-disabled", "true");
