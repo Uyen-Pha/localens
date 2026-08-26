@@ -12,7 +12,10 @@ export type CustomRequestDraft = Readonly<{
   revision: number;
   preferences: PersonalizationRequest;
   revisionSnapshot: DemoPlannerRevision;
+  integrityFingerprint: string;
 }>;
+
+export type CustomRequestDraftInput = Omit<CustomRequestDraft, "integrityFingerprint">;
 
 export type CustomRequestDraftReadState =
   | Readonly<{ status: "ok"; draft: CustomRequestDraft }>
@@ -33,6 +36,64 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isSafeNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+const FNV32_PRIME = 16_777_619;
+
+function fnv1a32(value: string, offset: number): string {
+  let hash = offset >>> 0;
+  for (const byte of new TextEncoder().encode(value)) {
+    hash ^= byte;
+    hash = Math.imul(hash, FNV32_PRIME) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+function canonicalDraftMaterial(draft: CustomRequestDraftInput): string {
+  return JSON.stringify({
+    planId: draft.planId,
+    revision: draft.revision,
+    preferences: {
+      startAt: draft.preferences.startAt,
+      durationMinutes: draft.preferences.durationMinutes,
+      areas: draft.preferences.areas,
+      budget: draft.preferences.budget,
+      partySize: draft.preferences.partySize,
+      guideLanguage: draft.preferences.guideLanguage,
+      priorityWeights: draft.preferences.priorityWeights,
+      pace: draft.preferences.pace,
+      dietaryRequirements: draft.preferences.dietaryRequirements,
+      mobilityRequirements: draft.preferences.mobilityRequirements,
+      lockedStopIds: draft.preferences.lockedStopIds,
+      specialNeeds: draft.preferences.specialNeeds,
+    },
+    revisionSnapshot: {
+      revision: draft.revisionSnapshot.revision,
+      items: draft.revisionSnapshot.items.map((item) => ({
+        id: item.id,
+        placeId: item.placeId,
+        startAt: item.startAt,
+        endAt: item.endAt,
+        visitDurationMinutes: item.visitDurationMinutes,
+        travelMinutesBefore: item.travelMinutesBefore,
+        transitionBufferMinutesBefore: item.transitionBufferMinutesBefore,
+        travelCostVndBefore: item.travelCostVndBefore,
+        placeCostVnd: item.placeCostVnd,
+        locked: item.locked,
+      })),
+      totals: draft.revisionSnapshot.totals,
+      warnings: draft.revisionSnapshot.warnings,
+      feedback: draft.revisionSnapshot.feedback,
+    },
+  });
+}
+
+/** Local tamper detection only; this checksum is not a server security authority. */
+export function localDraftFingerprint(draft: CustomRequestDraftInput): string {
+  const material = canonicalDraftMaterial(draft);
+  return [0x811c9dc5, 0x01000193, 0x9e3779b9, 0x85ebca6b]
+    .map((offset) => fnv1a32(material, offset))
+    .join("");
 }
 
 function isDemoPlannerItem(value: unknown): value is DemoPlannerItem {
@@ -81,7 +142,7 @@ function isDemoPlannerRevision(value: unknown): value is DemoPlannerRevision {
   );
 }
 
-function isCustomRequestDraft(value: unknown): value is CustomRequestDraft {
+function isCustomRequestDraftInput(value: unknown): value is CustomRequestDraftInput {
   if (
     !isRecord(value) ||
     typeof value.revision !== "number" ||
@@ -96,6 +157,12 @@ function isCustomRequestDraft(value: unknown): value is CustomRequestDraft {
   );
 }
 
+function isCustomRequestDraft(value: unknown): value is CustomRequestDraft {
+  if (!isCustomRequestDraftInput(value) || !isRecord(value)) return false;
+  const fingerprint = (value as Record<string, unknown>).integrityFingerprint;
+  return typeof fingerprint === "string" && /^[0-9a-f]{32}$/.test(fingerprint);
+}
+
 function isCustomRequestEnvelope(value: unknown): value is CustomRequestEnvelope {
   return (
     isRecord(value) &&
@@ -106,11 +173,15 @@ function isCustomRequestEnvelope(value: unknown): value is CustomRequestEnvelope
   );
 }
 
-export function saveCustomRequestDraft(draft: CustomRequestDraft): boolean {
-  if (typeof window === "undefined" || !isCustomRequestDraft(draft)) return false;
+export function saveCustomRequestDraft(draft: CustomRequestDraftInput): boolean {
+  if (typeof window === "undefined" || !isCustomRequestDraftInput(draft)) return false;
 
   try {
-    const serialized = JSON.stringify({ version: 1, savedAt: Date.now(), draft } satisfies CustomRequestEnvelope);
+    const storedDraft: CustomRequestDraft = {
+      ...draft,
+      integrityFingerprint: localDraftFingerprint(draft),
+    };
+    const serialized = JSON.stringify({ version: 1, savedAt: Date.now(), draft: storedDraft } satisfies CustomRequestEnvelope);
     window.sessionStorage.setItem(CUSTOM_REQUEST_SESSION_KEY, serialized);
     return window.sessionStorage.getItem(CUSTOM_REQUEST_SESSION_KEY) === serialized;
   } catch {
@@ -136,6 +207,8 @@ export function readCustomRequestDraftState(now = Date.now()): CustomRequestDraf
     return { status: "invalid" };
   }
   if (!isCustomRequestEnvelope(parsed)) return { status: "invalid" };
+  const { integrityFingerprint, ...draftWithoutFingerprint } = parsed.draft;
+  if (localDraftFingerprint(draftWithoutFingerprint) !== integrityFingerprint) return { status: "invalid" };
   if (parsed.savedAt > now) return { status: "invalid" };
   if (now - parsed.savedAt > CUSTOM_REQUEST_SESSION_TTL_MS) {
     try {
