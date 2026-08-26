@@ -23,6 +23,7 @@ const personalizedRequest: PersonalizationRequest = {
   dietaryRequirements: ["vegetarian"],
   mobilityRequirements: ["step-free"],
   lockedStopIds: [],
+  specialNeeds: "Prefer a quiet route.",
 };
 
 describe("demo planner adapter", () => {
@@ -61,6 +62,41 @@ describe("demo planner adapter", () => {
       startAt: "2026-09-05 10:30",
       endAt: "2026-09-05 11:30",
     });
+  });
+
+  it("uses the internal demo engine to keep a request within its areas, time, and budget", () => {
+    const request: PersonalizationRequest = {
+      ...personalizedRequest,
+      startAt: "2026-09-05T09:00:00+07:00",
+      durationMinutes: 180,
+      areas: ["demo-hcmc-district-1"],
+      budget: { currency: "VND", amountMinor: 500_000 },
+      priorityWeights: {
+        street_food: 5,
+        history: 0,
+        traditional_craft: 0,
+        traditional_market: 1,
+      },
+    };
+    const state = createDemoPlannerAdapter().createInitial("en", request);
+
+    expect(state.current.items.length).toBeGreaterThan(0);
+    expect(state.current.items.every((item) => item.placeId !== "demo-hcmc-war-remnants")).toBe(true);
+    expect(state.current.totals.durationMinutes).toBeLessThanOrEqual(request.durationMinutes);
+    expect(state.current.totals.costVnd).toBeLessThanOrEqual(request.budget.amountMinor);
+  });
+
+  it("returns no proposal with a clear warning when the internal demo engine finds no feasible route", () => {
+    const request: PersonalizationRequest = {
+      ...personalizedRequest,
+      durationMinutes: 60,
+      budget: { currency: "VND", amountMinor: 1_000 },
+      areas: ["demo-hcmc-district-1"],
+    };
+    const state = createDemoPlannerAdapter().createInitial("en", request);
+
+    expect(state.current.items).toHaveLength(0);
+    expect(state.current.warnings.join(" ")).toMatch(/no feasible|no proposal/i);
   });
 
   it("creates a new revision while preserving a locked stop", () => {

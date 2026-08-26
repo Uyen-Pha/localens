@@ -14,6 +14,7 @@ import type {
 } from "@/lib/i18n/dictionaries";
 import {
   savePersonalizationRequest,
+  toItineraryRequest,
   type PersonalizationRequest,
 } from "@/lib/application/planner/personalization-session";
 import {
@@ -95,6 +96,7 @@ export function buildPersonalizationRequest(formData: FormData): Personalization
     dietaryRequirements: optionalRequirement(formData, "diet"),
     mobilityRequirements: optionalRequirement(formData, "mobility"),
     lockedStopIds: [],
+    specialNeeds: String(formData.get("specialNeeds") ?? "").trim(),
   };
 }
 
@@ -110,6 +112,8 @@ export function PersonalizationForm({
   const [budgetCurrency, setBudgetCurrency] = useState<"VND" | "USD">("VND");
   const [preview, setPreview] = useState<ItineraryPreviewDto | null | undefined>(undefined);
   const [previewError, setPreviewError] = useState<ItineraryPreviewError | null>(null);
+  const [plannerHandoffSaved, setPlannerHandoffSaved] = useState(false);
+  const [plannerHandoffError, setPlannerHandoffError] = useState(false);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -149,7 +153,7 @@ export function PersonalizationForm({
     }
 
     const request = buildPersonalizationRequest(formData);
-    const result = readOnlyApi.previewItinerary(request);
+    const result = readOnlyApi.previewItinerary(toItineraryRequest(request));
     if (!result.ok) {
       setIsPreviewed(false);
       setValidationError(null);
@@ -166,7 +170,9 @@ export function PersonalizationForm({
     setIsPreviewed(true);
     setPreviewError(null);
     setPreview(result.value);
-    savePersonalizationRequest(request);
+    const saved = savePersonalizationRequest(request);
+    setPlannerHandoffSaved(saved);
+    setPlannerHandoffError(!saved);
   }
 
   return (
@@ -276,10 +282,15 @@ export function PersonalizationForm({
       </div>
       {isPreviewed ? (
         <div className="personalization-form__planner-cta">
-          <Link className="button button--secondary" href={`/${locale}/planner/`}>
-            {copy.plannerLinkLabel}
-          </Link>
-          <p className="form-preview" role="note">{copy.plannerLinkDisclosure}</p>
+          {plannerHandoffSaved ? (
+            <>
+              <Link className="button button--secondary" href={`/${locale}/planner/`}>
+                {copy.plannerLinkLabel}
+              </Link>
+              <p className="form-preview" role="note">{copy.plannerLinkDisclosure}</p>
+            </>
+          ) : null}
+          {plannerHandoffError ? <p className="form-validation" role="alert">{copy.plannerLinkStorageError}</p> : null}
         </div>
       ) : null}
       <ItineraryPreview

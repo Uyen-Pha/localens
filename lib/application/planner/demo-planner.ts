@@ -1,5 +1,9 @@
 import type { Locale } from "@/lib/i18n/config";
-import type { PersonalizationRequest } from "@/lib/application/planner/personalization-session";
+import { createReadOnlyApi, type ItineraryPreviewItemDto } from "@/lib/application/api/read-only-api";
+import {
+  toItineraryRequest,
+  type PersonalizationRequest,
+} from "@/lib/application/planner/personalization-session";
 
 export type DemoPlannerItem = Readonly<{
   id: string;
@@ -71,6 +75,13 @@ const LOCALE_COPY: Record<Locale, Readonly<{ warning: string; revisionWarning: s
     revisionWarning: "Phiên bản mô phỏng này chưa được backend kiểm tra.",
   },
 };
+
+const PLANNER_COPY: Record<Locale, Readonly<{ noProposal: string }>> = {
+  en: { noProposal: "No demo proposal was created because the submitted constraints have no feasible route." },
+  vi: { noProposal: "Chưa tạo được đề xuất demo vì không có lịch trình khả thi với các điều kiện đã nhập." },
+};
+
+const readOnlyApi = createReadOnlyApi();
 
 const INITIAL_ITEM_FACTS = [
   {
@@ -161,6 +172,8 @@ function parseHcmDateTime(value: string): HcmDateTime | null {
   const hour = Number(match[2]);
   const minute = Number(match[3]);
   if (hour > 23 || minute > 59) return null;
+  const dateValue = new Date(`${match[1]}T00:00:00Z`);
+  if (!Number.isFinite(dateValue.valueOf()) || dateValue.toISOString().slice(0, 10) !== match[1]) return null;
   return { date: match[1]!, minute: hour * 60 + minute };
 }
 
@@ -171,6 +184,49 @@ function formatHcmDateTime(date: string, minute: number): string {
   const hour = String(dateValue.getUTCHours()).padStart(2, "0");
   const nextMinute = String(dateValue.getUTCMinutes()).padStart(2, "0");
   return `${nextDate} ${hour}:${nextMinute}`;
+}
+
+function displayHcmTimestamp(value: string): string {
+  return value.replace("T", " ").replace("+07:00", "").replace(/:00$/, "");
+}
+
+function mapPreviewItem(item: ItineraryPreviewItemDto, lockedStopIds: readonly string[], locale: Locale): DemoPlannerItem {
+  return {
+    id: `demo-generated-${item.placeId}`,
+    placeId: item.placeId,
+    title: item.placeTitle,
+    startAt: displayHcmTimestamp(item.startAt),
+    endAt: displayHcmTimestamp(item.endAt),
+    activity: locale === "vi"
+      ? "Khám phá địa điểm cùng hướng dẫn viên địa phương theo trình tự đề xuất."
+      : "Review this place with a local guide and follow the proposed route.",
+    visitDurationMinutes: item.visitDurationMinutes,
+    travelMinutesBefore: item.travelMinutesBefore,
+    transitionBufferMinutesBefore: item.transitionBufferMinutesBefore,
+    travelCostVndBefore: item.travelCostVndBefore,
+    placeCostVnd: item.placeCostVnd,
+    locked: lockedStopIds.includes(item.placeId),
+  };
+}
+
+function generatedItems(
+  preferences: PersonalizationRequest,
+  locale: Locale,
+): { items: DemoPlannerItem[]; warning: string | null } {
+  const result = readOnlyApi.previewItinerary(toItineraryRequest(preferences));
+  if (!result.ok || result.value.items.length === 0) {
+    return { items: [], warning: PLANNER_COPY[locale].noProposal };
+  }
+
+  const items = result.value.items.map((item) => mapPreviewItem(item, preferences.lockedStopIds, locale));
+  const totals = totalsFor(items);
+  if (
+    totals.durationMinutes > preferences.durationMinutes ||
+    totals.costVnd > result.value.budgetVnd
+  ) {
+    return { items: [], warning: PLANNER_COPY[locale].noProposal };
+  }
+  return { items, warning: null };
 }
 
 function shiftedItems(
@@ -198,20 +254,23 @@ function shiftedItems(
 }
 
 function initialState(locale: Locale = "en", preferences: PersonalizationRequest | null = null): DemoPlannerState {
-  const items = shiftedItems(INITIAL_ITEM_FACTS.map((item) => ({
+  const fixtureItems = shiftedItems(INITIAL_ITEM_FACTS.map((item) => ({
     ...item,
     title: item.title[locale],
     activity: item.activity[locale],
   })), preferences);
+  const generated = preferences ? generatedItems(preferences, locale) : { items: fixtureItems, warning: null };
+  const warnings = [LOCALE_COPY[locale].warning];
+  if (generated.warning !== null) warnings.push(PLANNER_COPY[locale].noProposal);
   return {
     planId: PLAN_ID,
     locale,
     preferences,
     current: {
       revision: 1,
-      items,
-      totals: totalsFor(items),
-      warnings: [LOCALE_COPY[locale].warning],
+      items: generated.items,
+      totals: totalsFor(generated.items),
+      warnings,
       feedback: "",
     },
     history: [],

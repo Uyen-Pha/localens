@@ -26,11 +26,14 @@ export type PlannerCopy = {
   preferencePaceLabel: string;
   preferenceDietaryLabel: string;
   preferenceMobilityLabel: string;
+  preferenceSpecialNeedsLabel: string;
   preferenceNoneLabel: string;
   preferenceLanguageEnglish: string;
   preferenceLanguageVietnamese: string;
   preferencePaceRelaxed: string;
   preferencePaceActive: string;
+  timezoneLabel: string;
+  noProposalLabel: string;
   revisionLabel: string;
   currentRevisionLabel: string;
   activityLabel: string;
@@ -167,6 +170,7 @@ export type Dictionary = {
       confirmationMessage: string;
       plannerLinkLabel: string;
       plannerLinkDisclosure: string;
+      plannerLinkStorageError: string;
       preview: {
         heading: string;
         deterministicDisclosure: string;
@@ -460,7 +464,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       previewMessage: "Preview only: your preferences stay on this page and are not sent yet.",
       confirmationMessage: "Your route is confirmed.",
       plannerLinkLabel: "Open the separate simulated refinement demo",
-      plannerLinkDisclosure: "Your form preferences are not transferred to this demo yet. No backend request is created.",
+      plannerLinkDisclosure: "Your preferences are passed only through this browser tab to the simulated planner. No backend request is created.",
+      plannerLinkStorageError: "This browser could not save the handoff for the simulated planner. The planner link is unavailable; your local preview is still shown.",
       preview: {
         heading: "Your route proposal",
         deterministicDisclosure:
@@ -674,7 +679,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       previewMessage: "Chỉ là bản xem trước: lựa chọn của bạn vẫn ở trên trang và chưa được gửi đi.",
       confirmationMessage: "Lịch trình của bạn đã được xác nhận.",
       plannerLinkLabel: "Mở bản demo điều chỉnh mô phỏng riêng",
-      plannerLinkDisclosure: "Lựa chọn trong biểu mẫu chưa được chuyển sang bản demo này. Chưa có request backend nào được tạo.",
+      plannerLinkDisclosure: "Nhu cầu chỉ được chuyển qua phiên của tab trình duyệt này đến planner mô phỏng. Chưa có request backend nào được tạo.",
+      plannerLinkStorageError: "Trình duyệt không thể lưu dữ liệu chuyển sang planner mô phỏng. Liên kết planner đã được ẩn; bản xem trước cục bộ vẫn hiển thị.",
       preview: {
         heading: "Đề xuất lịch trình của bạn",
         deterministicDisclosure:
@@ -704,10 +710,10 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
   en: {
     heading: "Your personalized route proposal",
     intro: "Review the sequence, activities, timing, and estimated group cost before asking for a refinement.",
-    simulatedDisclosure: "Simulated proposal only — no backend authority, AI service, booking, or payment is connected.",
+    simulatedDisclosure: "Simulated proposal only — form preferences stay in this browser tab; no backend authority, AI service, booking, or payment is connected.",
     proposalOnly: "This is a suggestion for discussion. It does not confirm or book a tour automatically.",
     preferencesHeading: "Preferences received from your form",
-    preferenceDateLabel: "Date and start time",
+    preferenceDateLabel: "Date and start time (Ho Chi Minh City, UTC+07:00)",
     preferenceDurationLabel: "Requested duration",
     preferenceBudgetLabel: "Budget",
     preferenceAreasLabel: "Areas",
@@ -717,11 +723,14 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     preferencePaceLabel: "Pace",
     preferenceDietaryLabel: "Dietary needs",
     preferenceMobilityLabel: "Mobility needs",
+    preferenceSpecialNeedsLabel: "Special requests",
     preferenceNoneLabel: "None specified",
     preferenceLanguageEnglish: "English",
     preferenceLanguageVietnamese: "Vietnamese",
     preferencePaceRelaxed: "Relaxed",
     preferencePaceActive: "Active",
+    timezoneLabel: "Ho Chi Minh City time (UTC+07:00)",
+    noProposalLabel: "No proposal is available for these constraints.",
     revisionLabel: "Revision",
     currentRevisionLabel: "Current proposal",
     activityLabel: "Planned activity",
@@ -751,10 +760,10 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
   vi: {
     heading: "Đề xuất lịch trình cá nhân hóa",
     intro: "Xem trình tự, hoạt động, thời gian và chi phí nhóm dự kiến trước khi yêu cầu điều chỉnh.",
-    simulatedDisclosure: "Chỉ là đề xuất mô phỏng — chưa có quyền backend, dịch vụ AI, đặt tour hay thanh toán nào được kết nối.",
+    simulatedDisclosure: "Chỉ là đề xuất mô phỏng — nhu cầu chỉ nằm trong tab trình duyệt này; chưa có quyền backend, dịch vụ AI, đặt tour hay thanh toán nào được kết nối.",
     proposalOnly: "Đây là gợi ý để trao đổi. Hệ thống không tự xác nhận hoặc đặt tour.",
     preferencesHeading: "Nhu cầu đã nhận từ biểu mẫu",
-    preferenceDateLabel: "Ngày và giờ bắt đầu",
+    preferenceDateLabel: "Ngày và giờ bắt đầu (Thành phố Hồ Chí Minh, UTC+07:00)",
     preferenceDurationLabel: "Thời lượng yêu cầu",
     preferenceBudgetLabel: "Ngân sách",
     preferenceAreasLabel: "Khu vực",
@@ -764,11 +773,14 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     preferencePaceLabel: "Nhịp độ",
     preferenceDietaryLabel: "Nhu cầu ăn uống",
     preferenceMobilityLabel: "Nhu cầu di chuyển",
+    preferenceSpecialNeedsLabel: "Yêu cầu đặc biệt",
     preferenceNoneLabel: "Chưa nêu",
     preferenceLanguageEnglish: "Tiếng Anh",
     preferenceLanguageVietnamese: "Tiếng Việt",
     preferencePaceRelaxed: "Thư thả",
     preferencePaceActive: "Năng động",
+    timezoneLabel: "Giờ Thành phố Hồ Chí Minh (UTC+07:00)",
+    noProposalLabel: "Không có đề xuất phù hợp với các điều kiện này.",
     revisionLabel: "Phiên bản",
     currentRevisionLabel: "Đề xuất hiện tại",
     activityLabel: "Hoạt động dự kiến",

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   clearPersonalizationRequest,
+  PERSONALIZATION_SESSION_TTL_MS,
   readPersonalizationRequest,
   savePersonalizationRequest,
   type PersonalizationRequest,
@@ -24,6 +25,7 @@ const request: PersonalizationRequest = {
   dietaryRequirements: ["vegetarian"],
   mobilityRequirements: ["step-free"],
   lockedStopIds: [],
+  specialNeeds: "Prefer a quiet route.",
 };
 
 afterEach(() => {
@@ -32,7 +34,7 @@ afterEach(() => {
 
 describe("personalization session contract", () => {
   it("round-trips a validated request within the current browser tab", () => {
-    savePersonalizationRequest(request);
+    expect(savePersonalizationRequest(request)).toBe(true);
 
     expect(readPersonalizationRequest()).toEqual(request);
   });
@@ -53,6 +55,27 @@ describe("personalization session contract", () => {
     }));
 
     expect(readPersonalizationRequest()).toBeNull();
+  });
+
+  it("expires a saved request after the short handoff TTL", () => {
+    window.sessionStorage.setItem("localens.personalization.v1", JSON.stringify({
+      version: 1,
+      savedAt: Date.now() - PERSONALIZATION_SESSION_TTL_MS - 1,
+      request,
+    }));
+
+    expect(readPersonalizationRequest()).toBeNull();
+    expect(window.sessionStorage.getItem("localens.personalization.v1")).toBeNull();
+  });
+
+  it("reads a current versioned envelope and preserves its request payload", () => {
+    window.sessionStorage.setItem("localens.personalization.v1", JSON.stringify({
+      version: 1,
+      savedAt: Date.now(),
+      request,
+    }));
+
+    expect(readPersonalizationRequest()).toEqual(request);
   });
 
   it("removes a stale request without touching unrelated session data", () => {

@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildPersonalizationRequest,
@@ -116,6 +116,7 @@ describe("PersonalizationForm", () => {
         traditional_market: 0,
       },
       pace: "active",
+      specialNeeds: "",
     });
   });
 
@@ -174,6 +175,9 @@ describe("PersonalizationForm", () => {
     fireEvent.change(screen.getByLabelText(copy.partySizeLabel), {
       target: { value: "4" },
     });
+    fireEvent.change(screen.getByLabelText(copy.specialNeedsLabel), {
+      target: { value: "Prefer a quiet route." },
+    });
     fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
     fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
 
@@ -182,7 +186,28 @@ describe("PersonalizationForm", () => {
       durationMinutes: 240,
       partySize: 4,
       areas: [copy.areaOptions[0].value],
+      specialNeeds: "Prefer a quiet route.",
     });
+  });
+
+  it("does not show a planner CTA when the tab handoff cannot be saved", () => {
+    const dictionary = getDictionary("en");
+    const copy = dictionary.home.personalizationForm;
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("storage disabled");
+    });
+
+    try {
+      render(<PersonalizationForm copy={copy} locale="en" />);
+      fireEvent.change(screen.getByLabelText(copy.startDateLabel), { target: { value: "2026-09-05" } });
+      fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
+      fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+
+      expect(screen.queryByRole("link", { name: copy.plannerLinkLabel })).not.toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent(copy.plannerLinkStorageError);
+    } finally {
+      setItemSpy.mockRestore();
+    }
   });
 
   it("blocks a preview when party size, budget, or every priority weight is invalid", () => {

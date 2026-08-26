@@ -12,9 +12,11 @@ export type PersonalizationRequest = Readonly<{
   dietaryRequirements: readonly string[];
   mobilityRequirements: readonly string[];
   lockedStopIds: readonly string[];
+  specialNeeds: string;
 }>;
 
 export const PERSONALIZATION_SESSION_KEY = "localens.personalization.v1";
+export const PERSONALIZATION_SESSION_TTL_MS = 30 * 60 * 1000;
 
 const PRIORITY_KEYS: readonly PersonalizationPriorityKey[] = [
   "street_food",
@@ -80,28 +82,54 @@ function isPersonalizationRequest(value: unknown): value is PersonalizationReque
     (value.pace === "relaxed" || value.pace === "active") &&
     isStringArray(value.dietaryRequirements, 8, 80) &&
     isStringArray(value.mobilityRequirements, 8, 80) &&
-    isStringArray(value.lockedStopIds, 24, 120)
+    isStringArray(value.lockedStopIds, 24, 120) &&
+    typeof value.specialNeeds === "string" &&
+    value.specialNeeds.length <= 1000
   );
 }
 
-export function savePersonalizationRequest(request: PersonalizationRequest): void {
-  if (typeof window === "undefined") return;
+type PersonalizationEnvelope = Readonly<{
+  version: 1;
+  savedAt: number;
+  request: PersonalizationRequest;
+}>;
+
+function isPersonalizationEnvelope(value: unknown): value is PersonalizationEnvelope {
+  return (
+    isRecord(value) &&
+    value.version === 1 &&
+    typeof value.savedAt === "number" &&
+    Number.isSafeInteger(value.savedAt) &&
+    isPersonalizationRequest(value.request)
+  );
+}
+
+export function savePersonalizationRequest(request: PersonalizationRequest): boolean {
+  if (typeof window === "undefined" || !isPersonalizationRequest(request)) return false;
 
   try {
-    window.sessionStorage.setItem(PERSONALIZATION_SESSION_KEY, JSON.stringify(request));
+    const envelope: PersonalizationEnvelope = { version: 1, savedAt: Date.now(), request };
+    const serialized = JSON.stringify(envelope);
+    window.sessionStorage.setItem(PERSONALIZATION_SESSION_KEY, serialized);
+    return window.sessionStorage.getItem(PERSONALIZATION_SESSION_KEY) === serialized;
   } catch {
-    // Storage can be disabled or full. The planner remains usable with its default fixture.
+    return false;
   }
 }
 
-export function readPersonalizationRequest(): PersonalizationRequest | null {
+export function readPersonalizationRequest(now = Date.now()): PersonalizationRequest | null {
   if (typeof window === "undefined") return null;
 
   try {
     const raw = window.sessionStorage.getItem(PERSONALIZATION_SESSION_KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    return isPersonalizationRequest(parsed) ? parsed : null;
+    if (!isPersonalizationEnvelope(parsed)) return null;
+    if (parsed.savedAt > now || now - parsed.savedAt > PERSONALIZATION_SESSION_TTL_MS) {
+      window.sessionStorage.removeItem(PERSONALIZATION_SESSION_KEY);
+      return null;
+    }
+    return parsed.request;
   } catch {
     return null;
   }
@@ -115,4 +143,11 @@ export function clearPersonalizationRequest(): void {
   } catch {
     // Ignore storage failures; this helper is best-effort by design.
   }
+}
+
+/** Keep free-text notes in the local handoff while excluding them from the strict itinerary engine contract. */
+export function toItineraryRequest(request: PersonalizationRequest): Omit<PersonalizationRequest, "specialNeeds"> {
+  const itineraryRequest = { ...request } as PersonalizationRequest & { specialNeeds?: string };
+  Reflect.deleteProperty(itineraryRequest, "specialNeeds");
+  return itineraryRequest as Omit<PersonalizationRequest, "specialNeeds">;
 }

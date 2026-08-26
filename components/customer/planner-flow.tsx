@@ -59,8 +59,14 @@ function formatPriorities(
   return priorities.length > 0 ? priorities.join(", ") : noneLabel;
 }
 
-function formatRequirements(values: readonly string[], noneLabel: string): string {
-  return values.length > 0 ? values.join(", ") : noneLabel;
+function formatRequirements(values: readonly string[], locale: Locale, noneLabel: string): string {
+  const labels: Record<string, { en: string; vi: string }> = {
+    halal: { en: "Halal", vi: "Halal" },
+    vegetarian: { en: "Vegetarian", vi: "Ăn chay" },
+    "step-free": { en: "Step-free access", vi: "Lối đi không bậc" },
+    "wheelchair-ramp": { en: "Wheelchair ramp", vi: "Đường dốc xe lăn" },
+  };
+  return values.length > 0 ? values.map((value) => labels[value]?.[locale] ?? value).join(", ") : noneLabel;
 }
 
 export function PlannerFlow({
@@ -181,8 +187,9 @@ export function PlannerFlow({
             <div><dt>{copy.preferencePartySizeLabel}</dt><dd>{state.preferences.partySize}</dd></div>
             <div><dt>{copy.preferencePrioritiesLabel}</dt><dd>{formatPriorities(state.preferences, locale, copy.preferenceNoneLabel)}</dd></div>
             <div><dt>{copy.preferencePaceLabel}</dt><dd>{state.preferences.pace === "active" ? copy.preferencePaceActive : copy.preferencePaceRelaxed}</dd></div>
-            <div><dt>{copy.preferenceDietaryLabel}</dt><dd>{formatRequirements(state.preferences.dietaryRequirements, copy.preferenceNoneLabel)}</dd></div>
-            <div><dt>{copy.preferenceMobilityLabel}</dt><dd>{formatRequirements(state.preferences.mobilityRequirements, copy.preferenceNoneLabel)}</dd></div>
+            <div><dt>{copy.preferenceDietaryLabel}</dt><dd>{formatRequirements(state.preferences.dietaryRequirements, locale, copy.preferenceNoneLabel)}</dd></div>
+            <div><dt>{copy.preferenceMobilityLabel}</dt><dd>{formatRequirements(state.preferences.mobilityRequirements, locale, copy.preferenceNoneLabel)}</dd></div>
+            <div><dt>{copy.preferenceSpecialNeedsLabel}</dt><dd>{state.preferences.specialNeeds || copy.preferenceNoneLabel}</dd></div>
           </dl>
         </section>
       ) : null}
@@ -221,6 +228,7 @@ export function PlannerFlow({
           {state.current.items.map((item) => (
             <li className="planner-timeline__item" key={item.id}>
               <article>
+                <p className="planner-timeline__timezone" role="note">{copy.timezoneLabel}</p>
                 <div className="planner-timeline__item-header">
                   <h3>{item.title}</h3>
                   <button
@@ -247,6 +255,9 @@ export function PlannerFlow({
             </li>
           ))}
         </ol>
+        {state.preferences && state.current.items.length === 0 ? (
+          <p className="planner-flow__no-proposal" role="status">{copy.noProposalLabel}</p>
+        ) : null}
 
         <div className="planner-flow__totals">
           <dl>

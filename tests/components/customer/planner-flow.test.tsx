@@ -52,6 +52,7 @@ describe("PlannerFlow", () => {
       dietaryRequirements: ["vegetarian"],
       mobilityRequirements: ["step-free"],
       lockedStopIds: [],
+      specialNeeds: "Prefer a quiet route.",
     });
 
     render(<PlannerFlow locale="vi" copy={copy} />);
@@ -62,6 +63,11 @@ describe("PlannerFlow", () => {
     expect(within(preferences).getByText(/1\.500\.000/)).toBeInTheDocument();
     expect(within(preferences).getByText("Quận 1 và khu trung tâm")).toBeInTheDocument();
     expect(within(preferences).getByText("3")).toBeInTheDocument();
+    expect(within(preferences).getByText("Prefer a quiet route.")).toBeInTheDocument();
+    expect(within(preferences).getByText("Ăn chay")).toBeInTheDocument();
+    expect(within(preferences).getByText("Lối đi không bậc")).toBeInTheDocument();
+    expect(within(preferences).getByText(/UTC\+07:00/)).toBeInTheDocument();
+    expect(screen.getAllByText(/UTC\+07:00/).length).toBeGreaterThanOrEqual(2);
   });
 
   it("locks and unlocks a stop with an accessible pressed state", () => {
