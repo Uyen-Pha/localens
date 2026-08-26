@@ -39,11 +39,15 @@ item IDs are validated before any adapter call; extra body fields are rejected.
 4. `prepareRefinement` must load the current plan and its catalog/travel/FX
    snapshots through an approved internal boundary. It returns the current
    revision, a normalized copy of `delta`, and a canonical previous-revision
-   context. It includes the previous fingerprint, all snapshot IDs, and each
-   submitted locked item mapped to its authoritative internal `placeId`,
-   position, start/end times, and visit duration. Unknown, duplicate, or
-   not-owned locks are rejected safely; a revision mismatch returns `409
-   STALE_REVISION`.
+   context. It includes the previous plan ID/revision, full prior engine input
+   and result, ordered prior items with internal item IDs, the previous
+   fingerprint, all snapshot IDs, and each submitted locked item mapped to its
+   authoritative internal `placeId`, position, start/end times, and visit
+   duration. The handler canonicalizes this material and recomputes its
+   SHA-256 fingerprint with Web Crypto before invoking a ranker. Unknown,
+   duplicate, or not-owned locks are rejected as `422
+   LOCKED_ITEM_INVALID`; a revision or fingerprint mismatch returns `409
+   STALE_REVISION` or `SNAPSHOT_MISMATCH`.
 5. The existing domain engine computes the proposal. The adapter may provide
    a ranker, but it receives feedback, scope, and canonical locked place IDs as
    advisory context and may order only allowlisted candidate IDs; the engine

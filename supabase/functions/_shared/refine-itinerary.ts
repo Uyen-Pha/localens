@@ -19,12 +19,14 @@ import {
   type GatewayPolicy,
 } from "@/supabase/functions/_shared/gateway";
 import {
+  itineraryItemSchema,
   itineraryResultSchema,
   parseEngineInput,
   type ItineraryRequest,
   type ItineraryResult,
 } from "@/lib/domain/itinerary/contracts";
 import type { DomainErrorCode } from "@/lib/domain/itinerary/errors";
+import { fingerprintItinerary } from "@/lib/domain/itinerary/fingerprint";
 import {
   recommendItinerary,
   type Recommendation,
@@ -67,6 +69,7 @@ const internalSnapshotIdSchema = z
   .min(1)
   .max(160)
   .refine((value) => !CONTROL_CHARACTER_PATTERN.test(value));
+const fingerprintSchema = z.string().regex(/^[0-9a-f]{64}$/);
 const canonicalHcmTimestampSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+07:00$/);
@@ -82,10 +85,19 @@ const canonicalLockedItemSchema = z
   .strict();
 const previousRevisionSchema = z
   .object({
-    fingerprint: internalSnapshotIdSchema,
+    planId: uuidSchema,
+    revision: z.number().int().min(1).max(POSITIVE_REVISION_MAX),
+    fingerprint: fingerprintSchema,
     catalogSnapshotId: internalSnapshotIdSchema,
     travelSnapshotId: internalSnapshotIdSchema,
     fxSnapshotId: internalSnapshotIdSchema.nullable(),
+    authoritativeInput: z.unknown(),
+    authoritativeResult: itineraryResultSchema,
+    items: z.array(z.object({
+      itemId: uuidSchema,
+      position: z.number().int().min(1).max(8),
+      ...itineraryItemSchema.shape,
+    }).strict()).max(8),
     lockedItems: z.array(canonicalLockedItemSchema).max(8),
   })
   .strict();
@@ -105,12 +117,22 @@ export interface CanonicalLockedItem {
 }
 
 export interface PreviousRevisionContext {
+  planId: string;
+  revision: number;
   fingerprint: string;
   catalogSnapshotId: string;
   travelSnapshotId: string;
   fxSnapshotId: string | null;
+  authoritativeInput: unknown;
+  authoritativeResult: ItineraryResult;
+  items: Array<CanonicalPreviousItem>;
   lockedItems: CanonicalLockedItem[];
 }
+
+export type CanonicalPreviousItem = {
+  itemId: string;
+  position: number;
+} & ItineraryResult["items"][number];
 
 export interface RefinementRankRequest extends RankRequest {
   feedback: string;
@@ -133,11 +155,9 @@ export const refineItineraryBodySchema = z
         scope: z.enum(["partial", "full"]),
       })
       .strict(),
-    lockedItemIds: z.array(uuidSchema).max(8).superRefine((values, context) => {
-      if (new Set(values).size !== values.length) {
-        context.addIssue({ code: "custom", message: "locked item IDs must be unique" });
-      }
-    }),
+    // Duplicates are a domain ownership error, not malformed JSON. They are
+    // mapped to LOCKED_ITEM_INVALID (422) after the strict shape parse.
+    lockedItemIds: z.array(uuidSchema).max(8),
     guestToken: tokenSchema.optional(),
   })
   .strict();
@@ -449,6 +469,7 @@ function inspectPreparation(value: unknown, expectedInput: RefineItineraryInput)
     }
     const requestedLockedItemIds = expectedInput.lockedItemIds;
     if (!Array.isArray(requestedLockedItemIds)
+      || new Set(requestedLockedItemIds).size !== requestedLockedItemIds.length
       || requestedLockedItemIds.length !== lockedItems.length
       || requestedLockedItemIds.some((id, index) => id !== lockedItems[index]?.itemId)
       || new Set(lockedItems.map((item) => item.itemId)).size !== lockedItems.length
@@ -540,6 +561,86 @@ function preservesLockedStops(
   return true;
 }
 
+type ParsedEngineInput = Extract<ReturnType<typeof parseEngineInput>, { ok: true }>["value"];
+
+function expectedFxSnapshotId(input: ParsedEngineInput): string | null {
+  return input.request.budget.currency === "USD" ? input.fx?.id ?? null : null;
+}
+
+function sameSnapshotBinding(
+  input: ParsedEngineInput,
+  snapshotIds: PreviousRevisionContext,
+): boolean {
+  return input.catalog.id === snapshotIds.catalogSnapshotId
+    && input.travel.id === snapshotIds.travelSnapshotId
+    && expectedFxSnapshotId(input) === snapshotIds.fxSnapshotId;
+}
+
+function sameResultItem(left: ItineraryResult["items"][number], right: CanonicalPreviousItem): boolean {
+  return left.placeId === right.placeId
+    && left.startAt === right.startAt
+    && left.endAt === right.endAt
+    && left.visitDurationMinutes === right.visitDurationMinutes
+    && left.travelMinutesBefore === right.travelMinutesBefore
+    && left.transitionBufferMinutesBefore === right.transitionBufferMinutesBefore
+    && left.travelCostVndBefore === right.travelCostVndBefore
+    && left.placeCostVnd === right.placeCostVnd
+    && left.score === right.score;
+}
+
+type PreviousMaterialCheck =
+  | { kind: "ok"; input: ParsedEngineInput }
+  | { kind: "locked" }
+  | { kind: "snapshot" }
+  | { kind: "invalid" };
+
+async function validatePreviousMaterial(
+  previousRevision: PreviousRevisionContext,
+  input: RefineItineraryInput,
+): Promise<PreviousMaterialCheck> {
+  if (previousRevision.planId !== input.planId || previousRevision.revision !== input.baseRevision) {
+    return { kind: "snapshot" };
+  }
+  const priorInput = parseEngineInput(previousRevision.authoritativeInput);
+  if (!priorInput.ok) return { kind: "invalid" };
+  if (!sameSnapshotBinding(priorInput.value, previousRevision)) return { kind: "snapshot" };
+  const priorResult = previousRevision.authoritativeResult;
+  if (priorResult.snapshotIds.catalog !== previousRevision.catalogSnapshotId
+    || priorResult.snapshotIds.travel !== previousRevision.travelSnapshotId
+    || priorResult.snapshotIds.fx !== previousRevision.fxSnapshotId
+    || previousRevision.items.length !== priorResult.items.length) {
+    return { kind: "snapshot" };
+  }
+  for (const [index, item] of previousRevision.items.entries()) {
+    if (item.position !== index + 1 || !sameResultItem(priorResult.items[index], item)) return { kind: "snapshot" };
+  }
+  const priorItemsById = new Map(previousRevision.items.map((item) => [item.itemId, item]));
+  for (const lockedItem of previousRevision.lockedItems) {
+    const priorItem = priorItemsById.get(lockedItem.itemId);
+    if (priorItem === undefined
+      || priorItem.position !== lockedItem.position
+      || priorItem.placeId !== lockedItem.placeId
+      || priorItem.startAt !== lockedItem.startAt
+      || priorItem.endAt !== lockedItem.endAt
+      || priorItem.visitDurationMinutes !== lockedItem.visitDurationMinutes) {
+      return { kind: "locked" };
+    }
+    if (!priorInput.value.catalog.places.some((place) => place.id === lockedItem.placeId)) return { kind: "locked" };
+  }
+  let fingerprint: string;
+  try {
+    fingerprint = await fingerprintItinerary(
+      priorInput.value,
+      priorResult,
+      async (bytes) => new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes.buffer as ArrayBuffer)),
+    );
+  } catch {
+    return { kind: "invalid" };
+  }
+  if (fingerprint !== previousRevision.fingerprint) return { kind: "snapshot" };
+  return { kind: "ok", input: priorInput.value };
+}
+
 export function createRefineItineraryHandler(
   adapter: RefineItineraryAdapter,
   options: RefineItineraryHandlerOptions,
@@ -563,6 +664,9 @@ export function createRefineItineraryHandler(
       delta: parsedBody.data.delta,
       lockedItemIds: [...parsedBody.data.lockedItemIds],
     };
+    if (new Set(input.lockedItemIds).size !== input.lockedItemIds.length) {
+      return adapterFailureResponse({ code: "LOCKED_ITEM_INVALID" }, gateway.correlationId, gateway.corsHeaders);
+    }
 
     let principal: VerifiedAccessPrincipal | null = null;
     let guestCapability: VerifiedGuestCapability | null = null;
@@ -621,6 +725,12 @@ export function createRefineItineraryHandler(
       return internalResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     }
     if (!engineInput.ok) return internalResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+    const previousMaterial = await validatePreviousMaterial(inspectedPreparation.previousRevision, input);
+    if (previousMaterial.kind === "invalid") return internalResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+    if (previousMaterial.kind === "locked") return adapterFailureResponse({ code: "LOCKED_ITEM_INVALID" }, gateway.correlationId, gateway.corsHeaders);
+    if (previousMaterial.kind === "snapshot" || !sameSnapshotBinding(engineInput.value, inspectedPreparation.previousRevision)) {
+      return adapterFailureResponse({ code: "SNAPSHOT_MISMATCH" }, gateway.correlationId, gateway.corsHeaders);
+    }
     let recommendation: Awaited<ReturnType<typeof recommendItinerary>>;
     try {
       const ranker: Ranker | undefined = inspectedPreparation.ranker
@@ -638,6 +748,14 @@ export function createRefineItineraryHandler(
     if (!recommendation.ok) return domainFailureResponse(recommendation.error as unknown as JsonRecord, gateway.correlationId, gateway.corsHeaders);
     const result = itineraryResultSchema.safeParse(recommendation.value.result);
     if (!result.success) return internalResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+    if (result.data.snapshotIds.catalog !== inspectedPreparation.previousRevision.catalogSnapshotId
+      || result.data.snapshotIds.travel !== inspectedPreparation.previousRevision.travelSnapshotId
+      || result.data.snapshotIds.fx !== inspectedPreparation.previousRevision.fxSnapshotId
+      || result.data.snapshotIds.catalog !== engineInput.value.catalog.id
+      || result.data.snapshotIds.travel !== engineInput.value.travel.id
+      || result.data.snapshotIds.fx !== expectedFxSnapshotId(engineInput.value)) {
+      return adapterFailureResponse({ code: "SNAPSHOT_MISMATCH" }, gateway.correlationId, gateway.corsHeaders);
+    }
     if (!preservesLockedStops(result.data, inspectedPreparation.previousRevision)) {
       return adapterFailureResponse({ code: "LOCKED_ITEM_INVALID" }, gateway.correlationId, gateway.corsHeaders);
     }

@@ -1,8 +1,10 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { itineraryFixture } from "@/tests/fixtures/itinerary/catalog.v1";
+import { fingerprintItinerary } from "@/lib/domain/itinerary/fingerprint";
+import type { ItineraryResult } from "@/lib/domain/itinerary/contracts";
 import {
   createRefineItineraryHandler,
   type RefinementRankRequest,
@@ -13,6 +15,35 @@ const correlationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const planId = "11111111-1111-4111-8111-111111111111";
 const itemId = "22222222-2222-4222-8222-222222222222";
 const lockedPlaceId = "place-banh-mi";
+const previousResult: ItineraryResult = {
+  normalizedStartAt: "2026-09-05T08:00:00+07:00",
+  budgetVnd: 2_000_000,
+  rankingSource: "deterministic",
+  items: [{
+    placeId: lockedPlaceId,
+    startAt: "2026-09-05T09:00:00+07:00",
+    endAt: "2026-09-05T09:45:00+07:00",
+    visitDurationMinutes: 45,
+    travelMinutesBefore: 0,
+    transitionBufferMinutesBefore: 0,
+    travelCostVndBefore: 0,
+    placeCostVnd: 360_000,
+    score: 5_001,
+  }],
+  totals: {
+    durationMinutes: 105,
+    visitMinutes: 45,
+    travelMinutes: 0,
+    transitionBufferMinutes: 0,
+    groupCostVnd: 360_000,
+    score: 5_001,
+  },
+  snapshotIds: {
+    catalog: itineraryFixture.catalog.id,
+    travel: itineraryFixture.travel.id,
+    fx: null,
+  },
+};
 const previousLockedItem = {
   itemId,
   placeId: lockedPlaceId,
@@ -22,16 +53,29 @@ const previousLockedItem = {
   visitDurationMinutes: 45,
 };
 const previousRevision = {
+  planId,
+  revision: 3,
   fingerprint: "fingerprint-v1",
   catalogSnapshotId: itineraryFixture.catalog.id,
   travelSnapshotId: itineraryFixture.travel.id,
-  fxSnapshotId: itineraryFixture.fx?.id ?? null,
+  fxSnapshotId: null,
+  authoritativeInput: itineraryFixture,
+  authoritativeResult: previousResult,
+  items: [{ ...previousResult.items[0], itemId, position: 1 }],
   lockedItems: [previousLockedItem],
 };
 const policy = {
   allowedOrigins: ["http://localhost:3000"],
   allowedMethods: ["POST", "OPTIONS"] as const,
 };
+
+beforeAll(async () => {
+  previousRevision.fingerprint = await fingerprintItinerary(
+    itineraryFixture,
+    previousResult,
+    async (bytes) => new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes.buffer as ArrayBuffer)),
+  );
+});
 
 function request(body: unknown, headers: Record<string, string> = {}): Request {
   return new Request("https://functions.example/refine-itinerary", {
@@ -286,6 +330,28 @@ describe("refine-itinerary Edge handler contract", () => {
     });
   });
 
+  it("maps duplicate locked item IDs to a safe 422 domain error", async () => {
+    const service = adapter();
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({
+      guestToken: "guest-token-123456",
+      lockedItemIds: [itemId, itemId],
+    })));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "LOCKED_ITEM_INVALID",
+      messageKey: "refinement.locked_item_invalid",
+      retryable: false,
+      correlationId,
+    });
+    expect(service.prepareRefinement).not.toHaveBeenCalled();
+  });
+
   it("returns 409 STALE_REVISION from a prepare CAS mismatch without committing", async () => {
     const service = adapter({
       prepareRefinement: vi.fn(async () => ({
@@ -433,6 +499,69 @@ describe("refine-itinerary Edge handler contract", () => {
     expect(service.commitRefinement).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["forged prior plan", { planId: "33333333-3333-4333-8333-333333333333" }, "SNAPSHOT_MISMATCH"],
+    ["forged prior revision", { revision: 2 }, "SNAPSHOT_MISMATCH"],
+    ["forged fingerprint", { fingerprint: "0".repeat(64) }, "SNAPSHOT_MISMATCH"],
+    ["forged snapshot binding", { catalogSnapshotId: "catalog-forged" }, "SNAPSHOT_MISMATCH"],
+  ])("rejects %s before ranker or commit", async (_label, priorPatch, errorCode) => {
+    const ranker = vi.fn(async (rankRequest: RefinementRankRequest) => ({
+      orderedIds: rankRequest.candidates.map((candidate) => candidate.id),
+      rationales: Object.fromEntries(rankRequest.candidates.map((candidate) => [candidate.id, "should not run"])),
+    }));
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        input: itineraryFixture,
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision: { ...previousRevision, ...priorPatch },
+        ranker,
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: errorCode, correlationId });
+    expect(ranker).not.toHaveBeenCalled();
+    expect(service.commitRefinement).not.toHaveBeenCalled();
+  });
+
+  it("rejects an engine snapshot that is not bound to the canonical prior revision", async () => {
+    const ranker = vi.fn();
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        input: {
+          ...itineraryFixture,
+          catalog: { ...itineraryFixture.catalog, id: "catalog-forged" },
+        },
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision,
+        ranker,
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "SNAPSHOT_MISMATCH", correlationId });
+    expect(ranker).not.toHaveBeenCalled();
+    expect(service.commitRefinement).not.toHaveBeenCalled();
+  });
+
   it("rejects a proposal that changes a locked stop instead of committing it", async () => {
     const service = adapter({
       prepareRefinement: vi.fn(async () => ({
@@ -445,6 +574,46 @@ describe("refine-itinerary Edge handler contract", () => {
           ...previousRevision,
           lockedItems: [{ ...previousLockedItem, placeId: "place-market" }],
         },
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ code: "LOCKED_ITEM_INVALID", correlationId });
+    expect(service.commitRefinement).not.toHaveBeenCalled();
+  });
+
+  it("rejects a locked mapping whose place is absent from the authoritative catalog", async () => {
+    const forgedPlaceId = "place-forged-not-in-catalog";
+    const forgedResult: ItineraryResult = {
+      ...previousResult,
+      items: [{ ...previousResult.items[0], placeId: forgedPlaceId }],
+    };
+    const forgedPreviousRevision = {
+      ...previousRevision,
+      authoritativeResult: forgedResult,
+      items: [{ ...previousRevision.items[0], placeId: forgedPlaceId }],
+      lockedItems: [{ ...previousLockedItem, placeId: forgedPlaceId }],
+      fingerprint: "",
+    };
+    forgedPreviousRevision.fingerprint = await fingerprintItinerary(
+      itineraryFixture,
+      forgedResult,
+      async (bytes) => new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes.buffer as ArrayBuffer)),
+    );
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        input: itineraryFixture,
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision: forgedPreviousRevision,
       })),
     });
     const handler = createRefineItineraryHandler(service, {
