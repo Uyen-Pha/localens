@@ -60,11 +60,22 @@ function isDemoPlannerRevision(value: unknown): value is DemoPlannerRevision {
     !Number.isSafeInteger(value.revision) ||
     value.revision < 1
   ) return false;
-  if (!Array.isArray(value.items) || value.items.length > 12 || !value.items.every(isDemoPlannerItem)) return false;
+  if (!Array.isArray(value.items) || value.items.length === 0 || value.items.length > 12 || !value.items.every(isDemoPlannerItem)) return false;
   if (!isRecord(value.totals)) return false;
+  const items = value.items as DemoPlannerItem[];
+  const durationMinutes = items.reduce(
+    (total, item) => total + item.visitDurationMinutes + item.travelMinutesBefore + item.transitionBufferMinutesBefore,
+    0,
+  );
+  const costVnd = items.reduce(
+    (total, item) => total + item.travelCostVndBefore + item.placeCostVnd,
+    0,
+  );
   return (
     isSafeNonNegativeNumber(value.totals.durationMinutes) &&
     isSafeNonNegativeNumber(value.totals.costVnd) &&
+    value.totals.durationMinutes === durationMinutes &&
+    value.totals.costVnd === costVnd &&
     Array.isArray(value.warnings) && value.warnings.every((warning) => typeof warning === "string") &&
     typeof value.feedback === "string"
   );

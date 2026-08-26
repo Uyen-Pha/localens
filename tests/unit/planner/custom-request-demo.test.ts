@@ -58,6 +58,32 @@ describe("custom request local handoff", () => {
     expect(readCustomRequestDraftState().status).toBe("invalid");
   });
 
+  it("rejects an empty or tampered revision snapshot before a quote can be derived", () => {
+    const selected = draft();
+    window.sessionStorage.setItem("localens.custom-request.v1", JSON.stringify({
+      version: 1,
+      savedAt: Date.now(),
+      draft: {
+        ...selected,
+        revisionSnapshot: {
+          ...selected.revisionSnapshot,
+          totals: { ...selected.revisionSnapshot.totals, costVnd: 1 },
+        },
+      },
+    }));
+    expect(readCustomRequestDraftState().status).toBe("invalid");
+
+    window.sessionStorage.setItem("localens.custom-request.v1", JSON.stringify({
+      version: 1,
+      savedAt: Date.now(),
+      draft: {
+        ...selected,
+        revisionSnapshot: { ...selected.revisionSnapshot, items: [], totals: { durationMinutes: 0, costVnd: 0 } },
+      },
+    }));
+    expect(readCustomRequestDraftState().status).toBe("invalid");
+  });
+
   it("reports storage errors separately", () => {
     const getItemSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("storage disabled");
