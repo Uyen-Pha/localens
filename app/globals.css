@@ -577,6 +577,16 @@ button:focus-visible,
 .itinerary-preview__totals h4 { margin: 0; color: var(--customer-ink); }
 
 .planner-flow { max-width: 66rem; }
+.custom-request-flow { max-width: 66rem; }
+.custom-request-flow__card { display: grid; gap: var(--space-3); margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: 0.75rem; background: var(--customer-paper); box-shadow: 0 1rem 2.5rem rgba(24, 53, 45, 0.06); }
+.custom-request-flow__card h2 { margin: 0; color: var(--customer-ink); font-size: clamp(1.25rem, 2vw, 1.7rem); }
+.custom-request-flow__card p { margin: 0; color: var(--customer-ink-soft); line-height: 1.55; }
+.custom-request-flow__facts { display: grid; gap: var(--space-2); margin: 0; }
+.custom-request-flow__facts > div { display: flex; justify-content: space-between; gap: var(--space-4); padding-bottom: var(--space-2); border-bottom: 1px solid var(--customer-line); }
+.custom-request-flow__facts dt { color: var(--customer-ink-soft); font-size: 0.85rem; }
+.custom-request-flow__facts dd { margin: 0; color: var(--customer-ink); font-weight: 700; text-align: right; }
+.custom-request-flow__error { display: grid; gap: var(--space-3); margin-top: var(--space-5); padding: var(--space-4); border-left: 3px solid var(--color-cta-vermilion); background: rgba(190, 58, 36, 0.08); }
+.custom-request-flow__error p { margin: 0; color: var(--color-cta-vermilion-dark); line-height: 1.5; }
 .planner-flow__proposal { margin: var(--space-3) 0 0; color: var(--customer-ink); font-weight: 700; line-height: 1.5; }
 .planner-flow__default-disclosure { margin: var(--space-4) 0 0; color: var(--customer-ink-soft); font-size: 0.9rem; line-height: 1.5; }
 .planner-flow__handoff-error { display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding: var(--space-4); border-left: 3px solid var(--color-cta-vermilion); background: rgba(178, 56, 38, 0.08); }
@@ -607,6 +617,7 @@ button:focus-visible,
 .planner-flow__totals { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 2px solid var(--customer-line); }
 .planner-flow__totals dd { color: var(--customer-orange); }
 .planner-flow__no-proposal { margin: var(--space-4) 0 0; padding: var(--space-3); border-left: 3px solid var(--color-cta-vermilion); color: var(--color-cta-vermilion-dark); line-height: 1.5; }
+.planner-flow__request-quote { display: grid; gap: var(--space-2); margin-top: var(--space-5); }
 .planner-flow__checks, .planner-flow__history, .planner-flow__refine { margin-top: var(--space-5); padding: clamp(1rem, 3vw, 1.5rem); border: 1px solid var(--customer-line); border-radius: 0.6rem; background: var(--customer-paper); }
 .planner-flow__checks ul, .planner-flow__history ol { margin: var(--space-3) 0 0; padding-left: 1.25rem; color: var(--customer-ink-soft); line-height: 1.55; }
 .planner-flow__checks li + li, .planner-flow__history li + li { margin-top: var(--space-2); }
@@ -672,6 +683,8 @@ button:focus-visible,
   .planner-flow__proposal-header, .planner-timeline__item-header { flex-direction: column; }
   .planner-flow__plan-id { max-width: none; }
   .planner-flow__preferences dl { grid-template-columns: 1fr; }
+  .custom-request-flow__facts > div { flex-direction: column; gap: var(--space-1); }
+  .custom-request-flow__facts dd { text-align: left; }
   .planner-timeline__details, .planner-flow__totals dl { grid-template-columns: 1fr; }
   .planner-timeline__lock { width: 100%; justify-content: center; }
   .field--wide { grid-column: auto; }

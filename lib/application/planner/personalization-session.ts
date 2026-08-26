@@ -57,7 +57,7 @@ function isPriorityWeights(value: unknown): value is PersonalizationRequest["pri
   });
 }
 
-function isPersonalizationRequest(value: unknown): value is PersonalizationRequest {
+export function isPersonalizationRequest(value: unknown): value is PersonalizationRequest {
   if (!isRecord(value) || !isRecord(value.budget)) return false;
 
   const budget = value.budget;

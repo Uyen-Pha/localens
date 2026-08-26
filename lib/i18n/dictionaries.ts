@@ -10,6 +10,44 @@ export type PersonalizationPriorityKey =
   | "traditional_craft"
   | "traditional_market";
 
+export type CustomRequestCopy = {
+  heading: string;
+  intro: string;
+  demoDisclosure: string;
+  noBackendAuthDisclosure: string;
+  missingPlanMessage: string;
+  expiredPlanMessage: string;
+  invalidPlanMessage: string;
+  storageErrorMessage: string;
+  stalePlanMessage: string;
+  backToPlannerLabel: string;
+  signInBoundaryHeading: string;
+  signInBoundaryMessage: string;
+  continueLocalDemoLabel: string;
+  selectedRevisionHeading: string;
+  revisionLabel: string;
+  planIdLabel: string;
+  totalDurationLabel: string;
+  totalCostLabel: string;
+  requestHeading: string;
+  requestIntro: string;
+  submitRequestLabel: string;
+  adminReviewHeading: string;
+  adminReviewPendingMessage: string;
+  simulateQuoteLabel: string;
+  quoteHeading: string;
+  quoteMessage: string;
+  quoteExpiresLabel: string;
+  quoteTotalLabel: string;
+  acceptQuoteLabel: string;
+  quoteAcceptedMessage: string;
+  openStripeMockLabel: string;
+  stripeMockHeading: string;
+  stripeMockMessage: string;
+  noPaymentNetworkDisclosure: string;
+  backHomeLabel: string;
+};
+
 export type PlannerCopy = {
   heading: string;
   intro: string;
@@ -63,6 +101,9 @@ export type PlannerCopy = {
   staleRevisionMessage: string;
   refreshLabel: string;
   revisionFeedbackLabel: string;
+  requestQuoteLabel: string;
+  requestQuoteDisclosure: string;
+  requestQuoteStorageError: string;
   backHomeLabel: string;
 };
 
@@ -254,6 +295,7 @@ export type Dictionary = {
     tourTitles: Record<string, string>;
   };
   planner: PlannerCopy;
+  customRequest: CustomRequestCopy;
   navigation: {
     primary: string;
     explore: string;
@@ -767,6 +809,9 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     staleRevisionMessage: "This proposal changed elsewhere. Refresh the latest revision before trying again.",
     refreshLabel: "Refresh latest proposal",
     revisionFeedbackLabel: "Traveler feedback",
+    requestQuoteLabel: "Request a quote for this revision",
+    requestQuoteDisclosure: "This opens a local custom-request demo. It does not sign you in, contact admin, or book a tour.",
+    requestQuoteStorageError: "This browser could not save the selected revision. The quote request link is unavailable.",
     backHomeLabel: "Back to LocalLens home",
   },
   vi: {
@@ -822,13 +867,93 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     staleRevisionMessage: "Đề xuất đã thay đổi ở nơi khác. Hãy tải phiên bản mới nhất rồi thử lại.",
     refreshLabel: "Tải phiên bản mới nhất",
     revisionFeedbackLabel: "Phản hồi của khách",
+    requestQuoteLabel: "Yêu cầu báo giá cho phiên bản này",
+    requestQuoteDisclosure: "Đây là demo yêu cầu cá nhân hóa cục bộ. Không đăng nhập, liên hệ admin hay đặt tour nào được thực hiện.",
+    requestQuoteStorageError: "Trình duyệt không thể lưu phiên bản đã chọn. Liên kết yêu cầu báo giá không khả dụng.",
+    backHomeLabel: "Quay lại trang chủ LocalLens",
+  },
+};
+
+const customRequestCopy: Record<Locale, CustomRequestCopy> = {
+  en: {
+    heading: "Request a review and quote",
+    intro: "Send this selected itinerary revision to the next local-demo step for review.",
+    demoDisclosure: "Local prototype only: no backend, authentication, admin workspace, AI service, Stripe network, booking, or payment is connected.",
+    noBackendAuthDisclosure: "Production would require sign-in before submitting a custom request. This prototype has no auth service and will only continue when you explicitly choose the local demo.",
+    missingPlanMessage: "No selected planner revision was found in this browser tab. Nothing was submitted.",
+    expiredPlanMessage: "The selected planner revision expired. Nothing was submitted.",
+    invalidPlanMessage: "The selected planner revision is invalid or incomplete. Nothing was submitted.",
+    storageErrorMessage: "This browser could not read the selected planner revision. Nothing was submitted.",
+    stalePlanMessage: "The selected revision no longer matches the current personalization handoff. Nothing was submitted.",
+    backToPlannerLabel: "Back to planner",
+    signInBoundaryHeading: "Sign-in required in production",
+    signInBoundaryMessage: "A real product would authenticate you here before sending a request to an admin. No sign-in succeeds in this local prototype.",
+    continueLocalDemoLabel: "Continue in local demo",
+    selectedRevisionHeading: "Selected itinerary revision",
+    revisionLabel: "Revision",
+    planIdLabel: "Plan ID",
+    totalDurationLabel: "Estimated duration",
+    totalCostLabel: "Estimated group cost",
+    requestHeading: "Submit for local admin review",
+    requestIntro: "This action only changes local screen state; it does not contact an admin or create a booking.",
+    submitRequestLabel: "Submit local demo request",
+    adminReviewHeading: "Admin review pending (simulated)",
+    adminReviewPendingMessage: "Your local demo request is marked pending review. No admin received it.",
+    simulateQuoteLabel: "Simulate a 48-hour quote",
+    quoteHeading: "Mock quote",
+    quoteMessage: "This amount is derived from the selected revision snapshot and is immutable in this local flow.",
+    quoteExpiresLabel: "Quote validity",
+    quoteTotalLabel: "Quote total",
+    acceptQuoteLabel: "Accept this mock quote",
+    quoteAcceptedMessage: "You explicitly accepted the mock quote. Payment has not started.",
+    openStripeMockLabel: "Open Stripe Test/Mock action",
+    stripeMockHeading: "Stripe Test/Mock boundary",
+    stripeMockMessage: "A real product would now open Stripe Checkout. This prototype only records that you chose the mock action.",
+    noPaymentNetworkDisclosure: "No Stripe network request, card charge, webhook, or booking confirmation was made.",
+    backHomeLabel: "Back to LocalLens home",
+  },
+  vi: {
+    heading: "Yêu cầu xem xét và báo giá",
+    intro: "Gửi phiên bản lịch trình đã chọn sang bước demo tiếp theo để xem xét.",
+    demoDisclosure: "Chỉ là prototype cục bộ: chưa kết nối backend, xác thực, không gian admin, dịch vụ AI, mạng Stripe, đặt tour hay thanh toán.",
+    noBackendAuthDisclosure: "Sản phẩm thật sẽ yêu cầu đăng nhập trước khi gửi yêu cầu cá nhân hóa cho admin. Prototype này không có dịch vụ xác thực và chỉ tiếp tục khi bạn chủ động chọn demo cục bộ.",
+    missingPlanMessage: "Không tìm thấy phiên bản lịch trình đã chọn trong tab trình duyệt này. Chưa gửi gì cả.",
+    expiredPlanMessage: "Phiên bản lịch trình đã chọn đã hết hạn. Chưa gửi gì cả.",
+    invalidPlanMessage: "Phiên bản lịch trình đã chọn không hợp lệ hoặc chưa đủ. Chưa gửi gì cả.",
+    storageErrorMessage: "Trình duyệt không thể đọc phiên bản lịch trình đã chọn. Chưa gửi gì cả.",
+    stalePlanMessage: "Phiên bản đã chọn không còn khớp với dữ liệu cá nhân hóa hiện tại. Chưa gửi gì cả.",
+    backToPlannerLabel: "Quay lại planner",
+    signInBoundaryHeading: "Sản phẩm thật sẽ yêu cầu đăng nhập",
+    signInBoundaryMessage: "Sản phẩm thật sẽ xác thực bạn ở đây trước khi gửi yêu cầu cho admin. Prototype cục bộ này không đăng nhập thành công.",
+    continueLocalDemoLabel: "Tiếp tục trong demo cục bộ",
+    selectedRevisionHeading: "Phiên bản lịch trình đã chọn",
+    revisionLabel: "Phiên bản",
+    planIdLabel: "Mã lịch trình",
+    totalDurationLabel: "Thời lượng dự kiến",
+    totalCostLabel: "Chi phí nhóm dự kiến",
+    requestHeading: "Gửi để admin demo xem xét",
+    requestIntro: "Thao tác này chỉ đổi trạng thái trên màn hình cục bộ; không liên hệ admin và không tạo đặt tour.",
+    submitRequestLabel: "Gửi yêu cầu demo cục bộ",
+    adminReviewHeading: "Đang chờ admin xem xét (mô phỏng)",
+    adminReviewPendingMessage: "Yêu cầu demo cục bộ đã được đánh dấu chờ xem xét. Chưa có admin nào nhận được yêu cầu.",
+    simulateQuoteLabel: "Mô phỏng báo giá 48 giờ",
+    quoteHeading: "Báo giá mô phỏng",
+    quoteMessage: "Số tiền này lấy từ bản chụp phiên bản đã chọn và không đổi trong flow cục bộ này.",
+    quoteExpiresLabel: "Thời hạn báo giá",
+    quoteTotalLabel: "Tổng báo giá",
+    acceptQuoteLabel: "Chấp nhận báo giá mô phỏng",
+    quoteAcceptedMessage: "Bạn đã chủ động chấp nhận báo giá mô phỏng. Chưa bắt đầu thanh toán.",
+    openStripeMockLabel: "Mở thao tác Stripe Test/Mock",
+    stripeMockHeading: "Biên giới Stripe Test/Mock",
+    stripeMockMessage: "Sản phẩm thật sẽ mở Stripe Checkout ở đây. Prototype này chỉ ghi nhận bạn đã chọn thao tác mô phỏng.",
+    noPaymentNetworkDisclosure: "Không có request mạng Stripe, trừ tiền, webhook hay xác nhận đặt tour nào được thực hiện.",
     backHomeLabel: "Quay lại trang chủ LocalLens",
   },
 };
 
 const dictionaries = {
-  en: { ...english, home: customerHomeCopy.en, planner: plannerCopy.en },
-  vi: { ...vietnamese, home: customerHomeCopy.vi, planner: plannerCopy.vi },
+  en: { ...english, home: customerHomeCopy.en, planner: plannerCopy.en, customRequest: customRequestCopy.en },
+  vi: { ...vietnamese, home: customerHomeCopy.vi, planner: plannerCopy.vi, customRequest: customRequestCopy.vi },
 } satisfies Record<Locale, Dictionary>;
 
 export function getDictionary(locale: Locale): Dictionary {

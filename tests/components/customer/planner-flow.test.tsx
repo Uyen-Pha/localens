@@ -10,7 +10,9 @@ import { getDictionary } from "@/lib/i18n/dictionaries";
 import {
   clearPersonalizationRequest,
   savePersonalizationRequest,
+  readPersonalizationState,
 } from "@/lib/application/planner/personalization-session";
+import { readCustomRequestDraftState } from "@/lib/application/planner/custom-request-demo";
 
 afterEach(() => {
   cleanup();
@@ -126,6 +128,32 @@ describe("PlannerFlow", () => {
     expect(within(preferences).getByText("Lối đi không bậc")).toBeInTheDocument();
     expect(within(preferences).getByText(/UTC\+07:00/)).toBeInTheDocument();
     expect(screen.getAllByText(/UTC\+07:00/).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("offers an explicit quote request CTA for the selected personalized revision", () => {
+    const copy = getDictionary("en").planner;
+    savePersonalizationRequest({
+      startAt: "2026-09-05T10:30:00+07:00",
+      durationMinutes: 240,
+      areas: ["demo-hcmc-district-1"],
+      budget: { currency: "VND", amountMinor: 1_500_000 },
+      partySize: 3,
+      guideLanguage: "en",
+      priorityWeights: { street_food: 5, history: 3, traditional_craft: 0, traditional_market: 0 },
+      pace: "active",
+      dietaryRequirements: [],
+      mobilityRequirements: [],
+      lockedStopIds: [],
+      specialNeeds: "",
+    });
+
+    render(<PlannerFlow locale="en" copy={copy} />);
+
+    const quoteLink = screen.getByRole("link", { name: copy.requestQuoteLabel });
+    expect(quoteLink).toHaveAttribute("href", "/en/custom-request");
+    fireEvent.click(quoteLink);
+    expect(readCustomRequestDraftState().status).toBe("ok");
+    expect(readPersonalizationState().status).toBe("ok");
   });
 
   it("locks and unlocks a stop with an accessible pressed state", () => {

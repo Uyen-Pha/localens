@@ -9,6 +9,9 @@ import {
   type PlannerAdapter,
 } from "@/lib/application/planner/demo-planner";
 import {
+  saveCustomRequestDraft,
+} from "@/lib/application/planner/custom-request-demo";
+import {
   readPersonalizationState,
   type PersonalizationReadState,
   type PersonalizationRequest,
@@ -272,9 +275,33 @@ export function PlannerFlow({
             </li>
           ))}
         </ol>
-        {state.preferences && state.current.items.length === 0 ? (
-          <p className="planner-flow__no-proposal" role="status">{copy.noProposalLabel}</p>
-        ) : null}
+      {state.preferences && state.current.items.length === 0 ? (
+        <p className="planner-flow__no-proposal" role="status">{copy.noProposalLabel}</p>
+      ) : null}
+
+      {handoffStatus === "ok" && state.preferences && state.current.items.length > 0 ? (
+        <div className="planner-flow__request-quote">
+          <Link
+            className="button button--primary"
+            href={`/${locale}/custom-request`}
+            onClick={(event) => {
+              const saved = saveCustomRequestDraft({
+                planId: state.planId,
+                revision: state.current.revision,
+                preferences: state.preferences!,
+                revisionSnapshot: state.current,
+              });
+              if (!saved) {
+                event.preventDefault();
+                setStatusMessage(copy.requestQuoteStorageError);
+              }
+            }}
+          >
+            {copy.requestQuoteLabel}
+          </Link>
+          <p className="planner-flow__hint" role="note">{copy.requestQuoteDisclosure}</p>
+        </div>
+      ) : null}
 
         <div className="planner-flow__totals">
           <dl>
