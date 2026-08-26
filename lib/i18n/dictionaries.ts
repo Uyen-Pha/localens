@@ -10,6 +10,38 @@ export type PersonalizationPriorityKey =
   | "traditional_craft"
   | "traditional_market";
 
+export type PlannerCopy = {
+  heading: string;
+  intro: string;
+  simulatedDisclosure: string;
+  proposalOnly: string;
+  revisionLabel: string;
+  currentRevisionLabel: string;
+  activityLabel: string;
+  startLabel: string;
+  endLabel: string;
+  visitDurationLabel: string;
+  travelDurationLabel: string;
+  costLabel: string;
+  totalDurationLabel: string;
+  totalCostLabel: string;
+  warningsHeading: string;
+  revisionHistoryHeading: string;
+  noHistoryLabel: string;
+  feedbackLabel: string;
+  feedbackPlaceholder: string;
+  refineLabel: string;
+  refiningLabel: string;
+  lockLabel: string;
+  unlockLabel: string;
+  feedbackRequiredMessage: string;
+  revisionCreatedMessage: string;
+  staleRevisionMessage: string;
+  refreshLabel: string;
+  revisionFeedbackLabel: string;
+  backHomeLabel: string;
+};
+
 export type Dictionary = {
   brand: string;
   home: {
@@ -192,6 +224,7 @@ export type Dictionary = {
     genericErrorMessage: string;
     tourTitles: Record<string, string>;
   };
+  planner: PlannerCopy;
   navigation: {
     primary: string;
     explore: string;
@@ -645,9 +678,74 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
   },
 };
 
+const plannerCopy: Record<Locale, PlannerCopy> = {
+  en: {
+    heading: "Your personalized route proposal",
+    intro: "Review the sequence, activities, timing, and estimated group cost before asking for a refinement.",
+    simulatedDisclosure: "Simulated proposal only — no backend authority, AI service, booking, or payment is connected.",
+    proposalOnly: "This is a suggestion for discussion. It does not confirm or book a tour automatically.",
+    revisionLabel: "Revision",
+    currentRevisionLabel: "Current proposal",
+    activityLabel: "Planned activity",
+    startLabel: "Start",
+    endLabel: "End",
+    visitDurationLabel: "Visit duration",
+    travelDurationLabel: "Travel before stop",
+    costLabel: "Estimated cost",
+    totalDurationLabel: "Total time",
+    totalCostLabel: "Estimated group cost",
+    warningsHeading: "Checks and warnings",
+    revisionHistoryHeading: "Revision history",
+    noHistoryLabel: "No refinements yet.",
+    feedbackLabel: "What should we adjust?",
+    feedbackPlaceholder: "For example: slow the pace and keep the museum stop.",
+    refineLabel: "Create revised proposal",
+    refiningLabel: "Creating revised proposal…",
+    lockLabel: "Lock stop",
+    unlockLabel: "Unlock stop",
+    feedbackRequiredMessage: "Add a short adjustment request before creating a revision.",
+    revisionCreatedMessage: "A new simulated proposal revision is ready for review.",
+    staleRevisionMessage: "This proposal changed elsewhere. Refresh the latest revision before trying again.",
+    refreshLabel: "Refresh latest proposal",
+    revisionFeedbackLabel: "Traveler feedback",
+    backHomeLabel: "Back to LocalLens home",
+  },
+  vi: {
+    heading: "Đề xuất lịch trình cá nhân hóa",
+    intro: "Xem trình tự, hoạt động, thời gian và chi phí nhóm dự kiến trước khi yêu cầu điều chỉnh.",
+    simulatedDisclosure: "Chỉ là đề xuất mô phỏng — chưa có quyền backend, dịch vụ AI, đặt tour hay thanh toán nào được kết nối.",
+    proposalOnly: "Đây là gợi ý để trao đổi. Hệ thống không tự xác nhận hoặc đặt tour.",
+    revisionLabel: "Phiên bản",
+    currentRevisionLabel: "Đề xuất hiện tại",
+    activityLabel: "Hoạt động dự kiến",
+    startLabel: "Bắt đầu",
+    endLabel: "Kết thúc",
+    visitDurationLabel: "Thời lượng tham quan",
+    travelDurationLabel: "Di chuyển trước điểm này",
+    costLabel: "Chi phí dự kiến",
+    totalDurationLabel: "Tổng thời gian",
+    totalCostLabel: "Chi phí nhóm dự kiến",
+    warningsHeading: "Kiểm tra và cảnh báo",
+    revisionHistoryHeading: "Lịch sử điều chỉnh",
+    noHistoryLabel: "Chưa có lần điều chỉnh nào.",
+    feedbackLabel: "Bạn muốn điều chỉnh điều gì?",
+    feedbackPlaceholder: "Ví dụ: đi chậm hơn và giữ lại điểm bảo tàng.",
+    refineLabel: "Tạo đề xuất đã điều chỉnh",
+    refiningLabel: "Đang tạo đề xuất mới…",
+    lockLabel: "Khóa điểm này",
+    unlockLabel: "Mở khóa điểm này",
+    feedbackRequiredMessage: "Hãy thêm yêu cầu điều chỉnh trước khi tạo phiên bản mới.",
+    revisionCreatedMessage: "Đã tạo phiên bản đề xuất mô phỏng mới để bạn xem xét.",
+    staleRevisionMessage: "Đề xuất đã thay đổi ở nơi khác. Hãy tải phiên bản mới nhất rồi thử lại.",
+    refreshLabel: "Tải phiên bản mới nhất",
+    revisionFeedbackLabel: "Phản hồi của khách",
+    backHomeLabel: "Quay lại trang chủ LocalLens",
+  },
+};
+
 const dictionaries = {
-  en: { ...english, home: customerHomeCopy.en },
-  vi: { ...vietnamese, home: customerHomeCopy.vi },
+  en: { ...english, home: customerHomeCopy.en, planner: plannerCopy.en },
+  vi: { ...vietnamese, home: customerHomeCopy.vi, planner: plannerCopy.vi },
 } satisfies Record<Locale, Dictionary>;
 
 export function getDictionary(locale: Locale): Dictionary {
