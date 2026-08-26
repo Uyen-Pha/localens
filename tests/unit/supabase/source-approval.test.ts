@@ -211,6 +211,14 @@ describe("Task 14 sourced catalog approval gate", () => {
     try { expectInvalid(caveatRoot, /scopeCaveat|admission/i); } finally { rmSync(caveatRoot, { recursive: true, force: true }); }
   });
 
+  it("requires every tour sourceUrl to match one of its declared sourceIds", () => {
+    const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-tours.v1.json", (manifest) => {
+      const tour = records(manifest.tours)[0] as JsonRecord;
+      tour.sourceUrl = "https://dinhdoclap.gov.vn/en/visiting-hours/";
+    }));
+    try { expectInvalid(root, /sourceUrl must match one of its sourceIds/i); } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
   it("ties tour availability to research-only stops and keeps stale FX USD-disabled", () => {
     const root = fixture((fixtureRoot) => {
       mutateJson(fixtureRoot, "data/sources/hcmc-tours.v1.json", (manifest) => { records(manifest.tours)[0].available = true; (manifest.demoFx as JsonRecord).usdEnabled = true; });
@@ -230,6 +238,35 @@ describe("Task 14 sourced catalog approval gate", () => {
       const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/approvals/hcmc-catalog.v1.json", mutation));
       try { expectInvalid(root, /approval|review|namespace|hash/i); } finally { rmSync(root, { recursive: true, force: true }); }
     }
+  });
+
+  it("approved mode requires the complete human review checklist and no seed-time network fetch", () => {
+    const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/approvals/hcmc-catalog.v1.json", (approval) => {
+      approval.status = "approved";
+      approval.reviewer = { status: "approved", name: "Fixture Reviewer", userId: "fixture-reviewer" };
+      approval.reviewedAtUtc = "2026-08-26T01:00:00Z";
+      approval.approvedAtUtc = "2026-08-26T01:00:00Z";
+      approval.reviewChecklist = {
+        officialSourceUrlsChecked: false,
+        hoursAndAccessChecked: false,
+        pricingChecked: false,
+        bilingualCopyChecked: false,
+        hashesChecked: true,
+        networkFetchAtSeedTime: false,
+      };
+    }));
+    try {
+      expect(checkCatalogBundle({ root, approvalMode: "approved" }).ok).toBe(false);
+      mutateJson(root, "data/approvals/hcmc-catalog.v1.json", (approval) => {
+        (approval.reviewChecklist as JsonRecord).officialSourceUrlsChecked = true;
+        (approval.reviewChecklist as JsonRecord).hoursAndAccessChecked = true;
+        (approval.reviewChecklist as JsonRecord).pricingChecked = true;
+        (approval.reviewChecklist as JsonRecord).bilingualCopyChecked = true;
+        (approval.reviewChecklist as JsonRecord).hashesChecked = true;
+        (approval.reviewChecklist as JsonRecord).networkFetchAtSeedTime = false;
+      });
+      expect(checkCatalogBundle({ root, approvalMode: "approved" }).ok).toBe(true);
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
   it("never performs network fetches while checking checked-in manifests", () => {

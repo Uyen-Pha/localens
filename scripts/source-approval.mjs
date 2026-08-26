@@ -232,6 +232,7 @@ function checkTour(tour, index, placeBySlug, registry, errors) {
   const urlCheck = sanitizeOfficialUrl(tour.sourceUrl);
   if (!urlCheck.ok) addError(errors, `${prefix}.sourceUrl: ${urlCheck.reason}`);
   if (!Array.isArray(tour.sourceIds) || tour.sourceIds.length === 0 || tour.sourceIds.some((id) => !registry.has(id))) addError(errors, `${prefix}.sourceIds must reference the source registry`);
+  if (typeof tour.sourceUrl === "string" && Array.isArray(tour.sourceIds) && !tour.sourceIds.some((id) => registry.get(id) === tour.sourceUrl)) addError(errors, `${prefix}.sourceUrl must match one of its sourceIds`);
   checkDate(tour.verifiedAt, `${prefix}.verifiedAt`, errors);
   if (!Array.isArray(tour.stopActivities) || tour.stopActivities.length !== (tour.stops ?? []).length) addError(errors, `${prefix}.stopActivities must preserve bilingual activity copy for every stop`);
   for (const [position, activity] of (tour.stopActivities ?? []).entries()) checkBilingual(activity, `${prefix}.stopActivities[${position}]`, errors);
@@ -296,6 +297,9 @@ export function checkCatalogBundle({ root, approvalMode = "draft" }) {
     for (const field of ["reviewedAtUtc", "approvedAtUtc"]) {
       if (typeof approval[field] !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(approval[field])) addError(errors, `catalog approval ${field} must be an explicit UTC timestamp`);
     }
+    const checklist = approval.reviewChecklist;
+    for (const field of ["officialSourceUrlsChecked", "hoursAndAccessChecked", "pricingChecked", "bilingualCopyChecked", "hashesChecked"]) if (checklist?.[field] !== true) addError(errors, `catalog approval reviewChecklist.${field} must be true`);
+    if (checklist?.networkFetchAtSeedTime !== false) addError(errors, "catalog approval reviewChecklist.networkFetchAtSeedTime must be false");
   } else if (approvalMode !== "draft") {
     addError(errors, `unsupported catalog approval mode ${approvalMode}`);
   } else if (approval.status !== "draft" || approval.reviewedAtUtc !== null || approval.approvedAtUtc !== null || approval.reviewer?.status !== "pending") addError(errors, "catalog approval must remain draft, unreviewed, and pending");

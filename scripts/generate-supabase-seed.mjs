@@ -62,9 +62,9 @@ function runtimeSupportReady(place) {
   for (const kind of ["dietary", "mobility"]) {
     const value = place?.support?.[kind];
     if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-    const entries = Object.entries(value);
+    const entries = Object.entries(value).filter(([requirement]) => requirement !== "confidence" && requirement !== "sourceRef");
     if (entries.length === 0) return false;
-    if (entries.some(([requirement, status]) => requirement === "confidence" || requirement === "sourceRef" || !/^.{1,80}$/.test(requirement) || !["supported", "unsupported", "unknown"].includes(status))) return false;
+    if (entries.some(([requirement, status]) => !/^.{1,80}$/.test(requirement) || !["supported", "unsupported", "unknown"].includes(status))) return false;
   }
   return true;
 }
@@ -72,6 +72,7 @@ function runtimeSupportReady(place) {
 function checkCatalogRuntime(places, tours) {
   const catalogProblems = [];
   const supportProblems = [];
+  if (places?.researchOnly === true) catalogProblems.push("places manifest is still marked researchOnly");
   for (const place of places?.places ?? []) {
     if (place.status !== "sellable") catalogProblems.push(`${place.slug}: status=${place.status}`);
     if (place.hours?.status !== "known" || !Array.isArray(place.hours.windows) || place.hours.windows.length === 0) catalogProblems.push(`${place.slug}: opening hours are not runtime-known`);
@@ -79,6 +80,7 @@ function checkCatalogRuntime(places, tours) {
   }
   const tourProblems = [];
   const bySlug = new Map((places?.places ?? []).map((place) => [place.slug, place]));
+  if (tours?.researchOnly === true) tourProblems.push("tours manifest is still marked researchOnly");
   for (const tour of tours?.tours ?? []) {
     const unavailableStops = (tour.stops ?? []).filter((slug) => bySlug.get(slug)?.status !== "sellable");
     if (tour.available !== true || unavailableStops.length > 0) tourProblems.push(`${tour.slug}: available=${String(tour.available)}, unavailableStops=${unavailableStops.join(",") || "none"}`);

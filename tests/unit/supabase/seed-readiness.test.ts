@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,6 +26,8 @@ function copyFixture(mutator?: (root: string) => void): string {
     mkdirSync(target, { recursive: true });
     for (const file of readdirSync(source)) copyFileSync(join(source, file), join(target, file));
   }
+  mkdirSync(join(root, "supabase"), { recursive: true });
+  writeFileSync(join(root, "supabase", "seed.sql"), "-- existing sentinel\n", "utf8");
   mutator?.(root);
   return root;
 }
@@ -51,6 +54,55 @@ function approveDraft(root: string): void {
       networkFetchAtSeedTime: false,
     };
   });
+}
+
+function makeRuntimeReady(root: string): void {
+  approveDraft(root);
+  mutateJson(root, "data/sources/hcmc-places.v1.json", (places) => {
+    places.researchOnly = false;
+    for (const place of places.places as JsonRecord[]) {
+      place.status = "sellable";
+      const sourceId = (place.sourceIds as string[])[0];
+      const currentHours = place.hours as JsonRecord;
+      const currentSupport = place.support as JsonRecord;
+      place.hours = {
+        status: "known",
+        windows: (currentHours.windows as JsonRecord[]).length > 0
+          ? currentHours.windows
+          : [{ days: "daily", opens: "08:00", closes: "17:00", sourceId }],
+      };
+      place.support = {
+        language: currentSupport.language,
+        accessibility: currentSupport.accessibility,
+        dietary: { confidence: "unknown", sourceRef: null, vegetarian: "unknown" },
+        mobility: { confidence: "unknown", sourceRef: null, "step-free": "unknown" },
+      };
+    }
+  });
+  mutateJson(root, "data/sources/hcmc-tours.v1.json", (tours) => {
+    tours.researchOnly = false;
+    for (const tour of tours.tours as JsonRecord[]) tour.available = true;
+  });
+  const places = JSON.parse(readFileSync(join(root, "data/sources/hcmc-places.v1.json"), "utf8")) as JsonRecord;
+  const tours = JSON.parse(readFileSync(join(root, "data/sources/hcmc-tours.v1.json"), "utf8")) as JsonRecord;
+  const hashes = JSON.parse(readFileSync(join(root, "data/sources/source-hashes.v1.json"), "utf8")) as JsonRecord;
+  const canonical = (value: unknown): string => {
+    if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+    if (value && typeof value === "object") return "{" + Object.keys(value as Record<string, unknown>).sort().map((key) => JSON.stringify(key) + ":" + canonical((value as Record<string, unknown>)[key])).join(",") + "}";
+    return JSON.stringify(value);
+  };
+  const sha256 = (value: unknown): string => {
+    return createHash("sha256").update(canonical(value), "utf8").digest("hex");
+  };
+  ((hashes.manifests as JsonRecord).places as JsonRecord).sha256 = sha256(places);
+  ((hashes.manifests as JsonRecord).tours as JsonRecord).sha256 = sha256(tours);
+  writeFileSync(join(root, "data/sources/source-hashes.v1.json"), JSON.stringify(hashes, null, 2) + "\n", "utf8");
+  const approval = JSON.parse(readFileSync(join(root, "data/approvals/hcmc-catalog.v1.json"), "utf8")) as JsonRecord;
+  const updatedHashes = JSON.parse(readFileSync(join(root, "data/sources/source-hashes.v1.json"), "utf8")) as JsonRecord;
+  (approval.sourceHashes as JsonRecord).places = ((updatedHashes.manifests as JsonRecord).places as JsonRecord).sha256;
+  (approval.sourceHashes as JsonRecord).tours = ((updatedHashes.manifests as JsonRecord).tours as JsonRecord).sha256;
+  (approval.sourceHashes as JsonRecord).sourceHashes = sha256(updatedHashes);
+  writeFileSync(join(root, "data/approvals/hcmc-catalog.v1.json"), JSON.stringify(approval, null, 2) + "\n", "utf8");
 }
 
 function codes(result: ReadinessResult): string[] {
@@ -80,7 +132,7 @@ describe("Task 15 seed readiness gate", () => {
       expect(`${result.stdout}\n${result.stderr}`).toContain("APPROVAL_NOT_READY");
       expect(result.stdout).toContain('"ok":false');
       expect(result.stderr).not.toContain("seed.sql");
-      expect(() => readFileSync(join(root, "supabase", "seed.sql"), "utf8")).toThrow();
+      expect(readFileSync(join(root, "supabase", "seed.sql"), "utf8")).toBe("-- existing sentinel\n");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -159,6 +211,18 @@ describe("Task 15 seed readiness gate", () => {
       expect(result.ok).toBe(false);
       expect(codes(result)[0]).toBe(SEED_READINESS_CODES.APPROVAL_NOT_READY);
       expect(codes(result)).toContain(SEED_READINESS_CODES.FX_NOT_SAFE);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a fully approved runtime-ready fixture without writing a seed", () => {
+    const root = copyFixture(makeRuntimeReady);
+    try {
+      const result = assessSeedReadiness({ root });
+
+      expect(result).toEqual(expect.objectContaining({ ok: true, writesSeed: false, counts: { operationalAreas: 4, places: 30, tours: 8 } }));
+      expect(readFileSync(join(root, "supabase", "seed.sql"), "utf8")).toBe("-- existing sentinel\n");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
