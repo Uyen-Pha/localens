@@ -7,14 +7,11 @@ import { pathToFileURL } from "node:url";
 export const OFFICIAL_HOST_ALLOWLIST = Object.freeze([
   "aodaomuseum.com",
   "baotangchungtichchientranh.vn",
-  "baotanglichsutphcm.com.vn",
   "www.baotanglichsutphcm.com.vn",
   "dinhdoclap.gov.vn",
   "fitomuseum.com.vn",
   "hcmc-museum.edu.vn",
-  "chobinhtay.gov.vn",
   "banhmihuynhhoa.vn",
-  "itpc.hochiminhcity.gov.vn",
   "svhtt.hochiminhcity.gov.vn",
   "visithcmc.net",
   "cuchitunnel.org.vn",
@@ -32,18 +29,19 @@ export const REQUIRED_PLACE_SLUGS = Object.freeze([
 ]);
 
 const EXPECTED_SOURCE_IDS_BY_PLACE = Object.freeze({
-  "ho-chi-minh-city-museum": "hcmc-museum",
-  "ho-thi-ky-food-street": "street-food",
-  "alley-200-xom-chieu": "alley-200-xom-chieu",
-  "banh-mi-hoa-ma": "hoa-ma",
-  "banh-mi-huynh-hoa": "huynh-hoa",
-  "an-dong-market": "cho-lon",
-  "binh-tay-market": "binh-tay-market",
-  "thiec-market": "cho-lon",
-  "tue-thanh-assembly-hall": "cho-lon",
-  "district-5-traditional-medicine-street": "cho-lon",
-  "rice-paper-phu-hoa-dong": "craft-report",
-  "hoa-binh-lantern-making": "craft-report",
+  "ho-chi-minh-city-museum": { sourceId: "hcmc-museum", url: "https://hcmc-museum.edu.vn/trang-chu-english" },
+  "ho-thi-ky-food-street": { sourceId: "street-food", url: "https://visithcmc.net/en/news/nhung-dia-diem-am-thuc-duong-pho-tai-sai-gon" },
+  "alley-200-xom-chieu": { sourceId: "street-food", url: "https://visithcmc.net/en/news/nhung-dia-diem-am-thuc-duong-pho-tai-sai-gon" },
+  "banh-mi-hoa-ma": { sourceId: "hoa-ma", url: "https://visithcmc.net/en/news/10-mon-banh-mi-phai-thuong-thuc-tai-tphcm" },
+  "banh-mi-huynh-hoa": { sourceId: "huynh-hoa", url: "https://banhmihuynhhoa.vn/" },
+  "an-dong-market": { sourceId: "cho-lon", url: "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho" },
+  "binh-tay-market": { sourceId: "cho-lon", url: "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho" },
+  "thiec-market": { sourceId: "cho-lon", url: "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho" },
+  "tue-thanh-assembly-hall": { sourceId: "cho-lon", url: "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho" },
+  "district-5-traditional-medicine-street": { sourceId: "cho-lon", url: "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho" },
+  "vietnam-silver-house": { sourceId: "cho-lon", url: "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho" },
+  "rice-paper-phu-hoa-dong": { sourceId: "craft-report", url: "https://svhtt.hochiminhcity.gov.vn/documents/10184/428712/Tap%2Btai%2Blieu%2Bbao%2Bcao.pdf/0b5e54dc-5fcd-466e-ba8d-d3437d527886" },
+  "hoa-binh-lantern-making": { sourceId: "craft-report", url: "https://svhtt.hochiminhcity.gov.vn/documents/10184/428712/Tap%2Btai%2Blieu%2Bbao%2Bcao.pdf/0b5e54dc-5fcd-466e-ba8d-d3437d527886" },
 });
 
 const PLACE_FILE = join("data", "sources", "hcmc-places.v1.json");
@@ -162,8 +160,9 @@ function checkPlace(place, index, registry, errors) {
   if (typeof place.sourceUrl === "string" && ![...registry.values()].includes(place.sourceUrl)) addError(errors, `${prefix}.sourceUrl is not registered in the source registry`);
   if (!Array.isArray(place.sourceIds) || place.sourceIds.length === 0 || place.sourceIds.some((id) => !registry.has(id))) addError(errors, `${prefix}.sourceIds must reference the source registry`);
   if (Array.isArray(place.sourceIds) && typeof place.sourceUrl === "string" && !place.sourceIds.some((id) => registry.get(id) === place.sourceUrl)) addError(errors, `${prefix}.sourceUrl must match one of its sourceIds`);
-  const expectedSourceId = EXPECTED_SOURCE_IDS_BY_PLACE[place.slug];
-  if (expectedSourceId && (!Array.isArray(place.sourceIds) || !place.sourceIds.includes(expectedSourceId))) addError(errors, `${prefix} must retain exact source ${expectedSourceId}; generic candidate source is insufficient`);
+  const expectedSource = EXPECTED_SOURCE_IDS_BY_PLACE[place.slug];
+  if (expectedSource && (!Array.isArray(place.sourceIds) || !place.sourceIds.includes(expectedSource.sourceId))) addError(errors, `${prefix} must retain exact source ${expectedSource.sourceId}; generic candidate source is insufficient`);
+  if (expectedSource && place.sourceUrl !== expectedSource.url) addError(errors, `${prefix}.sourceUrl must equal the exact registered URL for ${expectedSource.sourceId}`);
   checkDate(place.verifiedAt, `${prefix}.verifiedAt`, errors);
   if (!Array.isArray(place.unknownFacts) || place.unknownFacts.length === 0) addError(errors, `${prefix}.unknownFacts must explicitly record unknown facts`);
   if (!Array.isArray(place.evidenceOnlyFields) || place.evidenceOnlyFields.length === 0) addError(errors, `${prefix}.evidenceOnlyFields must preserve non-schema evidence fields`);

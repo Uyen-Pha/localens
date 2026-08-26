@@ -198,6 +198,12 @@ describe("Task 14 sourced catalog approval gate", () => {
     const sourceRoot = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", sourceMutation));
     try { expectInvalid(sourceRoot, /exact source|generic candidate/i); } finally { rmSync(sourceRoot, { recursive: true, force: true }); }
 
+    const urlRoot = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", (manifest) => {
+      const place = records(manifest.places).find((candidate) => candidate.slug === "ho-thi-ky-food-street") as JsonRecord;
+      place.sourceUrl = "https://visithcmc.net/en/page/ke-hoach-chuyen-di";
+    }));
+    try { expectInvalid(urlRoot, /exact registered URL|sourceUrl/i); } finally { rmSync(urlRoot, { recursive: true, force: true }); }
+
     const caveatRoot = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", (manifest) => {
       const place = records(manifest.places).find((candidate) => candidate.slug === "war-remnants-museum") as JsonRecord;
       delete (place.officialAdmission as JsonRecord).scopeCaveat;

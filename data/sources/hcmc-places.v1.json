@@ -144,19 +144,6 @@
       "license": "No open license stated; research-only use with attribution; verify before publication."
     },
     {
-      "sourceId": "binh-tay-market",
-      "url": "https://chobinhtay.gov.vn/",
-      "hostname": "chobinhtay.gov.vn",
-      "publisher": "Binh Tay Market",
-      "attribution": "Binh Tay Market official website",
-      "notes": "Canonical official market domain used only as a candidate lead; current market page, hours and admission require confirmation.",
-      "authority": "official",
-      "retrievedAtUtc": "2026-08-25T00:00:00Z",
-      "verifiedAt": "2026-08-25",
-      "primary": true,
-      "license": "No open license stated; research-only use with attribution; verify before publication."
-    },
-    {
       "sourceId": "huynh-hoa",
       "url": "https://banhmihuynhhoa.vn/",
       "hostname": "banhmihuynhhoa.vn",
@@ -183,25 +170,12 @@
       "license": "No open license stated; research-only use with attribution; verify before publication."
     },
     {
-      "sourceId": "alley-200-xom-chieu",
-      "url": "https://visithcmc.net/en/news/tag/hem-200-xom-chieu",
-      "hostname": "visithcmc.net",
-      "publisher": "Ho Chi Minh City Department of Tourism portal",
-      "attribution": "Official HCMC tourism Alley 200 tag page",
-      "notes": "Exact official tag page used as a candidate lead only; no current vendor-level hours or admission fact is asserted.",
-      "authority": "official",
-      "retrievedAtUtc": "2026-08-25T00:00:00Z",
-      "verifiedAt": "2026-08-25",
-      "primary": true,
-      "license": "No open license stated; research-only use with attribution; verify before publication."
-    },
-    {
       "sourceId": "craft-report",
-      "url": "https://svhtt.hochiminhcity.gov.vn/web/guest/tin-chi-tiet/-/chi-tiet/nghe-truyen-thong-thanh-pho-ho-chi-minh-dau-an-hoi-tu-25781-1.html",
+      "url": "https://svhtt.hochiminhcity.gov.vn/documents/10184/428712/Tap%2Btai%2Blieu%2Bbao%2Bcao.pdf/0b5e54dc-5fcd-466e-ba8d-d3437d527886",
       "hostname": "svhtt.hochiminhcity.gov.vn",
       "publisher": "Ho Chi Minh City Department of Culture and Sports",
       "attribution": "Official Department of Culture and Sports traditional-craft report",
-      "notes": "Exact official report used only as a traditional-craft candidate lead; it does not by itself prove the identity, address, hours or admission of any catalog stop.",
+      "notes": "Exact official Department of Culture and Sports PDF report used for traditional-craft candidate leads; named place identity, address, hours and admission remain research-only until venue confirmation.",
       "authority": "official",
       "retrievedAtUtc": "2026-08-25T00:00:00Z",
       "verifiedAt": "2026-08-25",
@@ -1541,9 +1515,9 @@
       "visitDurationMinutes": 90,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://chobinhtay.gov.vn/",
+      "sourceUrl": "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho",
       "sourceIds": [
-        "binh-tay-market"
+        "cho-lon"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -1573,7 +1547,7 @@
       "officialAddress": {
         "status": "known",
         "value": "57A Thap Muoi Street, Ho Chi Minh City.",
-        "sourceRef": "binh-tay-market",
+        "sourceRef": "cho-lon",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -1602,7 +1576,7 @@
       },
       "factSourceRefs": {
         "identity": [
-          "binh-tay-market"
+          "cho-lon"
         ],
         "hours": [],
         "admission": []
@@ -2510,9 +2484,9 @@
       "visitDurationMinutes": 90,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/news/tag/hem-200-xom-chieu",
+      "sourceUrl": "https://visithcmc.net/en/news/nhung-dia-diem-am-thuc-duong-pho-tai-sai-gon",
       "sourceIds": [
-        "alley-200-xom-chieu"
+        "street-food"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -2571,7 +2545,7 @@
       },
       "factSourceRefs": {
         "identity": [
-          "alley-200-xom-chieu"
+          "street-food"
         ],
         "hours": [],
         "admission": []
@@ -2795,9 +2769,9 @@
       "visitDurationMinutes": 75,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho",
       "sourceIds": [
-        "city-tourism"
+        "cho-lon"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -2856,7 +2830,7 @@
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "cho-lon"
         ],
         "hours": [],
         "admission": []
@@ -2985,7 +2959,7 @@
       "visitDurationMinutes": 90,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://svhtt.hochiminhcity.gov.vn/web/guest/tin-chi-tiet/-/chi-tiet/nghe-truyen-thong-thanh-pho-ho-chi-minh-dau-an-hoi-tu-25781-1.html",
+      "sourceUrl": "https://svhtt.hochiminhcity.gov.vn/documents/10184/428712/Tap%2Btai%2Blieu%2Bbao%2Bcao.pdf/0b5e54dc-5fcd-466e-ba8d-d3437d527886",
       "sourceIds": [
         "craft-report"
       ],
@@ -3080,7 +3054,7 @@
       "visitDurationMinutes": 75,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://svhtt.hochiminhcity.gov.vn/web/guest/tin-chi-tiet/-/chi-tiet/nghe-truyen-thong-thanh-pho-ho-chi-minh-dau-an-hoi-tu-25781-1.html",
+      "sourceUrl": "https://svhtt.hochiminhcity.gov.vn/documents/10184/428712/Tap%2Btai%2Blieu%2Bbao%2Bcao.pdf/0b5e54dc-5fcd-466e-ba8d-d3437d527886",
       "sourceIds": [
         "craft-report"
       ],
