@@ -59,8 +59,8 @@ export type RecommendItineraryBody = z.infer<typeof recommendItineraryBodySchema
 export interface RecommendationAdapterContext {
   /** Internal request correlation for RPC/audit wiring; not caller-controlled. */
   correlationId: string;
-  /** A validated Bearer token, or null for an anonymous public request. */
-  accessToken: string | null;
+  /** A server-verified principal, or null for an anonymous public request. */
+  principal: VerifiedAccessPrincipal | null;
   /** An opaque guest capability; the adapter must hash/verify it server-side. */
   guestToken: string | null;
   /** An opaque Turnstile token; the adapter must verify action and hostname. */
@@ -85,6 +85,14 @@ export interface RecommendationAdapterFailure {
   code: RecommendationAdapterErrorCode;
 }
 
+export interface VerifiedAccessPrincipal {
+  userId: string;
+}
+
+export type AccessTokenVerification =
+  | { ok: true; principal: VerifiedAccessPrincipal }
+  | { ok: false; error: RecommendationAdapterFailure };
+
 export type RecommendationAdapterResolution =
   | { ok: true; input: unknown }
   | { ok: false; error: RecommendationAdapterFailure };
@@ -95,6 +103,11 @@ export type RecommendationAdapterResolution =
  * use any catalog/travel/FX snapshot or place ID.
  */
 export interface RecommendItineraryAdapter {
+  /** Parse-only Bearer output must be cryptographically verified here first. */
+  verifyAccessToken: (
+    parsedAccessToken: string,
+    correlationId: string,
+  ) => Promise<AccessTokenVerification>;
   resolveEngineInput: (
     input: ItineraryRequest,
     context: RecommendationAdapterContext,
@@ -232,6 +245,37 @@ function adapterFailureResponse(
   );
 }
 
+type InspectedAccessVerification =
+  | { kind: "invalid" }
+  | { kind: "failure"; error: unknown }
+  | { kind: "success"; principal: VerifiedAccessPrincipal };
+
+function inspectAccessVerification(value: unknown): InspectedAccessVerification {
+  try {
+    if (!isPlainObject(value) || typeof value.ok !== "boolean") return { kind: "invalid" };
+    if (value.ok === false) {
+      if (!hasExactKeys(value, ["ok", "error"])) return { kind: "invalid" };
+      return { kind: "failure", error: value.error };
+    }
+    if (!hasExactKeys(value, ["ok", "principal"]) || !isPlainObject(value.principal)) {
+      return { kind: "invalid" };
+    }
+    if (!hasExactKeys(value.principal, ["userId"])) return { kind: "invalid" };
+    const userId = value.principal.userId;
+    if (
+      typeof userId !== "string" ||
+      userId.length === 0 ||
+      userId.length > 160 ||
+      CONTROL_CHARACTER_PATTERN.test(userId)
+    ) {
+      return { kind: "invalid" };
+    }
+    return { kind: "success", principal: { userId } };
+  } catch {
+    return { kind: "invalid" };
+  }
+}
+
 type InspectedResolution =
   | { kind: "invalid" }
   | { kind: "failure"; error: unknown }
@@ -252,9 +296,68 @@ function inspectResolution(value: unknown): InspectedResolution {
   }
 }
 
-function sameRequest(left: ItineraryRequest, right: ItineraryRequest): boolean {
+function semanticallyEqual(
+  left: unknown,
+  right: unknown,
+  seen: WeakMap<object, object>,
+): boolean {
+  if (Object.is(left, right)) return true;
+  if (typeof left !== "object" || left === null || typeof right !== "object" || right === null) return false;
+
+  const previous = seen.get(left);
+  if (previous !== undefined) return previous === right;
+  seen.set(left, right);
+
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    const leftKeys = Reflect.ownKeys(left);
+    const rightKeys = Reflect.ownKeys(right);
+    if (leftKeys.length !== rightKeys.length) return false;
+    const expectedKeys = new Set(["length", ...Array.from({ length: left.length }, (_, index) => String(index))]);
+    if (
+      leftKeys.some((key) => typeof key !== "string" || !expectedKeys.has(key)) ||
+      rightKeys.some((key) => typeof key !== "string" || !expectedKeys.has(key))
+    ) return false;
+    for (let index = 0; index < left.length; index += 1) {
+      const leftDescriptor = Object.getOwnPropertyDescriptor(left, String(index));
+      const rightDescriptor = Object.getOwnPropertyDescriptor(right, String(index));
+      if (
+        leftDescriptor === undefined || rightDescriptor === undefined ||
+        !leftDescriptor.enumerable || !rightDescriptor.enumerable ||
+        !("value" in leftDescriptor) || !("value" in rightDescriptor) ||
+        !semanticallyEqual(leftDescriptor.value, rightDescriptor.value, seen)
+      ) return false;
+    }
+    return true;
+  }
+
+  if (!isPlainObject(left) || !isPlainObject(right)) return false;
+  const leftKeys = Reflect.ownKeys(left);
+  const rightKeys = Reflect.ownKeys(right);
+  if (leftKeys.length !== rightKeys.length) return false;
+  const leftNames = leftKeys.filter((key): key is string => typeof key === "string").sort();
+  const rightNames = rightKeys.filter((key): key is string => typeof key === "string").sort();
+  if (
+    leftNames.length !== leftKeys.length || rightNames.length !== rightKeys.length ||
+    leftNames.some((key, index) => key !== rightNames[index])
+  ) return false;
+  for (const key of leftNames) {
+    const leftDescriptor = Object.getOwnPropertyDescriptor(left, key);
+    const rightDescriptor = Object.getOwnPropertyDescriptor(right, key);
+    if (
+      leftDescriptor === undefined || rightDescriptor === undefined ||
+      !leftDescriptor.enumerable || !rightDescriptor.enumerable ||
+      !("value" in leftDescriptor) || !("value" in rightDescriptor) ||
+      !semanticallyEqual(leftDescriptor.value, rightDescriptor.value, seen)
+    ) return false;
+  }
+  return true;
+}
+
+/** Compare request values independent of object key order; array order is significant. */
+export function requestsSemanticallyEqual(left: unknown, right: unknown): boolean {
   try {
-    return JSON.stringify(left) === JSON.stringify(right);
+    return semanticallyEqual(left, right, new WeakMap<object, object>());
   } catch {
     return false;
   }
@@ -336,11 +439,27 @@ export function createRecommendItineraryHandler(
       );
     }
 
-    let accessToken: string | null = null;
+    let principal: VerifiedAccessPrincipal | null = null;
     if (request.headers.get("Authorization") !== null) {
       const auth = requireBearerToken(request, gateway.correlationId, gateway.corsHeaders);
       if (!auth.ok) return auth.response;
-      accessToken = auth.token;
+      let verification: AccessTokenVerification;
+      try {
+        if (typeof adapter?.verifyAccessToken !== "function") {
+          return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+        }
+        verification = await adapter.verifyAccessToken(auth.token, gateway.correlationId);
+      } catch {
+        return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders);
+      }
+      const inspectedVerification = inspectAccessVerification(verification);
+      if (inspectedVerification.kind === "invalid") {
+        return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+      }
+      if (inspectedVerification.kind === "failure") {
+        return adapterFailureResponse(inspectedVerification.error, gateway.correlationId, gateway.corsHeaders);
+      }
+      principal = inspectedVerification.principal;
     }
 
     let resolution: RecommendationAdapterResolution;
@@ -350,7 +469,7 @@ export function createRecommendItineraryHandler(
       }
       resolution = await adapter.resolveEngineInput(parsedBody.data.input, {
         correlationId: gateway.correlationId,
-        accessToken,
+        principal,
         guestToken: parsedBody.data.guestToken ?? null,
         turnstileToken: parsedBody.data.turnstileToken,
       });
@@ -375,7 +494,7 @@ export function createRecommendItineraryHandler(
     if (!engineInput.ok) {
       return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     }
-    if (!sameRequest(engineInput.value.request, parsedBody.data.input)) {
+    if (!requestsSemanticallyEqual(engineInput.value.request, parsedBody.data.input)) {
       return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_SNAPSHOT_MISMATCH");
     }
 

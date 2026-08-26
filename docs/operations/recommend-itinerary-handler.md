@@ -13,10 +13,12 @@ The handler performs the following sequence:
    JSON content type, correlation ID, and body limit.
 2. `readJsonBody` reads the actual UTF-8 body and the strict DTO requires
    `{ input, turnstileToken, guestToken? }` with no extra fields.
-3. An optional `Authorization: Bearer ...` header is parsed by
-   `requireBearerToken`. A missing header is allowed because recommendation is
-   a public operation; the adapter must still validate the Turnstile and
-   optional guest capability.
+3. An optional `Authorization: Bearer ...` header is syntax-parsed by
+   `requireBearerToken`, then passed to the adapter's mandatory
+   `verifyAccessToken` method. A missing header is allowed because
+   recommendation is a public operation; the adapter must still validate the
+   Turnstile and optional guest capability. The resolver receives only the
+   verified principal, never the parse-only token.
 4. The injected adapter resolves only an authoritative internal snapshot. The
    handler parses that result with `parseEngineInput` and rejects it if the
    resolved request differs from the submitted request.
@@ -34,6 +36,9 @@ An eventual adapter implementation must:
 
 - verify Turnstile action/hostname and guest capability server-side without
   logging raw tokens;
+- implement `verifyAccessToken` with signature, expiry, issuer, audience, and
+  session/revocation checks appropriate to the auth provider; a syntactically
+  valid Bearer value is not an identity;
 - derive catalog, travel, and FX snapshots from approved internal data only;
 - apply quota/rate-limit and snapshot policy using the approved DB boundary;
 - return the exact `EngineInput` shape or one of the registered adapter error

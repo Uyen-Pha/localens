@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { itineraryFixture } from "@/tests/fixtures/itinerary/catalog.v1";
 import {
   createRecommendItineraryHandler,
+  requestsSemanticallyEqual,
   type RecommendItineraryAdapter,
 } from "@/supabase/functions/_shared/recommend-itinerary";
 
@@ -36,12 +37,43 @@ function validBody(overrides: Record<string, unknown> = {}) {
 
 function adapter(overrides: Partial<RecommendItineraryAdapter> = {}): RecommendItineraryAdapter {
   return {
+    verifyAccessToken: vi.fn(async () => ({
+      ok: true as const,
+      principal: { userId: "user-1" },
+    })),
     resolveEngineInput: vi.fn(async () => ({ ok: true as const, input: itineraryFixture })),
     ...overrides,
   };
 }
 
 describe("recommend-itinerary Edge handler contract", () => {
+  it("compares request objects semantically while preserving array order", () => {
+    const reordered = {
+      lockedStopIds: itineraryFixture.request.lockedStopIds,
+      mobilityRequirements: itineraryFixture.request.mobilityRequirements,
+      dietaryRequirements: itineraryFixture.request.dietaryRequirements,
+      pace: itineraryFixture.request.pace,
+      priorityWeights: {
+        traditional_market: itineraryFixture.request.priorityWeights.traditional_market,
+        traditional_craft: itineraryFixture.request.priorityWeights.traditional_craft,
+        history: itineraryFixture.request.priorityWeights.history,
+        street_food: itineraryFixture.request.priorityWeights.street_food,
+      },
+      guideLanguage: itineraryFixture.request.guideLanguage,
+      partySize: itineraryFixture.request.partySize,
+      budget: itineraryFixture.request.budget,
+      areas: itineraryFixture.request.areas,
+      durationMinutes: itineraryFixture.request.durationMinutes,
+      startAt: itineraryFixture.request.startAt,
+    };
+
+    expect(requestsSemanticallyEqual(itineraryFixture.request, reordered)).toBe(true);
+    expect(requestsSemanticallyEqual(
+      { ...reordered, areas: [...itineraryFixture.request.areas].reverse() },
+      itineraryFixture.request,
+    )).toBe(false);
+  });
+
   it("runs the gateway, adapter, and authoritative engine for a valid request", async () => {
     const service = adapter();
     const handler = createRecommendItineraryHandler(service, {
@@ -65,11 +97,12 @@ describe("recommend-itinerary Edge handler contract", () => {
     });
     expect(body.proposal.totals.groupCostVnd).toBeLessThanOrEqual(body.proposal.budgetVnd);
     expect(body).not.toHaveProperty("bookingId");
+    expect(service.verifyAccessToken).not.toHaveBeenCalled();
     expect(service.resolveEngineInput).toHaveBeenCalledWith(
       itineraryFixture.request,
       {
         correlationId,
-        accessToken: null,
+        principal: null,
         guestToken: null,
         turnstileToken: "turnstile-token-123456",
       },
@@ -92,11 +125,12 @@ describe("recommend-itinerary Edge handler contract", () => {
       itineraryFixture.request,
       {
         correlationId,
-        accessToken: "user-token-123",
+        principal: { userId: "user-1" },
         guestToken: "guest-token-123456",
         turnstileToken: "turnstile-token-123456",
       },
     );
+    expect(service.verifyAccessToken).toHaveBeenCalledWith("user-token-123", correlationId);
 
     const invalidAuth = await handler(request(validBody(), { Authorization: "Basic secret" }));
     expect(invalidAuth.status).toBe(401);
@@ -175,6 +209,28 @@ describe("recommend-itinerary Edge handler contract", () => {
       correlationId,
     });
     expect(JSON.stringify(body)).not.toContain("CATALOG_UNAVAILABLE_INTERNAL");
+  });
+
+  it("verifies a Bearer token before resolver use and fails closed for invalid credentials", async () => {
+    const service = adapter({
+      verifyAccessToken: vi.fn(async () => ({
+        ok: false as const,
+        error: { code: "AUTH_INVALID" as const },
+      })),
+    });
+    const handler = createRecommendItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody(), { Authorization: "Bearer invalid-jwt" }));
+
+    expect(response.status).toBe(401);
+    expect(service.verifyAccessToken).toHaveBeenCalledWith("invalid-jwt", correlationId);
+    expect(service.resolveEngineInput).not.toHaveBeenCalled();
+    const body = await response.json();
+    expect(body).toMatchObject({ code: "AUTH_INVALID", retryable: false, correlationId });
+    expect(JSON.stringify(body)).not.toContain("invalid-jwt");
   });
 
   it("fails closed when an adapter throws or returns an extra response field", async () => {
