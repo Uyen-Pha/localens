@@ -5,12 +5,29 @@ import { describe, expect, it, vi } from "vitest";
 import { itineraryFixture } from "@/tests/fixtures/itinerary/catalog.v1";
 import {
   createRefineItineraryHandler,
+  type RefinementRankRequest,
   type RefineItineraryAdapter,
 } from "@/supabase/functions/_shared/refine-itinerary";
 
 const correlationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const planId = "11111111-1111-4111-8111-111111111111";
 const itemId = "22222222-2222-4222-8222-222222222222";
+const lockedPlaceId = "place-banh-mi";
+const previousLockedItem = {
+  itemId,
+  placeId: lockedPlaceId,
+  position: 1,
+  startAt: "2026-09-05T09:00:00+07:00",
+  endAt: "2026-09-05T09:45:00+07:00",
+  visitDurationMinutes: 45,
+};
+const previousRevision = {
+  fingerprint: "fingerprint-v1",
+  catalogSnapshotId: itineraryFixture.catalog.id,
+  travelSnapshotId: itineraryFixture.travel.id,
+  fxSnapshotId: itineraryFixture.fx?.id ?? null,
+  lockedItems: [previousLockedItem],
+};
 const policy = {
   allowedOrigins: ["http://localhost:3000"],
   allowedMethods: ["POST", "OPTIONS"] as const,
@@ -53,6 +70,8 @@ function adapter(overrides: Partial<RefineItineraryAdapter> = {}): RefineItinera
       planId,
       currentRevision: 3,
       input: itineraryFixture,
+      normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+      previousRevision,
     })),
     commitRefinement: vi.fn(async () => ({
       ok: true as const,
@@ -106,6 +125,8 @@ describe("refine-itinerary Edge handler contract", () => {
         baseRevision: 3,
         lockedItemIds: [itemId],
         scope: "partial",
+        normalizedDelta: { feedback: "More history, please", scope: "partial" },
+        previousRevision,
         result: expect.objectContaining({ rankingSource: "deterministic" }),
       },
       {
@@ -134,6 +155,89 @@ describe("refine-itinerary Edge handler contract", () => {
     );
     expect(service.prepareRefinement).toHaveBeenCalledWith(
       expect.not.objectContaining({ accessToken: "owner-token-123", parsedAccessToken: "owner-token-123" }),
+      expect.anything(),
+    );
+  });
+
+  it("passes normalized feedback, scope, and authoritative locked place mapping to the ranker", async () => {
+    let received: { feedback: string; scope: "partial" | "full"; lockedPlaceIds: string[] } | undefined;
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        input: itineraryFixture,
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision,
+        ranker: vi.fn(async (rankRequest: RefinementRankRequest) => {
+          received = {
+            feedback: rankRequest.feedback,
+            scope: rankRequest.scope,
+            lockedPlaceIds: [...rankRequest.lockedPlaceIds],
+          };
+          return {
+            orderedIds: rankRequest.candidates.map((candidate) => candidate.id),
+            rationales: Object.fromEntries(rankRequest.candidates.map((candidate) => [candidate.id, "matched"])),
+          };
+        }),
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+
+    expect(response.status).toBe(200);
+    expect(received).toEqual({
+      feedback: "More history, please",
+      scope: "partial",
+      lockedPlaceIds: [lockedPlaceId],
+    });
+  });
+
+  it("allows unrestricted full regeneration only when no locks are supplied", async () => {
+    const fullInput = {
+      ...itineraryFixture,
+      request: { ...itineraryFixture.request, lockedStopIds: [] },
+    };
+    let receivedScope: "partial" | "full" | undefined;
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        input: fullInput,
+        normalizedDelta: { feedback: "Try a market route", scope: "full" as const },
+        previousRevision: { ...previousRevision, lockedItems: [] },
+        ranker: vi.fn(async (rankRequest: RefinementRankRequest) => {
+          receivedScope = rankRequest.scope;
+          return {
+            orderedIds: rankRequest.candidates.map((candidate) => candidate.id),
+            rationales: Object.fromEntries(rankRequest.candidates.map((candidate) => [candidate.id, "matched"])),
+          };
+        }),
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({
+      guestToken: "guest-token-123456",
+      delta: { feedback: "Try a market route", scope: "full" },
+      lockedItemIds: [],
+    })));
+
+    expect(response.status).toBe(200);
+    expect(receivedScope).toBe("full");
+    expect(service.commitRefinement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        normalizedDelta: { feedback: "Try a market route", scope: "full" },
+        previousRevision: expect.objectContaining({ lockedItems: [] }),
+      }),
       expect.anything(),
     );
   });
@@ -252,6 +356,8 @@ describe("refine-itinerary Edge handler contract", () => {
         planId,
         currentRevision: 3,
         input: itineraryFixture,
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision,
         ranker: vi.fn(async () => ({
           orderedIds: ["forged-place-id"],
           rationales: { "forged-place-id": "malicious" },
@@ -278,6 +384,8 @@ describe("refine-itinerary Edge handler contract", () => {
         planId,
         currentRevision: 3,
         input: { forged: true },
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision,
       })),
     }), {
       policy,
@@ -292,5 +400,96 @@ describe("refine-itinerary Edge handler contract", () => {
       retryable: false,
       correlationId,
     });
+  });
+
+  it("rejects a canonical locked item that is not owned by the submitted request", async () => {
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        input: itineraryFixture,
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision: {
+          ...previousRevision,
+          lockedItems: [{ ...previousLockedItem, itemId: "33333333-3333-4333-8333-333333333333" }],
+        },
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "LOCKED_ITEM_INVALID",
+      messageKey: "refinement.locked_item_invalid",
+      retryable: false,
+      correlationId,
+    });
+    expect(service.commitRefinement).not.toHaveBeenCalled();
+  });
+
+  it("rejects a proposal that changes a locked stop instead of committing it", async () => {
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        input: itineraryFixture,
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision: {
+          ...previousRevision,
+          lockedItems: [{ ...previousLockedItem, placeId: "place-market" }],
+        },
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ code: "LOCKED_ITEM_INVALID", correlationId });
+    expect(service.commitRefinement).not.toHaveBeenCalled();
+  });
+
+  it("rejects a proposal that omits a locked stop instead of committing it", async () => {
+    const inputWithoutLockedPlace = {
+      ...itineraryFixture,
+      request: { ...itineraryFixture.request, lockedStopIds: [] },
+    };
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        input: inputWithoutLockedPlace,
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision: {
+          ...previousRevision,
+          lockedItems: [{ ...previousLockedItem, placeId: "place-not-in-result" }],
+        },
+        ranker: vi.fn(async () => ({
+          orderedIds: ["place-market"],
+          rationales: { "place-market": "omit locked stop" },
+        })),
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ code: "LOCKED_ITEM_INVALID", correlationId });
+    expect(service.commitRefinement).not.toHaveBeenCalled();
   });
 });

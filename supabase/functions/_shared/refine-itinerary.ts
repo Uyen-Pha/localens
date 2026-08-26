@@ -29,7 +29,11 @@ import {
   recommendItinerary,
   type Recommendation,
 } from "@/lib/application/itinerary/recommend";
-import type { Ranker } from "@/lib/application/itinerary/ranking-port";
+import type {
+  RankRequest,
+  RankResponse,
+  Ranker,
+} from "@/lib/application/itinerary/ranking-port";
 import type {
   AccessTokenVerification,
   VerifiedAccessPrincipal,
@@ -57,6 +61,67 @@ const feedbackSchema = z
   .refine((value) => !CONTROL_CHARACTER_PATTERN.test(value), {
     message: "feedback cannot contain control characters",
   });
+const internalSnapshotIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(160)
+  .refine((value) => !CONTROL_CHARACTER_PATTERN.test(value));
+const canonicalHcmTimestampSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+07:00$/);
+const canonicalLockedItemSchema = z
+  .object({
+    itemId: uuidSchema,
+    placeId: internalSnapshotIdSchema,
+    position: z.number().int().min(1).max(8),
+    startAt: canonicalHcmTimestampSchema,
+    endAt: canonicalHcmTimestampSchema,
+    visitDurationMinutes: z.number().int().min(15).max(480),
+  })
+  .strict();
+const previousRevisionSchema = z
+  .object({
+    fingerprint: internalSnapshotIdSchema,
+    catalogSnapshotId: internalSnapshotIdSchema,
+    travelSnapshotId: internalSnapshotIdSchema,
+    fxSnapshotId: internalSnapshotIdSchema.nullable(),
+    lockedItems: z.array(canonicalLockedItemSchema).max(8),
+  })
+  .strict();
+
+export interface NormalizedRefinementDelta {
+  feedback: string;
+  scope: "partial" | "full";
+}
+
+export interface CanonicalLockedItem {
+  itemId: string;
+  placeId: string;
+  position: number;
+  startAt: string;
+  endAt: string;
+  visitDurationMinutes: number;
+}
+
+export interface PreviousRevisionContext {
+  fingerprint: string;
+  catalogSnapshotId: string;
+  travelSnapshotId: string;
+  fxSnapshotId: string | null;
+  lockedItems: CanonicalLockedItem[];
+}
+
+export interface RefinementRankRequest extends RankRequest {
+  feedback: string;
+  scope: "partial" | "full";
+  lockedPlaceIds: string[];
+}
+
+export type RefinementRanker = (
+  request: RefinementRankRequest,
+  signal: AbortSignal,
+) => Promise<RankResponse>;
 
 export const refineItineraryBodySchema = z
   .object({
@@ -103,6 +168,7 @@ export type RefineItineraryAdapterErrorCode =
   | "PLAN_NOT_FOUND"
   | "PLAN_UNAVAILABLE"
   | "SNAPSHOT_MISMATCH"
+  | "LOCKED_ITEM_INVALID"
   | "STALE_REVISION";
 
 export interface RefineItineraryAdapterFailure {
@@ -115,7 +181,9 @@ export type RefinePreparation =
       planId: string;
       currentRevision: number;
       input: unknown;
-      ranker?: Ranker;
+      normalizedDelta: NormalizedRefinementDelta;
+      previousRevision: PreviousRevisionContext;
+      ranker?: RefinementRanker;
     }
   | { ok: false; error: RefineItineraryAdapterFailure };
 
@@ -142,6 +210,8 @@ export interface RefineItineraryAdapter {
       planId: string;
       baseRevision: number;
       lockedItemIds: string[];
+      normalizedDelta: NormalizedRefinementDelta;
+      previousRevision: PreviousRevisionContext;
       scope: "partial" | "full";
       result: ItineraryResult;
     },
@@ -178,6 +248,7 @@ const ERROR_DEFINITIONS: Record<
   PLAN_NOT_FOUND: { messageKey: "refinement.plan_not_found", status: 404, retryable: false },
   PLAN_UNAVAILABLE: { messageKey: "refinement.plan_unavailable", status: 503, retryable: true },
   SNAPSHOT_MISMATCH: { messageKey: "refinement.snapshot_mismatch", status: 409, retryable: false },
+  LOCKED_ITEM_INVALID: { messageKey: "refinement.locked_item_invalid", status: 422, retryable: false },
   STALE_REVISION: { messageKey: "refinement.stale_revision", status: 409, retryable: true },
 };
 
@@ -323,10 +394,18 @@ function inspectGuestVerification(value: unknown):
   }
 }
 
-function inspectPreparation(value: unknown):
+function inspectPreparation(value: unknown, expectedInput: RefineItineraryInput):
   | { kind: "invalid" }
   | { kind: "failure"; error: unknown }
-  | { kind: "success"; planId: string; currentRevision: number; input: unknown; ranker?: Ranker } {
+  | {
+      kind: "success";
+      planId: string;
+      currentRevision: number;
+      input: unknown;
+      normalizedDelta: NormalizedRefinementDelta;
+      previousRevision: PreviousRevisionContext;
+      ranker?: RefinementRanker;
+    } {
   try {
     if (!isPlainObject(value) || typeof value.ok !== "boolean") return { kind: "invalid" };
     if (value.ok === false) {
@@ -334,9 +413,19 @@ function inspectPreparation(value: unknown):
       return { kind: "failure", error: value.error };
     }
     const keys = Reflect.ownKeys(value);
-    const allowed = new Set(["ok", "planId", "currentRevision", "input", "ranker"]);
+    const allowed = new Set([
+      "ok",
+      "planId",
+      "currentRevision",
+      "input",
+      "normalizedDelta",
+      "previousRevision",
+      "ranker",
+    ]);
     if (keys.some((key) => typeof key !== "string" || !allowed.has(key))) return { kind: "invalid" };
-    if (!hasExactKeys(value, keys.includes("ranker") ? ["ok", "planId", "currentRevision", "input", "ranker"] : ["ok", "planId", "currentRevision", "input"])) {
+    if (!hasExactKeys(value, keys.includes("ranker")
+      ? ["ok", "planId", "currentRevision", "input", "normalizedDelta", "previousRevision", "ranker"]
+      : ["ok", "planId", "currentRevision", "input", "normalizedDelta", "previousRevision"])) {
       return { kind: "invalid" };
     }
     if (
@@ -347,12 +436,36 @@ function inspectPreparation(value: unknown):
       value.currentRevision > POSITIVE_REVISION_MAX ||
       ("ranker" in value && typeof value.ranker !== "function")
     ) return { kind: "invalid" };
+    const normalizedDelta = z
+      .object({ feedback: feedbackSchema, scope: z.enum(["partial", "full"]) })
+      .strict()
+      .safeParse(value.normalizedDelta);
+    const previousRevision = previousRevisionSchema.safeParse(value.previousRevision);
+    if (!normalizedDelta.success || !previousRevision.success) return { kind: "invalid" };
+    const lockedItems = previousRevision.data.lockedItems;
+    if (normalizedDelta.data.feedback !== expectedInput.delta.feedback
+      || normalizedDelta.data.scope !== expectedInput.delta.scope) {
+      return { kind: "invalid" };
+    }
+    const requestedLockedItemIds = expectedInput.lockedItemIds;
+    if (!Array.isArray(requestedLockedItemIds)
+      || requestedLockedItemIds.length !== lockedItems.length
+      || requestedLockedItemIds.some((id, index) => id !== lockedItems[index]?.itemId)
+      || new Set(lockedItems.map((item) => item.itemId)).size !== lockedItems.length
+      || lockedItems.some((item, index) => index > 0 && item.position <= lockedItems[index - 1].position)) {
+      return { kind: "failure", error: { code: "LOCKED_ITEM_INVALID" } };
+    }
     return {
       kind: "success",
       planId: value.planId,
       currentRevision: value.currentRevision,
       input: value.input,
-      ...(typeof value.ranker === "function" ? { ranker: value.ranker as Ranker } : {}),
+      normalizedDelta: normalizedDelta.data,
+      previousRevision: {
+        ...previousRevision.data,
+        lockedItems: previousRevision.data.lockedItems.map((item) => ({ ...item })),
+      },
+      ...(typeof value.ranker === "function" ? { ranker: value.ranker as RefinementRanker } : {}),
     };
   } catch {
     return { kind: "invalid" };
@@ -396,6 +509,35 @@ function domainFailureResponse(error: JsonRecord, correlationId: string, corsHea
     correlationId,
     corsHeaders,
   );
+}
+
+/**
+ * Locked stops are an invariant of the previous authoritative revision. The
+ * ranker may suggest candidates, but it cannot move, replace, or retime a
+ * locked stop. Full regeneration has the same preservation rule whenever the
+ * caller supplied locks; a full regeneration without locks is unrestricted.
+ */
+function preservesLockedStops(
+  result: ItineraryResult,
+  previousRevision: PreviousRevisionContext,
+): boolean {
+  if (previousRevision.lockedItems.length === 0) return true;
+  let previousResultIndex = -1;
+  for (const lockedItem of previousRevision.lockedItems) {
+    const matches = result.items
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.placeId === lockedItem.placeId);
+    if (matches.length !== 1) return false;
+    const [{ item, index }] = matches;
+    if (index <= previousResultIndex
+      || item.startAt !== lockedItem.startAt
+      || item.endAt !== lockedItem.endAt
+      || item.visitDurationMinutes !== lockedItem.visitDurationMinutes) {
+      return false;
+    }
+    previousResultIndex = index;
+  }
+  return true;
 }
 
 export function createRefineItineraryHandler(
@@ -466,7 +608,7 @@ export function createRefineItineraryHandler(
     } catch {
       return internalResponse(gateway.correlationId, gateway.corsHeaders);
     }
-    const inspectedPreparation = inspectPreparation(preparation);
+    const inspectedPreparation = inspectPreparation(preparation, input);
     if (inspectedPreparation.kind === "invalid") return internalResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     if (inspectedPreparation.kind === "failure") return adapterFailureResponse(inspectedPreparation.error, gateway.correlationId, gateway.corsHeaders);
     if (inspectedPreparation.planId !== input.planId) return adapterFailureResponse({ code: "SNAPSHOT_MISMATCH" }, gateway.correlationId, gateway.corsHeaders);
@@ -481,13 +623,24 @@ export function createRefineItineraryHandler(
     if (!engineInput.ok) return internalResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     let recommendation: Awaited<ReturnType<typeof recommendItinerary>>;
     try {
-      recommendation = await recommendItinerary(engineInput.value, { ranker: inspectedPreparation.ranker });
+      const ranker: Ranker | undefined = inspectedPreparation.ranker
+        ? (request, signal) => inspectedPreparation.ranker!({
+            ...request,
+            feedback: inspectedPreparation.normalizedDelta.feedback,
+            scope: inspectedPreparation.normalizedDelta.scope,
+            lockedPlaceIds: inspectedPreparation.previousRevision.lockedItems.map((item) => item.placeId),
+          }, signal)
+        : undefined;
+      recommendation = await recommendItinerary(engineInput.value, { ranker });
     } catch {
       return internalResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     }
     if (!recommendation.ok) return domainFailureResponse(recommendation.error as unknown as JsonRecord, gateway.correlationId, gateway.corsHeaders);
     const result = itineraryResultSchema.safeParse(recommendation.value.result);
     if (!result.success) return internalResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+    if (!preservesLockedStops(result.data, inspectedPreparation.previousRevision)) {
+      return adapterFailureResponse({ code: "LOCKED_ITEM_INVALID" }, gateway.correlationId, gateway.corsHeaders);
+    }
 
     let commit: RefineCommit;
     try {
@@ -496,7 +649,12 @@ export function createRefineItineraryHandler(
         planId: input.planId,
         baseRevision: input.baseRevision,
         lockedItemIds: [...input.lockedItemIds],
-        scope: input.delta.scope,
+        normalizedDelta: { ...inspectedPreparation.normalizedDelta },
+        previousRevision: {
+          ...inspectedPreparation.previousRevision,
+          lockedItems: inspectedPreparation.previousRevision.lockedItems.map((item) => ({ ...item })),
+        },
+        scope: inspectedPreparation.normalizedDelta.scope,
         result: result.data,
       }, context);
     } catch {
