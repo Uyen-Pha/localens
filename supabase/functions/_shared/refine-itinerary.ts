@@ -26,7 +26,7 @@ import {
   type ItineraryResult,
 } from "@/lib/domain/itinerary/contracts";
 import type { DomainErrorCode } from "@/lib/domain/itinerary/errors";
-import { fingerprintItinerary } from "@/lib/domain/itinerary/fingerprint";
+import { fingerprintRevisionBinding } from "@/lib/domain/itinerary/fingerprint";
 import {
   recommendItinerary,
   type Recommendation,
@@ -200,7 +200,6 @@ export type RefinePreparation =
       ok: true;
       planId: string;
       currentRevision: number;
-      input: unknown;
       normalizedDelta: NormalizedRefinementDelta;
       previousRevision: PreviousRevisionContext;
       ranker?: RefinementRanker;
@@ -421,7 +420,6 @@ function inspectPreparation(value: unknown, expectedInput: RefineItineraryInput)
       kind: "success";
       planId: string;
       currentRevision: number;
-      input: unknown;
       normalizedDelta: NormalizedRefinementDelta;
       previousRevision: PreviousRevisionContext;
       ranker?: RefinementRanker;
@@ -437,15 +435,14 @@ function inspectPreparation(value: unknown, expectedInput: RefineItineraryInput)
       "ok",
       "planId",
       "currentRevision",
-      "input",
       "normalizedDelta",
       "previousRevision",
       "ranker",
     ]);
     if (keys.some((key) => typeof key !== "string" || !allowed.has(key))) return { kind: "invalid" };
     if (!hasExactKeys(value, keys.includes("ranker")
-      ? ["ok", "planId", "currentRevision", "input", "normalizedDelta", "previousRevision", "ranker"]
-      : ["ok", "planId", "currentRevision", "input", "normalizedDelta", "previousRevision"])) {
+      ? ["ok", "planId", "currentRevision", "normalizedDelta", "previousRevision", "ranker"]
+      : ["ok", "planId", "currentRevision", "normalizedDelta", "previousRevision"])) {
       return { kind: "invalid" };
     }
     if (
@@ -480,7 +477,6 @@ function inspectPreparation(value: unknown, expectedInput: RefineItineraryInput)
       kind: "success",
       planId: value.planId,
       currentRevision: value.currentRevision,
-      input: value.input,
       normalizedDelta: normalizedDelta.data,
       previousRevision: {
         ...previousRevision.data,
@@ -629,7 +625,9 @@ async function validatePreviousMaterial(
   }
   let fingerprint: string;
   try {
-    fingerprint = await fingerprintItinerary(
+    fingerprint = await fingerprintRevisionBinding(
+      previousRevision.planId,
+      previousRevision.revision,
       priorInput.value,
       priorResult,
       async (bytes) => new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes.buffer as ArrayBuffer)),
@@ -718,19 +716,13 @@ export function createRefineItineraryHandler(
     if (inspectedPreparation.planId !== input.planId) return adapterFailureResponse({ code: "SNAPSHOT_MISMATCH" }, gateway.correlationId, gateway.corsHeaders);
     if (inspectedPreparation.currentRevision !== input.baseRevision) return adapterFailureResponse({ code: "STALE_REVISION" }, gateway.correlationId, gateway.corsHeaders);
 
-    let engineInput: ReturnType<typeof parseEngineInput>;
-    try {
-      engineInput = parseEngineInput(inspectedPreparation.input);
-    } catch {
-      return internalResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
-    }
-    if (!engineInput.ok) return internalResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     const previousMaterial = await validatePreviousMaterial(inspectedPreparation.previousRevision, input);
     if (previousMaterial.kind === "invalid") return internalResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     if (previousMaterial.kind === "locked") return adapterFailureResponse({ code: "LOCKED_ITEM_INVALID" }, gateway.correlationId, gateway.corsHeaders);
-    if (previousMaterial.kind === "snapshot" || !sameSnapshotBinding(engineInput.value, inspectedPreparation.previousRevision)) {
+    if (previousMaterial.kind === "snapshot") {
       return adapterFailureResponse({ code: "SNAPSHOT_MISMATCH" }, gateway.correlationId, gateway.corsHeaders);
     }
+    const engineInput = { ok: true as const, value: previousMaterial.input };
     let recommendation: Awaited<ReturnType<typeof recommendItinerary>>;
     try {
       const ranker: Ranker | undefined = inspectedPreparation.ranker

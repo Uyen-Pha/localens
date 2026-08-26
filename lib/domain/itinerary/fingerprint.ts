@@ -402,3 +402,33 @@ export async function fingerprintItinerary(
   }
   return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
+
+/**
+ * Canonical binding for a stored revision. Unlike the public itinerary
+ * fingerprint, this deliberately includes the complete validated engine
+ * input so catalog pricing/opening-hours and travel-snapshot tampering cannot
+ * hide behind unchanged snapshot identifiers.
+ */
+export function canonicalizeRevisionBinding(
+  planId: string,
+  revision: number,
+  input: EngineInput,
+  result: ItineraryResult,
+): string {
+  return canonicalJson({ planId, revision, input, result });
+}
+
+export async function fingerprintRevisionBinding(
+  planId: string,
+  revision: number,
+  input: EngineInput,
+  result: ItineraryResult,
+  sha256: (bytes: Uint8Array) => Promise<Uint8Array>,
+): Promise<string> {
+  const bytes = new TextEncoder().encode(canonicalizeRevisionBinding(planId, revision, input, result));
+  const digest = await sha256(bytes);
+  if (!(digest instanceof Uint8Array) || digest.length !== 32) {
+    throw new TypeError("SHA-256 digest must contain exactly 32 bytes");
+  }
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}

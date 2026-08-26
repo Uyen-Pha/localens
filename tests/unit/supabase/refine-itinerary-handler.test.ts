@@ -3,7 +3,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { itineraryFixture } from "@/tests/fixtures/itinerary/catalog.v1";
-import { fingerprintItinerary } from "@/lib/domain/itinerary/fingerprint";
+import { fingerprintRevisionBinding } from "@/lib/domain/itinerary/fingerprint";
 import type { ItineraryResult } from "@/lib/domain/itinerary/contracts";
 import {
   createRefineItineraryHandler,
@@ -70,7 +70,9 @@ const policy = {
 };
 
 beforeAll(async () => {
-  previousRevision.fingerprint = await fingerprintItinerary(
+  previousRevision.fingerprint = await fingerprintRevisionBinding(
+    planId,
+    3,
     itineraryFixture,
     previousResult,
     async (bytes) => new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes.buffer as ArrayBuffer)),
@@ -113,7 +115,6 @@ function adapter(overrides: Partial<RefineItineraryAdapter> = {}): RefineItinera
       ok: true as const,
       planId,
       currentRevision: 3,
-      input: itineraryFixture,
       normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
       previousRevision,
     })),
@@ -210,7 +211,6 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        input: itineraryFixture,
         normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
         previousRevision,
         ranker: vi.fn(async (rankRequest: RefinementRankRequest) => {
@@ -242,17 +242,12 @@ describe("refine-itinerary Edge handler contract", () => {
   });
 
   it("allows unrestricted full regeneration only when no locks are supplied", async () => {
-    const fullInput = {
-      ...itineraryFixture,
-      request: { ...itineraryFixture.request, lockedStopIds: [] },
-    };
     let receivedScope: "partial" | "full" | undefined;
     const service = adapter({
       prepareRefinement: vi.fn(async () => ({
         ok: true as const,
         planId,
         currentRevision: 3,
-        input: fullInput,
         normalizedDelta: { feedback: "Try a market route", scope: "full" as const },
         previousRevision: { ...previousRevision, lockedItems: [] },
         ranker: vi.fn(async (rankRequest: RefinementRankRequest) => {
@@ -421,7 +416,6 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        input: itineraryFixture,
         normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
         previousRevision,
         ranker: vi.fn(async () => ({
@@ -449,9 +443,8 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        input: { forged: true },
         normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
-        previousRevision,
+        previousRevision: { ...previousRevision, authoritativeInput: { forged: true } },
       })),
     }), {
       policy,
@@ -474,7 +467,6 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        input: itineraryFixture,
         normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
         previousRevision: {
           ...previousRevision,
@@ -514,7 +506,6 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        input: itineraryFixture,
         normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
         previousRevision: { ...previousRevision, ...priorPatch },
         ranker,
@@ -540,12 +531,47 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        input: {
-          ...itineraryFixture,
-          catalog: { ...itineraryFixture.catalog, id: "catalog-forged" },
-        },
         normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
-        previousRevision,
+        previousRevision: {
+          ...previousRevision,
+          authoritativeInput: {
+            ...itineraryFixture,
+            catalog: { ...itineraryFixture.catalog, id: "catalog-forged" },
+          },
+        },
+        ranker,
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "SNAPSHOT_MISMATCH", correlationId });
+    expect(ranker).not.toHaveBeenCalled();
+    expect(service.commitRefinement).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["place price", (input: typeof itineraryFixture) => { input.catalog.places[0].priceVndPerPerson += 1; }],
+    ["opening hours", (input: typeof itineraryFixture) => { input.catalog.places[0].openingHours[0].opensAt = "10:00"; }],
+    ["travel edge", (input: typeof itineraryFixture) => { input.travel.edges[0].minutes += 1; }],
+    ["request budget", (input: typeof itineraryFixture) => { input.request.budget.amountMinor = 1; }],
+    ["request areas", (input: typeof itineraryFixture) => { input.request.areas = ["district-5"]; }],
+  ])("rejects an authoritative input altered by adapter (%s) before engine use", async (_label, alter) => {
+    const alteredInput = structuredClone(itineraryFixture);
+    alter(alteredInput);
+    const ranker = vi.fn();
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision: { ...previousRevision, authoritativeInput: alteredInput },
         ranker,
       })),
     });
@@ -568,7 +594,6 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        input: itineraryFixture,
         normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
         previousRevision: {
           ...previousRevision,
@@ -601,7 +626,9 @@ describe("refine-itinerary Edge handler contract", () => {
       lockedItems: [{ ...previousLockedItem, placeId: forgedPlaceId }],
       fingerprint: "",
     };
-    forgedPreviousRevision.fingerprint = await fingerprintItinerary(
+    forgedPreviousRevision.fingerprint = await fingerprintRevisionBinding(
+      planId,
+      3,
       itineraryFixture,
       forgedResult,
       async (bytes) => new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes.buffer as ArrayBuffer)),
@@ -611,7 +638,6 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        input: itineraryFixture,
         normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
         previousRevision: forgedPreviousRevision,
       })),
@@ -629,16 +655,11 @@ describe("refine-itinerary Edge handler contract", () => {
   });
 
   it("rejects a proposal that omits a locked stop instead of committing it", async () => {
-    const inputWithoutLockedPlace = {
-      ...itineraryFixture,
-      request: { ...itineraryFixture.request, lockedStopIds: [] },
-    };
     const service = adapter({
       prepareRefinement: vi.fn(async () => ({
         ok: true as const,
         planId,
         currentRevision: 3,
-        input: inputWithoutLockedPlace,
         normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
         previousRevision: {
           ...previousRevision,
