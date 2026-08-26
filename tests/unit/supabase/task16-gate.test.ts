@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -11,12 +11,17 @@ import { DB_GATE_STEPS, assertNoRemoteMode, runDbGate } from "@/scripts/run-db-g
 import { checkGeneratedDatabaseTypes, writeGeneratedDatabaseTypes } from "@/scripts/write-generated-db-types.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { REQUIRED_CONCURRENCY_SCENARIOS, runConcurrencyCheck } from "@/scripts/test-db-concurrency.mjs";
+// @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
+import { requireLocalSupabaseCli } from "@/scripts/supabase-local.mjs";
+// @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
+import { exitCodeForError } from "@/scripts/run-db-gate.mjs";
 import { resolve as resolvePath } from "node:path";
 
 describe("Task16 database gate", () => {
   it("runs the local gate in order and always stops after success", async () => {
     const calls: string[] = [];
     const result = await runDbGate({
+      cwd: "C:/repo",
       cliPath: "C:/repo/node_modules/.bin/supabase.cmd",
       runner: async (spec: { name: string }) => {
         calls.push(spec.name);
@@ -34,6 +39,7 @@ describe("Task16 database gate", () => {
 
     await expect(
       runDbGate({
+        cwd: "C:/repo",
         cliPath: "C:/repo/node_modules/.bin/supabase.cmd",
         runner: async (spec: { name: string }) => {
           calls.push(spec.name);
@@ -50,6 +56,21 @@ describe("Task16 database gate", () => {
     expect(() => assertNoRemoteMode(["link", "--project-ref", "abc"])).toThrow(/REMOTE_MODE_REJECTED/);
     expect(() => assertNoRemoteMode(["db", "reset", "--remote"])).toThrow(/REMOTE_MODE_REJECTED/);
     expect(() => assertNoRemoteMode(["db", "reset", "--local"])).not.toThrow();
+  });
+
+  it("rejects an explicit CLI path outside the project-local bin directory", () => {
+    expect(() =>
+      requireLocalSupabaseCli({
+        cwd: "C:/repo",
+        cliPath: "C:/outside/supabase.cmd",
+        platform: "win32",
+      }),
+    ).toThrow(/SUPABASE_CLI_PATH_REJECTED/);
+  });
+
+  it("preserves the failed Supabase step status for the process exit code", () => {
+    expect(exitCodeForError({ status: 17 })).toBe(17);
+    expect(exitCodeForError(new Error("no status"))).toBe(2);
   });
 
   it("fails closed when the project-local Supabase CLI is missing", async () => {
@@ -104,11 +125,12 @@ describe("Task16 database gate", () => {
 describe("Task16 generated database types", () => {
   it("does not create a generated file when the CLI returns no output", async () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
+    const cliPath = path.join(rootDir, "node_modules", ".bin", "supabase.cmd");
     try {
       await expect(
         writeGeneratedDatabaseTypes({
           rootDir,
-          cliPath: "fake-supabase",
+          cliPath,
           runner: async () => ({ status: 0, stdout: "\n  ", stderr: "" }),
         }),
       ).rejects.toMatchObject({ code: "GENERATED_TYPES_EMPTY" });
@@ -121,11 +143,12 @@ describe("Task16 generated database types", () => {
 
   it("uses local-only type generation and atomically writes non-empty output", async () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
+    const cliPath = path.join(rootDir, "node_modules", ".bin", "supabase.cmd");
     const calls: Array<{ args: string[] }> = [];
     try {
       await writeGeneratedDatabaseTypes({
         rootDir,
-        cliPath: "fake-supabase",
+        cliPath,
         runner: async (spec: { args: string[] }) => {
           calls.push(spec);
           return { status: 0, stdout: "export type Database = {};\n", stderr: "" };
@@ -143,16 +166,66 @@ describe("Task16 generated database types", () => {
 
   it("fails type drift checking without creating the missing target", async () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
+    const cliPath = path.join(rootDir, "node_modules", ".bin", "supabase.cmd");
     try {
       await expect(
         checkGeneratedDatabaseTypes({
           rootDir,
-          cliPath: "fake-supabase",
+          cliPath,
           runner: async () => ({ status: 0, stdout: "export type Database = {};\n", stderr: "" }),
         }),
       ).rejects.toMatchObject({ code: "GENERATED_TYPES_MISSING" });
 
       expect(() => statSync(path.join(rootDir, "lib/infrastructure/supabase/database.types.ts"))).toThrow();
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it("detects drift in an existing generated file without replacing it", async () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
+    const cliPath = path.join(rootDir, "node_modules", ".bin", "supabase.cmd");
+    const filePath = path.join(rootDir, "lib/infrastructure/supabase/database.types.ts");
+    mkdirSync(path.dirname(filePath), { recursive: true });
+    writeFileSync(filePath, "export type Database = { previous: true };\n", "utf8");
+    try {
+      await expect(
+        checkGeneratedDatabaseTypes({
+          rootDir,
+          cliPath,
+          runner: async () => ({ status: 0, stdout: "export type Database = { current: true };\n", stderr: "" }),
+        }),
+      ).rejects.toMatchObject({ code: "GENERATED_TYPES_DRIFT" });
+      expect(readFileSync(filePath, "utf8")).toBe("export type Database = { previous: true };\n");
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves the previous generated file across failed and empty generation", async () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
+    const cliPath = path.join(rootDir, "node_modules", ".bin", "supabase.cmd");
+    const filePath = path.join(rootDir, "lib/infrastructure/supabase/database.types.ts");
+    mkdirSync(path.dirname(filePath), { recursive: true });
+    writeFileSync(filePath, "export type Database = { previous: true };\n", "utf8");
+    try {
+      await expect(
+        writeGeneratedDatabaseTypes({
+          rootDir,
+          cliPath,
+          runner: async () => ({ status: 9, stdout: "", stderr: "failed" }),
+        }),
+      ).rejects.toMatchObject({ code: "SUPABASE_COMMAND_FAILED" });
+      expect(readFileSync(filePath, "utf8")).toBe("export type Database = { previous: true };\n");
+
+      await expect(
+        writeGeneratedDatabaseTypes({
+          rootDir,
+          cliPath,
+          runner: async () => ({ status: 0, stdout: "\n", stderr: "" }),
+        }),
+      ).rejects.toMatchObject({ code: "GENERATED_TYPES_EMPTY" });
+      expect(readFileSync(filePath, "utf8")).toBe("export type Database = { previous: true };\n");
     } finally {
       rmSync(rootDir, { recursive: true, force: true });
     }
@@ -187,5 +260,12 @@ describe("Task16 concurrency preflight", () => {
     for (const scenario of REQUIRED_CONCURRENCY_SCENARIOS) {
       expect(result.message).toContain(scenario);
     }
+  });
+});
+
+describe("Task16 runbook", () => {
+  it("documents generation after reset before the verification gate", () => {
+    const runbook = readFileSync(path.join(process.cwd(), "docs/runbooks/local-supabase.md"), "utf8");
+    expect(runbook).toMatch(/pnpm db:reset[\s\S]*pnpm db:types[\r\n]+[\s\S]*pnpm db:verify/);
   });
 });

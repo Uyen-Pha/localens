@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,18 +43,44 @@ export function assertNoRemoteMode(args) {
 export function resolveLocalSupabaseCli({ cwd = process.cwd(), platform = process.platform } = {}) {
   const binName = platform === "win32" ? "supabase.cmd" : "supabase";
   const candidate = path.resolve(cwd, "node_modules", ".bin", binName);
-  return existsSync(candidate) ? candidate : null;
+  return existsSync(candidate) && isSafeLocalCliPath(candidate, { cwd, platform }) ? candidate : null;
+}
+
+function isSafeLocalCliPath(candidate, { cwd = process.cwd(), platform = process.platform } = {}) {
+  const binName = platform === "win32" ? "supabase.cmd" : "supabase";
+  const expected = path.resolve(cwd, "node_modules", ".bin", binName);
+  if (path.resolve(candidate) !== expected) return false;
+  if (!existsSync(candidate)) return true;
+  try {
+    const realCandidate = realpathSync.native(candidate);
+    const realProjectRoot = realpathSync.native(cwd);
+    const relative = path.relative(realProjectRoot, realCandidate);
+    return !relative.startsWith("..") && !path.isAbsolute(relative);
+  } catch {
+    return false;
+  }
 }
 
 export function requireLocalSupabaseCli(options = {}) {
-  const cliPath = options.cliPath ?? resolveLocalSupabaseCli(options);
+  const cliPath = options.cliPath;
+  if (cliPath !== undefined) {
+    if (!isSafeLocalCliPath(cliPath, options)) {
+      throw task16Error(
+        "SUPABASE_CLI_PATH_REJECTED",
+        "explicit Supabase CLI path must be the project-local node_modules/.bin entry",
+      );
+    }
+    return path.resolve(cliPath);
+  }
+  const resolvedCliPath = resolveLocalSupabaseCli(options);
+  if (resolvedCliPath) return resolvedCliPath;
   if (!cliPath) {
     throw task16Error(
       "SUPABASE_CLI_NOT_FOUND",
       "project-local Supabase CLI is required; install the pinned dev dependency only after a local container runtime is available",
     );
   }
-  return cliPath;
+  return resolvedCliPath;
 }
 
 export function runLocalSupabase(args, options = {}) {

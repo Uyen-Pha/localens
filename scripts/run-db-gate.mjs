@@ -22,6 +22,10 @@ function gateError(code, message, details = {}) {
   return error;
 }
 
+export function exitCodeForError(error) {
+  return error?.status ?? 2;
+}
+
 function packageManagerCommand() {
   return process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 }
@@ -109,6 +113,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const message = error?.message ?? String(error);
     console.error(message.startsWith(`${code}:`) ? message : `${code}: ${message}`);
     if (error?.cleanupError) console.error(`CLEANUP_FAILED: ${error.cleanupError.message}`);
-    process.exitCode = 2;
+    process.exitCode = exitCodeForError(error);
   });
 }

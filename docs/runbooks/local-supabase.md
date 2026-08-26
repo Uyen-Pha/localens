@@ -31,6 +31,21 @@ root:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm db:static:seed
+```
+
+After the approval gate is satisfied, bootstrap the generated type file once
+against the freshly reset local schema:
+
+```powershell
+pnpm db:start
+pnpm db:reset
+pnpm db:types
+pnpm db:stop
+```
+
+Then run the verification gate and the remaining checks:
+
+```powershell
 pnpm db:verify
 pnpm peers check
 pnpm lint
