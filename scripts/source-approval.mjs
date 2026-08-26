@@ -238,7 +238,7 @@ function checkTour(tour, index, placeBySlug, registry, errors) {
   if (!Array.isArray(tour.unknownFacts) || tour.unknownFacts.length === 0) addError(errors, `${prefix}.unknownFacts must be explicit`);
 }
 
-export function checkCatalogBundle({ root }) {
+export function checkCatalogBundle({ root, approvalMode = "draft" }) {
   const errors = [];
   const places = readJson(root, PLACE_FILE, errors);
   const tours = readJson(root, TOUR_FILE, errors);
@@ -291,7 +291,14 @@ export function checkCatalogBundle({ root }) {
   if (hashes.manifests?.tours?.sha256 !== tourHash) addError(errors, "tours source hash does not match canonical manifest");
   if (hashes.manifests?.places?.recordCount !== EXPECTED_COUNTS.places || hashes.manifests?.tours?.recordCount !== EXPECTED_COUNTS.tours) addError(errors, "source-hashes record counts are incorrect");
 
-  if (approval.status !== "draft" || approval.reviewedAtUtc !== null || approval.approvedAtUtc !== null || approval.reviewer?.status !== "pending") addError(errors, "catalog approval must remain draft, unreviewed, and pending");
+  if (approvalMode === "approved") {
+    if (approval.status !== "approved" || approval.reviewer?.status !== "approved" || typeof approval.reviewer?.name !== "string" || !approval.reviewer.name.trim() || typeof approval.reviewer?.userId !== "string" || !approval.reviewer.userId.trim()) addError(errors, "catalog approval must contain an approved reviewer");
+    for (const field of ["reviewedAtUtc", "approvedAtUtc"]) {
+      if (typeof approval[field] !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(approval[field])) addError(errors, `catalog approval ${field} must be an explicit UTC timestamp`);
+    }
+  } else if (approvalMode !== "draft") {
+    addError(errors, `unsupported catalog approval mode ${approvalMode}`);
+  } else if (approval.status !== "draft" || approval.reviewedAtUtc !== null || approval.approvedAtUtc !== null || approval.reviewer?.status !== "pending") addError(errors, "catalog approval must remain draft, unreviewed, and pending");
   if (approval.fixedUuidNamespace !== "6ba7b810-9dad-11d1-80b4-00c04fd430c8" || approval.uuidVersion !== 5) addError(errors, "fixed UUIDv5 namespace/version is required");
   if (JSON.stringify(approval.counts) !== JSON.stringify(EXPECTED_COUNTS)) addError(errors, "approval counts do not match the exact manifest counts");
   if (approval.sourceHashes?.places !== placeHash || approval.sourceHashes?.tours !== tourHash) addError(errors, "approval source hashes do not match manifests");
