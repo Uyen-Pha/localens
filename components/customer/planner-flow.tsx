@@ -8,7 +8,11 @@ import {
   type DemoPlannerState,
   type PlannerAdapter,
 } from "@/lib/application/planner/demo-planner";
-import { readPersonalizationRequest, type PersonalizationRequest } from "@/lib/application/planner/personalization-session";
+import {
+  readPersonalizationState,
+  type PersonalizationReadState,
+  type PersonalizationRequest,
+} from "@/lib/application/planner/personalization-session";
 import type { Locale } from "@/lib/i18n/config";
 import type { PlannerCopy } from "@/lib/i18n/dictionaries";
 
@@ -78,7 +82,8 @@ export function PlannerFlow({
   copy: PlannerCopy;
   adapter?: PlannerAdapter;
 }) {
-  const [state, setState] = useState<DemoPlannerState>(() => adapter.createInitial(locale));
+  const [state, setState] = useState<DemoPlannerState>(() => adapter.createInitial(locale, null));
+  const [handoffStatus, setHandoffStatus] = useState<"pending" | PersonalizationReadState["status"]>("pending");
   const [feedback, setFeedback] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [staleError, setStaleError] = useState(false);
@@ -88,14 +93,16 @@ export function PlannerFlow({
   const alertRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const preferences = readPersonalizationRequest();
-    if (!preferences) return;
+    const handoff = readPersonalizationState();
+    setHandoffStatus(handoff.status);
 
     setState((current) => {
       if (current.preferences !== null || current.current.revision !== 1 || current.history.length > 0) {
         return current;
       }
-      return adapter.createInitial(locale, preferences);
+      if (handoff.status === "ok") return adapter.createInitial(locale, handoff.request);
+      if (handoff.status === "missing") return adapter.createInitial(locale);
+      return adapter.createInitial(locale, null);
     });
   }, [adapter, locale]);
 
@@ -174,6 +181,16 @@ export function PlannerFlow({
 
       <p className="demo-disclosure" role="note">{copy.simulatedDisclosure}</p>
       <p className="planner-flow__proposal">{copy.proposalOnly}</p>
+
+      {handoffStatus === "missing" ? <p className="planner-flow__default-disclosure" role="note">{copy.defaultFixtureLabel}</p> : null}
+      {handoffStatus !== "pending" && handoffStatus !== "ok" && handoffStatus !== "missing" ? (
+        <div className="planner-flow__handoff-error" role="alert">
+          <p>{handoffStatus === "expired" ? copy.handoffExpiredLabel : handoffStatus === "invalid" ? copy.handoffInvalidLabel : copy.handoffStorageErrorLabel}</p>
+          <Link className="button button--secondary" href={`/${locale}/#personalize`}>
+            {copy.backToPersonalizationLabel}
+          </Link>
+        </div>
+      ) : null}
 
       {state.preferences ? (
         <section className="planner-flow__preferences" aria-labelledby="planner-preferences-heading">

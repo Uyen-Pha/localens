@@ -253,19 +253,25 @@ function shiftedItems(
   });
 }
 
-function initialState(locale: Locale = "en", preferences: PersonalizationRequest | null = null): DemoPlannerState {
-  const fixtureItems = shiftedItems(INITIAL_ITEM_FACTS.map((item) => ({
-    ...item,
-    title: item.title[locale],
-    activity: item.activity[locale],
-  })), preferences);
-  const generated = preferences ? generatedItems(preferences, locale) : { items: fixtureItems, warning: null };
+function initialState(locale: Locale = "en", preferences?: PersonalizationRequest | null): DemoPlannerState {
+  const fixtureItems = preferences === undefined
+    ? shiftedItems(INITIAL_ITEM_FACTS.map((item) => ({
+      ...item,
+      title: item.title[locale],
+      activity: item.activity[locale],
+    })), null)
+    : [];
+  const generated = preferences === undefined
+    ? { items: fixtureItems, warning: null }
+    : preferences === null
+      ? { items: [], warning: PLANNER_COPY[locale].noProposal }
+      : generatedItems(preferences, locale);
   const warnings = [LOCALE_COPY[locale].warning];
   if (generated.warning !== null) warnings.push(PLANNER_COPY[locale].noProposal);
   return {
     planId: PLAN_ID,
     locale,
-    preferences,
+    preferences: preferences ?? null,
     current: {
       revision: 1,
       items: generated.items,

@@ -34,6 +34,11 @@ export type PlannerCopy = {
   preferencePaceActive: string;
   timezoneLabel: string;
   noProposalLabel: string;
+  defaultFixtureLabel: string;
+  handoffExpiredLabel: string;
+  handoffInvalidLabel: string;
+  handoffStorageErrorLabel: string;
+  backToPersonalizationLabel: string;
   revisionLabel: string;
   currentRevisionLabel: string;
   activityLabel: string;
@@ -160,8 +165,10 @@ export type Dictionary = {
       paceOptions: Array<{ value: "relaxed" | "active"; label: string }>;
       dietLabel: string;
       dietOptions: Array<{ value: string; label: string }>;
+      dietaryUnsupportedNote: string;
       mobilityLabel: string;
       mobilityOptions: Array<{ value: string; label: string }>;
+      mobilityUnsupportedNote: string;
       specialNeedsLabel: string;
       specialNeedsHint: string;
       submitLabel: string;
@@ -447,16 +454,16 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       dietLabel: "Dietary preferences",
       dietOptions: [
         { value: "none", label: "No special preference" },
+        { value: "halal", label: "Halal" },
         { value: "vegetarian", label: "Vegetarian" },
-        { value: "vegan", label: "Vegan" },
-        { value: "allergies", label: "I have allergies" },
       ],
+      dietaryUnsupportedNote: "Demo matching currently supports Halal and vegetarian only; describe other allergies or diets in special requests.",
       mobilityLabel: "Mobility needs",
       mobilityOptions: [
         { value: "none", label: "No special requirement" },
-        { value: "less-walking", label: "Prefer less walking" },
         { value: "step-free", label: "Need step-free options" },
       ],
+      mobilityUnsupportedNote: "Demo matching currently supports step-free access only; describe walking limits in special requests.",
       specialNeedsLabel: "Anything else we should plan around?",
       specialNeedsHint: "Optional — tell us about accessibility, celebrations, or a must-see detail.",
       submitLabel: "Preview my route brief",
@@ -662,16 +669,16 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       dietLabel: "Nhu cầu ăn uống",
       dietOptions: [
         { value: "none", label: "Không có yêu cầu đặc biệt" },
+        { value: "halal", label: "Halal" },
         { value: "vegetarian", label: "Ăn chay" },
-        { value: "vegan", label: "Thuần chay" },
-        { value: "allergies", label: "Tôi có dị ứng" },
       ],
+      dietaryUnsupportedNote: "Bản demo hiện chỉ đối chiếu Halal và ăn chay; hãy ghi dị ứng hoặc chế độ khác trong yêu cầu đặc biệt.",
       mobilityLabel: "Nhu cầu di chuyển",
       mobilityOptions: [
         { value: "none", label: "Không có yêu cầu đặc biệt" },
-        { value: "less-walking", label: "Ưu tiên đi bộ ít hơn" },
         { value: "step-free", label: "Cần lựa chọn không bậc thang" },
       ],
+      mobilityUnsupportedNote: "Bản demo hiện chỉ đối chiếu lối đi không bậc; hãy ghi giới hạn đi bộ trong yêu cầu đặc biệt.",
       specialNeedsLabel: "Có điều gì khác cần lưu ý?",
       specialNeedsHint: "Không bắt buộc — hãy chia sẻ nhu cầu tiếp cận, dịp đặc biệt hoặc điều nhất định phải xem.",
       submitLabel: "Xem trước yêu cầu lịch trình",
@@ -731,6 +738,11 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     preferencePaceActive: "Active",
     timezoneLabel: "Ho Chi Minh City time (UTC+07:00)",
     noProposalLabel: "No proposal is available for these constraints.",
+    defaultFixtureLabel: "Default demo route shown because no personalization handoff was found in this browser tab.",
+    handoffExpiredLabel: "This personalization handoff expired. No personalized proposal was loaded; please return to the form.",
+    handoffInvalidLabel: "This personalization handoff is invalid or incomplete. No personalized proposal was loaded; please return to the form.",
+    handoffStorageErrorLabel: "This browser could not read the personalization handoff. No personalized proposal was loaded; please return to the form.",
+    backToPersonalizationLabel: "Return to personalization form",
     revisionLabel: "Revision",
     currentRevisionLabel: "Current proposal",
     activityLabel: "Planned activity",
@@ -781,6 +793,11 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     preferencePaceActive: "Năng động",
     timezoneLabel: "Giờ Thành phố Hồ Chí Minh (UTC+07:00)",
     noProposalLabel: "Không có đề xuất phù hợp với các điều kiện này.",
+    defaultFixtureLabel: "Đang hiển thị lịch trình demo mặc định vì không tìm thấy dữ liệu cá nhân hóa trong tab trình duyệt này.",
+    handoffExpiredLabel: "Dữ liệu cá nhân hóa đã hết hạn. Không tải đề xuất cá nhân hóa; hãy quay lại biểu mẫu.",
+    handoffInvalidLabel: "Dữ liệu cá nhân hóa không hợp lệ hoặc chưa đủ. Không tải đề xuất cá nhân hóa; hãy quay lại biểu mẫu.",
+    handoffStorageErrorLabel: "Trình duyệt không thể đọc dữ liệu cá nhân hóa. Không tải đề xuất cá nhân hóa; hãy quay lại biểu mẫu.",
+    backToPersonalizationLabel: "Quay lại biểu mẫu cá nhân hóa",
     revisionLabel: "Phiên bản",
     currentRevisionLabel: "Đề xuất hiện tại",
     activityLabel: "Hoạt động dự kiến",

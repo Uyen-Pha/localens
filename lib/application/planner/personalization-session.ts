@@ -94,6 +94,13 @@ type PersonalizationEnvelope = Readonly<{
   request: PersonalizationRequest;
 }>;
 
+export type PersonalizationReadState =
+  | Readonly<{ status: "ok"; request: PersonalizationRequest }>
+  | Readonly<{ status: "missing" }>
+  | Readonly<{ status: "expired" }>
+  | Readonly<{ status: "invalid" }>
+  | Readonly<{ status: "storage-error" }>;
+
 function isPersonalizationEnvelope(value: unknown): value is PersonalizationEnvelope {
   return (
     isRecord(value) &&
@@ -117,22 +124,41 @@ export function savePersonalizationRequest(request: PersonalizationRequest): boo
   }
 }
 
-export function readPersonalizationRequest(now = Date.now()): PersonalizationRequest | null {
-  if (typeof window === "undefined") return null;
+export function readPersonalizationState(now = Date.now()): PersonalizationReadState {
+  if (typeof window === "undefined") return { status: "missing" };
 
+  let raw: string | null;
   try {
-    const raw = window.sessionStorage.getItem(PERSONALIZATION_SESSION_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!isPersonalizationEnvelope(parsed)) return null;
-    if (parsed.savedAt > now || now - parsed.savedAt > PERSONALIZATION_SESSION_TTL_MS) {
-      window.sessionStorage.removeItem(PERSONALIZATION_SESSION_KEY);
-      return null;
-    }
-    return parsed.request;
+    raw = window.sessionStorage.getItem(PERSONALIZATION_SESSION_KEY);
   } catch {
-    return null;
+    return { status: "storage-error" };
   }
+
+  if (!raw) return { status: "missing" };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { status: "invalid" };
+  }
+
+  if (!isPersonalizationEnvelope(parsed)) return { status: "invalid" };
+  if (parsed.savedAt > now) return { status: "invalid" };
+  if (now - parsed.savedAt > PERSONALIZATION_SESSION_TTL_MS) {
+    try {
+      window.sessionStorage.removeItem(PERSONALIZATION_SESSION_KEY);
+    } catch {
+      // The payload is still expired even if cleanup is blocked by storage policy.
+    }
+    return { status: "expired" };
+  }
+  return { status: "ok", request: parsed.request };
+}
+
+export function readPersonalizationRequest(now = Date.now()): PersonalizationRequest | null {
+  const state = readPersonalizationState(now);
+  return state.status === "ok" ? state.request : null;
 }
 
 export function clearPersonalizationRequest(): void {

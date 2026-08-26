@@ -42,6 +42,24 @@ describe("PersonalizationForm", () => {
     expect(screen.getByLabelText(dictionary.home.personalizationForm.mobilityLabel)).toBeInTheDocument();
     expect(screen.getByLabelText(dictionary.home.personalizationForm.specialNeedsLabel)).toBeInTheDocument();
 
+    for (const option of dictionary.home.personalizationForm.dietOptions) {
+      expect(screen.getByRole("option", { name: option.label })).toHaveValue(option.value);
+    }
+    for (const option of dictionary.home.personalizationForm.mobilityOptions) {
+      expect(screen.getByRole("option", { name: option.label })).toHaveValue(option.value);
+    }
+    expect(dictionary.home.personalizationForm.dietOptions.map((option) => option.value)).toEqual([
+      "none",
+      "halal",
+      "vegetarian",
+    ]);
+    expect(dictionary.home.personalizationForm.mobilityOptions.map((option) => option.value)).toEqual([
+      "none",
+      "step-free",
+    ]);
+    expect(screen.getByText(dictionary.home.personalizationForm.dietaryUnsupportedNote)).toBeInTheDocument();
+    expect(screen.getByText(dictionary.home.personalizationForm.mobilityUnsupportedNote)).toBeInTheDocument();
+
     const priorityGroup = screen.getByRole("group", {
       name: dictionary.home.personalizationForm.prioritiesLegend,
     });

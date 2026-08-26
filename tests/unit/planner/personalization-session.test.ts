@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   clearPersonalizationRequest,
   PERSONALIZATION_SESSION_TTL_MS,
+  readPersonalizationState,
   readPersonalizationRequest,
   savePersonalizationRequest,
   type PersonalizationRequest,
@@ -33,6 +34,17 @@ afterEach(() => {
 });
 
 describe("personalization session contract", () => {
+  it("distinguishes a genuinely missing handoff from an invalid payload", () => {
+    expect(readPersonalizationState()).toEqual({ status: "missing" });
+
+    window.sessionStorage.setItem("localens.personalization.v1", JSON.stringify({
+      startAt: request.startAt,
+      durationMinutes: "240",
+    }));
+
+    expect(readPersonalizationState()).toEqual({ status: "invalid" });
+  });
+
   it("round-trips a validated request within the current browser tab", () => {
     expect(savePersonalizationRequest(request)).toBe(true);
 
@@ -64,6 +76,7 @@ describe("personalization session contract", () => {
       request,
     }));
 
+    expect(readPersonalizationState()).toEqual({ status: "expired" });
     expect(readPersonalizationRequest()).toBeNull();
     expect(window.sessionStorage.getItem("localens.personalization.v1")).toBeNull();
   });
@@ -76,6 +89,18 @@ describe("personalization session contract", () => {
     }));
 
     expect(readPersonalizationRequest()).toEqual(request);
+  });
+
+  it("reports storage errors instead of treating them as a missing handoff", () => {
+    const getItemSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage disabled");
+    });
+
+    try {
+      expect(readPersonalizationState()).toEqual({ status: "storage-error" });
+    } finally {
+      getItemSpy.mockRestore();
+    }
   });
 
   it("removes a stale request without touching unrelated session data", () => {

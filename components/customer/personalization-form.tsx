@@ -258,15 +258,17 @@ export function PersonalizationForm({
         </label>
         <label className="field">
           <span>{copy.dietLabel}</span>
-          <select name="diet" defaultValue="none">
+          <select name="diet" defaultValue="none" aria-label={copy.dietLabel}>
             {copy.dietOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
+          <small>{copy.dietaryUnsupportedNote}</small>
         </label>
         <label className="field">
           <span>{copy.mobilityLabel}</span>
-          <select name="mobility" defaultValue="none">
+          <select name="mobility" defaultValue="none" aria-label={copy.mobilityLabel}>
             {copy.mobilityOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
+          <small>{copy.mobilityUnsupportedNote}</small>
         </label>
         <label className="field field--wide">
           <span>{copy.specialNeedsLabel}</span>

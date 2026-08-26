@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PlannerFlow } from "@/components/customer/planner-flow";
 import {
@@ -31,6 +31,64 @@ describe("PlannerFlow", () => {
     expect(screen.getByRole("heading", { name: copy.warningsHeading })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: copy.revisionHistoryHeading })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /book|đặt/i })).not.toBeInTheDocument();
+    expect(screen.getByText(copy.defaultFixtureLabel)).toBeInTheDocument();
+  });
+
+  it("fails closed with a localized recovery CTA when the handoff is expired", () => {
+    const copy = getDictionary("vi").planner;
+    window.sessionStorage.setItem("localens.personalization.v1", JSON.stringify({
+      version: 1,
+      savedAt: Date.now() - 30 * 60 * 1000 - 1,
+      request: {
+        startAt: "2026-09-05T10:30:00+07:00",
+        durationMinutes: 240,
+        areas: ["demo-hcmc-district-1"],
+        budget: { currency: "VND", amountMinor: 1_500_000 },
+        partySize: 3,
+        guideLanguage: "vi",
+        priorityWeights: { street_food: 5, history: 3, traditional_craft: 0, traditional_market: 0 },
+        pace: "active",
+        dietaryRequirements: [],
+        mobilityRequirements: [],
+        lockedStopIds: [],
+        specialNeeds: "",
+      },
+    }));
+
+    render(<PlannerFlow locale="vi" copy={copy} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(copy.handoffExpiredLabel);
+    expect(screen.getByRole("link", { name: copy.backToPersonalizationLabel })).toHaveAttribute("href", "/vi#personalize");
+    expect(screen.queryByTestId("planner-activity")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: copy.preferencesHeading })).not.toBeInTheDocument();
+  });
+
+  it("fails closed with a localized recovery CTA when the handoff is invalid", () => {
+    const copy = getDictionary("en").planner;
+    window.sessionStorage.setItem("localens.personalization.v1", "not-json");
+
+    render(<PlannerFlow locale="en" copy={copy} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(copy.handoffInvalidLabel);
+    expect(screen.getByRole("link", { name: copy.backToPersonalizationLabel })).toHaveAttribute("href", "/en#personalize");
+    expect(screen.queryByTestId("planner-activity")).not.toBeInTheDocument();
+  });
+
+  it("fails closed with a localized recovery CTA when browser storage cannot be read", () => {
+    const copy = getDictionary("vi").planner;
+    const getItemSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage disabled");
+    });
+
+    try {
+      render(<PlannerFlow locale="vi" copy={copy} />);
+
+      expect(screen.getByRole("alert")).toHaveTextContent(copy.handoffStorageErrorLabel);
+      expect(screen.getByRole("link", { name: copy.backToPersonalizationLabel })).toHaveAttribute("href", "/vi#personalize");
+      expect(screen.queryByTestId("planner-activity")).not.toBeInTheDocument();
+    } finally {
+      getItemSpy.mockRestore();
+    }
   });
 
   it("shows submitted preferences in the local proposal without adding a booking action", () => {
