@@ -12,6 +12,10 @@ export const OFFICIAL_HOST_ALLOWLIST = Object.freeze([
   "dinhdoclap.gov.vn",
   "fitomuseum.com.vn",
   "hcmc-museum.edu.vn",
+  "chobinhtay.gov.vn",
+  "banhmihuynhhoa.vn",
+  "itpc.hochiminhcity.gov.vn",
+  "svhtt.hochiminhcity.gov.vn",
   "visithcmc.net",
   "cuchitunnel.org.vn",
 ]);
@@ -26,6 +30,21 @@ export const REQUIRED_PLACE_SLUGS = Object.freeze([
   "tue-thanh-assembly-hall", "fito-museum", "district-5-traditional-medicine-street", "vietnam-silver-house",
   "mot-thoang-viet-nam-craft-village", "rice-paper-phu-hoa-dong", "ao-dai-museum", "hoa-binh-lantern-making",
 ]);
+
+const EXPECTED_SOURCE_IDS_BY_PLACE = Object.freeze({
+  "ho-chi-minh-city-museum": "hcmc-museum",
+  "ho-thi-ky-food-street": "street-food",
+  "alley-200-xom-chieu": "alley-200-xom-chieu",
+  "banh-mi-hoa-ma": "hoa-ma",
+  "banh-mi-huynh-hoa": "huynh-hoa",
+  "an-dong-market": "cho-lon",
+  "binh-tay-market": "binh-tay-market",
+  "thiec-market": "cho-lon",
+  "tue-thanh-assembly-hall": "cho-lon",
+  "district-5-traditional-medicine-street": "cho-lon",
+  "rice-paper-phu-hoa-dong": "craft-report",
+  "hoa-binh-lantern-making": "craft-report",
+});
 
 const PLACE_FILE = join("data", "sources", "hcmc-places.v1.json");
 const TOUR_FILE = join("data", "sources", "hcmc-tours.v1.json");
@@ -143,9 +162,14 @@ function checkPlace(place, index, registry, errors) {
   if (typeof place.sourceUrl === "string" && ![...registry.values()].includes(place.sourceUrl)) addError(errors, `${prefix}.sourceUrl is not registered in the source registry`);
   if (!Array.isArray(place.sourceIds) || place.sourceIds.length === 0 || place.sourceIds.some((id) => !registry.has(id))) addError(errors, `${prefix}.sourceIds must reference the source registry`);
   if (Array.isArray(place.sourceIds) && typeof place.sourceUrl === "string" && !place.sourceIds.some((id) => registry.get(id) === place.sourceUrl)) addError(errors, `${prefix}.sourceUrl must match one of its sourceIds`);
+  const expectedSourceId = EXPECTED_SOURCE_IDS_BY_PLACE[place.slug];
+  if (expectedSourceId && (!Array.isArray(place.sourceIds) || !place.sourceIds.includes(expectedSourceId))) addError(errors, `${prefix} must retain exact source ${expectedSourceId}; generic candidate source is insufficient`);
   checkDate(place.verifiedAt, `${prefix}.verifiedAt`, errors);
   if (!Array.isArray(place.unknownFacts) || place.unknownFacts.length === 0) addError(errors, `${prefix}.unknownFacts must explicitly record unknown facts`);
   if (!Array.isArray(place.evidenceOnlyFields) || place.evidenceOnlyFields.length === 0) addError(errors, `${prefix}.evidenceOnlyFields must preserve non-schema evidence fields`);
+  for (const field of place.evidenceOnlyFields ?? []) {
+    if (!Object.prototype.hasOwnProperty.call(place, field)) addError(errors, `${prefix}.evidenceOnlyFields declares missing embedded field ${field}`);
+  }
   if (!place.coordinates || place.coordinates.status !== "unknown" || place.coordinates.latitude !== null || place.coordinates.longitude !== null) addError(errors, `${prefix}.coordinates must remain explicitly unknown unless sourced`);
   if (!place.hours || !["known", "unknown"].includes(place.hours.status) || !Array.isArray(place.hours.windows)) addError(errors, `${prefix}.hours must declare known/unknown status and windows`);
   if (place.status === "sellable" && (place.hours.status !== "known" || place.hours.windows.length === 0)) addError(errors, `${prefix}.sellable requires verified opening windows`);
@@ -161,7 +185,7 @@ function checkPlace(place, index, registry, errors) {
   if (place.languageSupportConfidence === undefined) addError(errors, `${prefix}.languageSupportConfidence is required`);
   const admission = place.officialAdmission;
   if (!admission || !["known", "unknown"].includes(admission.status) || admission.currency !== "VND") addError(errors, `${prefix}.officialAdmission must declare VND known/unknown status`);
-  if (admission?.status === "known" && (!Number.isInteger(admission.amountVnd) || admission.amountVnd <= 0 || !registry.has(admission.sourceRef))) addError(errors, `${prefix}.known officialAdmission is invalid`);
+  if (admission?.status === "known" && (!Number.isInteger(admission.amountVnd) || admission.amountVnd <= 0 || !registry.has(admission.sourceRef) || typeof admission.scopeCaveat !== "string" || !admission.scopeCaveat.trim())) addError(errors, `${prefix}.known officialAdmission requires amount, registered sourceRef, and scopeCaveat`);
   if (admission?.status === "unknown" && (admission.amountVnd !== null || admission.sourceRef !== null)) addError(errors, `${prefix}.unknown officialAdmission must have null amount/sourceRef`);
   if (!place.planningEstimate || !Number.isInteger(place.planningEstimate.amountVnd) || place.planningEstimate.currency !== "VND" || place.planningEstimate.provenance !== "localens_demo_company_price" || place.planningEstimate.isOfficialAdmission !== false) addError(errors, `${prefix}.planningEstimate must be a non-official LocalLens demo estimate`);
 }
@@ -173,14 +197,19 @@ function checkPlaceEvidence(place, registry, errors) {
   if (address?.verifiedAt) checkDate(address.verifiedAt, `${prefix}.officialAddress.verifiedAt`, errors);
   if (address?.status === "known" && (typeof address.value !== "string" || !address.value.trim())) addError(errors, `${prefix}.officialAddress known value is required`);
   if (address?.status === "unknown" && address.value !== null) addError(errors, `${prefix}.officialAddress unknown value must be null`);
+  if (address?.status === "unknown" && address.sourceRef !== null) addError(errors, `${prefix}.officialAddress unknown sourceRef must be null`);
+  if (address?.status === "known" && !registry.has(address?.sourceRef)) addError(errors, `${prefix}.officialAddress known sourceRef must be registered`);
   if (address?.sourceRef !== null && !registry.has(address?.sourceRef)) addError(errors, `${prefix}.officialAddress.sourceRef is not registered`);
   const factRefs = place.factSourceRefs;
   for (const field of ["identity", "hours", "admission"]) {
     if (!Array.isArray(factRefs?.[field]) || factRefs[field].some((id) => !registry.has(id))) addError(errors, `${prefix}.factSourceRefs.${field} must use registered source IDs`);
   }
+  if (place.hours?.status === "unknown" && (factRefs?.hours?.length ?? 0) > 0) addError(errors, `${prefix}.factSourceRefs.hours must be empty when hours are unknown`);
+  if (place.officialAdmission?.status === "unknown" && (factRefs?.admission?.length ?? 0) > 0) addError(errors, `${prefix}.factSourceRefs.admission must be empty when admission is unknown`);
   for (const supportKind of ["language", "accessibility", "dietary", "mobility"]) {
     const support = place.support?.[supportKind];
     if (!support || !["unknown", "low", "medium", "high"].includes(support.confidence)) addError(errors, `${prefix}.support.${supportKind}.confidence is invalid`);
+    if (support?.confidence === "unknown" && support.sourceRef !== null) addError(errors, `${prefix}.support.${supportKind} unknown sourceRef must be null`);
     if (support?.sourceRef !== null && !registry.has(support?.sourceRef)) addError(errors, `${prefix}.support.${supportKind}.sourceRef is not registered`);
   }
 }

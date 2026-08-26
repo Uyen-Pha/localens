@@ -165,6 +165,46 @@ describe("Task 14 sourced catalog approval gate", () => {
     try { expectInvalid(root, /coordinates|confidence/i); } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
+  it("keeps unknown fact references empty and evidence-only declarations embedded", () => {
+    const mutations = [
+      (manifest: JsonRecord) => { (records(manifest.places)[2].factSourceRefs as JsonRecord).hours = ["city-tourism"]; },
+      (manifest: JsonRecord) => { (records(manifest.places)[2].factSourceRefs as JsonRecord).admission = ["city-tourism"]; },
+      (manifest: JsonRecord) => { (records(manifest.places)[2].evidenceOnlyFields as string[]).push("officialHoursText"); },
+    ];
+    for (const mutation of mutations) {
+      const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", mutation));
+      try { expectInvalid(root, /unknown|factSourceRefs|evidenceOnlyFields|embedded field/i); } finally { rmSync(root, { recursive: true, force: true }); }
+    }
+  });
+
+  it("does not attach source refs to unknown structured address or support facts", () => {
+    const mutations = [
+      (manifest: JsonRecord) => { (records(manifest.places)[2].officialAddress as JsonRecord).sourceRef = "hcmc-museum"; },
+      (manifest: JsonRecord) => { ((records(manifest.places)[2].support as JsonRecord).language as JsonRecord).sourceRef = "hcmc-museum"; },
+    ];
+    for (const mutation of mutations) {
+      const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", mutation));
+      try { expectInvalid(root, /unknown sourceRef|support|officialAddress/i); } finally { rmSync(root, { recursive: true, force: true }); }
+    }
+  });
+
+  it("requires exact registered sources for mapped venue candidates and admission scope caveats", () => {
+    const sourceMutation = (manifest: JsonRecord) => {
+      const place = records(manifest.places).find((candidate) => candidate.slug === "ho-thi-ky-food-street") as JsonRecord;
+      place.sourceIds = ["city-tourism"];
+      place.sourceUrl = "https://visithcmc.net/en/page/ke-hoach-chuyen-di";
+      (place.factSourceRefs as JsonRecord).identity = ["city-tourism"];
+    };
+    const sourceRoot = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", sourceMutation));
+    try { expectInvalid(sourceRoot, /exact source|generic candidate/i); } finally { rmSync(sourceRoot, { recursive: true, force: true }); }
+
+    const caveatRoot = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", (manifest) => {
+      const place = records(manifest.places).find((candidate) => candidate.slug === "war-remnants-museum") as JsonRecord;
+      delete (place.officialAdmission as JsonRecord).scopeCaveat;
+    }));
+    try { expectInvalid(caveatRoot, /scopeCaveat|admission/i); } finally { rmSync(caveatRoot, { recursive: true, force: true }); }
+  });
+
   it("ties tour availability to research-only stops and keeps stale FX USD-disabled", () => {
     const root = fixture((fixtureRoot) => {
       mutateJson(fixtureRoot, "data/sources/hcmc-tours.v1.json", (manifest) => { records(manifest.tours)[0].available = true; (manifest.demoFx as JsonRecord).usdEnabled = true; });

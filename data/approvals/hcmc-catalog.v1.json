@@ -1,7 +1,11 @@
 {
   "schemaVersion": "hcmc-catalog.v1",
   "status": "draft",
-  "reviewer": {"status":"pending","name":null,"userId":null},
+  "reviewer": {
+    "status": "pending",
+    "name": null,
+    "userId": null
+  },
   "reviewedAtUtc": null,
   "approvedAtUtc": null,
   "fixedUuidNamespace": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
@@ -12,11 +16,15 @@
     "placeIdRule": "UUIDv5(namespace, place slug)",
     "tourIdRule": "UUIDv5(namespace, tour slug)"
   },
-  "counts": {"operationalAreas":4,"places":30,"tours":8},
+  "counts": {
+    "operationalAreas": 4,
+    "places": 30,
+    "tours": 8
+  },
   "sourceHashes": {
-    "places": "983ad68b2a9cdd42e34ed2c1fea70d239597b3d12dcdbb02731ce4d3a90fbc3f",
+    "places": "7ab0a632f54967122f94f8ed1a8b159c2e4c95bd4bd8425dee9522bb25e3005e",
     "tours": "42e5c4a275d40e517566993ecd56c017158bc84bdd6466ae1e985a052f1625f3",
-    "sourceHashes": "fccaed8e5e757bc80ea28a14e02c7c6a1b0e50e01d25dd1e848207c39103e21c"
+    "sourceHashes": "9f01e8377806cc2bada18dbe4c1221003652b17a9b32797c831b05349e29dfa7"
   },
   "reviewChecklist": {
     "officialSourceUrlsChecked": false,
@@ -26,5 +34,11 @@
     "hashesChecked": true,
     "networkFetchAtSeedTime": false
   },
-  "invalidatedWhen": ["any fact changes","any source URL/host/sourceRef changes","any hash/count changes","any namespace/slug/order changes","any status or tour-stop change"]
+  "invalidatedWhen": [
+    "any fact changes",
+    "any source URL/host/sourceRef changes",
+    "any hash/count changes",
+    "any namespace/slug/order changes",
+    "any status or tour-stop change"
+  ]
 }

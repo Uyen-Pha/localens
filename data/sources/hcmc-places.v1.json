@@ -53,16 +53,16 @@
     },
     {
       "sourceId": "hcmc-museum",
-      "url": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
-      "hostname": "visithcmc.net",
+      "url": "https://hcmc-museum.edu.vn/trang-chu-english",
+      "hostname": "hcmc-museum.edu.vn",
       "authority": "official",
-      "publisher": "Ho Chi Minh City Department of Tourism portal",
+      "publisher": "Ho Chi Minh City Museum",
       "retrievedAtUtc": "2026-08-25T00:00:00Z",
       "verifiedAt": "2026-08-25",
       "primary": true,
-      "attribution": "Ho Chi Minh City official tourism itinerary page",
-      "license": "No open license stated; research-only use with attribution; verify before publication",
-      "notes": "Exact official city-tourism page; venue-level facts must be rechecked against the museum before publication."
+      "attribution": "Ho Chi Minh City Museum official English home page",
+      "license": "No open license stated; research-only use with attribution; verify before publication.",
+      "notes": "Exact official museum page used only for identity/candidate evidence in this research-only draft."
     },
     {
       "sourceId": "history-museum",
@@ -116,6 +116,97 @@
       "attribution": "Cu Chi Tunnels official website",
       "license": "No open license stated; research-only use with attribution; verify before publication",
       "notes": "Official venue source; route and accessibility remain to be rechecked."
+    },
+    {
+      "sourceId": "street-food",
+      "url": "https://visithcmc.net/en/news/nhung-dia-diem-am-thuc-duong-pho-tai-sai-gon",
+      "hostname": "visithcmc.net",
+      "publisher": "Ho Chi Minh City Department of Tourism portal",
+      "attribution": "Official HCMC tourism street-food article",
+      "notes": "Exact official article used for street-food candidate identity; venue hours and admission remain unverified.",
+      "authority": "official",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "license": "No open license stated; research-only use with attribution; verify before publication."
+    },
+    {
+      "sourceId": "cho-lon",
+      "url": "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho",
+      "hostname": "visithcmc.net",
+      "publisher": "Ho Chi Minh City Department of Tourism portal",
+      "attribution": "Official HCMC tourism Cho Lon article",
+      "notes": "Exact official article used for Cho Lon candidate identity; individual venue hours and admission remain unverified.",
+      "authority": "official",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "license": "No open license stated; research-only use with attribution; verify before publication."
+    },
+    {
+      "sourceId": "binh-tay-market",
+      "url": "https://chobinhtay.gov.vn/",
+      "hostname": "chobinhtay.gov.vn",
+      "publisher": "Binh Tay Market",
+      "attribution": "Binh Tay Market official website",
+      "notes": "Canonical official market domain used only as a candidate lead; current market page, hours and admission require confirmation.",
+      "authority": "official",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "license": "No open license stated; research-only use with attribution; verify before publication."
+    },
+    {
+      "sourceId": "huynh-hoa",
+      "url": "https://banhmihuynhhoa.vn/",
+      "hostname": "banhmihuynhhoa.vn",
+      "publisher": "Banh Mi Huynh Hoa",
+      "attribution": "Banh Mi Huynh Hoa official website",
+      "notes": "Exact vendor website used for candidate identity; current service hours and tour access remain unverified.",
+      "authority": "official",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "license": "No open license stated; research-only use with attribution; verify before publication."
+    },
+    {
+      "sourceId": "hoa-ma",
+      "url": "https://visithcmc.net/en/news/10-mon-banh-mi-phai-thuong-thuc-tai-tphcm",
+      "hostname": "visithcmc.net",
+      "publisher": "Ho Chi Minh City Department of Tourism portal",
+      "attribution": "Official HCMC tourism banh mi article",
+      "notes": "Exact official article used as a banh-mi candidate source; vendor identity, service hours and tour access require confirmation.",
+      "authority": "official",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "license": "No open license stated; research-only use with attribution; verify before publication."
+    },
+    {
+      "sourceId": "alley-200-xom-chieu",
+      "url": "https://visithcmc.net/en/news/tag/hem-200-xom-chieu",
+      "hostname": "visithcmc.net",
+      "publisher": "Ho Chi Minh City Department of Tourism portal",
+      "attribution": "Official HCMC tourism Alley 200 tag page",
+      "notes": "Exact official tag page used as a candidate lead only; no current vendor-level hours or admission fact is asserted.",
+      "authority": "official",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "license": "No open license stated; research-only use with attribution; verify before publication."
+    },
+    {
+      "sourceId": "craft-report",
+      "url": "https://svhtt.hochiminhcity.gov.vn/web/guest/tin-chi-tiet/-/chi-tiet/nghe-truyen-thong-thanh-pho-ho-chi-minh-dau-an-hoi-tu-25781-1.html",
+      "hostname": "svhtt.hochiminhcity.gov.vn",
+      "publisher": "Ho Chi Minh City Department of Culture and Sports",
+      "attribution": "Official Department of Culture and Sports traditional-craft report",
+      "notes": "Exact official report used only as a traditional-craft candidate lead; it does not by itself prove the identity, address, hours or admission of any catalog stop.",
+      "authority": "official",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "license": "No open license stated; research-only use with attribution; verify before publication."
     }
   ],
   "operationalAreas": [
@@ -218,9 +309,10 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "officialAdmissionPrice"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "known",
@@ -232,16 +324,17 @@
         "status": "known",
         "amountVnd": 80000,
         "currency": "VND",
-        "sourceRef": "independence-palace"
+        "sourceRef": "independence-palace",
+        "scopeCaveat": "Ticket amount is a researched category estimate from the official page; visitor category, inclusions and international-adult applicability require final confirmation before sale."
       },
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "independence-palace"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "independence-palace"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -249,7 +342,7 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "independence-palace"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
@@ -323,9 +416,10 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "officialAdmissionPrice"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "known",
@@ -337,7 +431,8 @@
         "status": "known",
         "amountVnd": 40000,
         "currency": "VND",
-        "sourceRef": "war-remnants"
+        "sourceRef": "war-remnants",
+        "scopeCaveat": "Ticket amount is a researched category estimate from the official page; visitor category, inclusions and international-adult applicability require final confirmation before sale."
       },
       "support": {
         "language": {
@@ -346,7 +441,7 @@
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "war-remnants"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -354,7 +449,7 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "war-remnants"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
@@ -397,7 +492,7 @@
       "visitDurationMinutes": 75,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://hcmc-museum.edu.vn/trang-chu-english",
       "sourceIds": [
         "hcmc-museum"
       ],
@@ -421,14 +516,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "officialAdmissionPrice"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -440,11 +536,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -452,19 +548,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "hcmc-museum"
         ],
-        "hours": [
-          "city-tourism"
-        ],
-        "admission": [
-          "city-tourism"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -519,9 +611,10 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "officialAdmissionPrice"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "known",
@@ -538,11 +631,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "history-museum"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "history-museum"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -550,19 +643,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "history-museum"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
           "history-museum"
         ],
-        "hours": [
-          "city-tourism"
-        ],
-        "admission": [
-          "city-tourism"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -617,9 +706,10 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "officialServiceSchedule"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "known",
@@ -636,11 +726,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -648,19 +738,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
           "city-tourism"
         ],
-        "hours": [
-          "city-tourism"
-        ],
-        "admission": [
-          "city-tourism"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -715,9 +801,10 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "officialAdmissionPrice"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "known",
@@ -734,11 +821,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -746,19 +833,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
           "city-tourism"
         ],
-        "hours": [
-          "city-tourism"
-        ],
-        "admission": [
-          "city-tourism"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -813,14 +896,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "officialAdmissionPrice"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -832,11 +916,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -844,19 +928,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
           "city-tourism"
         ],
-        "hours": [
-          "city-tourism"
-        ],
-        "admission": [
-          "city-tourism"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -911,14 +991,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "officialAdmissionPrice"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -930,11 +1011,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -942,19 +1023,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
           "city-tourism"
         ],
-        "hours": [
-          "city-tourism"
-        ],
-        "admission": [
-          "city-tourism"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -1009,14 +1086,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "officialVisitorRules"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -1028,11 +1106,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -1040,19 +1118,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
           "city-tourism"
         ],
-        "hours": [
-          "city-tourism"
-        ],
-        "admission": [
-          "city-tourism"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -1107,14 +1181,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "officialAdmissionPrice"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "cu-chi",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -1126,11 +1201,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "cu-chi"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "cu-chi"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -1138,19 +1213,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "cu-chi"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
           "cu-chi"
         ],
-        "hours": [
-          "cu-chi"
-        ],
-        "admission": [
-          "cu-chi"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -1206,9 +1277,10 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "stallOpeningDetails"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "known",
@@ -1225,11 +1297,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -1237,19 +1309,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
           "city-tourism"
         ],
-        "hours": [
-          "city-tourism"
-        ],
-        "admission": [
-          "city-tourism"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -1305,9 +1373,10 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "stallOpeningDetails"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "known",
@@ -1324,11 +1393,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -1336,19 +1405,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
           "city-tourism"
         ],
-        "hours": [
-          "city-tourism"
-        ],
-        "admission": [
-          "city-tourism"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -1380,9 +1445,9 @@
       "visitDurationMinutes": 90,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho",
       "sourceIds": [
-        "city-tourism"
+        "cho-lon"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -1404,14 +1469,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "stallOpeningDetails"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "known",
         "value": "18 An Duong Vuong Street, Ho Chi Minh City.",
-        "sourceRef": "city-tourism",
+        "sourceRef": "cho-lon",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -1423,11 +1489,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -1435,19 +1501,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "cho-lon"
         ],
-        "hours": [
-          "city-tourism"
-        ],
-        "admission": [
-          "city-tourism"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -1479,9 +1541,9 @@
       "visitDurationMinutes": 90,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://chobinhtay.gov.vn/",
       "sourceIds": [
-        "city-tourism"
+        "binh-tay-market"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -1503,14 +1565,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "stallOpeningDetails"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "known",
         "value": "57A Thap Muoi Street, Ho Chi Minh City.",
-        "sourceRef": "city-tourism",
+        "sourceRef": "binh-tay-market",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -1522,11 +1585,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -1534,19 +1597,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "binh-tay-market"
         ],
-        "hours": [
-          "city-tourism"
-        ],
-        "admission": [
-          "city-tourism"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -1577,9 +1636,9 @@
       "visitDurationMinutes": 120,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://visithcmc.net/en/news/nhung-dia-diem-am-thuc-duong-pho-tai-sai-gon",
       "sourceIds": [
-        "city-tourism"
+        "street-food"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -1601,14 +1660,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "vendorOpeningDetails"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -1637,11 +1697,9 @@
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "street-food"
         ],
-        "hours": [
-          "city-tourism"
-        ],
+        "hours": [],
         "admission": []
       },
       "planningEstimate": {
@@ -1698,9 +1756,10 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "eventClosureCalendar"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "known",
@@ -1717,11 +1776,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -1729,16 +1788,14 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
           "city-tourism"
         ],
-        "hours": [
-          "city-tourism"
-        ],
+        "hours": [],
         "admission": []
       },
       "planningEstimate": {
@@ -1770,9 +1827,9 @@
       "visitDurationMinutes": 60,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho",
       "sourceIds": [
-        "city-tourism"
+        "cho-lon"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -1794,14 +1851,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "visitorRules"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -1813,11 +1871,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -1825,16 +1883,14 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "city-tourism"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "cho-lon"
         ],
-        "hours": [
-          "city-tourism"
-        ],
+        "hours": [],
         "admission": []
       },
       "planningEstimate": {
@@ -1899,9 +1955,10 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "officialAdmissionPrice"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "known",
@@ -1913,7 +1970,8 @@
         "status": "known",
         "amountVnd": 180000,
         "currency": "VND",
-        "sourceRef": "fito"
+        "sourceRef": "fito",
+        "scopeCaveat": "Ticket amount is a researched category estimate from the official page; visitor category, inclusions and international-adult applicability require final confirmation before sale."
       },
       "support": {
         "language": {
@@ -1922,7 +1980,7 @@
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "fito"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -1930,7 +1988,7 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "fito"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
@@ -1974,9 +2032,9 @@
       "visitDurationMinutes": 75,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho",
       "sourceIds": [
-        "city-tourism"
+        "cho-lon"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -1998,14 +2056,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "shopOpeningDetails"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -2034,11 +2093,9 @@
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "cho-lon"
         ],
-        "hours": [
-          "city-tourism"
-        ],
+        "hours": [],
         "admission": []
       },
       "planningEstimate": {
@@ -2095,14 +2152,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "officialAdmissionPrice"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "ao-dai",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -2114,11 +2172,11 @@
       "support": {
         "language": {
           "confidence": "unknown",
-          "sourceRef": "ao-dai"
+          "sourceRef": null
         },
         "accessibility": {
           "confidence": "unknown",
-          "sourceRef": "ao-dai"
+          "sourceRef": null
         },
         "dietary": {
           "confidence": "unknown",
@@ -2126,19 +2184,15 @@
         },
         "mobility": {
           "confidence": "unknown",
-          "sourceRef": "ao-dai"
+          "sourceRef": null
         }
       },
       "factSourceRefs": {
         "identity": [
           "ao-dai"
         ],
-        "hours": [
-          "ao-dai"
-        ],
-        "admission": [
-          "ao-dai"
-        ]
+        "hours": [],
+        "admission": []
       },
       "planningEstimate": {
         "amountVnd": 0,
@@ -2169,9 +2223,9 @@
       "visitDurationMinutes": 60,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://visithcmc.net/en/news/kham-pha-cho-lon-khu-pho-nguoi-hoa-tai-thanh-pho",
       "sourceIds": [
-        "city-tourism"
+        "cho-lon"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -2193,14 +2247,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "stallOpeningDetails"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -2229,7 +2284,7 @@
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "cho-lon"
         ],
         "hours": [],
         "admission": []
@@ -2288,14 +2343,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "stallOpeningDetails"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -2383,14 +2439,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "stallOpeningDetails"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -2453,9 +2510,9 @@
       "visitDurationMinutes": 90,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://visithcmc.net/en/news/tag/hem-200-xom-chieu",
       "sourceIds": [
-        "city-tourism"
+        "alley-200-xom-chieu"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -2477,14 +2534,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "vendorOpeningDetails"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -2513,7 +2571,7 @@
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "alley-200-xom-chieu"
         ],
         "hours": [],
         "admission": []
@@ -2547,9 +2605,9 @@
       "visitDurationMinutes": 45,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://visithcmc.net/en/news/10-mon-banh-mi-phai-thuong-thuc-tai-tphcm",
       "sourceIds": [
-        "city-tourism"
+        "hoa-ma"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -2571,14 +2629,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "vendorOpeningDetails"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -2607,7 +2666,7 @@
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "hoa-ma"
         ],
         "hours": [],
         "admission": []
@@ -2641,9 +2700,9 @@
       "visitDurationMinutes": 45,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://banhmihuynhhoa.vn/",
       "sourceIds": [
-        "city-tourism"
+        "huynh-hoa"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -2665,14 +2724,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "vendorOpeningDetails"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -2701,7 +2761,7 @@
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "huynh-hoa"
         ],
         "hours": [],
         "admission": []
@@ -2759,14 +2819,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "demonstrationSchedule"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -2853,14 +2914,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "demonstrationSchedule"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -2923,9 +2985,9 @@
       "visitDurationMinutes": 90,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://svhtt.hochiminhcity.gov.vn/web/guest/tin-chi-tiet/-/chi-tiet/nghe-truyen-thong-thanh-pho-ho-chi-minh-dau-an-hoi-tu-25781-1.html",
       "sourceIds": [
-        "city-tourism"
+        "craft-report"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -2947,14 +3009,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "demonstrationSchedule"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -2983,7 +3046,7 @@
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "craft-report"
         ],
         "hours": [],
         "admission": []
@@ -3017,9 +3080,9 @@
       "visitDurationMinutes": 75,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://svhtt.hochiminhcity.gov.vn/web/guest/tin-chi-tiet/-/chi-tiet/nghe-truyen-thong-thanh-pho-ho-chi-minh-dau-an-hoi-tu-25781-1.html",
       "sourceIds": [
-        "city-tourism"
+        "craft-report"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
@@ -3041,14 +3104,15 @@
       ],
       "evidenceOnlyFields": [
         "officialAddress",
-        "officialHoursText",
-        "officialCoordinates",
-        "demonstrationSchedule"
+        "officialAdmission",
+        "support",
+        "factSourceRefs",
+        "planningEstimate"
       ],
       "officialAddress": {
         "status": "unknown",
         "value": null,
-        "sourceRef": "city-tourism",
+        "sourceRef": null,
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
@@ -3077,7 +3141,7 @@
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "craft-report"
         ],
         "hours": [],
         "admission": []
