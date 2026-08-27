@@ -12,6 +12,9 @@ const repoRoot = process.cwd();
 type JsonRecord = Record<string, unknown>;
 
 function records(value: unknown): JsonRecord[] { return value as JsonRecord[]; }
+function placeBySlug(manifest: JsonRecord, slug: string): JsonRecord {
+  return records(manifest.places).find((place) => place.slug === slug) as JsonRecord;
+}
 
 function fixture(mutator?: (root: string) => void): string {
   const root = mkdtempSync(join(tmpdir(), "localens-task14-fixture-"));
@@ -167,9 +170,9 @@ describe("Task 14 sourced catalog approval gate", () => {
 
   it("keeps unknown fact references empty and evidence-only declarations embedded", () => {
     const mutations = [
-      (manifest: JsonRecord) => { (records(manifest.places)[2].factSourceRefs as JsonRecord).hours = ["city-tourism"]; },
-      (manifest: JsonRecord) => { (records(manifest.places)[2].factSourceRefs as JsonRecord).admission = ["city-tourism"]; },
-      (manifest: JsonRecord) => { (records(manifest.places)[2].evidenceOnlyFields as string[]).push("officialHoursText"); },
+      (manifest: JsonRecord) => { (placeBySlug(manifest, "history-museum-hcmc").factSourceRefs as JsonRecord).hours = ["city-tourism"]; },
+      (manifest: JsonRecord) => { (placeBySlug(manifest, "history-museum-hcmc").factSourceRefs as JsonRecord).admission = ["city-tourism"]; },
+      (manifest: JsonRecord) => { (placeBySlug(manifest, "history-museum-hcmc").evidenceOnlyFields as string[]).push("officialHoursText"); },
     ];
     for (const mutation of mutations) {
       const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", mutation));
@@ -179,8 +182,8 @@ describe("Task 14 sourced catalog approval gate", () => {
 
   it("does not attach source refs to unknown structured address or support facts", () => {
     const mutations = [
-      (manifest: JsonRecord) => { (records(manifest.places)[2].officialAddress as JsonRecord).sourceRef = "hcmc-museum"; },
-      (manifest: JsonRecord) => { ((records(manifest.places)[2].support as JsonRecord).language as JsonRecord).sourceRef = "hcmc-museum"; },
+      (manifest: JsonRecord) => { (placeBySlug(manifest, "southern-womens-museum").officialAddress as JsonRecord).sourceRef = "hcmc-museum"; },
+      (manifest: JsonRecord) => { ((placeBySlug(manifest, "southern-womens-museum").support as JsonRecord).language as JsonRecord).sourceRef = "hcmc-museum"; },
     ];
     for (const mutation of mutations) {
       const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", mutation));

@@ -489,8 +489,16 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Sunday, including holidays",
+            "facility": "Museum visiting hours",
+            "opens": "08:00",
+            "closes": "17:00",
+            "sourceId": "hcmc-museum"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -503,7 +511,8 @@
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
-        "Exhibition availability, current fee and accessibility details require a final operational check."
+        "Exhibition availability and accessibility details remain unverified; LocalLens must not promise step-free access.",
+        "The website contains some English labels, but full English visitor information and English-guided service were not confirmed."
       ],
       "evidenceOnlyFields": [
         "officialAddress",
@@ -513,16 +522,17 @@
         "planningEstimate"
       ],
       "officialAddress": {
-        "status": "unknown",
-        "value": null,
-        "sourceRef": null,
+        "status": "known",
+        "value": "65 Ly Tu Trong Street, Saigon Ward, Ho Chi Minh City.",
+        "sourceRef": "hcmc-museum",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 40000,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "hcmc-museum",
+        "scopeCaveat": "Admission is 40,000 VND/person for foreign visitors; Vietnamese visitors, people with disabilities and ICOM members are listed as free. LocalLens uses 40,000 VND as the default international-adult planning amount."
       },
       "support": {
         "language": {
@@ -546,8 +556,12 @@
         "identity": [
           "hcmc-museum"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "hcmc-museum"
+        ],
+        "admission": [
+          "hcmc-museum"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,
