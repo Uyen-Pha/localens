@@ -598,8 +598,23 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Tuesday-Sunday",
+            "facility": "Morning visiting hours",
+            "opens": "08:00",
+            "closes": "11:30",
+            "sourceId": "history-museum"
+          },
+          {
+            "days": "Tuesday-Sunday",
+            "facility": "Afternoon visiting hours",
+            "opens": "13:00",
+            "closes": "17:00",
+            "sourceId": "history-museum"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -612,7 +627,8 @@
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
-        "Current gallery rotation, fee and mobility details require a final operational check."
+        "Current gallery rotation and mobility details remain unverified; LocalLens must not promise step-free access.",
+        "English website content is available, but an English-guided service was not separately confirmed."
       ],
       "evidenceOnlyFields": [
         "officialAddress",
@@ -623,15 +639,16 @@
       ],
       "officialAddress": {
         "status": "known",
-        "value": "02 Nguyen Binh Khiem Street, Ho Chi Minh City.",
+        "value": "2 Nguyen Binh Khiem Street, Ben Nghe Ward, District 1, Ho Chi Minh City.",
         "sourceRef": "history-museum",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 30000,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "history-museum",
+        "scopeCaveat": "Adult admission is 30,000 VND/person. Children under 6 and specified policy groups are free; eligible children 6-16, Vietnamese students, Vietnamese seniors and other listed groups receive 50% reduction with proof. LocalLens uses 30,000 VND as the default international-adult planning amount."
       },
       "support": {
         "language": {
@@ -655,8 +672,12 @@
         "identity": [
           "history-museum"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "history-museum"
+        ],
+        "admission": [
+          "history-museum"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,

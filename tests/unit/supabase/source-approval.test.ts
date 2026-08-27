@@ -170,9 +170,9 @@ describe("Task 14 sourced catalog approval gate", () => {
 
   it("keeps unknown fact references empty and evidence-only declarations embedded", () => {
     const mutations = [
-      (manifest: JsonRecord) => { (placeBySlug(manifest, "history-museum-hcmc").factSourceRefs as JsonRecord).hours = ["city-tourism"]; },
-      (manifest: JsonRecord) => { (placeBySlug(manifest, "history-museum-hcmc").factSourceRefs as JsonRecord).admission = ["city-tourism"]; },
-      (manifest: JsonRecord) => { (placeBySlug(manifest, "history-museum-hcmc").evidenceOnlyFields as string[]).push("officialHoursText"); },
+      (manifest: JsonRecord) => { (placeBySlug(manifest, "central-post-office").factSourceRefs as JsonRecord).hours = ["city-tourism"]; },
+      (manifest: JsonRecord) => { (placeBySlug(manifest, "central-post-office").factSourceRefs as JsonRecord).admission = ["city-tourism"]; },
+      (manifest: JsonRecord) => { (placeBySlug(manifest, "central-post-office").evidenceOnlyFields as string[]).push("officialHoursText"); },
     ];
     for (const mutation of mutations) {
       const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", mutation));
