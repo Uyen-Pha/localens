@@ -835,8 +835,15 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Sunday",
+            "opens": "08:00",
+            "closes": "17:00",
+            "sourceId": "city-tourism"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -844,12 +851,14 @@
         "longitude": null
       },
       "languageSupport": {
-        "en": "unknown",
+        "en": "known",
         "vi": "known"
       },
-      "languageSupportConfidence": "unknown",
+      "languageSupportConfidence": "medium",
       "unknownFacts": [
-        "Current exhibition, ticket and accessibility details require a final operational check."
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "An English information channel is available, but English-guided service was not separately confirmed.",
+        "The attached free-entry notice refers to specific HCMC-resident/student eligibility and listed commemorative dates; date validity and proof requirements require a final check."
       ],
       "evidenceOnlyFields": [
         "officialAddress",
@@ -860,20 +869,21 @@
       ],
       "officialAddress": {
         "status": "known",
-        "value": "97 Pho Duc Chinh Street, Ho Chi Minh City.",
+        "value": "97 Pho Duc Chinh Street, Ben Thanh Ward, Ho Chi Minh City.",
         "sourceRef": "city-tourism",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 30000,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "city-tourism",
+        "scopeCaveat": "International adult admission is 30,000 VND/person. Students and school pupils are listed at 15,000 VND; children under 6 and visitors over 60 are listed as free in the reviewed information. The attached notice separately describes free admission for HCMC residents and HCMC-based primary, secondary and high-school students on 12 listed commemorative dates; eligibility and validity require rechecking. LocalLens uses 30,000 VND as the default international-adult planning amount."
       },
       "support": {
         "language": {
-          "confidence": "unknown",
-          "sourceRef": null
+          "confidence": "medium",
+          "sourceRef": "city-tourism"
         },
         "accessibility": {
           "confidence": "unknown",
@@ -892,8 +902,12 @@
         "identity": [
           "city-tourism"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,
