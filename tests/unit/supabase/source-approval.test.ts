@@ -182,8 +182,8 @@ describe("Task 14 sourced catalog approval gate", () => {
 
   it("does not attach source refs to unknown structured address or support facts", () => {
     const mutations = [
-      (manifest: JsonRecord) => { (placeBySlug(manifest, "southern-womens-museum").officialAddress as JsonRecord).sourceRef = "hcmc-museum"; },
-      (manifest: JsonRecord) => { ((placeBySlug(manifest, "southern-womens-museum").support as JsonRecord).language as JsonRecord).sourceRef = "hcmc-museum"; },
+      (manifest: JsonRecord) => { (placeBySlug(manifest, "ton-duc-thang-museum").officialAddress as JsonRecord).sourceRef = "hcmc-museum"; },
+      (manifest: JsonRecord) => { ((placeBySlug(manifest, "ton-duc-thang-museum").support as JsonRecord).language as JsonRecord).sourceRef = "hcmc-museum"; },
     ];
     for (const mutation of mutations) {
       const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", mutation));

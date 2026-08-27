@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 
 export const OFFICIAL_HOST_ALLOWLIST = Object.freeze([
   "aodaomuseum.com",
+  "baotangphunu.com",
   "baotangchungtichchientranh.vn",
   "www.baotanglichsutphcm.com.vn",
   "dinhdoclap.gov.vn",
@@ -30,6 +31,7 @@ export const REQUIRED_PLACE_SLUGS = Object.freeze([
 
 const EXPECTED_SOURCE_IDS_BY_PLACE = Object.freeze({
   "ho-chi-minh-city-museum": { sourceId: "hcmc-museum", url: "https://hcmc-museum.edu.vn/trang-chu-english" },
+  "southern-womens-museum": { sourceId: "southern-womens-museum", url: "https://baotangphunu.com/" },
   "ho-thi-ky-food-street": { sourceId: "street-food", url: "https://visithcmc.net/en/news/nhung-dia-diem-am-thuc-duong-pho-tai-sai-gon" },
   "alley-200-xom-chieu": { sourceId: "street-food", url: "https://visithcmc.net/en/news/nhung-dia-diem-am-thuc-duong-pho-tai-sai-gon" },
   "banh-mi-hoa-ma": { sourceId: "hoa-ma", url: "https://visithcmc.net/en/news/10-mon-banh-mi-phai-thuong-thuc-tai-tphcm" },

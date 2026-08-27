@@ -78,6 +78,19 @@
       "notes": "Exact official museum page for identity; hours remain explicitly unverified in this draft."
     },
     {
+      "sourceId": "southern-womens-museum",
+      "url": "https://baotangphunu.com/",
+      "hostname": "baotangphunu.com",
+      "authority": "official",
+      "publisher": "Southern Women's Museum",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "attribution": "Southern Women's Museum official website",
+      "license": "No open license stated; research-only use with attribution; verify before publication",
+      "notes": "Official homepage checked for venue identity, opening hours, free admission, English navigation and the current contact block; administrative labels differ between page sections and require rechecking."
+    },
+    {
       "sourceId": "fito",
       "url": "https://fitomuseum.com.vn/bao-tang-y-hoc-co-truyen-viet-nam/",
       "hostname": "fitomuseum.com.vn",
@@ -938,14 +951,27 @@
       "visitDurationMinutes": 75,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://baotangphunu.com/",
       "sourceIds": [
-        "city-tourism"
+        "southern-womens-museum"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Sunday",
+            "opens": "07:30",
+            "closes": "11:30",
+            "sourceId": "southern-womens-museum"
+          },
+          {
+            "days": "Monday-Sunday",
+            "opens": "13:30",
+            "closes": "17:00",
+            "sourceId": "southern-womens-museum"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -953,12 +979,14 @@
         "longitude": null
       },
       "languageSupport": {
-        "en": "unknown",
+        "en": "known",
         "vi": "known"
       },
-      "languageSupportConfidence": "unknown",
+      "languageSupportConfidence": "medium",
       "unknownFacts": [
-        "Current displays, fee and accessibility details require a final operational check."
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "English information is available, but English-guided service was not separately confirmed.",
+        "The official homepage's current contact block also displays 200-202 Vo Thi Sau Street, Xuan Hoa Ward; the administrative/address label should be rechecked before publication."
       ],
       "evidenceOnlyFields": [
         "officialAddress",
@@ -968,21 +996,22 @@
         "planningEstimate"
       ],
       "officialAddress": {
-        "status": "unknown",
-        "value": null,
-        "sourceRef": null,
+        "status": "known",
+        "value": "202 Vo Thi Sau Street, Vo Thi Sau Ward, District 3, Ho Chi Minh City.",
+        "sourceRef": "southern-womens-museum",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 0,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "southern-womens-museum",
+        "scopeCaveat": "General admission is free according to the reviewed information. LocalLens uses 0 VND as the default planning amount; any paid special exhibition or service requires separate confirmation."
       },
       "support": {
         "language": {
-          "confidence": "unknown",
-          "sourceRef": null
+          "confidence": "medium",
+          "sourceRef": "southern-womens-museum"
         },
         "accessibility": {
           "confidence": "unknown",
@@ -999,10 +1028,14 @@
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "southern-womens-museum"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "southern-womens-museum"
+        ],
+        "admission": [
+          "southern-womens-museum"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,
