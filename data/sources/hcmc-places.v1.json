@@ -378,8 +378,16 @@
         "windows": [
           {
             "days": "daily",
+            "facility": "Museum visitor access",
             "opens": "07:30",
             "closes": "17:30",
+            "sourceId": "war-remnants"
+          },
+          {
+            "days": "daily",
+            "facility": "Ticket counter at 28 Vo Van Tan Street",
+            "opens": "07:30",
+            "closes": "17:00",
             "sourceId": "war-remnants"
           }
         ]
@@ -395,7 +403,7 @@
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
-        "Current exhibition rotation, ticket policy and mobility details require a final operational check."
+        "Current exhibition rotation and mobility details remain unverified; LocalLens must not promise step-free access."
       ],
       "evidenceOnlyFields": [
         "officialAddress",
@@ -406,7 +414,7 @@
       ],
       "officialAddress": {
         "status": "known",
-        "value": "28 Vo Van Tan Street, Ho Chi Minh City.",
+        "value": "Ticket entrance: 28 Vo Van Tan Street, Xuan Hoa Ward, Ho Chi Minh City. Rear parking entrance: Le Quy Don Street, Xuan Hoa Ward, Ho Chi Minh City.",
         "sourceRef": "war-remnants",
         "verifiedAt": "2026-08-25"
       },
@@ -415,7 +423,7 @@
         "amountVnd": 40000,
         "currency": "VND",
         "sourceRef": "war-remnants",
-        "scopeCaveat": "Ticket amount is a researched category estimate from the official page; visitor category, inclusions and international-adult applicability require final confirmation before sale."
+        "scopeCaveat": "Adult admission is 40,000 VND/person for Vietnamese and foreign visitors. Reduced admission is 20,000 VND for eligible students with card; children under 6 are free. LocalLens uses 40,000 VND as the default international-adult planning amount; eligibility for reduced/free categories requires separate handling."
       },
       "support": {
         "language": {
