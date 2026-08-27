@@ -7,7 +7,7 @@
   "manifests": {
     "places": {
       "path": "data/sources/hcmc-places.v1.json",
-      "sha256": "5b2025848eee158db1081e77068049756302bf3ca7b7631504b64f1a2810845a",
+      "sha256": "2bacf872b03a4d143e5c0671ce5c375884be7bbe7f599bbdb3793723c326dcbb",
       "recordCount": 30,
       "semanticOrder": "places array order"
     },

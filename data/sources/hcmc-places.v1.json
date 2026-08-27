@@ -91,6 +91,19 @@
       "notes": "Official homepage checked for venue identity, opening hours, free admission, English navigation and the current contact block; administrative labels differ between page sections and require rechecking."
     },
     {
+      "sourceId": "ton-duc-thang-museum",
+      "url": "https://baotangtonducthang.vn/ngoi-sao-bien-den",
+      "hostname": "baotangtonducthang.vn",
+      "authority": "official",
+      "publisher": "Ton Duc Thang Museum",
+      "retrievedAtUtc": "2026-08-25T00:00:00Z",
+      "verifiedAt": "2026-08-25",
+      "primary": true,
+      "attribution": "Ton Duc Thang Museum official website",
+      "license": "No open license stated; research-only use with attribution; verify before publication",
+      "notes": "Official museum page checked for address, opening schedule and English navigation; the reviewed page did not expose the admission price, so the supplied 20,000 VND price requires counter confirmation."
+    },
+    {
       "sourceId": "fito",
       "url": "https://fitomuseum.com.vn/bao-tang-y-hoc-co-truyen-viet-nam/",
       "hostname": "fitomuseum.com.vn",
@@ -1066,14 +1079,27 @@
       "visitDurationMinutes": 60,
       "priceVndPerPerson": 0,
       "priceProvenance": "localens_demo_company_price",
-      "sourceUrl": "https://visithcmc.net/en/page/ke-hoach-chuyen-di",
+      "sourceUrl": "https://baotangtonducthang.vn/ngoi-sao-bien-den",
       "sourceIds": [
-        "city-tourism"
+        "ton-duc-thang-museum"
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Tuesday-Sunday",
+            "opens": "07:30",
+            "closes": "11:30",
+            "sourceId": "ton-duc-thang-museum"
+          },
+          {
+            "days": "Tuesday-Sunday",
+            "opens": "13:00",
+            "closes": "17:00",
+            "sourceId": "ton-duc-thang-museum"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -1081,12 +1107,14 @@
         "longitude": null
       },
       "languageSupport": {
-        "en": "unknown",
+        "en": "known",
         "vi": "known"
       },
-      "languageSupportConfidence": "unknown",
+      "languageSupportConfidence": "medium",
       "unknownFacts": [
-        "Current display, fee and accessibility details require a final operational check."
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "The supplied international-adult price of 20,000 VND was not displayed on the reviewed official page and requires counter confirmation before publication.",
+        "The official museum page currently displays phường Sài Gòn for the same address; the administrative ward label should be rechecked before publication."
       ],
       "evidenceOnlyFields": [
         "officialAddress",
@@ -1096,21 +1124,22 @@
         "planningEstimate"
       ],
       "officialAddress": {
-        "status": "unknown",
-        "value": null,
-        "sourceRef": null,
+        "status": "known",
+        "value": "5 Ton Duc Thang Street, Ben Nghe Ward, District 1, Ho Chi Minh City.",
+        "sourceRef": "ton-duc-thang-museum",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 20000,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "ton-duc-thang-museum",
+        "scopeCaveat": "International-adult admission is recorded as 20,000 VND/person from the 27/08/2026 review and requires confirmation at the museum counter because the reviewed official page did not display the price. LocalLens uses 20,000 VND as the default planning amount."
       },
       "support": {
         "language": {
-          "confidence": "unknown",
-          "sourceRef": null
+          "confidence": "medium",
+          "sourceRef": "ton-duc-thang-museum"
         },
         "accessibility": {
           "confidence": "unknown",
@@ -1127,10 +1156,14 @@
       },
       "factSourceRefs": {
         "identity": [
-          "city-tourism"
+          "ton-duc-thang-museum"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "ton-duc-thang-museum"
+        ],
+        "admission": [
+          "ton-duc-thang-museum"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,
