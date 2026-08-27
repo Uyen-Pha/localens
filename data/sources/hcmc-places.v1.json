@@ -1200,8 +1200,15 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Sunday",
+            "opens": "07:00",
+            "closes": "21:00",
+            "sourceId": "city-tourism"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -1214,7 +1221,10 @@
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
-        "Ceremony schedules, visitor etiquette and mobility details require a final operational check."
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "English visitor information or English-guided service was not confirmed.",
+        "The latest human review reports 118 Lac Long Quan and 07:00-21:00 daily; the official tourism listing also shows 565 (old 118) and split hours, so address and opening windows require final normalization.",
+        "The latest human review reports free admission; the official tourism listing does not display a fee schedule, so any donation or paid service requires confirmation."
       ],
       "evidenceOnlyFields": [
         "officialAddress",
@@ -1224,16 +1234,17 @@
         "planningEstimate"
       ],
       "officialAddress": {
-        "status": "unknown",
-        "value": null,
-        "sourceRef": null,
+        "status": "known",
+        "value": "118 Lac Long Quan Street, Ward 10, Tan Binh District, Ho Chi Minh City.",
+        "sourceRef": "city-tourism",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 0,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "city-tourism",
+        "scopeCaveat": "General admission is recorded as free from the latest 27/08/2026 human review. The official tourism listing does not publish a fee schedule; donations, ceremonies or paid services are not included and require confirmation. LocalLens uses 0 VND as the default planning amount."
       },
       "support": {
         "language": {
@@ -1257,8 +1268,12 @@
         "identity": [
           "city-tourism"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,

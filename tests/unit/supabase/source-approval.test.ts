@@ -170,8 +170,8 @@ describe("Task 14 sourced catalog approval gate", () => {
 
   it("keeps unknown fact references empty and evidence-only declarations embedded", () => {
     const mutations = [
-      (manifest: JsonRecord) => { (placeBySlug(manifest, "giac-lam-pagoda").factSourceRefs as JsonRecord).hours = ["city-tourism"]; },
-      (manifest: JsonRecord) => { (placeBySlug(manifest, "giac-lam-pagoda").factSourceRefs as JsonRecord).admission = ["city-tourism"]; },
+      (manifest: JsonRecord) => { (placeBySlug(manifest, "ao-dai-museum").factSourceRefs as JsonRecord).hours = ["city-tourism"]; },
+      (manifest: JsonRecord) => { (placeBySlug(manifest, "ao-dai-museum").factSourceRefs as JsonRecord).admission = ["city-tourism"]; },
       (manifest: JsonRecord) => { (placeBySlug(manifest, "central-post-office").evidenceOnlyFields as string[]).push("officialHoursText"); },
     ];
     for (const mutation of mutations) {
@@ -182,8 +182,8 @@ describe("Task 14 sourced catalog approval gate", () => {
 
   it("does not attach source refs to unknown structured address or support facts", () => {
     const mutations = [
-      (manifest: JsonRecord) => { (placeBySlug(manifest, "giac-lam-pagoda").officialAddress as JsonRecord).sourceRef = "hcmc-museum"; },
-      (manifest: JsonRecord) => { ((placeBySlug(manifest, "giac-lam-pagoda").support as JsonRecord).language as JsonRecord).sourceRef = "hcmc-museum"; },
+      (manifest: JsonRecord) => { (placeBySlug(manifest, "ao-dai-museum").officialAddress as JsonRecord).sourceRef = "hcmc-museum"; },
+      (manifest: JsonRecord) => { ((placeBySlug(manifest, "ao-dai-museum").support as JsonRecord).language as JsonRecord).sourceRef = "hcmc-museum"; },
     ];
     for (const mutation of mutations) {
       const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", mutation));
