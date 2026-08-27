@@ -1420,8 +1420,15 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Sunday",
+            "opens": "07:00",
+            "closes": "19:00",
+            "sourceId": "city-tourism"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -1434,6 +1441,9 @@
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "English visitor information or English-guided service was not confirmed.",
+        "The market is active from about 04:00, while 08:00-18:00 is the recommended visitor window; indoor stalls close after about 19:00 and the side streets host a night market.",
         "Individual stall hours, dietary cross-contact and current prices require a final operational check."
       ],
       "evidenceOnlyFields": [
@@ -1445,15 +1455,16 @@
       ],
       "officialAddress": {
         "status": "known",
-        "value": "Quach Thi Trang Square and surrounding gates, Ho Chi Minh City.",
+        "value": "Le Loi Street, Ben Thanh Ward, District 1, Ho Chi Minh City.",
         "sourceRef": "city-tourism",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 0,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "city-tourism",
+        "scopeCaveat": "General admission is free for international visitors according to the latest 27/08/2026 review. Food, merchandise and other purchases are separate from admission and have no fixed LocalLens price. LocalLens uses 0 VND as the default planning amount."
       },
       "support": {
         "language": {
@@ -1477,8 +1488,12 @@
         "identity": [
           "city-tourism"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,
