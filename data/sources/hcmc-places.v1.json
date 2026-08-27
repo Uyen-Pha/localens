@@ -88,7 +88,7 @@
       "primary": true,
       "attribution": "Southern Women's Museum official website",
       "license": "No open license stated; research-only use with attribution; verify before publication",
-      "notes": "Official homepage checked for venue identity, opening hours, free admission, English navigation and the current contact block; administrative labels differ between page sections and require rechecking."
+      "notes": "Official homepage checked for venue identity, opening hours, English navigation and a free-admission statement; the latest 27/08/2026 human review reports 20,000 VND, so the admission price requires confirmation before publication. Administrative labels differ between page sections and require rechecking."
     },
     {
       "sourceId": "ton-duc-thang-museum",
@@ -1016,10 +1016,10 @@
       },
       "officialAdmission": {
         "status": "known",
-        "amountVnd": 0,
+        "amountVnd": 20000,
         "currency": "VND",
         "sourceRef": "southern-womens-museum",
-        "scopeCaveat": "General admission is free according to the reviewed information. LocalLens uses 0 VND as the default planning amount; any paid special exhibition or service requires separate confirmation."
+        "scopeCaveat": "International-adult admission is recorded as 20,000 VND/person/visit from the latest 27/08/2026 human review. The official homepage currently states free admission, so this conflict must be confirmed at the museum counter before publication. LocalLens keeps its separate planning estimate at 0 VND until company pricing is set."
       },
       "support": {
         "language": {
