@@ -262,8 +262,16 @@
         "windows": [
           {
             "days": "daily",
+            "gate": "135 Nam Ky Khoi Nghia Street",
             "opens": "07:00",
             "closes": "18:00",
+            "sourceId": "independence-palace"
+          },
+          {
+            "days": "daily",
+            "gate": "106 Nguyen Du Street",
+            "opens": "08:00",
+            "closes": "16:00",
             "sourceId": "independence-palace"
           }
         ]
@@ -279,7 +287,8 @@
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
-        "Admission fee and accessibility details require a final operational check."
+        "Accessibility details were not found in the reviewed source; LocalLens must not promise step-free access.",
+        "Electric-car availability and schedule must be confirmed before adding it as an optional service."
       ],
       "evidenceOnlyFields": [
         "officialAddress",
@@ -290,7 +299,7 @@
       ],
       "officialAddress": {
         "status": "known",
-        "value": "135 Nam Ky Khoi Nghia Street; visitor gate information is on the official page.",
+        "value": "135 Nam Ky Khoi Nghia Street (Gate 135); 106 Nguyen Du Street (Gate 106), Ben Thanh Ward, Ho Chi Minh City.",
         "sourceRef": "independence-palace",
         "verifiedAt": "2026-08-25"
       },
@@ -299,7 +308,7 @@
         "amountVnd": 80000,
         "currency": "VND",
         "sourceRef": "independence-palace",
-        "scopeCaveat": "Ticket amount is a researched category estimate from the official page; visitor category, inclusions and international-adult applicability require final confirmation before sale."
+        "scopeCaveat": "General admission includes the Exhibit and Palace: adults 80,000 VND/person. Palace-only adult admission is 40,000 VND/person; electric-car ride is 25,000 VND/person/ride and remains optional. Senior/student/child categories require separate eligibility handling. LocalLens uses general-admission adult as the default planning amount."
       },
       "support": {
         "language": {
