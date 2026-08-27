@@ -184,7 +184,7 @@ function checkPlace(place, index, registry, errors) {
   if (place.languageSupportConfidence === undefined) addError(errors, `${prefix}.languageSupportConfidence is required`);
   const admission = place.officialAdmission;
   if (!admission || !["known", "unknown"].includes(admission.status) || admission.currency !== "VND") addError(errors, `${prefix}.officialAdmission must declare VND known/unknown status`);
-  if (admission?.status === "known" && (!Number.isInteger(admission.amountVnd) || admission.amountVnd <= 0 || !registry.has(admission.sourceRef) || typeof admission.scopeCaveat !== "string" || !admission.scopeCaveat.trim())) addError(errors, `${prefix}.known officialAdmission requires amount, registered sourceRef, and scopeCaveat`);
+  if (admission?.status === "known" && (!Number.isInteger(admission.amountVnd) || admission.amountVnd < 0 || !registry.has(admission.sourceRef) || typeof admission.scopeCaveat !== "string" || !admission.scopeCaveat.trim())) addError(errors, `${prefix}.known officialAdmission requires a non-negative amount, registered sourceRef, and scopeCaveat`);
   if (admission?.status === "unknown" && (admission.amountVnd !== null || admission.sourceRef !== null)) addError(errors, `${prefix}.unknown officialAdmission must have null amount/sourceRef`);
   if (!place.planningEstimate || !Number.isInteger(place.planningEstimate.amountVnd) || place.planningEstimate.currency !== "VND" || place.planningEstimate.provenance !== "localens_demo_company_price" || place.planningEstimate.isOfficialAdmission !== false) addError(errors, `${prefix}.planningEstimate must be a non-official LocalLens demo estimate`);
 }

@@ -714,8 +714,27 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Friday",
+            "opens": "07:00",
+            "closes": "19:00",
+            "sourceId": "city-tourism"
+          },
+          {
+            "days": "Saturday",
+            "opens": "07:00",
+            "closes": "18:00",
+            "sourceId": "city-tourism"
+          },
+          {
+            "days": "Sunday",
+            "opens": "08:00",
+            "closes": "18:00",
+            "sourceId": "city-tourism"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -728,6 +747,8 @@
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "English visitor information or English-guided service was not confirmed.",
         "Postal-service counter schedules and interior photography rules require a final operational check."
       ],
       "evidenceOnlyFields": [
@@ -739,15 +760,16 @@
       ],
       "officialAddress": {
         "status": "known",
-        "value": "2 Cong Xa Paris, Ho Chi Minh City.",
+        "value": "2 Cong Xa Paris Street, Ben Nghe Ward, District 1, Ho Chi Minh City (now Saigon Ward).",
         "sourceRef": "city-tourism",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 0,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "city-tourism",
+        "scopeCaveat": "General admission is free for international visitors according to the reviewed information. LocalLens uses 0 VND as the default planning amount; paid events or services, if any, require separate confirmation."
       },
       "support": {
         "language": {
@@ -771,8 +793,12 @@
         "identity": [
           "city-tourism"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,
