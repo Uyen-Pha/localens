@@ -1310,8 +1310,15 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Sunday",
+            "opens": "07:00",
+            "closes": "17:00",
+            "sourceId": "cu-chi"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -1319,12 +1326,14 @@
         "longitude": null
       },
       "languageSupport": {
-        "en": "unknown",
+        "en": "known",
         "vi": "known"
       },
-      "languageSupportConfidence": "unknown",
+      "languageSupportConfidence": "medium",
       "unknownFacts": [
-        "Site route, current ticket and mobility limitations require a final operational check."
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "The foreign-visitor service/guidance fee of 100,000 VND is listed separately from the 35,000 VND historical-site admission; whether guidance is compulsory for the selected route requires final confirmation.",
+        "The supplied address identifies the Phu Hiep hamlet, An Nhon Tay commune site; the selected Cu Chi route/site (Ben Duoc or Ben Dinh) requires final confirmation before booking."
       ],
       "evidenceOnlyFields": [
         "officialAddress",
@@ -1334,21 +1343,22 @@
         "planningEstimate"
       ],
       "officialAddress": {
-        "status": "unknown",
-        "value": null,
-        "sourceRef": null,
+        "status": "known",
+        "value": "Phu Hiep Hamlet, An Nhon Tay Commune, Ho Chi Minh City.",
+        "sourceRef": "cu-chi",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 35000,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "cu-chi",
+        "scopeCaveat": "International visitor admission is recorded as 35,000 VND/person/visit for the historical-site fee. The reviewed information separately lists a 100,000 VND/person/visit service and guidance fee; confirm whether it is compulsory for the selected route before publication. LocalLens uses 35,000 VND as the base admission planning amount and does not silently include the service fee."
       },
       "support": {
         "language": {
-          "confidence": "unknown",
-          "sourceRef": null
+          "confidence": "medium",
+          "sourceRef": "cu-chi"
         },
         "accessibility": {
           "confidence": "unknown",
@@ -1367,8 +1377,12 @@
         "identity": [
           "cu-chi"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "cu-chi"
+        ],
+        "admission": [
+          "cu-chi"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,

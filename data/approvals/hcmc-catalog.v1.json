@@ -22,9 +22,9 @@
     "tours": 8
   },
   "sourceHashes": {
-    "places": "02807d228ed7d82fc16619383dcc41ee0c658ff57010f8c8c8eae23f573ef518",
+    "places": "67c419252a1a07dc197c21b00b2393201477c8048dc7809cb5dae2ccad01e848",
     "tours": "42e5c4a275d40e517566993ecd56c017158bc84bdd6466ae1e985a052f1625f3",
-    "sourceHashes": "fcc372e86660ed9c3ed3ec9f0c8d28596dec8c00c614b8f06598d5990fe761e3"
+    "sourceHashes": "f276964c7ba8c9a3f94ec911ba75946fd44fb01c1cb251d3063280aa991dd2a5"
   },
   "reviewChecklist": {
     "officialSourceUrlsChecked": false,
