@@ -119,6 +119,119 @@ function checkBilingual(value, field, errors) {
   }
 }
 
+const FOOD_STATUSES = new Set(["research_only", "sellable", "temporarily_closed"]);
+const FOOD_SERVICE_TYPES = new Set(["stall", "shop", "food_court", "street_vendor"]);
+const FOOD_SERVING_UNITS = new Set(["portion", "bowl", "piece", "drink", "shared_set"]);
+const FOOD_SUPPORT_STATUSES = new Set(["supported", "unsupported", "unknown"]);
+const FOOD_AVAILABILITY_STATUSES = new Set(["available", "unavailable", "unknown", "research_only", "sellable", "temporarily_closed"]);
+
+function hasRegisteredSourceUrl(value, registry) {
+  return typeof value === "string" && [...registry.values()].some((url) => url === value);
+}
+
+function checkFoodSourceUrl(value, field, registry, errors) {
+  const urlCheck = sanitizeOfficialUrl(value);
+  if (!urlCheck.ok) addError(errors, field + ": " + urlCheck.reason);
+  if (typeof value === "string" && !hasRegisteredSourceUrl(value, registry)) addError(errors, field + " must match an exact registered source URL");
+}
+
+function checkFoodSupport(value, field, errors) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length === 0) {
+    addError(errors, field + " must declare support statuses");
+    return;
+  }
+  for (const [requirement, status] of Object.entries(value)) {
+    if (!requirement.trim() || !FOOD_SUPPORT_STATUSES.has(status)) addError(errors, field + "." + requirement + " must be supported, unsupported, or unknown");
+  }
+}
+
+function checkFoodHours(value, field, registry, errors) {
+  if (!Array.isArray(value) || value.length === 0) {
+    addError(errors, field + " must contain at least one opening window");
+    return;
+  }
+  for (const [windowIndex, window] of value.entries()) {
+    const prefix = field + "[" + windowIndex + "]";
+    if (!window || typeof window !== "object" || typeof window.days !== "string" || !window.days.trim()) addError(errors, prefix + ".days is required");
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(window?.opens ?? "") || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(window?.closes ?? "")) addError(errors, prefix + " must use valid HH:mm opening and closing times");
+    if (window?.opens === window?.closes) addError(errors, prefix + " cannot have equal opening and closing time");
+    if (window?.sourceId !== undefined && !registry.has(window.sourceId)) addError(errors, prefix + ".sourceId must reference the source registry");
+  }
+}
+
+function isFoodPlace(place) {
+  return Array.isArray(place?.experienceTypes) && place.experienceTypes.some((type) => ["street_food", "traditional_market"].includes(type));
+}
+
+function isKnownFoodPrice(item) {
+  return Number.isSafeInteger(item?.priceVndMin) && item.priceVndMin >= 0
+    && Number.isSafeInteger(item?.priceVndMax) && item.priceVndMax >= 0
+    && item.priceVndMin <= item.priceVndMax;
+}
+
+function isAvailableFoodItem(item) {
+  return item?.available === true || item?.availability === true || item?.availability === "available" || item?.availability === "sellable";
+}
+
+export function checkFoodMenuItem(vendor, item, index, registry, errors, pathPrefix = "menuItems") {
+  const prefix = pathPrefix + "[" + index + "]";
+  if (!item || typeof item !== "object") {
+    addError(errors, prefix + " must be an object");
+    return;
+  }
+  if (typeof item.slug !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(item.slug)) addError(errors, prefix + ".slug is invalid");
+  if (!FOOD_STATUSES.has(item.status)) addError(errors, prefix + ".status must be research_only, sellable, or temporarily_closed");
+  checkBilingual(item.title, prefix + ".title", errors);
+  checkBilingual(item.description, prefix + ".description", errors);
+  if (!FOOD_SERVING_UNITS.has(item.servingUnit)) addError(errors, prefix + ".servingUnit is invalid");
+  if (!Number.isSafeInteger(item.priceVndMin) || item.priceVndMin < 0 || !Number.isSafeInteger(item.priceVndMax) || item.priceVndMax < 0) {
+    addError(errors, prefix + ".priceVndMin and " + prefix + ".priceVndMax must be non-negative integers; unknown price cannot be treated as zero");
+  } else if (item.priceVndMin > item.priceVndMax) {
+    addError(errors, prefix + ".priceVndMin cannot exceed " + prefix + ".priceVndMax");
+  }
+  if (item.available !== undefined && typeof item.available !== "boolean") addError(errors, prefix + ".available must be boolean when supplied");
+  if (item.availability === undefined && item.available === undefined) {
+    addError(errors, prefix + ".availability must explicitly declare current availability");
+  } else if (item.availability !== undefined && (typeof item.availability !== "boolean" && !FOOD_AVAILABILITY_STATUSES.has(item.availability))) {
+    addError(errors, prefix + ".availability must explicitly declare current availability");
+  }
+  checkFoodSupport(item.dietary ?? item.support ?? item.dietarySupport, prefix + ".dietary", errors);
+  if (!Array.isArray(item.allergens) || item.allergens.some((allergen) => typeof allergen !== "string" || !allergen.trim())) addError(errors, prefix + ".allergens must be an array of non-empty strings");
+  checkFoodSourceUrl(item.sourceUrl, prefix + ".sourceUrl", registry, errors);
+  checkDate(item.verifiedAt, prefix + ".verifiedAt", errors);
+  if (item.status === "sellable" && (!isAvailableFoodItem(item) || !isKnownFoodPrice(item))) {
+    addError(errors, prefix + ".sellable requires available status and known integer price bounds");
+  }
+  if (vendor && typeof vendor === "object" && item.vendorSlug !== undefined && item.vendorSlug !== vendor.slug) addError(errors, prefix + ".vendorSlug must match its parent vendor");
+}
+
+export function checkFoodVendor(place, vendor, index, registry, errors, pathPrefix = "foodVendors") {
+  const prefix = pathPrefix + "[" + index + "]";
+  if (!vendor || typeof vendor !== "object") {
+    addError(errors, prefix + " must be an object");
+    return;
+  }
+  if (typeof vendor.slug !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(vendor.slug)) addError(errors, prefix + ".slug is invalid");
+  if (!FOOD_STATUSES.has(vendor.status)) addError(errors, prefix + ".status must be research_only, sellable, or temporarily_closed");
+  checkBilingual(vendor.title, prefix + ".title", errors);
+  if (vendor.description !== undefined) checkBilingual(vendor.description, prefix + ".description", errors);
+  if (typeof vendor.locationNote !== "string" || !vendor.locationNote.trim()) addError(errors, prefix + ".locationNote is required");
+  if (!FOOD_SERVICE_TYPES.has(vendor.serviceType)) addError(errors, prefix + ".serviceType is invalid");
+  checkFoodHours(vendor.hours, prefix + ".hours", registry, errors);
+  checkFoodSupport(vendor.support ?? vendor.dietarySupport, prefix + ".support", errors);
+  if (!Array.isArray(vendor.menuItems)) addError(errors, prefix + ".menuItems must be an array");
+  const menuSlugs = new Set();
+  for (const [itemIndex, item] of (vendor.menuItems ?? []).entries()) {
+    checkFoodMenuItem(vendor, item, itemIndex, registry, errors, prefix + ".menuItems");
+    if (item && menuSlugs.has(item.slug)) addError(errors, prefix + ".menuItems contains duplicate slug " + item.slug);
+    if (item) menuSlugs.add(item.slug);
+  }
+  checkFoodSourceUrl(vendor.sourceUrl, prefix + ".sourceUrl", registry, errors);
+  checkDate(vendor.verifiedAt, prefix + ".verifiedAt", errors);
+  if (vendor.status === "sellable" && (!Array.isArray(vendor.menuItems) || vendor.menuItems.length === 0)) addError(errors, prefix + ".sellable requires menuItems");
+  if (vendor.placeSlug !== undefined && vendor.placeSlug !== place?.slug) addError(errors, prefix + ".placeSlug must match its parent place");
+}
+
 function checkRegistry(manifest, errors) {
   if (!Array.isArray(manifest.sources) || manifest.sources.length === 0) {
     addError(errors, "places.sources must be a non-empty source registry");
@@ -191,6 +304,23 @@ function checkPlace(place, index, registry, errors) {
   if (admission?.status === "known" && (!Number.isInteger(admission.amountVnd) || admission.amountVnd < 0 || !registry.has(admission.sourceRef) || typeof admission.scopeCaveat !== "string" || !admission.scopeCaveat.trim())) addError(errors, `${prefix}.known officialAdmission requires a non-negative amount, registered sourceRef, and scopeCaveat`);
   if (admission?.status === "unknown" && (admission.amountVnd !== null || admission.sourceRef !== null)) addError(errors, `${prefix}.unknown officialAdmission must have null amount/sourceRef`);
   if (!place.planningEstimate || !Number.isInteger(place.planningEstimate.amountVnd) || place.planningEstimate.currency !== "VND" || place.planningEstimate.provenance !== "localens_demo_company_price" || place.planningEstimate.isOfficialAdmission !== false) addError(errors, `${prefix}.planningEstimate must be a non-official LocalLens demo estimate`);
+  const foodVendors = place.foodVendors ?? [];
+  if (!Array.isArray(foodVendors)) {
+    addError(errors, prefix + ".foodVendors must be an array when supplied");
+  } else {
+    const vendorSlugs = new Set();
+    for (const [vendorIndex, vendor] of foodVendors.entries()) {
+      checkFoodVendor(place, vendor, vendorIndex, registry, errors, prefix + ".foodVendors");
+      if (vendor && vendorSlugs.has(vendor.slug)) addError(errors, prefix + ".foodVendors contains duplicate slug " + vendor.slug);
+      if (vendor) vendorSlugs.add(vendor.slug);
+    }
+    if (place.status === "sellable" && isFoodPlace(place)) {
+      const hasSellableFood = foodVendors.some((vendor) => vendor?.status === "sellable"
+        && Array.isArray(vendor.menuItems)
+        && vendor.menuItems.some((item) => item?.status === "sellable" && isAvailableFoodItem(item) && isKnownFoodPrice(item)));
+      if (!hasSellableFood) addError(errors, prefix + ".sellable food place requires a sellable vendor with an available, priced sellable menu item");
+    }
+  }
 }
 
 function checkPlaceEvidence(place, registry, errors) {

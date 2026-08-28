@@ -16,6 +16,37 @@ function placeBySlug(manifest: JsonRecord, slug: string): JsonRecord {
   return records(manifest.places).find((place) => place.slug === slug) as JsonRecord;
 }
 
+function fixtureFoodVendor(place: JsonRecord, overrides: JsonRecord = {}): JsonRecord {
+  const sourceUrl = place.sourceUrl as string;
+  return {
+    slug: "fixture-stall",
+    status: "research_only",
+    title: { en: "Fixture Stall", vi: "Quầy thử nghiệm" },
+    description: { en: "Fixture vendor for source-gate tests.", vi: "Quầy thử nghiệm cho kiểm tra nguồn." },
+    locationNote: "Gate A",
+    serviceType: "stall",
+    hours: [{ days: "Monday-Sunday", opens: "16:00", closes: "22:00" }],
+    support: { vegetarian: "unknown", halal: "unknown", allergens: "unknown" },
+    menuItems: [{
+      slug: "fixture-dish",
+      status: "research_only",
+      title: { en: "Fixture Dish", vi: "Món thử nghiệm" },
+      description: { en: "Fixture menu item.", vi: "Món thử nghiệm." },
+      servingUnit: "portion",
+      priceVndMin: 40_000,
+      priceVndMax: 50_000,
+      availability: "available",
+      dietary: { vegetarian: "unknown", halal: "unknown" },
+      allergens: [],
+      sourceUrl,
+      verifiedAt: "2026-08-25",
+    }],
+    sourceUrl,
+    verifiedAt: "2026-08-25",
+    ...overrides,
+  };
+}
+
 function fixture(mutator?: (root: string) => void): string {
   const root = mkdtempSync(join(tmpdir(), "localens-task14-fixture-"));
   for (const directory of ["sources", "approvals"]) {
@@ -220,6 +251,54 @@ describe("Task 14 sourced catalog approval gate", () => {
       tour.sourceUrl = "https://dinhdoclap.gov.vn/en/visiting-hours/";
     }));
     try { expectInvalid(root, /sourceUrl must match one of its sourceIds/i); } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("validates nested vendor and menu evidence with precise paths", () => {
+    const mutations: Array<{ mutate: (vendor: JsonRecord, item: JsonRecord, place: JsonRecord) => void; pattern: RegExp }> = [
+      {
+        mutate: (vendor) => { vendor.sourceUrl = "https://unknown.example/vendor"; },
+        pattern: /places\[\d+\]\.foodVendors\[0\]\.sourceUrl.*allowlist|registered/i,
+      },
+      {
+        mutate: (_vendor, item) => { item.sourceUrl = "https://unknown.example/menu"; },
+        pattern: /foodVendors\[0\]\.menuItems\[0\]\.sourceUrl.*allowlist|registered/i,
+      },
+      {
+        mutate: (vendor) => { (vendor.title as JsonRecord).en = ""; },
+        pattern: /foodVendors\[0\]\.title.*EN/i,
+      },
+      {
+        mutate: (_vendor, item) => { item.priceVndMin = 60_000; item.priceVndMax = 50_000; },
+        pattern: /foodVendors\[0\]\.menuItems\[0\].*priceVndMin.*priceVndMax|price bounds/i,
+      },
+      {
+        mutate: (_vendor, item) => { item.priceVndMin = null; item.priceVndMax = null; },
+        pattern: /foodVendors\[0\]\.menuItems\[0\].*price.*integer|unknown price/i,
+      },
+    ];
+
+    for (const { mutate, pattern } of mutations) {
+      const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", (manifest) => {
+        const place = placeBySlug(manifest, "ho-thi-ky-food-street");
+        const vendor = fixtureFoodVendor(place);
+        const item = (vendor.menuItems as JsonRecord[])[0];
+        mutate(vendor, item, place);
+        place.foodVendors = [vendor];
+      }));
+      try { expectInvalid(root, pattern); } finally { rmSync(root, { recursive: true, force: true }); }
+    }
+  });
+
+  it("rejects a sellable food place without a sellable available priced menu item", () => {
+    const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", (manifest) => {
+      const place = placeBySlug(manifest, "ho-thi-ky-food-street");
+      place.status = "sellable";
+      const vendor = fixtureFoodVendor(place, { status: "sellable" });
+      ((vendor.menuItems as JsonRecord[])[0]).status = "research_only";
+      ((vendor.menuItems as JsonRecord[])[0]).availability = "unknown";
+      place.foodVendors = [vendor];
+    }));
+    try { expectInvalid(root, /sellable food place|foodVendors\[0\].*sellable|available/i); } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
   it("ties tour availability to research-only stops and keeps stale FX USD-disabled", () => {

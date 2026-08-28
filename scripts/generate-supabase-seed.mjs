@@ -69,11 +69,33 @@ function runtimeSupportReady(place) {
   return true;
 }
 
+function isFoodPlace(place) {
+  return Array.isArray(place?.experienceTypes) && place.experienceTypes.some((type) => ["street_food", "traditional_market"].includes(type));
+}
+
+function hasKnownFoodPrice(item) {
+  return Number.isSafeInteger(item?.priceVndMin) && item.priceVndMin >= 0
+    && Number.isSafeInteger(item?.priceVndMax) && item.priceVndMax >= 0
+    && item.priceVndMin <= item.priceVndMax;
+}
+
+function isAvailableFoodItem(item) {
+  return item?.available === true || item?.availability === true || item?.availability === "available" || item?.availability === "sellable";
+}
+
+function foodRuntimeReady(place) {
+  const vendors = Array.isArray(place?.foodVendors) ? place.foodVendors : [];
+  return vendors.some((vendor) => vendor?.status === "sellable"
+    && Array.isArray(vendor.menuItems)
+    && vendor.menuItems.some((item) => item?.status === "sellable" && isAvailableFoodItem(item) && hasKnownFoodPrice(item)));
+}
+
 function checkCatalogRuntime(places, tours) {
   const catalogProblems = [];
   const supportProblems = [];
   if (places?.researchOnly === true) catalogProblems.push("places manifest is still marked researchOnly");
   for (const place of places?.places ?? []) {
+    if (place.status === "sellable" && isFoodPlace(place) && !foodRuntimeReady(place)) catalogProblems.push(place.slug + ": sellable food place requires a sellable vendor with an available, priced sellable menu item");
     if (place.status !== "sellable") catalogProblems.push(`${place.slug}: status=${place.status}`);
     if (place.hours?.status !== "known" || !Array.isArray(place.hours.windows) || place.hours.windows.length === 0) catalogProblems.push(`${place.slug}: opening hours are not runtime-known`);
     if (!runtimeSupportReady(place)) supportProblems.push(`${place.slug}: dietary/mobility support lacks requirement/status rows`);

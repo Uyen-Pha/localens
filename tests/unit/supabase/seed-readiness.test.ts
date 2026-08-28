@@ -39,6 +39,36 @@ function mutateJson(root: string, relative: string, mutator: (value: JsonRecord)
   writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+function fixtureFoodVendor(place: JsonRecord): JsonRecord {
+  const sourceUrl = place.sourceUrl as string;
+  return {
+    slug: String(place.slug) + "-fixture-stall",
+    status: "sellable",
+    title: { en: "Fixture Stall", vi: "Quầy thử nghiệm" },
+    description: { en: "Fixture vendor for readiness tests.", vi: "Quầy thử nghiệm cho kiểm tra readiness." },
+    locationNote: "Gate A",
+    serviceType: "stall",
+    hours: [{ days: "Monday-Sunday", opens: "08:00", closes: "17:00" }],
+    support: { vegetarian: "unknown", halal: "unknown", allergens: "unknown" },
+    menuItems: [{
+      slug: String(place.slug) + "-fixture-dish",
+      status: "sellable",
+      title: { en: "Fixture Dish", vi: "Món thử nghiệm" },
+      description: { en: "Fixture menu item.", vi: "Món thử nghiệm." },
+      servingUnit: "portion",
+      priceVndMin: 40_000,
+      priceVndMax: 50_000,
+      availability: "available",
+      dietary: { vegetarian: "unknown", halal: "unknown" },
+      allergens: [],
+      sourceUrl,
+      verifiedAt: "2026-08-25",
+    }],
+    sourceUrl,
+    verifiedAt: "2026-08-25",
+  };
+}
+
 function approveDraft(root: string): void {
   mutateJson(root, "data/approvals/hcmc-catalog.v1.json", (approval) => {
     approval.status = "approved";
@@ -77,6 +107,9 @@ function makeRuntimeReady(root: string): void {
         dietary: { confidence: "unknown", sourceRef: null, vegetarian: "unknown" },
         mobility: { confidence: "unknown", sourceRef: null, "step-free": "unknown" },
       };
+      if ((place.experienceTypes as string[]).some((type) => ["street_food", "traditional_market"].includes(type))) {
+        place.foodVendors = [fixtureFoodVendor(place)];
+      }
     }
   });
   mutateJson(root, "data/sources/hcmc-tours.v1.json", (tours) => {
@@ -223,6 +256,41 @@ describe("Task 15 seed readiness gate", () => {
 
       expect(result).toEqual(expect.objectContaining({ ok: true, writesSeed: false, counts: { operationalAreas: 4, places: 30, tours: 8 } }));
       expect(readFileSync(join(root, "supabase", "seed.sql"), "utf8")).toBe("-- existing sentinel\n");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a named catalog blocker when a sellable food place has no sellable menu item", () => {
+    const root = copyFixture(makeRuntimeReady);
+    try {
+      mutateJson(root, "data/sources/hcmc-places.v1.json", (places) => {
+        const place = (places.places as JsonRecord[]).find((candidate) => candidate.slug === "ho-thi-ky-food-street") as JsonRecord;
+        const vendor = (place.foodVendors as JsonRecord[])[0];
+        const item = (vendor.menuItems as JsonRecord[])[0];
+        item.status = "research_only";
+        item.availability = "unknown";
+      });
+      const places = JSON.parse(readFileSync(join(root, "data/sources/hcmc-places.v1.json"), "utf8")) as JsonRecord;
+      const hashes = JSON.parse(readFileSync(join(root, "data/sources/source-hashes.v1.json"), "utf8")) as JsonRecord;
+      const canonical = (value: unknown): string => {
+        if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+        if (value && typeof value === "object") return "{" + Object.keys(value as Record<string, unknown>).sort().map((key) => JSON.stringify(key) + ":" + canonical((value as Record<string, unknown>)[key])).join(",") + "}";
+        return JSON.stringify(value);
+      };
+      const sha256 = (value: unknown): string => createHash("sha256").update(canonical(value), "utf8").digest("hex");
+      ((hashes.manifests as JsonRecord).places as JsonRecord).sha256 = sha256(places);
+      writeFileSync(join(root, "data/sources/source-hashes.v1.json"), JSON.stringify(hashes, null, 2) + "\n", "utf8");
+      const approval = JSON.parse(readFileSync(join(root, "data/approvals/hcmc-catalog.v1.json"), "utf8")) as JsonRecord;
+      (approval.sourceHashes as JsonRecord).places = ((hashes.manifests as JsonRecord).places as JsonRecord).sha256;
+      (approval.sourceHashes as JsonRecord).sourceHashes = sha256(hashes);
+      writeFileSync(join(root, "data/approvals/hcmc-catalog.v1.json"), JSON.stringify(approval, null, 2) + "\n", "utf8");
+
+      const result = assessSeedReadiness({ root });
+
+      expect(result.ok).toBe(false);
+      expect(codes(result)).toContain(SEED_READINESS_CODES.CATALOG_NOT_SELLABLE);
+      expect(result.issues.flatMap((issue: { details: string[] }) => issue.details)).toEqual(expect.arrayContaining([expect.stringMatching(/ho-thi-ky-food-street.*food/i)]));
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
