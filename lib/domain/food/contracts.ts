@@ -88,6 +88,80 @@ const weekdaySchema = z.union([
 ]);
 const timeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) {
+    return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
+  }
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+function isRealCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  return (
+    month >= 1 &&
+    month <= 12 &&
+    day >= 1 &&
+    day <= daysInMonth(year, month)
+  );
+}
+
+function minutesOf(value: string): number {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function hasOverlappingWindows(
+  windows: readonly { opensAt: string; closesAt: string }[],
+): boolean {
+  const intervals: Array<[number, number]> = [];
+  for (const window of windows) {
+    const start = minutesOf(window.opensAt);
+    const end = minutesOf(window.closesAt);
+    intervals.push([start, end > start ? end : end + 24 * 60]);
+  }
+  intervals.sort(([a], [b]) => a - b);
+  return intervals.some((interval, index) => {
+    const previous = intervals[index - 1];
+    return previous !== undefined && interval[0] < previous[1];
+  });
+}
+
+function hasOverlappingWeeklyWindows(
+  windows: readonly {
+    weekday: number;
+    opensAt: string;
+    closesAt: string;
+  }[],
+): boolean {
+  const weekMinutes = 7 * 24 * 60;
+  const segments: Array<[number, number]> = [];
+  for (const window of windows) {
+    const opensAt = minutesOf(window.opensAt);
+    const closesAt = minutesOf(window.closesAt);
+    const duration =
+      closesAt > opensAt
+        ? closesAt - opensAt
+        : closesAt + 24 * 60 - opensAt;
+    const start = window.weekday * 24 * 60 + opensAt;
+    const end = start + duration;
+    if (end <= weekMinutes) {
+      segments.push([start, end]);
+    } else {
+      segments.push([start, weekMinutes], [0, end - weekMinutes]);
+    }
+  }
+  segments.sort(([startA], [startB]) => startA - startB);
+  return segments.some((segment, index) => {
+    const previous = segments[index - 1];
+    return previous !== undefined && segment[0] < previous[1];
+  });
+}
+
+function unique(values: readonly string[]): boolean {
+  return new Set(values).size === values.length;
+}
+
 const openingWindowSchema = z
   .object({
     weekday: weekdaySchema,
@@ -120,7 +194,9 @@ const openingExceptionWindowSchema = z
 
 const openingExceptionSchema = z
   .object({
-    localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    localDate: z.string().refine(isRealCalendarDate, {
+      message: "must be a real YYYY-MM-DD calendar date",
+    }),
     closed: z.boolean(),
     windows: z.array(openingExceptionWindowSchema).max(8),
   })
@@ -130,6 +206,13 @@ const openingExceptionSchema = z
       context.addIssue({
         code: "custom",
         message: "closed exceptions cannot contain opening windows",
+        path: ["windows"],
+      });
+    }
+    if (!value.closed && hasOverlappingWindows(value.windows)) {
+      context.addIssue({
+        code: "custom",
+        message: "exception windows cannot overlap",
         path: ["windows"],
       });
     }
@@ -203,6 +286,30 @@ export const foodVendorSchema = z
         code: "custom",
         message: "menu item slugs must be unique within a vendor",
         path: ["menuItems"],
+      });
+    }
+    value.menuItems.forEach((item, index) => {
+      if (item.vendorId !== value.id) {
+        context.addIssue({
+          code: "custom",
+          message: "menu item vendorId must match its parent vendor id",
+          path: ["menuItems", index, "vendorId"],
+        });
+      }
+    });
+    if (hasOverlappingWeeklyWindows(value.openingHours)) {
+      context.addIssue({
+        code: "custom",
+        message: "opening windows cannot overlap",
+        path: ["openingHours"],
+      });
+    }
+    const dates = value.openingExceptions.map((exception) => exception.localDate);
+    if (!unique(dates)) {
+      context.addIssue({
+        code: "custom",
+        message: "opening exception dates must be unique",
+        path: ["openingExceptions"],
       });
     }
   });

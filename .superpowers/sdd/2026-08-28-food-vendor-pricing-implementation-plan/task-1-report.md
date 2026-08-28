@@ -55,3 +55,65 @@ itinerary cost contracts without introducing sellable food data.
 - Food catalog persistence, filtering, pricing arithmetic, quote separation,
   and UI serialization remain future tasks; no external vendor facts were
   added here.
+
+## Fix round 1: parent links and opening-hour parity
+
+### Status
+
+Complete. This round addresses the two contract-review findings without
+changing deferred Task 10 fingerprint behavior.
+
+### Changed code and tests
+
+- `lib/domain/food/contracts.ts` now requires every menu item's `vendorId` to
+  equal its containing vendor ID. Food opening exceptions validate real
+  calendar dates, closed-window rules, exception-window overlap, unique
+  exception dates, and vendor weekly-window overlap using the same interval
+  semantics as the itinerary contract.
+- `lib/domain/itinerary/contracts.ts` now requires every vendor's `placeId` to
+  equal its containing place ID. Catalog validation rejects duplicate food
+  vendor IDs and duplicate menu-item IDs across all places.
+- `tests/unit/food/contracts.test.ts` covers mismatched menu parents, invalid
+  dates, weekly overlap, duplicate dates, and exception-window overlap.
+- `tests/unit/itinerary/contracts.test.ts` covers mismatched place parents and
+  duplicate vendor/menu IDs across places.
+
+### Verification
+
+- `pnpm test:run tests/unit/food/contracts.test.ts tests/unit/itinerary/contracts.test.ts`
+  — 2 files passed, 36 tests passed.
+- `pnpm typecheck` — exit code 0.
+- Generated `tsconfig.tsbuildinfo` was removed and is not included.
+
+## Fix round 1: parent-link and opening-hour invariants
+
+### Status
+
+Complete. This fix round addresses the two review findings and leaves the
+deferred Task 10/fingerprint concerns unchanged.
+
+### Changed code and tests
+
+- `lib/domain/food/contracts.ts` now enforces
+  `menuItem.vendorId === vendor.id`, real calendar dates, weekly opening
+  overlap, unique exception dates, and exception-window overlap. Its food
+  opening-hour checks now match the itinerary contract's interval semantics,
+  including overnight windows and equal-time rejection.
+- `lib/domain/itinerary/contracts.ts` now enforces
+  `vendor.placeId === place.id` and rejects duplicate food vendor IDs and
+  menu-item IDs across the complete catalog snapshot.
+- `tests/unit/food/contracts.test.ts` covers mismatched menu parents, invalid
+  dates, weekly overlap, duplicate exception dates, and exception-window
+  overlap.
+- `tests/unit/itinerary/contracts.test.ts` covers mismatched place parents and
+  duplicate vendor/menu IDs across places.
+
+### Verification
+
+- Initial red run: the focused suite reported 4 failures for the new
+  parent-link/date/overlap cases, confirming each regression was reproduced.
+- `pnpm test:run tests/unit/food/contracts.test.ts tests/unit/itinerary/contracts.test.ts`
+  — 2 files passed, 36 tests passed.
+- `pnpm typecheck` — exit code 0.
+- `git diff --check` — no whitespace errors.
+- `tsconfig.tsbuildinfo` was removed and is not included.

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   itineraryResultSchema,
+  catalogSnapshotSchema,
   parseEngineInput,
   placeCandidateSchema,
   type EngineInput,
@@ -30,6 +31,38 @@ function expectInvalid(source: unknown, issueKey?: string) {
 }
 
 describe("itinerary domain contracts", () => {
+  const foodVendor = {
+    id: "vendor-place-banh-mi",
+    placeId: "place-banh-mi",
+    slug: "vendor-place-banh-mi",
+    title: { en: "Banh Mi Stall", vi: "Sạp bánh mì" },
+    description: { en: "A food stall", vi: "Một sạp đồ ăn" },
+    locationNote: "East aisle",
+    serviceType: "stall" as const,
+    capacityNote: "Up to 4 guests",
+    dietarySupport: { vegetarian: "unknown" as const },
+    mobilitySupport: { "step-free": "supported" as const },
+    openingHours: [{ weekday: 5 as const, opensAt: "08:00", closesAt: "18:00" }],
+    openingExceptions: [],
+    status: "sellable" as const,
+    menuItems: [{
+      id: "menu-place-banh-mi",
+      vendorId: "vendor-place-banh-mi",
+      slug: "banh-mi",
+      title: { en: "Banh mi", vi: "Bánh mì" },
+      description: { en: "Filled bread", vi: "Bánh mì nhân" },
+      servingUnit: "portion" as const,
+      priceVndMin: 20_000,
+      priceVndMax: 25_000,
+      portionDescription: "One serving",
+      dietarySupport: { vegetarian: "unknown" as const },
+      allergens: [],
+      available: true,
+      status: "sellable" as const,
+      verifiedAt: "2026-08-28",
+    }],
+  };
+
   it("infers OpeningWindow weekdays as the seven literal weekday values", () => {
     const weekday: OpeningWindow["weekday"] = 6;
     expect(weekday).toBe(6);
@@ -42,6 +75,39 @@ describe("itinerary domain contracts", () => {
     const result = parseEngineInput(itineraryFixture);
 
     expect(result).toEqual({ ok: true, value: itineraryFixture });
+  });
+
+  it("requires each food vendor to link to its containing place", () => {
+    const source = clone(itineraryFixture);
+    source.catalog.places[0].foodVendors = [
+      { ...foodVendor, placeId: "place-not-banh-mi" },
+    ];
+
+    expect(parseEngineInput(source).ok).toBe(false);
+  });
+
+  it("rejects duplicate vendor and menu IDs across catalog places", () => {
+    const source = clone(itineraryFixture);
+    source.catalog.places[0].foodVendors = [foodVendor];
+    source.catalog.places[1].foodVendors = [{
+      ...foodVendor,
+      placeId: "place-history",
+      id: "vendor-place-history",
+      slug: "vendor-place-history",
+    }];
+
+    const duplicateVendor = clone(source);
+    duplicateVendor.catalog.places[1].foodVendors[0].id = foodVendor.id;
+    expect(catalogSnapshotSchema.safeParse(duplicateVendor.catalog).success).toBe(
+      false,
+    );
+
+    const duplicateMenu = clone(source);
+    duplicateMenu.catalog.places[1].foodVendors[0].menuItems[0].id =
+      foodVendor.menuItems[0].id;
+    expect(catalogSnapshotSchema.safeParse(duplicateMenu.catalog).success).toBe(
+      false,
+    );
   });
 
   it("accepts USD only when an FX snapshot is present", () => {

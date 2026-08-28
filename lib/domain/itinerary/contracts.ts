@@ -352,6 +352,15 @@ export const placeCandidateSchema = z
         path: ["guideLanguages"],
       });
     }
+    value.foodVendors.forEach((vendor, index) => {
+      if (vendor.placeId !== value.id) {
+        context.addIssue({
+          code: "custom",
+          message: "food vendor placeId must match its parent place id",
+          path: ["foodVendors", index, "placeId"],
+        });
+      }
+    });
     if (hasOverlappingWeeklyWindows(value.openingHours)) {
       context.addIssue({
         code: "custom",
@@ -381,6 +390,28 @@ export const catalogSnapshotSchema = z
       context.addIssue({
         code: "custom",
         message: "catalog place IDs must be unique",
+        path: ["places"],
+      });
+    }
+    const vendorIds: string[] = [];
+    const menuItemIds: string[] = [];
+    for (const place of value.places) {
+      for (const vendor of place.foodVendors) {
+        vendorIds.push(vendor.id);
+        for (const menuItem of vendor.menuItems) menuItemIds.push(menuItem.id);
+      }
+    }
+    if (!unique(vendorIds)) {
+      context.addIssue({
+        code: "custom",
+        message: "food vendor IDs must be unique across the catalog",
+        path: ["places"],
+      });
+    }
+    if (!unique(menuItemIds)) {
+      context.addIssue({
+        code: "custom",
+        message: "food menu item IDs must be unique across the catalog",
         path: ["places"],
       });
     }

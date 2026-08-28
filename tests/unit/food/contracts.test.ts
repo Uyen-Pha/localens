@@ -62,6 +62,15 @@ describe("food domain contracts", () => {
     ).toBe(false);
   });
 
+  it("rejects a menu item linked to a different vendor", () => {
+    expect(
+      foodVendorSchema.safeParse({
+        ...vendor,
+        menuItems: [{ ...menuItem, vendorId: "vendor-other" }],
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts zero and one whole serving for a group", () => {
     const base: FoodSelection = {
       vendorId: vendor.id,
@@ -133,6 +142,53 @@ describe("food domain contracts", () => {
     ).toBe(false);
     expect(
       foodMenuItemSchema.safeParse({ ...menuItem, unexpected: true }).success,
+    ).toBe(false);
+  });
+
+  it("rejects invalid food dates, weekly overlaps, duplicate exception dates, and exception overlaps", () => {
+    expect(
+      foodVendorSchema.safeParse({
+        ...vendor,
+        openingExceptions: [
+          { localDate: "2026-02-30", closed: true, windows: [] },
+        ],
+      }).success,
+    ).toBe(false);
+
+    expect(
+      foodVendorSchema.safeParse({
+        ...vendor,
+        openingHours: [
+          { weekday: 5 as const, opensAt: "16:00", closesAt: "19:00" },
+          { weekday: 5 as const, opensAt: "18:00", closesAt: "23:00" },
+        ],
+      }).success,
+    ).toBe(false);
+
+    expect(
+      foodVendorSchema.safeParse({
+        ...vendor,
+        openingExceptions: [
+          { localDate: "2026-09-05", closed: true, windows: [] },
+          { localDate: "2026-09-05", closed: true, windows: [] },
+        ],
+      }).success,
+    ).toBe(false);
+
+    expect(
+      foodVendorSchema.safeParse({
+        ...vendor,
+        openingExceptions: [
+          {
+            localDate: "2026-09-05",
+            closed: false,
+            windows: [
+              { opensAt: "16:00", closesAt: "20:00" },
+              { opensAt: "19:00", closesAt: "23:00" },
+            ],
+          },
+        ],
+      }).success,
     ).toBe(false);
   });
 });
