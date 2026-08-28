@@ -191,4 +191,20 @@ describe("food domain contracts", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("rejects exception windows that overlap across midnight", () => {
+    expect(
+      foodVendorSchema.safeParse({
+        ...vendor,
+        openingExceptions: [{
+          localDate: "2026-09-05",
+          closed: false,
+          windows: [
+            { opensAt: "22:00", closesAt: "02:00" },
+            { opensAt: "01:00", closesAt: "03:00" },
+          ],
+        }],
+      }).success,
+    ).toBe(false);
+  });
 });

@@ -117,3 +117,53 @@ deferred Task 10/fingerprint concerns unchanged.
 - `pnpm typecheck` — exit code 0.
 - `git diff --check` — no whitespace errors.
 - `tsconfig.tsbuildinfo` was removed and is not included.
+
+## Fix round 2: overnight exception-window overlap
+
+### Status
+
+Complete. This round fixes the exception overlap helper so overnight windows
+are checked across the midnight boundary just like weekly vendor windows.
+
+### TDD evidence
+
+RED command:
+
+```text
+pnpm test:run tests/unit/food/contracts.test.ts tests/unit/itinerary/contracts.test.ts
+```
+
+Relevant output before the fix:
+
+```text
+FAIL tests/unit/food/contracts.test.ts > food domain contracts > rejects exception windows that overlap across midnight
+AssertionError: expected true to be false
+Test Files  1 failed | 1 passed (2)
+Tests  1 failed | 36 passed (37)
+```
+
+GREEN command:
+
+```text
+pnpm test:run tests/unit/food/contracts.test.ts tests/unit/itinerary/contracts.test.ts
+```
+
+Exact passing summary:
+
+```text
+Test Files  2 passed (2)
+Tests  37 passed (37)
+```
+
+The fix splits an overnight exception into `[start, 24:00)` and
+`[00:00, end)` intervals before sorting and comparing, preserving same-day
+overlap behavior.
+
+Additional verification:
+
+```text
+pnpm typecheck
+```
+
+Result: exit code 0. Generated `tsconfig.tsbuildinfo` was removed and is not
+included.

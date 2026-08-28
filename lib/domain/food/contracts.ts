@@ -114,11 +114,16 @@ function minutesOf(value: string): number {
 function hasOverlappingWindows(
   windows: readonly { opensAt: string; closesAt: string }[],
 ): boolean {
+  const dayMinutes = 24 * 60;
   const intervals: Array<[number, number]> = [];
   for (const window of windows) {
     const start = minutesOf(window.opensAt);
     const end = minutesOf(window.closesAt);
-    intervals.push([start, end > start ? end : end + 24 * 60]);
+    if (end > start) {
+      intervals.push([start, end]);
+    } else {
+      intervals.push([start, dayMinutes], [0, end]);
+    }
   }
   intervals.sort(([a], [b]) => a - b);
   return intervals.some((interval, index) => {
