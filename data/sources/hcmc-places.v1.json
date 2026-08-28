@@ -2435,8 +2435,8 @@
         "vi": "Một chợ địa phương được ghi nhận tại khu Chợ Lớn."
       },
       "description": {
-        "en": "The venue is retained for research while official hours, operating status and visit suitability are verified.",
-        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh giờ hoạt động, trạng thái kinh doanh và khả năng tham quan."
+        "en": "The venue is retained for research while operating status, stall participation and visit suitability are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh trạng thái hoạt động, các sạp tham gia và khả năng tham quan."
       },
       "experienceTypes": [
         "traditional_market"
@@ -2450,8 +2450,15 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Sunday",
+            "opens": "06:00",
+            "closes": "19:00",
+            "sourceId": "cho-lon"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -2460,11 +2467,14 @@
       },
       "languageSupport": {
         "en": "unknown",
-        "vi": "unknown"
+        "vi": "known"
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
-        "Official venue page, current operating hours, stall participation and accessibility are not verified."
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "English visitor information or English-guided service was not confirmed.",
+        "The latest 28/08/2026 human review reports 06:00-19:00 daily; individual stall schedules and current operating status require final confirmation.",
+        "Individual stall hours, dietary cross-contact and current prices require a final operational check."
       ],
       "evidenceOnlyFields": [
         "officialAddress",
@@ -2474,16 +2484,17 @@
         "planningEstimate"
       ],
       "officialAddress": {
-        "status": "unknown",
-        "value": null,
-        "sourceRef": null,
+        "status": "known",
+        "value": "129 Pho Co Dieu Street, District 11, Ho Chi Minh City.",
+        "sourceRef": "cho-lon",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 0,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "cho-lon",
+        "scopeCaveat": "General admission is free for international visitors according to the latest 28/08/2026 review. Food, merchandise and other purchases are separate from admission and have no fixed LocalLens price. LocalLens uses 0 VND as the default planning amount."
       },
       "support": {
         "language": {
@@ -2507,8 +2518,12 @@
         "identity": [
           "cho-lon"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "cho-lon"
+        ],
+        "admission": [
+          "cho-lon"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,
