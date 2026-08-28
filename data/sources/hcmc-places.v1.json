@@ -1535,7 +1535,7 @@
         "windows": [
           {
             "days": "Monday-Sunday",
-            "opens": "05:00",
+            "opens": "07:00",
             "closes": "18:00",
             "sourceId": "city-tourism"
           }
@@ -1554,7 +1554,7 @@
       "unknownFacts": [
         "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
         "English visitor information or English-guided service was not confirmed.",
-        "The latest human review reports 05:00-18:00 daily; the official tourism listing also uses 314-336 Hai Ba Trung and a 07:00-18:00 visitor window on weekdays, so entrance and stall schedules require final confirmation.",
+        "The latest 28/08/2026 human review reports 07:00-18:00 daily for the main market and 18:00-24:00 daily for the night food market; the official tourism page currently states these windows for weekdays, so day coverage requires final confirmation.",
         "Individual stall hours, dietary cross-contact and current prices require a final operational check."
       ],
       "evidenceOnlyFields": [
@@ -1566,7 +1566,7 @@
       ],
       "officialAddress": {
         "status": "known",
-        "value": "336 Hai Ba Trung Street, Tan Dinh Ward, District 1, Ho Chi Minh City.",
+        "value": "314-336 Hai Ba Trung Street, Tan Dinh Ward, District 1, Ho Chi Minh City.",
         "sourceRef": "city-tourism",
         "verifiedAt": "2026-08-25"
       },
