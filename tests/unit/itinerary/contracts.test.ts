@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   itineraryResultSchema,
   parseEngineInput,
+  placeCandidateSchema,
   type EngineInput,
   type ItineraryRequest,
   type OpeningWindow,
@@ -254,6 +255,12 @@ describe("itinerary domain contracts", () => {
           transitionBufferMinutesBefore: 0 as const,
           travelCostVndBefore: 0,
           placeCostVnd: 360_000,
+          foodSelection: null,
+          foodCostMinVnd: 0,
+          foodCostMaxVnd: 0,
+          payAtVendorMinVnd: 0,
+          payAtVendorMaxVnd: 0,
+          customerPayableVnd: 360_000,
           score: 5_001,
         },
       ],
@@ -262,6 +269,16 @@ describe("itinerary domain contracts", () => {
         visitMinutes: 45,
         travelMinutes: 0,
         transitionBufferMinutes: 0,
+        admissionCostVnd: 360_000,
+        foodCostMinVnd: 0,
+        foodCostMaxVnd: 0,
+        travelCostVnd: 0,
+        guideCostVnd: 0,
+        payAtVendorMinVnd: 0,
+        payAtVendorMaxVnd: 0,
+        customerPayableVnd: 360_000,
+        groupCostMinVnd: 360_000,
+        groupCostMaxVnd: 360_000,
         groupCostVnd: 360_000,
         score: 5_001,
       },
@@ -285,6 +302,73 @@ describe("itinerary domain contracts", () => {
     const invalidDate = structuredClone(validResult);
     invalidDate.items[0].endAt = "2026-02-30T08:45:00+07:00";
     expect(itineraryResultSchema.safeParse(invalidDate).success).toBe(false);
+  });
+
+  it("keeps a museum candidate explicitly compatible with zero food", () => {
+    const museum = {
+      id: "place-museum",
+      areaId: "district-3",
+      types: ["history" as const],
+      priceVndPerPerson: 60_000,
+      visitDurationMinutes: 60,
+      guideLanguages: ["en" as const],
+      dietarySupport: {},
+      mobilitySupport: { "step-free": "supported" as const },
+      openingHours: [{ weekday: 5 as const, opensAt: "08:00", closesAt: "17:00" }],
+      openingExceptions: [],
+      foodVendors: [],
+    };
+
+    expect(placeCandidateSchema.safeParse(museum).success).toBe(true);
+    expect(
+      itineraryResultSchema.safeParse({
+        normalizedStartAt: "2026-09-05T08:00:00+07:00",
+        budgetVnd: 60_000,
+        rankingSource: "deterministic",
+        items: [
+          {
+            placeId: museum.id,
+            startAt: "2026-09-05T08:00:00+07:00",
+            endAt: "2026-09-05T09:00:00+07:00",
+            visitDurationMinutes: 60,
+            travelMinutesBefore: 0,
+            transitionBufferMinutesBefore: 0,
+            travelCostVndBefore: 0,
+            placeCostVnd: 60_000,
+            foodSelection: null,
+            foodCostMinVnd: 0,
+            foodCostMaxVnd: 0,
+            payAtVendorMinVnd: 0,
+            payAtVendorMaxVnd: 0,
+            customerPayableVnd: 60_000,
+            score: 1,
+          },
+        ],
+        totals: {
+          durationMinutes: 60,
+          visitMinutes: 60,
+          travelMinutes: 0,
+          transitionBufferMinutes: 0,
+          admissionCostVnd: 60_000,
+          foodCostMinVnd: 0,
+          foodCostMaxVnd: 0,
+          travelCostVnd: 0,
+          guideCostVnd: 0,
+          payAtVendorMinVnd: 0,
+          payAtVendorMaxVnd: 0,
+          customerPayableVnd: 60_000,
+          groupCostMinVnd: 60_000,
+          groupCostMaxVnd: 60_000,
+          groupCostVnd: 60_000,
+          score: 1,
+        },
+        snapshotIds: {
+          catalog: "catalog-v1",
+          travel: "travel-v1",
+          fx: null,
+        },
+      }).success,
+    ).toBe(true);
   });
 
   it("rejects overnight opening overlap from Friday into Saturday", () => {

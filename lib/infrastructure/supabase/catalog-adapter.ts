@@ -351,6 +351,7 @@ function mapRow(value: unknown, rowIndex: number): Result<MappedCatalogRow, Data
         mobilitySupport: mobility.value,
         openingHours: hours.value,
         openingExceptions: exceptions.value,
+        foodVendors: [],
       },
     },
   };

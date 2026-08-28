@@ -163,6 +163,15 @@ export function toDbBigint(
 // These aliases keep the shared persistence registry discoverable without reimplementing
 // the engine DTO schemas. Runtime adapters in later tasks validate those schemas strictly.
 export type { CatalogSnapshot, EngineInput, FxSnapshot, ItineraryItem, ItineraryRequest, ItineraryResult, TravelEdge, TravelSnapshot };
+export type {
+  FoodMenuItemCandidate,
+  FoodPaymentMode,
+  FoodSelection,
+  FoodServiceType,
+  FoodStatus,
+  FoodVendorCandidate,
+  ServingUnit,
+} from "@/lib/domain/food/contracts";
 
 export interface PublishedTour {
   id: string;

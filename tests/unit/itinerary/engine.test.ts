@@ -101,6 +101,7 @@ describe("createItinerary", () => {
       mobilitySupport: {},
       openingHours: [{ weekday: 6 as const, opensAt: "08:00", closesAt: "20:00" }],
       openingExceptions: [],
+      foodVendors: [],
     });
     const unlocked = Array.from({ length: 10 }, (_, index) => place(`u-${String(index).padStart(2, "0")}`));
     input.catalog.places = [...unlocked, place("lock-a"), place("lock-b")];

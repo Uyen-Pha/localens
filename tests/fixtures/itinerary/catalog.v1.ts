@@ -42,6 +42,7 @@ export const itineraryFixture: EngineInput = {
             windows: [{ opensAt: "09:00", closesAt: "17:00" }],
           },
         ],
+        foodVendors: [],
       },
       {
         id: "place-history",
@@ -56,6 +57,7 @@ export const itineraryFixture: EngineInput = {
           { weekday: 5, opensAt: "22:00", closesAt: "02:00" },
         ],
         openingExceptions: [],
+        foodVendors: [],
       },
       {
         id: "place-craft",
@@ -72,6 +74,7 @@ export const itineraryFixture: EngineInput = {
         openingExceptions: [
           { localDate: "2026-09-06", closed: true, windows: [] },
         ],
+        foodVendors: [],
       },
       {
         id: "place-market",
@@ -86,6 +89,7 @@ export const itineraryFixture: EngineInput = {
           { weekday: 5, opensAt: "06:00", closesAt: "11:00" },
         ],
         openingExceptions: [],
+        foodVendors: [],
       },
     ],
   },

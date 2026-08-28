@@ -64,6 +64,7 @@ describe("mapCatalogSnapshot", () => {
             closed: false,
             windows: [{ opensAt: "09:00", closesAt: "12:00" }],
           }],
+          foodVendors: [],
         }],
       },
     });

@@ -10,6 +10,28 @@ import { buildRankOrder } from "@/lib/domain/itinerary/scoring";
 
 const clone = <T>(value: T): T => structuredClone(value);
 
+const zeroFoodItemFields = {
+  foodSelection: null,
+  foodCostMinVnd: 0,
+  foodCostMaxVnd: 0,
+  payAtVendorMinVnd: 0,
+  payAtVendorMaxVnd: 0,
+  customerPayableVnd: 0,
+} as const;
+
+const zeroFoodTotalsFields = {
+  admissionCostVnd: 0,
+  foodCostMinVnd: 0,
+  foodCostMaxVnd: 0,
+  travelCostVnd: 0,
+  guideCostVnd: 0,
+  payAtVendorMinVnd: 0,
+  payAtVendorMaxVnd: 0,
+  customerPayableVnd: 0,
+  groupCostMinVnd: 0,
+  groupCostMaxVnd: 0,
+} as const;
+
 function validResult(): ItineraryResult {
   return {
     normalizedStartAt: "2026-09-05T08:00:00+07:00",
@@ -25,6 +47,7 @@ function validResult(): ItineraryResult {
         transitionBufferMinutesBefore: 0,
         travelCostVndBefore: 0,
         placeCostVnd: 360_000,
+        ...zeroFoodItemFields,
         score: 5_001,
       },
     ],
@@ -33,6 +56,11 @@ function validResult(): ItineraryResult {
       visitMinutes: 45,
       travelMinutes: 0,
       transitionBufferMinutes: 0,
+      ...zeroFoodTotalsFields,
+      admissionCostVnd: 360_000,
+      customerPayableVnd: 360_000,
+      groupCostMinVnd: 360_000,
+      groupCostMaxVnd: 360_000,
       groupCostVnd: 360_000,
       score: 5_001,
     },
@@ -131,6 +159,7 @@ describe("validateItinerary", () => {
   it("does not let an unknown item contaminate trusted totals", () => {
     const result = validResult();
     result.items.push({
+      ...zeroFoodItemFields,
       placeId: "unknown-result-place",
       startAt: "2026-09-05T10:00:00+07:00",
       endAt: "2026-09-05T12:00:00+07:00",
@@ -271,6 +300,7 @@ describe("validateItinerary", () => {
     input.catalog.places[1].guideLanguages = ["en"];
     const result = validResult();
     result.items.push({
+      ...zeroFoodItemFields,
       placeId: "place-history",
       startAt: "2026-09-05T10:00:00+07:00",
       endAt: "2026-09-05T11:00:00+07:00",
@@ -282,6 +312,7 @@ describe("validateItinerary", () => {
       score: 4_002,
     });
     result.totals = {
+      ...zeroFoodTotalsFields,
       durationMinutes: 180,
       visitMinutes: 105,
       travelMinutes: 12,
@@ -303,8 +334,8 @@ describe("validateItinerary", () => {
     input.catalog.places[1].mobilitySupport = {};
     input.catalog.places[1].guideLanguages = ["en"];
     const result = validResult();
-    result.items.push({ placeId: "place-history", startAt: "2026-09-05T10:00:00+07:00", endAt: "2026-09-05T11:00:00+07:00", visitDurationMinutes: 60, travelMinutesBefore: 12, transitionBufferMinutesBefore: 0, travelCostVndBefore: 0, placeCostVnd: 240_000, score: 4_002 });
-    result.totals = { durationMinutes: 180, visitMinutes: 105, travelMinutes: 12, transitionBufferMinutes: 10, groupCostVnd: 600_000, score: 9_003 };
+    result.items.push({ ...zeroFoodItemFields, placeId: "place-history", startAt: "2026-09-05T10:00:00+07:00", endAt: "2026-09-05T11:00:00+07:00", visitDurationMinutes: 60, travelMinutesBefore: 12, transitionBufferMinutesBefore: 0, travelCostVndBefore: 0, placeCostVnd: 240_000, score: 4_002 });
+    result.totals = { ...zeroFoodTotalsFields, durationMinutes: 180, visitMinutes: 105, travelMinutes: 12, transitionBufferMinutes: 10, groupCostVnd: 600_000, score: 9_003 };
     expectIssue(validateItinerary(input, result, ["place-banh-mi", "place-history"]), "travel.buffer");
   });
 
@@ -318,8 +349,8 @@ describe("validateItinerary", () => {
     input.catalog.places[1].mobilitySupport = {};
     input.catalog.places[1].guideLanguages = ["en"];
     const result = validResult();
-    result.items.push({ placeId: "place-history", startAt: "2026-09-05T10:00:00+07:00", endAt: "2026-09-05T11:00:00+07:00", visitDurationMinutes: 60, travelMinutesBefore: 12, transitionBufferMinutesBefore: 10, travelCostVndBefore: 1, placeCostVnd: 240_000, score: 4_002 });
-    result.totals = { durationMinutes: 180, visitMinutes: 105, travelMinutes: 12, transitionBufferMinutes: 10, groupCostVnd: 600_000, score: 9_003 };
+    result.items.push({ ...zeroFoodItemFields, placeId: "place-history", startAt: "2026-09-05T10:00:00+07:00", endAt: "2026-09-05T11:00:00+07:00", visitDurationMinutes: 60, travelMinutesBefore: 12, transitionBufferMinutesBefore: 10, travelCostVndBefore: 1, placeCostVnd: 240_000, score: 4_002 });
+    result.totals = { ...zeroFoodTotalsFields, durationMinutes: 180, visitMinutes: 105, travelMinutes: 12, transitionBufferMinutes: 10, groupCostVnd: 600_000, score: 9_003 };
     expectIssue(validateItinerary(input, result, ["place-banh-mi", "place-history"]), "travel.cost");
   });
 
@@ -333,8 +364,8 @@ describe("validateItinerary", () => {
     input.catalog.places[1].mobilitySupport = {};
     input.catalog.places[1].guideLanguages = ["en"];
     const result = validResult();
-    result.items.push({ placeId: "place-history", startAt: "2026-09-05T09:50:00+07:00", endAt: "2026-09-05T10:50:00+07:00", visitDurationMinutes: 60, travelMinutesBefore: 12, transitionBufferMinutesBefore: 10, travelCostVndBefore: 0, placeCostVnd: 240_000, score: 4_002 });
-    result.totals = { durationMinutes: 170, visitMinutes: 105, travelMinutes: 12, transitionBufferMinutes: 10, groupCostVnd: 600_000, score: 9_003 };
+    result.items.push({ ...zeroFoodItemFields, placeId: "place-history", startAt: "2026-09-05T09:50:00+07:00", endAt: "2026-09-05T10:50:00+07:00", visitDurationMinutes: 60, travelMinutesBefore: 12, transitionBufferMinutesBefore: 10, travelCostVndBefore: 0, placeCostVnd: 240_000, score: 4_002 });
+    result.totals = { ...zeroFoodTotalsFields, durationMinutes: 170, visitMinutes: 105, travelMinutes: 12, transitionBufferMinutes: 10, groupCostVnd: 600_000, score: 9_003 };
     expectIssue(validateItinerary(input, result, ["place-banh-mi", "place-history"]), "travel.transition");
   });
 
@@ -349,6 +380,7 @@ describe("validateItinerary", () => {
     input.catalog.places[1].guideLanguages = ["en"];
     const result = validResult();
     result.items.push({
+      ...zeroFoodItemFields,
       placeId: "place-history",
       startAt: "2026-09-05T10:00:00+07:00",
       endAt: "2026-09-05T11:00:00+07:00",
@@ -359,7 +391,7 @@ describe("validateItinerary", () => {
       placeCostVnd: 240_000,
       score: 4_002,
     });
-    result.totals = { durationMinutes: 180, visitMinutes: 105, travelMinutes: 0, transitionBufferMinutes: 10, groupCostVnd: 600_000, score: 9_003 };
+    result.totals = { ...zeroFoodTotalsFields, durationMinutes: 180, visitMinutes: 105, travelMinutes: 0, transitionBufferMinutes: 10, groupCostVnd: 600_000, score: 9_003 };
     input.travel.edges = input.travel.edges.filter((edge) => edge.fromPlaceId !== "place-banh-mi" || edge.toPlaceId !== "place-history");
     expectIssue(validateItinerary(input, result, ["place-banh-mi", "place-history"]), "travel.missing");
   });
@@ -402,8 +434,8 @@ describe("validateItinerary", () => {
     input.catalog.places[1].mobilitySupport = {};
     input.catalog.places[1].guideLanguages = ["en"];
     const result = validResult();
-    result.items.push({ placeId: "place-history", startAt: "2026-09-05T10:00:00+07:00", endAt: "2026-09-05T11:00:00+07:00", visitDurationMinutes: 60, travelMinutesBefore: 12, transitionBufferMinutesBefore: 10, travelCostVndBefore: 0, placeCostVnd: 240_000, score: 4_002 });
-    result.totals = { durationMinutes: 180, visitMinutes: 105, travelMinutes: 12, transitionBufferMinutes: 10, groupCostVnd: 600_000, score: 9_003 };
+    result.items.push({ ...zeroFoodItemFields, placeId: "place-history", startAt: "2026-09-05T10:00:00+07:00", endAt: "2026-09-05T11:00:00+07:00", visitDurationMinutes: 60, travelMinutesBefore: 12, transitionBufferMinutesBefore: 10, travelCostVndBefore: 0, placeCostVnd: 240_000, score: 4_002 });
+    result.totals = { ...zeroFoodTotalsFields, durationMinutes: 180, visitMinutes: 105, travelMinutes: 12, transitionBufferMinutes: 10, groupCostVnd: 600_000, score: 9_003 };
     expectIssue(validateItinerary(input, result, ["place-banh-mi", "place-history"]), "lock.order");
   });
 
@@ -417,8 +449,8 @@ describe("validateItinerary", () => {
     input.catalog.places[1].mobilitySupport = {};
     input.catalog.places[1].guideLanguages = ["en"];
     const result = validResult();
-    result.items.push({ placeId: "place-history", startAt: "2026-09-05T09:30:00+07:00", endAt: "2026-09-05T10:30:00+07:00", visitDurationMinutes: 60, travelMinutesBefore: 12, transitionBufferMinutesBefore: 10, travelCostVndBefore: 0, placeCostVnd: 240_000, score: 4_002 });
-    result.totals = { durationMinutes: 150, visitMinutes: 105, travelMinutes: 12, transitionBufferMinutes: 10, groupCostVnd: 600_000, score: 9_003 };
+    result.items.push({ ...zeroFoodItemFields, placeId: "place-history", startAt: "2026-09-05T09:30:00+07:00", endAt: "2026-09-05T10:30:00+07:00", visitDurationMinutes: 60, travelMinutesBefore: 12, transitionBufferMinutesBefore: 10, travelCostVndBefore: 0, placeCostVnd: 240_000, score: 4_002 });
+    result.totals = { ...zeroFoodTotalsFields, durationMinutes: 150, visitMinutes: 105, travelMinutes: 12, transitionBufferMinutes: 10, groupCostVnd: 600_000, score: 9_003 };
     expectIssue(validateItinerary(input, result, ["place-banh-mi", "place-history"]), "timeline.overlap");
   });
 

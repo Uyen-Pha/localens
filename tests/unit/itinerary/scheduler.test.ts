@@ -113,6 +113,7 @@ describe("scheduleItinerary", () => {
       mobilitySupport: {},
       openingHours: [{ weekday: 6 as const, opensAt: "08:00", closesAt: "20:00" }],
       openingExceptions: [],
+      foodVendors: [],
     }));
     input.travel.edges = candidates.flatMap((from) => candidates
       .filter((to) => to.id !== from.id)
@@ -269,6 +270,7 @@ describe("scheduleItinerary", () => {
       mobilitySupport: {},
       openingHours: [{ weekday: 6 as const, opensAt: "08:00", closesAt: "20:00" }],
       openingExceptions: [],
+      foodVendors: [],
     });
     const distractors = Array.from({ length: 52 }, (_, index) => place(`d-${String(index).padStart(2, "0")}`, "street_food"));
     const bridge = place("z-bridge", "history");
@@ -333,6 +335,7 @@ describe("scheduleItinerary", () => {
       mobilitySupport: {},
       openingHours: [{ weekday: 6 as const, opensAt: "08:00", closesAt: "20:00" }],
       openingExceptions: [],
+      foodVendors: [],
     });
     const unlocked = Array.from({ length: 10 }, (_, index) => place(`u-${String(index).padStart(2, "0")}`));
     const lockA = place("lock-a");

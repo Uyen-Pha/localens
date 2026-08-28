@@ -1,6 +1,12 @@
 import { z } from "zod";
 
 import {
+  foodSelectionSchema,
+  foodVendorSchema,
+  type FoodSelection,
+  type FoodVendorCandidate,
+} from "@/lib/domain/food/contracts";
+import {
   domainError,
   type DomainError,
 } from "@/lib/domain/itinerary/errors";
@@ -328,6 +334,7 @@ export const placeCandidateSchema = z
     mobilitySupport: supportRecordSchema,
     openingHours: z.array(openingWindowSchema).max(28),
     openingExceptions: z.array(openingExceptionSchema).max(366),
+    foodVendors: z.array(foodVendorSchema).max(500),
   })
   .strict()
   .superRefine((value, context) => {
@@ -480,9 +487,45 @@ export const itineraryItemSchema = z
     transitionBufferMinutesBefore: z.union([z.literal(0), z.literal(10)]),
     travelCostVndBefore: nonNegativeSafeInteger,
     placeCostVnd: nonNegativeSafeInteger,
+    foodSelection: z.union([foodSelectionSchema, z.null()]),
+    foodCostMinVnd: nonNegativeSafeInteger,
+    foodCostMaxVnd: nonNegativeSafeInteger,
+    payAtVendorMinVnd: nonNegativeSafeInteger,
+    payAtVendorMaxVnd: nonNegativeSafeInteger,
+    customerPayableVnd: nonNegativeSafeInteger,
     score: z.number().finite().safe(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (value.foodCostMinVnd > value.foodCostMaxVnd) {
+      context.addIssue({
+        code: "custom",
+        message: "minimum food cost cannot exceed maximum food cost",
+        path: ["foodCostMaxVnd"],
+      });
+    }
+    if (value.payAtVendorMinVnd > value.payAtVendorMaxVnd) {
+      context.addIssue({
+        code: "custom",
+        message: "minimum pay-at-vendor cost cannot exceed maximum pay-at-vendor cost",
+        path: ["payAtVendorMaxVnd"],
+      });
+    }
+    if (value.foodSelection === null) {
+      if (
+        value.foodCostMinVnd !== 0 ||
+        value.foodCostMaxVnd !== 0 ||
+        value.payAtVendorMinVnd !== 0 ||
+        value.payAtVendorMaxVnd !== 0
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "food costs must be zero when no food is selected",
+          path: ["foodSelection"],
+        });
+      }
+    }
+  });
 
 export const itineraryTotalsSchema = z
   .object({
@@ -490,10 +533,50 @@ export const itineraryTotalsSchema = z
     visitMinutes: safeInteger.nonnegative(),
     travelMinutes: safeInteger.nonnegative(),
     transitionBufferMinutes: safeInteger.nonnegative(),
+    admissionCostVnd: nonNegativeSafeInteger,
+    foodCostMinVnd: nonNegativeSafeInteger,
+    foodCostMaxVnd: nonNegativeSafeInteger,
+    travelCostVnd: nonNegativeSafeInteger,
+    guideCostVnd: nonNegativeSafeInteger,
+    payAtVendorMinVnd: nonNegativeSafeInteger,
+    payAtVendorMaxVnd: nonNegativeSafeInteger,
+    customerPayableVnd: nonNegativeSafeInteger,
+    groupCostMinVnd: nonNegativeSafeInteger,
+    groupCostMaxVnd: nonNegativeSafeInteger,
     groupCostVnd: nonNegativeSafeInteger,
     score: z.number().finite().safe(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (value.foodCostMinVnd > value.foodCostMaxVnd) {
+      context.addIssue({
+        code: "custom",
+        message: "minimum food cost cannot exceed maximum food cost",
+        path: ["foodCostMaxVnd"],
+      });
+    }
+    if (value.payAtVendorMinVnd > value.payAtVendorMaxVnd) {
+      context.addIssue({
+        code: "custom",
+        message: "minimum pay-at-vendor cost cannot exceed maximum pay-at-vendor cost",
+        path: ["payAtVendorMaxVnd"],
+      });
+    }
+    if (value.groupCostMinVnd > value.groupCostMaxVnd) {
+      context.addIssue({
+        code: "custom",
+        message: "minimum group cost cannot exceed maximum group cost",
+        path: ["groupCostMaxVnd"],
+      });
+    }
+    if (value.groupCostVnd !== value.groupCostMaxVnd) {
+      context.addIssue({
+        code: "custom",
+        message: "groupCostVnd must equal groupCostMaxVnd",
+        path: ["groupCostVnd"],
+      });
+    }
+  });
 
 export const itineraryResultSchema = z
   .object({
@@ -549,6 +632,7 @@ export type EngineInput = z.infer<typeof engineInputSchema>;
 export type ItineraryItem = z.infer<typeof itineraryItemSchema>;
 export type ItineraryTotals = z.infer<typeof itineraryTotalsSchema>;
 export type ItineraryResult = z.infer<typeof itineraryResultSchema>;
+export type { FoodSelection, FoodVendorCandidate };
 
 export const LocaleSchema = localeSchema;
 export const ExperienceTypeSchema = experienceTypeSchema;

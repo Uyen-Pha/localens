@@ -51,6 +51,7 @@ function place(
     mobilitySupport: { "step-free": "supported" },
     openingHours: ALL_DAY_HOURS.map((window) => ({ ...window })),
     openingExceptions: [],
+    foodVendors: [],
   };
 }
 
