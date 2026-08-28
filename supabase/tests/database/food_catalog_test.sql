@@ -3,7 +3,7 @@
 -- intentionally rollback-only and contains no vendor/menu source facts.
 BEGIN;
 
-SELECT plan(101);
+SELECT plan(108);
 
 -- Every base relation is present.
 SELECT ok(to_regclass('public.food_vendors') IS NOT NULL, 'food vendors exists');
@@ -108,7 +108,7 @@ SELECT ok((SELECT count(*) = 9 FROM pg_trigger WHERE tgname IN (
   'catalog_snapshot_food_vendor_supports_append_only',
   'catalog_snapshot_food_vendor_opening_hours_append_only',
   'catalog_snapshot_food_vendor_opening_exceptions_append_only',
-  'catalog_snapshot_food_vendor_opening_exception_windows_append_only',
+  'catalog_snapshot_food_vendor_ex_windows_append_only',
   'catalog_snapshot_food_items_append_only',
   'catalog_snapshot_food_item_translations_append_only',
   'catalog_snapshot_food_item_supports_append_only'
@@ -118,8 +118,8 @@ SELECT ok((SELECT count(*) = 9 FROM pg_trigger WHERE tgname IN (
   'catalog_snapshot_food_vendor_translations_append_only_truncate',
   'catalog_snapshot_food_vendor_supports_append_only_truncate',
   'catalog_snapshot_food_vendor_opening_hours_append_only_truncate',
-  'catalog_snapshot_food_vendor_opening_exceptions_append_only_truncate',
-  'catalog_snapshot_food_vendor_opening_exception_windows_append_only_truncate',
+  'catalog_snapshot_food_vendor_opening_exceptions_truncate',
+  'catalog_snapshot_food_vendor_ex_windows_truncate',
   'catalog_snapshot_food_items_append_only_truncate',
   'catalog_snapshot_food_item_translations_append_only_truncate',
   'catalog_snapshot_food_item_supports_append_only_truncate'
@@ -127,15 +127,18 @@ SELECT ok((SELECT count(*) = 9 FROM pg_trigger WHERE tgname IN (
 
 SELECT is((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'private.assert_published_food_vendor_complete(uuid)'::regprocedure), 'localens_catalog_guard_owner', 'vendor completeness helper has guard owner');
 SELECT is((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'private.assert_published_food_item_complete(uuid)'::regprocedure), 'localens_catalog_guard_owner', 'item completeness helper has guard owner');
+SELECT is((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'private.assert_published_food_item_vendor_row()'::regprocedure), 'localens_catalog_guard_owner', 'food item vendor row guard has guard owner');
 SELECT ok((SELECT proconfig @> ARRAY['search_path='] AND proconfig @> ARRAY['statement_timeout=5s'] FROM pg_proc WHERE oid = 'private.assert_published_food_vendor_complete(uuid)'::regprocedure), 'vendor completeness helper pins search path and timeout');
 SELECT ok((SELECT proconfig @> ARRAY['search_path='] AND proconfig @> ARRAY['statement_timeout=5s'] FROM pg_proc WHERE oid = 'private.assert_published_food_item_complete(uuid)'::regprocedure), 'item completeness helper pins search path and timeout');
-SELECT ok((SELECT pg_get_functiondef('private.assert_published_food_vendor_complete(uuid)'::regprocedure) LIKE '%source_url IS NULL%' AND pg_get_functiondef('private.assert_published_food_vendor_complete(uuid)'::regprocedure) LIKE '%locale = ''en''%public.locale%' AND pg_get_functiondef('private.assert_published_food_vendor_complete(uuid)'::regprocedure) LIKE '%support_kind = ''mobility''%' AND pg_get_functiondef('private.assert_published_food_vendor_complete(uuid)'::regprocedure) LIKE '%food_items%'), 'vendor completeness checks provenance translations support and a menu item');
-SELECT ok((SELECT pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) LIKE '%source_url IS NULL%' AND pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) LIKE '%locale = ''vi''%public.locale%' AND pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) LIKE '%support_kind = ''dietary''%' AND pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) LIKE '%support_kind = ''allergen''%'), 'item completeness checks provenance translations and explicit support evidence');
+SELECT ok((SELECT count(*) = 1 FROM pg_trigger WHERE tgname = 'food_items_vendor_completeness' AND tgrelid = 'public.food_items'::regclass AND NOT tgisinternal), 'food item writes guard their published vendor');
+SELECT ok((SELECT count(*) = 2 FROM pg_trigger WHERE tgname IN ('food_item_translations_published_completeness', 'food_item_supports_published_completeness') AND tgrelid IN ('public.food_item_translations'::regclass, 'public.food_item_supports'::regclass) AND NOT tgisinternal), 'food item child guards retain self-completeness');
+SELECT ok((SELECT pg_get_functiondef('private.assert_published_food_vendor_complete(uuid)'::regprocedure) LIKE '%source_url IS NULL%' AND pg_get_functiondef('private.assert_published_food_vendor_complete(uuid)'::regprocedure) ~ $$locale[[:space:]]+IN[[:space:]]*\('en'::public\.locale,[[:space:]]*'vi'::public\.locale\)$$ AND pg_get_functiondef('private.assert_published_food_vendor_complete(uuid)'::regprocedure) LIKE '%support_kind = ''mobility''%' AND pg_get_functiondef('private.assert_published_food_vendor_complete(uuid)'::regprocedure) LIKE '%food_items%'), 'vendor completeness checks provenance translations support and a menu item');
+SELECT ok((SELECT pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) LIKE '%source_url IS NULL%' AND pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) ~ $$locale[[:space:]]+IN[[:space:]]*\('en'::public\.locale,[[:space:]]*'vi'::public\.locale\)$$ AND pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) LIKE '%support_kind = ''dietary''%' AND pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) LIKE '%support_kind = ''allergen''%'), 'item completeness checks provenance translations and explicit support evidence');
 
 SELECT ok((SELECT prosecdef AND proconfig @> ARRAY['search_path='] AND proconfig @> ARRAY['statement_timeout=5s'] FROM pg_proc WHERE oid = 'private.create_catalog_snapshot()'::regprocedure), 'food snapshot creator remains pinned SECURITY DEFINER');
 SELECT is((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'private.create_catalog_snapshot()'::regprocedure), 'localens_catalog_rpc_owner', 'food snapshot creator keeps named owner');
 SELECT ok((SELECT pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%p.price_vnd_per_person%' AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%p.visit_duration_minutes%' AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%INSERT INTO public.catalog_snapshot_food_vendors%' AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%INSERT INTO public.catalog_snapshot_food_items%'), 'snapshot creator preserves venue copy and adds food copy');
-SELECT ok((SELECT pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%f.status = ''published''%public.place_status%' AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%i.available%' AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%i.status = ''published''%public.place_status%'), 'snapshot creator copies only published available food facts');
+SELECT ok((SELECT pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%v.status = ''published''%public.place_status%' AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%i.available%' AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%i.status = ''published''%public.place_status%'), 'snapshot creator copies only published available food facts');
 SELECT ok((SELECT pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.areas IN SHARE ROW EXCLUSIVE MODE%' AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.area_translations IN SHARE ROW EXCLUSIVE MODE%' AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.places IN SHARE ROW EXCLUSIVE MODE%' AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.food_vendors IN SHARE ROW EXCLUSIVE MODE%' AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.food_items IN SHARE ROW EXCLUSIVE MODE%'), 'snapshot creator keeps venue locks before deterministic food locks');
 
 SELECT ok(NOT has_table_privilege('anon', 'public.catalog_snapshot_food_vendors', 'SELECT') AND NOT has_table_privilege('authenticated', 'public.catalog_snapshot_food_items', 'SELECT'), 'API roles cannot read food snapshot tables directly');
@@ -220,6 +223,17 @@ SELECT throws_ok($$INSERT INTO public.food_vendors (id, place_id, slug, status, 
 SELECT throws_ok($$INSERT INTO public.food_items (id, food_vendor_id, slug, status, serving_unit, price_vnd_min, price_vnd_max, portion_description, available)
   VALUES ('00000000-0000-0000-0000-000000000404'::uuid, '00000000-0000-0000-0000-000000000401'::uuid, 'incomplete-dish', 'published', 'portion', 1, 1, 'Missing evidence', true)$$,
   '23514', NULL, 'published item requires complete source and child facts');
+
+INSERT INTO public.food_vendors (id, place_id, slug, status, service_type, location_note, capacity_note)
+VALUES ('00000000-0000-0000-0000-000000000405'::uuid, '00000000-0000-0000-0000-000000000201'::uuid, 'draft-target-stall', 'draft', 'stall', 'Draft target', 'Draft target');
+SELECT throws_ok($$UPDATE public.food_items SET available = false WHERE id = '00000000-0000-0000-0000-000000000402'::uuid$$,
+  '23514', NULL, 'published vendor cannot lose its sole available item');
+SELECT throws_ok($$UPDATE public.food_items SET status = 'draft' WHERE id = '00000000-0000-0000-0000-000000000402'::uuid$$,
+  '23514', NULL, 'published vendor cannot lose its sole published item');
+SELECT throws_ok($$UPDATE public.food_items SET food_vendor_id = '00000000-0000-0000-0000-000000000405'::uuid WHERE id = '00000000-0000-0000-0000-000000000402'::uuid$$,
+  '23514', NULL, 'published vendor cannot lose its sole item by reparenting');
+SELECT throws_ok($$DELETE FROM public.food_items WHERE id = '00000000-0000-0000-0000-000000000402'::uuid$$,
+  '23514', NULL, 'published vendor cannot delete its sole item');
 
 INSERT INTO auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000905'::uuid, 'authenticated', 'authenticated', 'food-catalog-admin@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now())

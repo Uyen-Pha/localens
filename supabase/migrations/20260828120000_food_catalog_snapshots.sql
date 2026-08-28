@@ -608,7 +608,7 @@ CREATE TRIGGER catalog_snapshot_food_vendor_opening_hours_append_only BEFORE UPD
 FOR EACH ROW EXECUTE FUNCTION private.reject_append_only_change();
 CREATE TRIGGER catalog_snapshot_food_vendor_opening_exceptions_append_only BEFORE UPDATE OR DELETE ON public.catalog_snapshot_food_vendor_opening_exceptions
 FOR EACH ROW EXECUTE FUNCTION private.reject_append_only_change();
-CREATE TRIGGER catalog_snapshot_food_vendor_opening_exception_windows_append_only BEFORE UPDATE OR DELETE ON public.catalog_snapshot_food_vendor_opening_exception_windows
+CREATE TRIGGER catalog_snapshot_food_vendor_ex_windows_append_only BEFORE UPDATE OR DELETE ON public.catalog_snapshot_food_vendor_opening_exception_windows
 FOR EACH ROW EXECUTE FUNCTION private.reject_append_only_change();
 CREATE TRIGGER catalog_snapshot_food_items_append_only BEFORE UPDATE OR DELETE ON public.catalog_snapshot_food_items
 FOR EACH ROW EXECUTE FUNCTION private.reject_append_only_change();
@@ -625,9 +625,9 @@ CREATE TRIGGER catalog_snapshot_food_vendor_supports_append_only_truncate BEFORE
 FOR EACH STATEMENT EXECUTE FUNCTION private.reject_append_only_change();
 CREATE TRIGGER catalog_snapshot_food_vendor_opening_hours_append_only_truncate BEFORE TRUNCATE ON public.catalog_snapshot_food_vendor_opening_hours
 FOR EACH STATEMENT EXECUTE FUNCTION private.reject_append_only_change();
-CREATE TRIGGER catalog_snapshot_food_vendor_opening_exceptions_append_only_truncate BEFORE TRUNCATE ON public.catalog_snapshot_food_vendor_opening_exceptions
+CREATE TRIGGER catalog_snapshot_food_vendor_opening_exceptions_truncate BEFORE TRUNCATE ON public.catalog_snapshot_food_vendor_opening_exceptions
 FOR EACH STATEMENT EXECUTE FUNCTION private.reject_append_only_change();
-CREATE TRIGGER catalog_snapshot_food_vendor_opening_exception_windows_append_only_truncate BEFORE TRUNCATE ON public.catalog_snapshot_food_vendor_opening_exception_windows
+CREATE TRIGGER catalog_snapshot_food_vendor_ex_windows_truncate BEFORE TRUNCATE ON public.catalog_snapshot_food_vendor_opening_exception_windows
 FOR EACH STATEMENT EXECUTE FUNCTION private.reject_append_only_change();
 CREATE TRIGGER catalog_snapshot_food_items_append_only_truncate BEFORE TRUNCATE ON public.catalog_snapshot_food_items
 FOR EACH STATEMENT EXECUTE FUNCTION private.reject_append_only_change();
@@ -831,7 +831,29 @@ SECURITY DEFINER
 SET search_path = ''
 SET statement_timeout = '5s'
 AS $function$
+DECLARE
+  old_vendor_id uuid;
+  new_vendor_id uuid;
 BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    old_vendor_id := OLD.food_vendor_id;
+    new_vendor_id := NEW.food_vendor_id;
+  ELSE
+    new_vendor_id := NEW.food_vendor_id;
+  END IF;
+  IF TG_OP = 'UPDATE' AND old_vendor_id IS DISTINCT FROM new_vendor_id THEN
+    IF old_vendor_id::text < new_vendor_id::text THEN
+      PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('localens:food-vendor:' || old_vendor_id::text, 0::bigint));
+      PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('localens:food-vendor:' || new_vendor_id::text, 0::bigint));
+    ELSE
+      PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('localens:food-vendor:' || new_vendor_id::text, 0::bigint));
+      PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('localens:food-vendor:' || old_vendor_id::text, 0::bigint));
+    END IF;
+  ELSE
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended('localens:food-vendor:' || new_vendor_id::text, 0::bigint)
+    );
+  END IF;
   PERFORM private.assert_published_food_item_complete(NEW.id);
   RETURN NEW;
 END;
@@ -917,10 +939,66 @@ $function$;
 ALTER FUNCTION private.assert_published_food_item_row() OWNER TO localens_catalog_guard_owner;
 REVOKE ALL ON FUNCTION private.assert_published_food_item_row() FROM PUBLIC, anon, authenticated, service_role;
 
+CREATE OR REPLACE FUNCTION private.assert_published_food_item_vendor_row()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+SET statement_timeout = '5s'
+AS $function$
+DECLARE
+  item_id uuid;
+  old_vendor_id uuid;
+  new_vendor_id uuid;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    item_id := OLD.id;
+    old_vendor_id := OLD.food_vendor_id;
+  ELSIF TG_OP = 'UPDATE' THEN
+    item_id := NEW.id;
+    old_vendor_id := OLD.food_vendor_id;
+    new_vendor_id := NEW.food_vendor_id;
+  ELSE
+    item_id := NEW.id;
+    new_vendor_id := NEW.food_vendor_id;
+  END IF;
+
+  -- Every food-item row guard locks vendors before the item helper. This
+  -- matches the vendor-child guard's vendor-then-item order and keeps
+  -- reparenting locks deterministic in both directions.
+  IF TG_OP = 'UPDATE' AND old_vendor_id IS DISTINCT FROM new_vendor_id THEN
+    IF old_vendor_id::text < new_vendor_id::text THEN
+      PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('localens:food-vendor:' || old_vendor_id::text, 0::bigint));
+      PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('localens:food-vendor:' || new_vendor_id::text, 0::bigint));
+    ELSE
+      PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('localens:food-vendor:' || new_vendor_id::text, 0::bigint));
+      PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('localens:food-vendor:' || old_vendor_id::text, 0::bigint));
+    END IF;
+  ELSE
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended('localens:food-vendor:' || COALESCE(new_vendor_id, old_vendor_id)::text, 0::bigint)
+    );
+  END IF;
+
+  PERFORM private.assert_published_food_item_complete(item_id);
+  PERFORM private.assert_published_food_vendor_complete(old_vendor_id);
+  IF new_vendor_id IS DISTINCT FROM old_vendor_id THEN
+    PERFORM private.assert_published_food_vendor_complete(new_vendor_id);
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$function$;
+ALTER FUNCTION private.assert_published_food_item_vendor_row() OWNER TO localens_catalog_guard_owner;
+REVOKE ALL ON FUNCTION private.assert_published_food_item_vendor_row() FROM PUBLIC, anon, authenticated, service_role;
+
 CREATE TRIGGER food_vendors_published_completeness
 AFTER INSERT OR UPDATE OF place_id, status, source_url, verified_at, attribution ON public.food_vendors
 FOR EACH ROW WHEN (NEW.status = 'published'::public.place_status)
 EXECUTE FUNCTION private.assert_published_food_vendor_transition();
+CREATE TRIGGER food_items_vendor_completeness
+AFTER INSERT OR UPDATE OR DELETE ON public.food_items
+FOR EACH ROW EXECUTE FUNCTION private.assert_published_food_item_vendor_row();
 CREATE TRIGGER food_items_published_completeness
 AFTER INSERT OR UPDATE OF status, source_url, verified_at, attribution, serving_unit, portion_description,
   price_vnd_min, price_vnd_max ON public.food_items

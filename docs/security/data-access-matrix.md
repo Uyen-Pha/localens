@@ -176,7 +176,7 @@ Migration owner for default privileges: postgres
 
 ## Internal functions
 
-Enumerated internal functions: 90. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
+Enumerated internal functions: 91. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
 
 - `private.accept_guide_assignment(uuid)`
 - `private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)`
@@ -200,6 +200,7 @@ Enumerated internal functions: 90. All are non-API and must use a named NOLOGIN/
 - `private.assert_published_food_item_complete(uuid)`
 - `private.assert_published_food_item_row()`
 - `private.assert_published_food_item_transition()`
+- `private.assert_published_food_item_vendor_row()`
 - `private.assert_published_food_vendor_complete(uuid)`
 - `private.assert_published_food_vendor_row()`
 - `private.assert_published_food_vendor_transition()`

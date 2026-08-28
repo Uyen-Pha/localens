@@ -1453,6 +1453,7 @@
     "private.assert_published_food_item_complete(uuid)",
     "private.assert_published_food_item_row()",
     "private.assert_published_food_item_transition()",
+    "private.assert_published_food_item_vendor_row()",
     "private.assert_published_food_vendor_complete(uuid)",
     "private.assert_published_food_vendor_row()",
     "private.assert_published_food_vendor_transition()",

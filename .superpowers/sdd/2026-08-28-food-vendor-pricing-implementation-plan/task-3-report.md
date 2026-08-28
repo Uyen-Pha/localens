@@ -206,7 +206,7 @@ claimed:
 - `supabase/migrations/20260828120000_food_catalog_snapshots.sql` — nine
   immutable food snapshot tables, RLS/grants/guards, publication completeness,
   and forward snapshot RPC replacement.
-- `supabase/tests/database/food_catalog_test.sql` — exact 101-assertion,
+- `supabase/tests/database/food_catalog_test.sql` — exact 108-assertion,
   rollback-only metadata and synthetic publication/copy/old-price fixture.
 - `docs/security/data-access-matrix.json` — nine tables, seven food
   completeness/row helper functions, and guard policy inventory.
@@ -235,3 +235,48 @@ claimed:
   touched or staged.
 
 Implementation verified; commit follows in this delivery.
+
+## Task 3B fix round 1 — 2026-08-28
+
+Status: complete; static verification passed; runtime database gates remain blocked.
+
+The migration review found three explicit trigger identifiers over PostgreSQL's
+63-byte identifier limit. The two `opening_exception_windows` names truncated
+to the same identifier on one table, so the second `CREATE TRIGGER` would fail
+with `already exists`; the `opening_exceptions` truncate name also exceeded the
+limit. The first RED run of the new static regression test reproduced all three
+over-limit names.
+
+The forward migration now uses the unique, bounded names
+`catalog_snapshot_food_vendor_ex_windows_append_only` (51 bytes),
+`catalog_snapshot_food_vendor_ex_windows_truncate` (48 bytes), and
+`catalog_snapshot_food_vendor_opening_exceptions_truncate` (56 bytes). The
+pgTAP trigger inventory was updated to those names. The completeness assertions
+now recognize the actual `locale IN ('en'::public.locale, 'vi'::public.locale)`
+helper expression, and the snapshot-copy assertion checks the actual `v`
+vendor alias.
+
+A static artifacts test now inventories Task 3B declarations, rejects any
+identifier over 63 UTF-8 bytes, and detects trigger collisions after
+PostgreSQL-style truncation. The RED run failed only on the three known names;
+the GREEN run passed all 19 artifacts tests. Runtime PostgreSQL remains
+unavailable under the existing `SUPABASE_CLI_NOT_FOUND` environment blocker;
+no runtime result is claimed.
+
+### Fix-round verification evidence
+
+- `pnpm db:static` — exit 0; 16 migration files checked.
+- `pnpm test:run tests/unit/supabase/artifacts.test.ts tests/unit/supabase/rls-matrix.test.ts` — exit 0; 2 files, 25 tests passed.
+- `pnpm test:run` — exit 0; 57 files, 591 tests passed.
+- `pnpm lint` — exit 0; no ESLint errors.
+- `pnpm typecheck` — exit 0.
+- The food pgTAP file has `SELECT plan(108)` and exactly 108 executable
+  `ok`/`is`/`throws_ok`/`lives_ok` assertions.
+- Identifier inventory found 143 declarations, zero identifiers over 63 UTF-8
+  bytes, and zero trigger truncation collisions.
+- `git diff --check` — clean.
+- `pnpm db:test` remains blocked by the exact
+  `SUPABASE_CLI_NOT_FOUND` environment error; no PostgreSQL runtime result is
+  claimed.
+
+Implementation verified; fix-round commit follows in this delivery.

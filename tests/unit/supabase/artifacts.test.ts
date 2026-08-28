@@ -174,6 +174,46 @@ describe("static Supabase artifact gate", () => {
     expect(pgTap).toMatch(/auth deletion cascades profile[\s\S]*auth deletion cascades guide profile[\s\S]*auth deletion cascades roles/i);
   });
 
+  it("keeps Task 3B SQL identifiers within PostgreSQL's 63-byte limit and avoids trigger truncation collisions", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260828120000_food_catalog_snapshots.sql"), "utf8");
+    const declarations = [
+      ...migration.matchAll(/\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TABLE|POLICY|TRIGGER|(?:UNIQUE\s+)?INDEX|FUNCTION)\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:(?:public|private|auth)\.)?([a-z_][a-z0-9_]*)/gi),
+      ...migration.matchAll(/\bCONSTRAINT\s+([a-z_][a-z0-9_]*)/gi),
+    ].map((match) => match[1]);
+    const overLimit = declarations.filter((name) => Buffer.byteLength(name, "utf8") > 63);
+    expect(overLimit, "declarations must not rely on PostgreSQL identifier truncation").toEqual([]);
+
+    const triggers = [...migration.matchAll(/\bCREATE\s+TRIGGER\s+([a-z_][a-z0-9_]*)[\s\S]*?\bON\s+((?:public|private)\.[a-z_][a-z0-9_]*)/gi)];
+    const seen = new Map<string, string>();
+    const collisions: string[] = [];
+    for (const match of triggers) {
+      const name = match[1];
+      const table = match[2];
+      const key = `${table}.${name.slice(0, 63)}`;
+      const previous = seen.get(key);
+      if (previous && previous !== name) collisions.push(`${table}: ${previous} vs ${name}`);
+      seen.set(key, name);
+    }
+    expect(collisions, "trigger names must remain unique after PostgreSQL truncation").toEqual([]);
+  });
+
+  it("guards a published vendor when its food item loses availability, status, owner, or row", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260828120000_food_catalog_snapshots.sql"), "utf8");
+    const pgTap = readFileSync(join(repoRoot, "supabase", "tests", "database", "food_catalog_test.sql"), "utf8");
+    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION private\.assert_published_food_item_vendor_row\(\)[\s\S]*?OLD\.food_vendor_id[\s\S]*?NEW\.food_vendor_id[\s\S]*?private\.assert_published_food_vendor_complete\(old_vendor_id\)[\s\S]*?private\.assert_published_food_vendor_complete\(new_vendor_id\)/i);
+    expect(migration).toMatch(/CREATE TRIGGER food_items_vendor_completeness\s+AFTER INSERT OR UPDATE OR DELETE ON public\.food_items/i);
+    expect(migration).toMatch(/food_item_translations_published_completeness AFTER INSERT OR UPDATE OR DELETE/i);
+    expect(migration).toMatch(/food_item_supports_published_completeness AFTER INSERT OR UPDATE OR DELETE/i);
+    expect(pgTap).toMatch(/UPDATE public\.food_items SET available = false/i);
+    expect(pgTap).toMatch(/UPDATE public\.food_items SET status = 'draft'/i);
+    expect(pgTap).toMatch(/UPDATE public\.food_items SET food_vendor_id =/i);
+    expect(pgTap).toMatch(/DELETE FROM public\.food_items/i);
+    const plan = pgTap.match(/^SELECT plan\((\d+)\);$/im);
+    const executableAssertions = pgTap.match(/^SELECT (?:ok|is|throws_ok|lives_ok)\b/gm) ?? [];
+    expect(plan, "food pgTAP must declare an executable assertion plan").not.toBeNull();
+    expect(Number(plan?.[1]), "food pgTAP plan must match executable assertion count").toBe(executableAssertions.length);
+  });
+
   it("passes an empty migration directory because seed data is optional", () => {
     const root = fixtureRoot({});
     try {
