@@ -1753,8 +1753,15 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Sunday",
+            "opens": "02:00",
+            "closes": "23:00",
+            "sourceId": "cho-lon"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -1767,6 +1774,9 @@
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "English visitor information or English-guided service was not confirmed.",
+        "The latest 28/08/2026 human review reports 02:00-23:00 daily; the official HCMC tourism listing currently reports 05:00-23:00 daily and notes the night-market period from 19:00, so the exact visitor window requires final confirmation.",
         "Individual stall hours, dietary cross-contact and current prices require a final operational check."
       ],
       "evidenceOnlyFields": [
@@ -1778,15 +1788,16 @@
       ],
       "officialAddress": {
         "status": "known",
-        "value": "57A Thap Muoi Street, Ho Chi Minh City.",
+        "value": "57A Thap Muoi Street, Ward 2, District 6, Ho Chi Minh City.",
         "sourceRef": "cho-lon",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 0,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "cho-lon",
+        "scopeCaveat": "General admission is free for international visitors according to the latest 28/08/2026 review. Food, merchandise and other purchases are separate from admission and have no fixed LocalLens price. LocalLens uses 0 VND as the default planning amount."
       },
       "support": {
         "language": {
@@ -1810,8 +1821,12 @@
         "identity": [
           "cho-lon"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "cho-lon"
+        ],
+        "admission": [
+          "cho-lon"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,
