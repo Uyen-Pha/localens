@@ -1874,6 +1874,132 @@
     },
     {
       "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_item_supports",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_item_supports",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_item_translations",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_item_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_items",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_items",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendor_opening_exception_windows",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendor_opening_exception_windows",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendor_opening_exceptions",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendor_opening_exceptions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendor_opening_hours",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendor_opening_hours",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendor_supports",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendor_supports",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendor_translations",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendor_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendors",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendors",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
       "objectName": "public.catalog_snapshot_place_experience_types",
       "privilege": "insert",
       "columns": [],
@@ -2478,6 +2604,13 @@
       "objectName": "public.food_item_supports",
       "privilege": "select",
       "columns": [],
+      "grantee": "localens_catalog_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.food_item_supports",
+      "privilege": "select",
+      "columns": [],
       "grantee": "localens_catalog_rpc_owner"
     },
     {
@@ -2499,6 +2632,13 @@
       "objectName": "public.food_item_translations",
       "privilege": "select",
       "columns": [],
+      "grantee": "localens_catalog_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.food_item_translations",
+      "privilege": "select",
+      "columns": [],
       "grantee": "localens_catalog_rpc_owner"
     },
     {
@@ -2520,6 +2660,13 @@
       "objectName": "public.food_items",
       "privilege": "select",
       "columns": [],
+      "grantee": "localens_catalog_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.food_items",
+      "privilege": "select",
+      "columns": [],
       "grantee": "localens_catalog_rpc_owner"
     },
     {
@@ -2625,6 +2772,13 @@
       "objectName": "public.food_vendor_supports",
       "privilege": "select",
       "columns": [],
+      "grantee": "localens_catalog_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.food_vendor_supports",
+      "privilege": "select",
+      "columns": [],
       "grantee": "localens_catalog_rpc_owner"
     },
     {
@@ -2646,6 +2800,13 @@
       "objectName": "public.food_vendor_translations",
       "privilege": "select",
       "columns": [],
+      "grantee": "localens_catalog_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.food_vendor_translations",
+      "privilege": "select",
+      "columns": [],
       "grantee": "localens_catalog_rpc_owner"
     },
     {
@@ -2661,6 +2822,13 @@
       "privilege": "insert",
       "columns": [],
       "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.food_vendors",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_guard_owner"
     },
     {
       "objectType": "table",
@@ -3009,6 +3177,13 @@
       "privilege": "insert",
       "columns": [],
       "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.places",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_catalog_guard_owner"
     },
     {
       "objectType": "table",

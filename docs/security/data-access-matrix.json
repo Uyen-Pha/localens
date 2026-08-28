@@ -662,7 +662,8 @@
     {
       "name": "public.food_item_supports",
       "policies": [
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "food_item_supports_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
       "owner": "postgres",
@@ -671,7 +672,8 @@
     {
       "name": "public.food_item_translations",
       "policies": [
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "food_item_translations_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
       "owner": "postgres",
@@ -680,7 +682,8 @@
     {
       "name": "public.food_items",
       "policies": [
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "food_items_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
       "owner": "postgres",
@@ -689,8 +692,8 @@
     {
       "name": "public.food_vendor_opening_exception_windows",
       "policies": [
-        "food_vendor_opening_exception_windows_guard_select",
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "food_vendor_opening_exception_windows_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
       "owner": "postgres",
@@ -699,8 +702,8 @@
     {
       "name": "public.food_vendor_opening_exceptions",
       "policies": [
-        "food_vendor_opening_exceptions_guard_select",
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "food_vendor_opening_exceptions_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
       "owner": "postgres",
@@ -709,8 +712,8 @@
     {
       "name": "public.food_vendor_opening_hours",
       "policies": [
-        "food_vendor_opening_hours_guard_select",
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "food_vendor_opening_hours_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
       "owner": "postgres",
@@ -719,7 +722,8 @@
     {
       "name": "public.food_vendor_supports",
       "policies": [
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "food_vendor_supports_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
       "owner": "postgres",
@@ -728,7 +732,8 @@
     {
       "name": "public.food_vendor_translations",
       "policies": [
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "food_vendor_translations_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
       "owner": "postgres",
@@ -737,9 +742,91 @@
     {
       "name": "public.food_vendors",
       "policies": [
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "food_vendors_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_item_supports",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_item_translations",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_items",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendor_opening_exception_windows",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendor_opening_exceptions",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendor_opening_hours",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendor_supports",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendor_translations",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendors",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
       "owner": "postgres",
       "forceRls": true
     },
@@ -862,6 +949,7 @@
       "name": "public.places",
       "policies": [
         "catalog_owner_all",
+        "food_vendor_completeness_place_guard_select",
         "places_public_select"
       ],
       "owner": "postgres",
@@ -1362,6 +1450,12 @@
     "private.assert_food_exception_window_nonoverlap()",
     "private.assert_food_exception_window_parent_open()",
     "private.assert_food_opening_window_nonoverlap()",
+    "private.assert_published_food_item_complete(uuid)",
+    "private.assert_published_food_item_row()",
+    "private.assert_published_food_item_transition()",
+    "private.assert_published_food_vendor_complete(uuid)",
+    "private.assert_published_food_vendor_row()",
+    "private.assert_published_food_vendor_transition()",
     "private.assert_guide_assignment_mutation()",
     "private.assert_opening_window_nonoverlap()",
     "private.assert_payment_mutation()",
@@ -1441,7 +1535,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 502,
+  "grantCount": 527,
   "policyManifest": "docs/security/policies-manifest.json",
-  "policyCount": 36
+  "policyCount": 45
 }
