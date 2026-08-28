@@ -69,6 +69,23 @@ function fixtureFoodVendor(place: JsonRecord): JsonRecord {
   };
 }
 
+function refreshPlacesHash(root: string): void {
+  const places = JSON.parse(readFileSync(join(root, "data/sources/hcmc-places.v1.json"), "utf8")) as JsonRecord;
+  const hashes = JSON.parse(readFileSync(join(root, "data/sources/source-hashes.v1.json"), "utf8")) as JsonRecord;
+  const canonical = (value: unknown): string => {
+    if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+    if (value && typeof value === "object") return "{" + Object.keys(value as Record<string, unknown>).sort().map((key) => JSON.stringify(key) + ":" + canonical((value as Record<string, unknown>)[key])).join(",") + "}";
+    return JSON.stringify(value);
+  };
+  const sha256 = (value: unknown): string => createHash("sha256").update(canonical(value), "utf8").digest("hex");
+  ((hashes.manifests as JsonRecord).places as JsonRecord).sha256 = sha256(places);
+  writeFileSync(join(root, "data/sources/source-hashes.v1.json"), JSON.stringify(hashes, null, 2) + "\n", "utf8");
+  const approval = JSON.parse(readFileSync(join(root, "data/approvals/hcmc-catalog.v1.json"), "utf8")) as JsonRecord;
+  (approval.sourceHashes as JsonRecord).places = ((hashes.manifests as JsonRecord).places as JsonRecord).sha256;
+  (approval.sourceHashes as JsonRecord).sourceHashes = sha256(hashes);
+  writeFileSync(join(root, "data/approvals/hcmc-catalog.v1.json"), JSON.stringify(approval, null, 2) + "\n", "utf8");
+}
+
 function approveDraft(root: string): void {
   mutateJson(root, "data/approvals/hcmc-catalog.v1.json", (approval) => {
     approval.status = "approved";
@@ -293,6 +310,32 @@ describe("Task 15 seed readiness gate", () => {
       expect(result.issues.flatMap((issue: { details: string[] }) => issue.details)).toEqual(expect.arrayContaining([expect.stringMatching(/ho-thi-ky-food-street.*food/i)]));
     } finally {
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed for either contradictory availability alias direction", () => {
+    const conflicts = [
+      { available: true, availability: "unavailable" },
+      { available: false, availability: "available" },
+    ];
+    for (const conflict of conflicts) {
+      const root = copyFixture(makeRuntimeReady);
+      try {
+        mutateJson(root, "data/sources/hcmc-places.v1.json", (places) => {
+          const place = (places.places as JsonRecord[]).find((candidate) => candidate.slug === "ho-thi-ky-food-street") as JsonRecord;
+          const item = (((place.foodVendors as JsonRecord[])[0]).menuItems as JsonRecord[])[0];
+          Object.assign(item, conflict);
+        });
+        refreshPlacesHash(root);
+
+        const result = assessSeedReadiness({ root });
+
+        expect(result.ok).toBe(false);
+        expect(codes(result)).toContain(SEED_READINESS_CODES.CATALOG_NOT_SELLABLE);
+        expect(result.issues.flatMap((issue: { details: string[] }) => issue.details)).toEqual(expect.arrayContaining([expect.stringMatching(/ho-thi-ky-food-street.*food/i)]));
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
     }
   });
 

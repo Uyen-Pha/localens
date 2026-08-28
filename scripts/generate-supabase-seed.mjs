@@ -80,11 +80,13 @@ function hasKnownFoodPrice(item) {
 }
 
 function isAvailableFoodItem(item) {
-  return item?.available === true || item?.availability === true || item?.availability === "available" || item?.availability === "sellable";
+  if (item?.available !== undefined) return item.available === true && (item.availability === undefined || item.availability === "available");
+  return item?.availability === "available";
 }
 
 function foodRuntimeReady(place) {
-  const vendors = Array.isArray(place?.foodVendors) ? place.foodVendors : [];
+  const vendors = place?.foodVendors === undefined ? [] : place.foodVendors;
+  if (!Array.isArray(vendors)) return false;
   return vendors.some((vendor) => vendor?.status === "sellable"
     && Array.isArray(vendor.menuItems)
     && vendor.menuItems.some((item) => item?.status === "sellable" && isAvailableFoodItem(item) && hasKnownFoodPrice(item)));

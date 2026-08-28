@@ -301,6 +301,13 @@ describe("Task 14 sourced catalog approval gate", () => {
     try { expectInvalid(root, /sellable food place|foodVendors\[0\].*sellable|available/i); } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
+  it("rejects an explicit null foodVendors value instead of treating it as absent", () => {
+    const root = fixture((fixtureRoot) => mutateJson(fixtureRoot, "data/sources/hcmc-places.v1.json", (manifest) => {
+      placeBySlug(manifest, "ho-thi-ky-food-street").foodVendors = null;
+    }));
+    try { expectInvalid(root, /places\[\d+\]\.foodVendors must be an array/i); } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
   it("ties tour availability to research-only stops and keeps stale FX USD-disabled", () => {
     const root = fixture((fixtureRoot) => {
       mutateJson(fixtureRoot, "data/sources/hcmc-tours.v1.json", (manifest) => { records(manifest.tours)[0].available = true; (manifest.demoFx as JsonRecord).usdEnabled = true; });

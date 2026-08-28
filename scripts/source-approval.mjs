@@ -170,7 +170,8 @@ function isKnownFoodPrice(item) {
 }
 
 function isAvailableFoodItem(item) {
-  return item?.available === true || item?.availability === true || item?.availability === "available" || item?.availability === "sellable";
+  if (item?.available !== undefined) return item.available === true && (item.availability === undefined || item.availability === "available");
+  return item?.availability === "available";
 }
 
 export function checkFoodMenuItem(vendor, item, index, registry, errors, pathPrefix = "menuItems") {
@@ -304,7 +305,7 @@ function checkPlace(place, index, registry, errors) {
   if (admission?.status === "known" && (!Number.isInteger(admission.amountVnd) || admission.amountVnd < 0 || !registry.has(admission.sourceRef) || typeof admission.scopeCaveat !== "string" || !admission.scopeCaveat.trim())) addError(errors, `${prefix}.known officialAdmission requires a non-negative amount, registered sourceRef, and scopeCaveat`);
   if (admission?.status === "unknown" && (admission.amountVnd !== null || admission.sourceRef !== null)) addError(errors, `${prefix}.unknown officialAdmission must have null amount/sourceRef`);
   if (!place.planningEstimate || !Number.isInteger(place.planningEstimate.amountVnd) || place.planningEstimate.currency !== "VND" || place.planningEstimate.provenance !== "localens_demo_company_price" || place.planningEstimate.isOfficialAdmission !== false) addError(errors, `${prefix}.planningEstimate must be a non-official LocalLens demo estimate`);
-  const foodVendors = place.foodVendors ?? [];
+  const foodVendors = place.foodVendors === undefined ? [] : place.foodVendors;
   if (!Array.isArray(foodVendors)) {
     addError(errors, prefix + ".foodVendors must be an array when supplied");
   } else {
