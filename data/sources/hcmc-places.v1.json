@@ -1642,8 +1642,15 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Sunday",
+            "opens": "07:00",
+            "closes": "18:00",
+            "sourceId": "cho-lon"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -1656,6 +1663,9 @@
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "English visitor information or English-guided service was not confirmed.",
+        "The latest 28/08/2026 human review reports 07:00-18:00 daily for the main market, with some stalls possibly operating until 22:00; individual stall schedules require final confirmation.",
         "Individual stall hours, dietary cross-contact and current prices require a final operational check."
       ],
       "evidenceOnlyFields": [
@@ -1667,15 +1677,16 @@
       ],
       "officialAddress": {
         "status": "known",
-        "value": "18 An Duong Vuong Street, Ho Chi Minh City.",
+        "value": "34-36 An Duong Vuong Street, Ward 9, District 5, Ho Chi Minh City.",
         "sourceRef": "cho-lon",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 0,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "cho-lon",
+        "scopeCaveat": "General admission is free for international visitors according to the latest 28/08/2026 review. Food, merchandise and other purchases are separate from admission and have no fixed LocalLens price. LocalLens uses 0 VND as the default planning amount."
       },
       "support": {
         "language": {
@@ -1699,8 +1710,12 @@
         "identity": [
           "cho-lon"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "cho-lon"
+        ],
+        "admission": [
+          "cho-lon"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,
