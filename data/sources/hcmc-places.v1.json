@@ -2656,8 +2656,8 @@
         "vi": "Một chợ địa phương gắn với văn hóa ẩm thực miền Trung."
       },
       "description": {
-        "en": "The venue is retained for research while official hours and vendor evidence are verified.",
-        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh giờ hoạt động và bằng chứng về tiểu thương."
+        "en": "The venue is retained for research while the exact entrance point, operating status and vendor evidence are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh lối vào cụ thể, trạng thái hoạt động và bằng chứng về tiểu thương."
       },
       "experienceTypes": [
         "traditional_market",
@@ -2672,8 +2672,15 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Sunday",
+            "opens": "06:00",
+            "closes": "21:00",
+            "sourceId": "city-tourism"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -2682,11 +2689,14 @@
       },
       "languageSupport": {
         "en": "unknown",
-        "vi": "unknown"
+        "vi": "known"
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
-        "Official venue page, current operating hours, dietary evidence and accessibility are not verified."
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "English visitor information or English-guided service was not confirmed.",
+        "The latest 28/08/2026 human review reports 06:00-21:00 daily; the official tourism listing currently uses 99 Tran Mai Ninh, Ward 11 and 05:00-18:00 daily with food activity from 17:00, so the exact address and visitor window require final confirmation.",
+        "Individual stall hours, dietary cross-contact and current prices require a final operational check."
       ],
       "evidenceOnlyFields": [
         "officialAddress",
@@ -2696,16 +2706,17 @@
         "planningEstimate"
       ],
       "officialAddress": {
-        "status": "unknown",
-        "value": null,
-        "sourceRef": null,
+        "status": "known",
+        "value": "Tran Mai Ninh Street, Ward 12, Tan Binh District, Ho Chi Minh City.",
+        "sourceRef": "city-tourism",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 0,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "city-tourism",
+        "scopeCaveat": "General admission is free for international visitors according to the latest 28/08/2026 review. Food, merchandise and other purchases are separate from admission and have no fixed LocalLens price. LocalLens uses 0 VND as the default planning amount."
       },
       "support": {
         "language": {
@@ -2729,8 +2740,12 @@
         "identity": [
           "city-tourism"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "city-tourism"
+        ],
+        "admission": [
+          "city-tourism"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,
