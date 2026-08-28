@@ -1863,8 +1863,15 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Sunday",
+            "opens": "15:00",
+            "closes": "23:00",
+            "sourceId": "street-food"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -1877,6 +1884,9 @@
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "English visitor information or English-guided service was not confirmed.",
+        "The latest 28/08/2026 human review reports 15:00-23:00 daily, with the market operating overnight on holidays and Tet; an official tourism listing currently describes food stalls as typically operating 15:00-22:30, so the exact closing and holiday schedule require final confirmation.",
         "Vendor availability, allergens, dietary cross-contact and current prices require a final operational check."
       ],
       "evidenceOnlyFields": [
@@ -1887,16 +1897,17 @@
         "planningEstimate"
       ],
       "officialAddress": {
-        "status": "unknown",
-        "value": null,
-        "sourceRef": null,
+        "status": "known",
+        "value": "Ho Thi Ky Street, Vuon Lai Ward (former District 10), Ho Chi Minh City.",
+        "sourceRef": "street-food",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 0,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "street-food",
+        "scopeCaveat": "There is no admission ticket for the food street according to the latest 28/08/2026 review. Food and beverage purchases are separate from admission and have no fixed LocalLens price. LocalLens uses 0 VND as the default planning amount."
       },
       "support": {
         "language": {
@@ -1920,8 +1931,12 @@
         "identity": [
           "street-food"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "street-food"
+        ],
+        "admission": [
+          "street-food"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,
