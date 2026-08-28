@@ -2478,13 +2478,6 @@
       "objectName": "public.food_item_supports",
       "privilege": "select",
       "columns": [],
-      "grantee": "localens_catalog_guard_owner"
-    },
-    {
-      "objectType": "table",
-      "objectName": "public.food_item_supports",
-      "privilege": "select",
-      "columns": [],
       "grantee": "localens_catalog_rpc_owner"
     },
     {
@@ -2506,13 +2499,6 @@
       "objectName": "public.food_item_translations",
       "privilege": "select",
       "columns": [],
-      "grantee": "localens_catalog_guard_owner"
-    },
-    {
-      "objectType": "table",
-      "objectName": "public.food_item_translations",
-      "privilege": "select",
-      "columns": [],
       "grantee": "localens_catalog_rpc_owner"
     },
     {
@@ -2534,13 +2520,6 @@
       "objectName": "public.food_items",
       "privilege": "select",
       "columns": [],
-      "grantee": "localens_catalog_guard_owner"
-    },
-    {
-      "objectType": "table",
-      "objectName": "public.food_items",
-      "privilege": "select",
-      "columns": [],
       "grantee": "localens_catalog_rpc_owner"
     },
     {
@@ -2646,13 +2625,6 @@
       "objectName": "public.food_vendor_supports",
       "privilege": "select",
       "columns": [],
-      "grantee": "localens_catalog_guard_owner"
-    },
-    {
-      "objectType": "table",
-      "objectName": "public.food_vendor_supports",
-      "privilege": "select",
-      "columns": [],
       "grantee": "localens_catalog_rpc_owner"
     },
     {
@@ -2674,13 +2646,6 @@
       "objectName": "public.food_vendor_translations",
       "privilege": "select",
       "columns": [],
-      "grantee": "localens_catalog_guard_owner"
-    },
-    {
-      "objectType": "table",
-      "objectName": "public.food_vendor_translations",
-      "privilege": "select",
-      "columns": [],
       "grantee": "localens_catalog_rpc_owner"
     },
     {
@@ -2696,13 +2661,6 @@
       "privilege": "insert",
       "columns": [],
       "grantee": "localens_catalog_rpc_owner"
-    },
-    {
-      "objectType": "table",
-      "objectName": "public.food_vendors",
-      "privilege": "select",
-      "columns": [],
-      "grantee": "localens_catalog_guard_owner"
     },
     {
       "objectType": "table",

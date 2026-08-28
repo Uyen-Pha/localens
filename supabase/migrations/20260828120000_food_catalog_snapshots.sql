@@ -173,25 +173,14 @@ ALTER TABLE public.food_item_translations FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.food_item_supports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.food_item_supports FORCE ROW LEVEL SECURITY;
 
--- Guard functions execute as the named no-login guard owner. Their read
--- policies are restricted to that owner and are not API grants.
-CREATE POLICY food_vendors_guard_select ON public.food_vendors
-  FOR SELECT TO localens_catalog_guard_owner USING (current_user = 'localens_catalog_guard_owner');
-CREATE POLICY food_vendor_translations_guard_select ON public.food_vendor_translations
-  FOR SELECT TO localens_catalog_guard_owner USING (current_user = 'localens_catalog_guard_owner');
-CREATE POLICY food_vendor_supports_guard_select ON public.food_vendor_supports
-  FOR SELECT TO localens_catalog_guard_owner USING (current_user = 'localens_catalog_guard_owner');
+-- Opening and exception guards execute as the named no-login guard owner.
+-- Their read policies are restricted to the three relations they inspect and
+-- are not API grants.
 CREATE POLICY food_vendor_opening_hours_guard_select ON public.food_vendor_opening_hours
   FOR SELECT TO localens_catalog_guard_owner USING (current_user = 'localens_catalog_guard_owner');
 CREATE POLICY food_vendor_opening_exceptions_guard_select ON public.food_vendor_opening_exceptions
   FOR SELECT TO localens_catalog_guard_owner USING (current_user = 'localens_catalog_guard_owner');
 CREATE POLICY food_vendor_opening_exception_windows_guard_select ON public.food_vendor_opening_exception_windows
-  FOR SELECT TO localens_catalog_guard_owner USING (current_user = 'localens_catalog_guard_owner');
-CREATE POLICY food_items_guard_select ON public.food_items
-  FOR SELECT TO localens_catalog_guard_owner USING (current_user = 'localens_catalog_guard_owner');
-CREATE POLICY food_item_translations_guard_select ON public.food_item_translations
-  FOR SELECT TO localens_catalog_guard_owner USING (current_user = 'localens_catalog_guard_owner');
-CREATE POLICY food_item_supports_guard_select ON public.food_item_supports
   FOR SELECT TO localens_catalog_guard_owner USING (current_user = 'localens_catalog_guard_owner');
 
 DO $policies$
@@ -218,10 +207,9 @@ GRANT SELECT, INSERT, UPDATE ON TABLE
   public.food_item_translations, public.food_item_supports
   TO localens_catalog_rpc_owner;
 GRANT SELECT ON TABLE
-  public.food_vendors, public.food_vendor_translations, public.food_vendor_supports,
-  public.food_vendor_opening_hours, public.food_vendor_opening_exceptions,
-  public.food_vendor_opening_exception_windows, public.food_items,
-  public.food_item_translations, public.food_item_supports
+  public.food_vendor_opening_hours,
+  public.food_vendor_opening_exceptions,
+  public.food_vendor_opening_exception_windows
   TO localens_catalog_guard_owner;
 REVOKE ALL ON TABLE
   public.food_vendors, public.food_vendor_translations, public.food_vendor_supports,

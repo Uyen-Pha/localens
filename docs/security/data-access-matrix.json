@@ -662,7 +662,6 @@
     {
       "name": "public.food_item_supports",
       "policies": [
-        "food_item_supports_guard_select",
         "catalog_owner_all"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -672,7 +671,6 @@
     {
       "name": "public.food_item_translations",
       "policies": [
-        "food_item_translations_guard_select",
         "catalog_owner_all"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -682,7 +680,6 @@
     {
       "name": "public.food_items",
       "policies": [
-        "food_items_guard_select",
         "catalog_owner_all"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -722,7 +719,6 @@
     {
       "name": "public.food_vendor_supports",
       "policies": [
-        "food_vendor_supports_guard_select",
         "catalog_owner_all"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -732,7 +728,6 @@
     {
       "name": "public.food_vendor_translations",
       "policies": [
-        "food_vendor_translations_guard_select",
         "catalog_owner_all"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -742,7 +737,6 @@
     {
       "name": "public.food_vendors",
       "policies": [
-        "food_vendors_guard_select",
         "catalog_owner_all"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -1447,7 +1441,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 508,
+  "grantCount": 502,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 36
 }
