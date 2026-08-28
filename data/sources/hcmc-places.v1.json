@@ -2782,8 +2782,8 @@
         "vi": "Một địa điểm ẩm thực trong hẻm ở Quận 4 được đề xuất nghiên cứu."
       },
       "description": {
-        "en": "The venue is retained for research while vendor continuity, official access information and hours are verified.",
-        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh sự ổn định của hàng quán, thông tin tiếp cận và giờ hoạt động."
+        "en": "The venue is retained for research while vendor continuity, exact access information and hours are verified.",
+        "vi": "Địa điểm được giữ ở trạng thái nghiên cứu trong khi xác minh sự ổn định của hàng quán, thông tin lối vào cụ thể và giờ hoạt động."
       },
       "experienceTypes": [
         "street_food"
@@ -2797,8 +2797,15 @@
       ],
       "verifiedAt": "2026-08-25",
       "hours": {
-        "status": "unknown",
-        "windows": []
+        "status": "known",
+        "windows": [
+          {
+            "days": "Monday-Sunday",
+            "opens": "16:00",
+            "closes": "23:00",
+            "sourceId": "street-food"
+          }
+        ]
       },
       "coordinates": {
         "status": "unknown",
@@ -2807,11 +2814,14 @@
       },
       "languageSupport": {
         "en": "unknown",
-        "vi": "unknown"
+        "vi": "known"
       },
       "languageSupportConfidence": "unknown",
       "unknownFacts": [
-        "Official venue page, vendor opening hours, dietary evidence and group access are not verified."
+        "Accessibility support for guests with limited mobility was not found in the reviewed information; LocalLens must not promise step-free access.",
+        "English visitor information or English-guided service was not confirmed.",
+        "The latest 28/08/2026 human review reports 16:00-23:00 daily. The official street-food listing identifies Hẻm 200 Xóm Chiếu in District 4 but does not publish an exact schedule; the administrative ward label also requires confirmation.",
+        "Vendor availability, allergens, dietary cross-contact and current prices require a final operational check."
       ],
       "evidenceOnlyFields": [
         "officialAddress",
@@ -2821,16 +2831,17 @@
         "planningEstimate"
       ],
       "officialAddress": {
-        "status": "unknown",
-        "value": null,
-        "sourceRef": null,
+        "status": "known",
+        "value": "Dinh Le Street, Ward 12, District 4, Ho Chi Minh City.",
+        "sourceRef": "street-food",
         "verifiedAt": "2026-08-25"
       },
       "officialAdmission": {
-        "status": "unknown",
-        "amountVnd": null,
+        "status": "known",
+        "amountVnd": 0,
         "currency": "VND",
-        "sourceRef": null
+        "sourceRef": "street-food",
+        "scopeCaveat": "There is no admission ticket for the food alley according to the latest 28/08/2026 review. Food and beverage purchases are separate from admission and have no fixed LocalLens price. LocalLens uses 0 VND as the default planning amount."
       },
       "support": {
         "language": {
@@ -2854,8 +2865,12 @@
         "identity": [
           "street-food"
         ],
-        "hours": [],
-        "admission": []
+        "hours": [
+          "street-food"
+        ],
+        "admission": [
+          "street-food"
+        ]
       },
       "planningEstimate": {
         "amountVnd": 0,
