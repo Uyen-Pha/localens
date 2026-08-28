@@ -660,6 +660,96 @@
       "forceRls": true
     },
     {
+      "name": "public.food_item_supports",
+      "policies": [
+        "food_item_supports_guard_select",
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog maintenance RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.food_item_translations",
+      "policies": [
+        "food_item_translations_guard_select",
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog maintenance RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.food_items",
+      "policies": [
+        "food_items_guard_select",
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog maintenance RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.food_vendor_opening_exception_windows",
+      "policies": [
+        "food_vendor_opening_exception_windows_guard_select",
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog maintenance RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.food_vendor_opening_exceptions",
+      "policies": [
+        "food_vendor_opening_exceptions_guard_select",
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog maintenance RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.food_vendor_opening_hours",
+      "policies": [
+        "food_vendor_opening_hours_guard_select",
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog maintenance RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.food_vendor_supports",
+      "policies": [
+        "food_vendor_supports_guard_select",
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog maintenance RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.food_vendor_translations",
+      "policies": [
+        "food_vendor_translations_guard_select",
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog maintenance RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.food_vendors",
+      "policies": [
+        "food_vendors_guard_select",
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog maintenance RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
       "name": "public.fx_snapshots",
       "policies": [
         "fx_snapshots_catalog_owner_all",
@@ -1274,6 +1364,10 @@
     "private.assert_exception_consistency()",
     "private.assert_exception_window_nonoverlap()",
     "private.assert_exception_window_parent_open()",
+    "private.assert_food_exception_consistency()",
+    "private.assert_food_exception_window_nonoverlap()",
+    "private.assert_food_exception_window_parent_open()",
+    "private.assert_food_opening_window_nonoverlap()",
     "private.assert_guide_assignment_mutation()",
     "private.assert_opening_window_nonoverlap()",
     "private.assert_payment_mutation()",
@@ -1353,7 +1447,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 471,
+  "grantCount": 508,
   "policyManifest": "docs/security/policies-manifest.json",
-  "policyCount": 27
+  "policyCount": 36
 }

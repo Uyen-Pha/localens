@@ -143,6 +143,96 @@
       "withCheck": "current_user = 'localens_tour_rpc_owner'"
     },
     {
+      "table": "public.food_item_supports",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.food_item_translations",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.food_items",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.food_vendor_opening_exception_windows",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.food_vendor_opening_exceptions",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.food_vendor_opening_hours",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.food_vendor_supports",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.food_vendor_translations",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
+      "table": "public.food_vendors",
+      "name": "catalog_owner_all",
+      "command": "ALL",
+      "roles": [
+        "localens_catalog_rpc_owner"
+      ],
+      "using": "current_user = 'localens_catalog_rpc_owner'",
+      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+    },
+    {
       "table": "public.place_experience_types",
       "name": "catalog_owner_all",
       "command": "ALL",

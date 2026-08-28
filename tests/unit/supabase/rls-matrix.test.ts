@@ -52,7 +52,7 @@ describe("Task 13 RLS/RPC access matrix", () => {
       rpcs: Array<{ name: string; signature: string; owner: string; readerRoles: string[] }>;
       internalFunctions: string[];
     };
-    expect(matrix.tables).toHaveLength(61);
+    expect(matrix.tables).toHaveLength(70);
     expect(matrix.views).toHaveLength(12);
     expect(matrix.rpcs).toHaveLength(17);
     expect(matrix.internalFunctions.every((signature) => signature.includes("("))).toBe(true);
