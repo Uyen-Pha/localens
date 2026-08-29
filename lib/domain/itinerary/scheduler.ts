@@ -83,7 +83,7 @@ interface SchedulerContext {
   lockedIds: readonly string[];
   lockedIndexes: Map<string, number>;
   budgetVnd: number;
-  foodSelections: Map<string, FoodSelection>;
+  foodSelections: Map<string, FoodSelection | null>;
 }
 
 export type { FoodSelectionInput };
@@ -191,8 +191,8 @@ function normalizeFoodSelections(
   input: EngineInput,
   foodSelections: FoodSelectionInput | undefined,
   catalogById: ReadonlyMap<string, PlaceCandidate>,
-): Result<Map<string, FoodSelection>> {
-  const normalized = new Map<string, FoodSelection>();
+): Result<Map<string, FoodSelection | null>> {
+  const normalized = new Map<string, FoodSelection | null>();
   if (foodSelections === undefined) return { ok: true, value: normalized };
 
   let prototype: object | null;
@@ -226,6 +226,10 @@ function normalizeFoodSelections(
     if (place === undefined || !isFoodPriorityPlace(place, input)) {
       return invalidScheduler("foodSelections");
     }
+    if (descriptor.value === null) {
+      normalized.set(key, null);
+      continue;
+    }
     const parsed = foodSelectionSchema.safeParse(descriptor.value);
     if (!parsed.success) return invalidScheduler("foodSelections");
     normalized.set(key, parsed.data);
@@ -249,6 +253,20 @@ interface VerifiedFoodSelection {
   payAtVendorMaxVnd: number;
   customerPayableVnd: number;
 }
+
+interface LockedFoodlessSelection {
+  selection: null;
+  minVnd: 0;
+  maxVnd: 0;
+  payAtVendorMinVnd: 0;
+  payAtVendorMaxVnd: 0;
+  customerPayableVnd: 0;
+  startEpochMinute: number;
+}
+
+type ScheduledFood =
+  | (VerifiedFoodSelection & { startEpochMinute: number })
+  | LockedFoodlessSelection;
 
 function verifyFoodSelection(
   place: PlaceCandidate,
@@ -285,9 +303,28 @@ function chooseScheduledFood(
   earliestEpochMinute: number,
   context: SchedulerContext,
   baseCostVnd: number,
-): (VerifiedFoodSelection & { startEpochMinute: number }) | null {
-  const supplied = context.foodSelections.get(place.id);
-  if (supplied !== undefined) {
+): ScheduledFood | null {
+  if (context.foodSelections.has(place.id)) {
+    const supplied = context.foodSelections.get(place.id);
+    if (supplied === undefined) return null;
+    if (supplied === null) {
+      const start = findEarliestVisitStart(
+        place,
+        earliestEpochMinute,
+        context.latestEndEpochMinute,
+        place.visitDurationMinutes,
+      );
+      if (!start.ok || start.value === null) return null;
+      return {
+        selection: null,
+        minVnd: 0,
+        maxVnd: 0,
+        payAtVendorMinVnd: 0,
+        payAtVendorMaxVnd: 0,
+        customerPayableVnd: 0,
+        startEpochMinute: start.value,
+      };
+    }
     const verified = verifyFoodSelection(place, supplied, context.input);
     if (verified === null) return null;
     const start = findEarliestFoodVisitStart(
@@ -364,7 +401,7 @@ function appendStop(
   if (!baseCostResult.ok || baseCostResult.value > context.budgetVnd) return null;
 
   let visitStartEpochMinute: number;
-  let food: (VerifiedFoodSelection & { startEpochMinute: number }) | null = null;
+  let food: ScheduledFood | null = null;
   if (isFoodPriorityPlace(candidate, context.input)) {
     food = chooseScheduledFood(candidate, earliestStart, context, baseCostResult.value);
     if (food === null) return null;

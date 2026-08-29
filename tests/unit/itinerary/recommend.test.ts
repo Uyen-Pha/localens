@@ -52,6 +52,37 @@ function canonicalBanhMiSelection() {
   };
 }
 
+function hostileFoodSelections(kind: "custom-prototype" | "sparse" | "accessor" | "symbol") {
+  const valid = [{ placeId: "place-banh-mi", selection: canonicalBanhMiSelection() }];
+  if (kind === "custom-prototype") {
+    Object.setPrototypeOf(valid, {
+      [Symbol.iterator]: function* () {
+        yield valid[0];
+      },
+    });
+    return valid;
+  }
+  if (kind === "sparse") {
+    const sparse: unknown[] = [];
+    sparse.length = 1;
+    return sparse;
+  }
+  if (kind === "accessor") {
+    Object.defineProperty(valid, "0", {
+      configurable: true,
+      enumerable: true,
+      get: () => ({ placeId: "place-banh-mi", selection: canonicalBanhMiSelection() }),
+    });
+    return valid;
+  }
+  Object.defineProperty(valid, Symbol("inherited-looking"), {
+    configurable: true,
+    enumerable: true,
+    value: valid[0],
+  });
+  return valid;
+}
+
 function manualTimeoutFactory() {
   const controller = new AbortController();
   let cancelCount = 0;
@@ -152,11 +183,62 @@ describe("recommendItinerary", () => {
     });
   });
 
+  it("rejects a cross-vendor menu selection even when both IDs are allowlisted", async () => {
+    const source = sourceWithMultipleCandidates();
+    const banhMi = source.catalog.places.find((place) => place.id === "place-banh-mi");
+    if (!banhMi) throw new Error("fixture place missing");
+    const vendor = banhMi.foodVendors[0];
+    const alternateVendor = {
+      ...vendor,
+      id: "vendor-banh-mi-alt",
+      slug: "vendor-banh-mi-alt",
+      menuItems: vendor.menuItems.map((item) => ({
+        ...item,
+        id: "menu-banh-mi-alt",
+        vendorId: "vendor-banh-mi-alt",
+        slug: "banh-mi-alt",
+      })),
+    };
+    const input = {
+      ...source,
+      catalog: {
+        ...source.catalog,
+        places: source.catalog.places.map((place) =>
+          place.id === banhMi.id
+            ? { ...place, foodVendors: [vendor, alternateVendor] }
+            : place,
+        ),
+      },
+    };
+    const ranker = vi.fn(async () => ({
+      orderedIds: ["place-banh-mi"],
+      rationales: { "place-banh-mi": "matched" },
+      foodSelections: [{
+        placeId: "place-banh-mi",
+        selection: {
+          ...canonicalBanhMiSelection(),
+          vendorId: "vendor-banh-mi-legacy",
+          menuItemId: "menu-banh-mi-alt",
+        },
+      }],
+    }));
+
+    const result = await recommendItinerary(input, { ranker });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { degraded: true, messageKey: "itinerary.ai_invalid" },
+    });
+    expect(ranker).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ["missing selection", []],
     ["unknown vendor", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), vendorId: "vendor-forged" } }]],
     ["unknown menu", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), menuItemId: "menu-forged" } }]],
-    ["changed price", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), priceVndMax: 1 } }]],
+    ["changed minimum price", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), priceVndMin: 1 } }]],
+    ["changed maximum price", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), priceVndMax: 1 } }]],
+    ["integer wrong quantity", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), quantity: 1 } }]],
     ["fractional quantity", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), quantity: 1.5 } }]],
     ["changed activity", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), activity: "Book a table" } }]],
     ["included in quote", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), paymentMode: "included_in_quote" } }]],
@@ -182,6 +264,118 @@ describe("recommendItinerary", () => {
         result: { rankingSource: "deterministic" },
       },
     });
+  });
+
+  it.each(["custom-prototype", "sparse", "accessor", "symbol"] as const)(
+    "rejects hostile food selection containers: %s",
+    async (kind) => {
+      const foodSelections = hostileFoodSelections(kind);
+      const result = await recommendItinerary(sourceWithMultipleCandidates(), {
+        ranker: async () => ({
+          orderedIds: ["place-banh-mi"],
+          rationales: { "place-banh-mi": "matched" },
+          foodSelections: foodSelections as unknown as RankResponse["foodSelections"],
+        }),
+      });
+
+      expect(result).toMatchObject({
+        ok: true,
+        value: { degraded: true, messageKey: "itinerary.ai_invalid" },
+      });
+    },
+  );
+
+  it("does not invoke a provider when the candidate set exceeds the provider cap", async () => {
+    const history = itineraryFixture.catalog.places.find((place) => place.id === "place-history");
+    if (!history) throw new Error("fixture place missing");
+    const extraPlaces = Array.from({ length: 129 }, (_, index) => ({
+      ...history,
+      id: `place-history-${String(index).padStart(3, "0")}`,
+      openingHours: [{ weekday: 6 as const, opensAt: "08:00", closesAt: "17:00" }],
+      dietarySupport: { halal: "supported" as const },
+      mobilitySupport: { "step-free": "supported" as const },
+    }));
+    const source = {
+      ...sourceWithMultipleCandidates(),
+      catalog: {
+        ...sourceWithMultipleCandidates().catalog,
+        places: [
+          ...sourceWithMultipleCandidates().catalog.places.filter((place) => place.id === "place-banh-mi"),
+          ...extraPlaces,
+        ],
+      },
+    };
+    const ranker = vi.fn(async () => ({
+      orderedIds: ["place-banh-mi"],
+      rationales: { "place-banh-mi": "matched" },
+      foodSelections: [],
+    }));
+
+    const result = await recommendItinerary(source, { ranker });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { degraded: true, messageKey: "itinerary.ai_invalid" },
+    });
+    expect(ranker).not.toHaveBeenCalled();
+  });
+
+  it("does not materialize an overlarge per-place food option set", async () => {
+    const source = structuredClone(sourceWithMultipleCandidates());
+    const place = source.catalog.places.find((candidate) => candidate.id === "place-banh-mi");
+    if (!place) throw new Error("food fixture place missing");
+    const vendor = place.foodVendors[0];
+    if (!vendor) throw new Error("food fixture vendor missing");
+    const menu = vendor.menuItems[0];
+    if (!menu) throw new Error("food fixture menu missing");
+    vendor.menuItems = Array.from({ length: 65 }, (_, index) => ({
+      ...menu,
+      id: `menu-banh-mi-${String(index).padStart(3, "0")}`,
+      slug: `banh-mi-${String(index).padStart(3, "0")}`,
+    }));
+    const ranker = vi.fn(async () => ({
+      orderedIds: ["place-banh-mi"],
+      rationales: { "place-banh-mi": "matched" },
+      foodSelections: [],
+    }));
+
+    const result = await recommendItinerary(source, { ranker });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { degraded: true, messageKey: "itinerary.ai_invalid" },
+    });
+    expect(ranker).not.toHaveBeenCalled();
+  });
+
+  it("does not send a provider payload over the byte cap", async () => {
+    const base = structuredClone(sourceWithMultipleCandidates());
+    const history = base.catalog.places.find((place) => place.id === "place-history");
+    if (!history) throw new Error("history fixture place missing");
+    const longHistoryPlaces = Array.from({ length: 100 }, (_, index) => ({
+      ...history,
+      id: `place-history-${String(index).padStart(3, "0")}-${"x".repeat(140)}`,
+      openingHours: [{ weekday: 6 as const, opensAt: "08:00", closesAt: "17:00" }],
+      dietarySupport: { halal: "supported" as const },
+      mobilitySupport: { "step-free": "supported" as const },
+    }));
+    base.catalog.places = [
+      ...base.catalog.places.filter((place) => place.id === "place-banh-mi"),
+      ...longHistoryPlaces,
+    ];
+    const ranker = vi.fn(async () => ({
+      orderedIds: ["place-banh-mi"],
+      rationales: { "place-banh-mi": "matched" },
+      foodSelections: [],
+    }));
+
+    const result = await recommendItinerary(base, { ranker });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { degraded: true, messageKey: "itinerary.ai_invalid" },
+    });
+    expect(ranker).not.toHaveBeenCalled();
   });
 
   it.each([

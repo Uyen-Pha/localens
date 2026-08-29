@@ -76,6 +76,7 @@ function hasExactKeys(value: object, expected: readonly string[]): boolean {
 
 function isDenseStringArray(value: unknown): value is string[] {
   if (!Array.isArray(value)) return false;
+  if (Object.getPrototypeOf(value) !== Array.prototype) return false;
   const ownKeys = Reflect.ownKeys(value);
   const allowedKeys = new Set<string>(["length"]);
   for (let index = 0; index < value.length; index += 1) {
@@ -98,6 +99,7 @@ function isDenseStringArray(value: unknown): value is string[] {
 
 function isDenseArray(value: unknown): value is readonly unknown[] {
   if (!Array.isArray(value)) return false;
+  if (Object.getPrototypeOf(value) !== Array.prototype) return false;
   const ownKeys = Reflect.ownKeys(value);
   const allowedKeys = new Set<string>(["length"]);
   for (let index = 0; index < value.length; index += 1) {
@@ -151,6 +153,7 @@ export interface RankFoodValidationOptions {
     string,
     readonly FoodSelection[]
   >;
+  readonly lockedFoodlessPlaceIds?: readonly string[];
 }
 
 function cloneFoodSelection(selection: FoodSelection): FoodSelection {
@@ -185,27 +188,38 @@ function validateFoodSelections(
     return value.length === 0 ? [] : null;
   }
 
-  const allowedVendors = new Set(options.allowedVendorIds);
-  const allowedMenuItems = new Set(options.allowedMenuItemIds);
+  const lockedFoodlessPlaceIds = options.lockedFoodlessPlaceIds ?? [];
   if (
-    !Array.isArray(options.allowedVendorIds) ||
-    !Array.isArray(options.allowedMenuItemIds) ||
-    new Set(options.allowedVendorIds).size !== options.allowedVendorIds.length ||
-    new Set(options.allowedMenuItemIds).size !== options.allowedMenuItemIds.length ||
-    options.allowedVendorIds.some((id) => typeof id !== "string") ||
-    options.allowedMenuItemIds.some((id) => typeof id !== "string")
+    !isDenseStringArray(options.allowedVendorIds) ||
+    !isDenseStringArray(options.allowedMenuItemIds) ||
+    !isDenseStringArray(lockedFoodlessPlaceIds)
   ) return null;
+
+  const allowedVendors = new Set<string>();
+  const allowedMenuItems = new Set<string>();
+  for (let index = 0; index < options.allowedVendorIds.length; index += 1) {
+    const id = options.allowedVendorIds[index];
+    if (typeof id !== "string" || allowedVendors.has(id)) return null;
+    allowedVendors.add(id);
+  }
+  for (let index = 0; index < options.allowedMenuItemIds.length; index += 1) {
+    const id = options.allowedMenuItemIds[index];
+    if (typeof id !== "string" || allowedMenuItems.has(id)) return null;
+    allowedMenuItems.add(id);
+  }
 
   const foodPlaceIds = new Set(options.canonicalSelectionsByPlace.keys());
   const orderedSet = new Set(orderedIds);
   const seenPlaces = new Set<string>();
   const validated: RankFoodSelection[] = [];
 
-  for (const raw of value) {
+  for (let index = 0; index < value.length; index += 1) {
+    const raw = value[index];
     if (!isPlainObject(raw) || !hasExactKeys(raw, ["placeId", "selection"])) return null;
     const placeId = raw.placeId;
     if (typeof placeId !== "string" || !orderedSet.has(placeId) || seenPlaces.has(placeId)) return null;
     if (!foodPlaceIds.has(placeId)) return null;
+    if (lockedFoodlessPlaceIds.includes(placeId)) return null;
     seenPlaces.add(placeId);
 
     const rawSelection = raw.selection;
@@ -231,9 +245,11 @@ function validateFoodSelections(
     validated.push({ placeId, selection: cloned });
   }
 
-  for (const placeId of orderedIds) {
+  for (let index = 0; index < orderedIds.length; index += 1) {
+    const placeId = orderedIds[index];
     if (!foodPlaceIds.has(placeId)) continue;
     const canonical = options.canonicalSelectionsByPlace.get(placeId);
+    if (!seenPlaces.has(placeId) && lockedFoodlessPlaceIds.includes(placeId)) continue;
     if (canonical === undefined || canonical.length === 0 || !seenPlaces.has(placeId)) return null;
   }
 
@@ -252,9 +268,10 @@ export function validateRankResponse(
   foodOptions?: RankFoodValidationOptions,
 ): Result<ValidatedRankResponse> {
   try {
-    if (!Array.isArray(filteredIds)) return invalidRankResponse();
+    if (!isDenseStringArray(filteredIds)) return invalidRankResponse();
     const filteredSet = new Set<string>();
-    for (const id of filteredIds) {
+    for (let index = 0; index < filteredIds.length; index += 1) {
+      const id = filteredIds[index];
       if (typeof id !== "string" || filteredSet.has(id)) return invalidRankResponse();
       filteredSet.add(id);
     }
@@ -268,7 +285,8 @@ export function validateRankResponse(
     }
 
     const seen = new Set<string>();
-    for (const id of orderedIdsValue) {
+    for (let index = 0; index < orderedIdsValue.length; index += 1) {
+      const id = orderedIdsValue[index];
       if (!filteredSet.has(id) || seen.has(id)) return invalidRankResponse();
       seen.add(id);
     }
@@ -282,7 +300,8 @@ export function validateRankResponse(
     }
 
     const rationales: Record<string, string> = {};
-    for (const id of orderedIdsValue) {
+    for (let index = 0; index < orderedIdsValue.length; index += 1) {
+      const id = orderedIdsValue[index];
       if (!Object.prototype.hasOwnProperty.call(rationalesValue, id)) {
         return invalidRankResponse();
       }

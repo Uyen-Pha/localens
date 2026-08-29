@@ -574,9 +574,8 @@ function preservesLockedStops(
       || item.startAt !== lockedItem.startAt
       || item.endAt !== lockedItem.endAt
       || item.visitDurationMinutes !== lockedItem.visitDurationMinutes
-      || (previousItem?.foodSelection !== null
-        && previousItem?.foodSelection !== undefined
-        && !sameFoodSelection(item.foodSelection, previousItem.foodSelection))) {
+      || (previousItem === undefined
+        || !sameFoodSelection(item.foodSelection, previousItem.foodSelection))) {
       return false;
     }
     previousResultIndex = index;
@@ -737,11 +736,30 @@ async function validatePreviousMaterial(
 function lockedFoodSelections(
   previousRevision: PreviousRevisionContext,
 ): FoodSelectionInput {
-  const selections = Object.create(null) as Record<string, FoodSelection>;
+  const selections = Object.create(null) as Record<string, FoodSelection | null>;
+  const parsedInput = parseEngineInput(previousRevision.authoritativeInput);
+  if (!parsedInput.ok) return selections;
+  const foodPlaceIds = new Set(
+    parsedInput.value.request.priorityWeights.street_food > 0
+      ? parsedInput.value.catalog.places
+          .filter((place) => place.types.some((type) => type === "street_food" || type === "traditional_market"))
+          .map((place) => place.id)
+      : [],
+  );
   const itemsById = new Map(previousRevision.items.map((item) => [item.itemId, item]));
   for (const lockedItem of previousRevision.lockedItems) {
+    if (!foodPlaceIds.has(lockedItem.placeId)) continue;
     const item = itemsById.get(lockedItem.itemId);
-    if (item?.foodSelection === null || item?.foodSelection === undefined) continue;
+    if (item?.foodSelection === null) {
+      Object.defineProperty(selections, lockedItem.placeId, {
+        value: null,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+      continue;
+    }
+    if (item?.foodSelection === undefined) continue;
     const parsed = foodSelectionSchema.safeParse(item.foodSelection);
     if (!parsed.success) continue;
     Object.defineProperty(selections, lockedItem.placeId, {

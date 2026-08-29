@@ -8,7 +8,7 @@ import {
 } from "@/lib/domain/itinerary/contracts";
 import { createItinerary } from "@/lib/domain/itinerary/engine";
 import { filterCandidates } from "@/lib/domain/itinerary/candidate-filter";
-import { multiplyVnd, normalizeBudgetToVnd } from "@/lib/domain/itinerary/money";
+import { multiplyVnd, normalizeBudgetToVnd, sumVnd } from "@/lib/domain/itinerary/money";
 import {
   foodMenuItemSchema,
   foodVendorSchema,
@@ -16,6 +16,7 @@ import {
 } from "@/lib/domain/food/contracts";
 import {
   calculateFoodSelectionCost,
+  calculateItineraryCostBreakdown,
 } from "@/lib/domain/itinerary/food-cost";
 import { findEarliestFoodVisitStart } from "@/lib/domain/itinerary/food-filter";
 import { normalizeToHcmMinute } from "@/lib/domain/itinerary/local-time";
@@ -54,8 +55,11 @@ export interface Recommendation {
 }
 
 const AI_TIMEOUT_MS = 8_000;
+const MAX_AI_PROVIDER_CANDIDATES = 128;
 const MAX_AI_ALLOWED_VENDORS = 128;
 const MAX_AI_ALLOWED_MENU_ITEMS = 256;
+const MAX_AI_OPTIONS_PER_PLACE = 64;
+const MAX_AI_PROVIDER_PAYLOAD_BYTES = 16 * 1024;
 
 interface FoodAllowlist {
   allowedVendorIds: string[];
@@ -192,6 +196,7 @@ function buildFoodAllowlist(
   const allowedVendorIds = new Set<string>();
   const allowedMenuItemIds = new Set<string>();
   const canonicalSelectionsByPlace = new Map<string, FoodSelection[]>();
+  let aggregateOptions = 0;
 
   for (const place of candidates) {
     if (!isFoodPriorityPlace(place, input)) continue;
@@ -227,6 +232,19 @@ function buildFoodAllowlist(
           !supports(item.dietarySupport, input.request.dietaryRequirements)
         ) continue;
 
+        if (selections.length >= MAX_AI_OPTIONS_PER_PLACE) {
+          return { ok: false, reason: "bounded" };
+        }
+        if (aggregateOptions >= MAX_AI_ALLOWED_MENU_ITEMS) {
+          return { ok: false, reason: "bounded" };
+        }
+        if (!allowedMenuItemIds.has(item.id) && allowedMenuItemIds.size >= MAX_AI_ALLOWED_MENU_ITEMS) {
+          return { ok: false, reason: "bounded" };
+        }
+        if (!allowedVendorIds.has(vendor.id) && allowedVendorIds.size >= MAX_AI_ALLOWED_VENDORS) {
+          return { ok: false, reason: "bounded" };
+        }
+
         const quantity = item.servingUnit === "shared_set" ? 1 : input.request.partySize;
         const selection: FoodSelection = {
           vendorId: vendor.id,
@@ -248,6 +266,7 @@ function buildFoodAllowlist(
         );
         if (!interval.ok || interval.value === null) continue;
         selections.push(selection);
+        aggregateOptions += 1;
         vendorHasSelection = true;
         allowedMenuItemIds.add(item.id);
       }
@@ -293,7 +312,11 @@ function lockedSelectionsAreCanonical(
   if (lockedSelections === undefined) return true;
   for (const placeId of Object.keys(lockedSelections)) {
     const canonical = allowlist.canonicalSelectionsByPlace.get(placeId);
-    if (canonical === undefined || !canonical.some((selection) => sameFoodSelection(selection, lockedSelections[placeId]))) {
+    const locked = lockedSelections[placeId];
+    if (canonical === undefined) return false;
+    if (locked === undefined) return false;
+    if (locked === null) continue;
+    if (!canonical.some((selection) => sameFoodSelection(selection, locked))) {
       return false;
     }
   }
@@ -304,20 +327,20 @@ function mergeLockedFoodSelections(
   aiSelections: readonly { placeId: string; selection: FoodSelection }[],
   lockedSelections: FoodSelectionInput | undefined,
 ): FoodSelectionInput | null {
-  const merged = Object.create(null) as Record<string, FoodSelection>;
+  const merged = Object.create(null) as Record<string, FoodSelection | null>;
   if (lockedSelections !== undefined) {
     for (const placeId of Object.keys(lockedSelections)) {
       const selection = lockedSelections[placeId];
       Object.defineProperty(merged, placeId, {
-        value: {
-          vendorId: selection.vendorId,
-          menuItemId: selection.menuItemId,
-          quantity: selection.quantity,
-          priceVndMin: selection.priceVndMin,
-          priceVndMax: selection.priceVndMax,
-          paymentMode: selection.paymentMode,
-          activity: selection.activity,
-        },
+        value: selection === null ? null : {
+            vendorId: selection.vendorId,
+            menuItemId: selection.menuItemId,
+            quantity: selection.quantity,
+            priceVndMin: selection.priceVndMin,
+            priceVndMax: selection.priceVndMax,
+            paymentMode: selection.paymentMode,
+            activity: selection.activity,
+          },
         enumerable: true,
         configurable: true,
         writable: true,
@@ -325,11 +348,10 @@ function mergeLockedFoodSelections(
     }
   }
   for (const { placeId, selection } of aiSelections) {
-    const existing = Object.prototype.hasOwnProperty.call(merged, placeId)
-      ? merged[placeId]
-      : undefined;
-    if (existing !== undefined && !sameFoodSelection(existing, selection)) return null;
-    if (existing === undefined) {
+    const hasExisting = Object.prototype.hasOwnProperty.call(merged, placeId);
+    const existing = hasExisting ? merged[placeId] : undefined;
+    if (hasExisting && (existing === null || existing === undefined || !sameFoodSelection(existing, selection))) return null;
+    if (!hasExisting) {
       Object.defineProperty(merged, placeId, {
         value: {
           vendorId: selection.vendorId,
@@ -357,6 +379,62 @@ function safeAbortState(signal: AbortSignal | undefined): boolean {
   }
 }
 
+function isProviderPayloadWithinBounds(request: RankRequest): boolean {
+  try {
+    const serialized = JSON.stringify(request);
+    if (typeof serialized !== "string") return false;
+    return new TextEncoder().encode(serialized).byteLength <= MAX_AI_PROVIDER_PAYLOAD_BYTES;
+  } catch {
+    return false;
+  }
+}
+
+function stripLockedFoodlessSelections(
+  result: ItineraryResult,
+  lockedSelections: FoodSelectionInput | undefined,
+): ItineraryResult | null {
+  if (lockedSelections === undefined) return result;
+  const lockedFoodless = new Set(
+    Object.keys(lockedSelections).filter((placeId) => lockedSelections[placeId] === null),
+  );
+  if (lockedFoodless.size === 0) return result;
+
+  let changed = false;
+  const items: ItineraryResult["items"] = [];
+  for (const item of result.items) {
+    if (!lockedFoodless.has(item.placeId)) {
+      items.push(item);
+      continue;
+    }
+    changed = true;
+    const customerPayable = sumVnd([item.placeCostVnd, item.travelCostVndBefore]);
+    if (!customerPayable.ok) return null;
+    items.push({
+      ...item,
+      foodSelection: null,
+      foodCostMinVnd: 0,
+      foodCostMaxVnd: 0,
+      payAtVendorMinVnd: 0,
+      payAtVendorMaxVnd: 0,
+      customerPayableVnd: customerPayable.value,
+    });
+  }
+  if (!changed) return result;
+
+  const travelCost = sumVnd(items.map((item) => item.travelCostVndBefore));
+  if (!travelCost.ok) return null;
+  const cost = calculateItineraryCostBreakdown(items, travelCost.value, result.totals.guideCostVnd);
+  if (!cost.ok) return null;
+  return {
+    ...result,
+    items,
+    totals: {
+      ...result.totals,
+      ...cost.value,
+    },
+  };
+}
+
 function parseInput(input: unknown): Result<EngineInput> {
   try {
     return parseEngineInput(input);
@@ -376,13 +454,19 @@ export async function recommendItinerary(
 
   // Run deterministic orchestration first. This establishes the authoritative
   // domain result and ensures provider failures cannot mask domain failures.
-  const deterministic = createItinerary(
+  const deterministicResult = createItinerary(
     parsed.value,
     undefined,
     "deterministic",
     read.lockedFoodSelections,
   );
-  if (!deterministic.ok) return deterministic;
+  if (!deterministicResult.ok) return deterministicResult;
+  const deterministicValue = stripLockedFoodlessSelections(
+    deterministicResult.value,
+    read.lockedFoodSelections,
+  );
+  if (deterministicValue === null) return fallback(deterministicResult.value, "itinerary.ai_invalid");
+  const deterministic = { ok: true as const, value: deterministicValue };
 
   if (read.ranker === undefined) {
     return fallback(deterministic.value, "itinerary.ai_unavailable");
@@ -403,6 +487,9 @@ export async function recommendItinerary(
   if (!budget.ok) return budget;
   const filtered = filterCandidates(parsed.value, budget.value.budgetVnd);
   if (!filtered.ok) return filtered;
+  if (filtered.value.length > MAX_AI_PROVIDER_CANDIDATES) {
+    return fallback(deterministic.value, "itinerary.ai_invalid");
+  }
 
   const allowlist = buildFoodAllowlist(
     parsed.value,
@@ -440,6 +527,9 @@ export async function recommendItinerary(
     allowlist.value.allowedVendorIds,
     allowlist.value.allowedMenuItemIds,
   );
+  if (!isProviderPayloadWithinBounds(request)) {
+    return fallback(deterministic.value, "itinerary.ai_invalid");
+  }
 
   let timeoutHandle: TimeoutSignalHandle;
   try {
@@ -483,7 +573,14 @@ export async function recommendItinerary(
     const validated = validateRankResponse(
       outcome.value,
       filtered.value.map((candidate) => candidate.id),
-      allowlist.value as RankFoodValidationOptions,
+      {
+        ...allowlist.value,
+        lockedFoodlessPlaceIds: read.lockedFoodSelections === undefined
+          ? []
+          : Object.keys(read.lockedFoodSelections).filter(
+              (placeId) => read.lockedFoodSelections?.[placeId] === null,
+            ),
+      } satisfies RankFoodValidationOptions,
     );
     if (!validated.ok) {
       return fallback(deterministic.value, "itinerary.ai_invalid");
@@ -506,11 +603,18 @@ export async function recommendItinerary(
     if (!aiResult.ok) {
       return fallback(deterministic.value, "itinerary.ai_invalid");
     }
+    const strippedAiResult = stripLockedFoodlessSelections(
+      aiResult.value,
+      read.lockedFoodSelections,
+    );
+    if (strippedAiResult === null) {
+      return fallback(deterministic.value, "itinerary.ai_invalid");
+    }
 
     return {
       ok: true,
       value: {
-        result: aiResult.value,
+        result: strippedAiResult,
         degraded: false,
         rationales: validated.value.rationales,
       },

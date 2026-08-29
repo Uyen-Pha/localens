@@ -299,8 +299,121 @@ describe("refine-itinerary Edge handler contract", () => {
     expect(body.proposal.items[0].foodSelection).toEqual(lockedSelection);
   });
 
-  it("passes normalized feedback, scope, and authoritative locked place mapping to the ranker", async () => {
-    let received: { feedback: string; scope: "partial" | "full"; lockedPlaceIds: string[] } | undefined;
+  it("preserves an explicit null food selection for a locked food place", async () => {
+    const service = adapter();
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.proposal.items[0].placeId).toBe(lockedPlaceId);
+    expect(body.proposal.items[0].foodSelection).toBeNull();
+    expect(body.proposal.items[0].foodCostMinVnd).toBe(0);
+    expect(body.proposal.items[0].foodCostMaxVnd).toBe(0);
+  });
+
+  it("falls back and preserves null when a provider proposes food for a locked foodless place", async () => {
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision,
+        ranker: vi.fn(async () => ({
+          orderedIds: [lockedPlaceId],
+          rationales: { [lockedPlaceId]: "must not add food" },
+          foodSelections: [{
+            placeId: lockedPlaceId,
+            selection: {
+              vendorId: "vendor-banh-mi-legacy",
+              menuItemId: "menu-banh-mi-legacy",
+              quantity: 2,
+              priceVndMin: 30_000,
+              priceVndMax: 40_000,
+              paymentMode: "pay_at_vendor" as const,
+              activity: "Taste and discuss the selected dish",
+            },
+          }],
+        })),
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.degraded).toBe(true);
+    expect(body.proposal.rankingSource).toBe("deterministic");
+    expect(body.proposal.items[0].foodSelection).toBeNull();
+  });
+
+  it("accepts a canonical food selection for an unlocked refinement item", async () => {
+    const ranker = vi.fn(async () => ({
+      orderedIds: [lockedPlaceId],
+      rationales: { [lockedPlaceId]: "canonical unlocked selection" },
+      foodSelections: [{
+        placeId: lockedPlaceId,
+        selection: {
+          vendorId: "vendor-banh-mi-legacy",
+          menuItemId: "menu-banh-mi-legacy",
+          quantity: 2,
+          priceVndMin: 30_000,
+          priceVndMax: 40_000,
+          paymentMode: "pay_at_vendor" as const,
+          activity: "Taste and discuss the selected dish",
+        },
+      }],
+    }));
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision: { ...previousRevision, lockedItems: [] },
+        ranker,
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({
+      guestToken: "guest-token-123456",
+      lockedItemIds: [],
+    })));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.degraded).toBe(false);
+    expect(body.proposal.items[0].foodSelection).toEqual({
+      vendorId: "vendor-banh-mi-legacy",
+      menuItemId: "menu-banh-mi-legacy",
+      quantity: 2,
+      priceVndMin: 30_000,
+      priceVndMax: 40_000,
+      paymentMode: "pay_at_vendor",
+      activity: "Taste and discuss the selected dish",
+    });
+  });
+
+  it("passes a minimal sorted allowlist payload with normalized refinement context", async () => {
+    let received: {
+      feedback: string;
+      scope: "partial" | "full";
+      lockedPlaceIds: string[];
+      rankRequest: RefinementRankRequest;
+    } | undefined;
     const service = adapter({
       prepareRefinement: vi.fn(async () => ({
         ok: true as const,
@@ -313,6 +426,7 @@ describe("refine-itinerary Edge handler contract", () => {
             feedback: rankRequest.feedback,
             scope: rankRequest.scope,
             lockedPlaceIds: [...rankRequest.lockedPlaceIds],
+            rankRequest,
           };
           return {
             orderedIds: rankRequest.candidates.map((candidate) => candidate.id),
@@ -334,7 +448,73 @@ describe("refine-itinerary Edge handler contract", () => {
       feedback: "More history, please",
       scope: "partial",
       lockedPlaceIds: [lockedPlaceId],
+      rankRequest: expect.objectContaining({
+        allowedVendorIds: ["vendor-banh-mi-legacy"],
+        allowedMenuItemIds: ["menu-banh-mi-legacy"],
+      }),
     });
+    expect(Object.keys(received?.rankRequest ?? {}).sort()).toEqual([
+      "allowedMenuItemIds",
+      "allowedVendorIds",
+      "candidates",
+      "feedback",
+      "lockedPlaceIds",
+      "pace",
+      "priorityWeights",
+      "scope",
+    ]);
+    for (const candidate of received?.rankRequest.candidates ?? []) {
+      expect(Object.keys(candidate).sort()).toEqual([
+        "areaId",
+        "id",
+        "types",
+        "visitDurationMinutes",
+      ]);
+    }
+    expect(JSON.stringify(received?.rankRequest)).not.toMatch(/dietary|mobility|special|contact|account|catalog|description|evidence/i);
+  });
+
+  it.each([
+    "foodSelection",
+    "foodCostMinVnd",
+    "foodCostMaxVnd",
+    "payAtVendorMinVnd",
+    "payAtVendorMaxVnd",
+    "customerPayableVnd",
+  ] as const)("rejects a prior locked item tampered in %s", async (field) => {
+    const tamperedRevision = structuredClone(previousRevision);
+    const item = tamperedRevision.items[0] as unknown as Record<string, unknown>;
+    item[field] = field === "foodSelection" ? {
+      vendorId: "vendor-banh-mi-legacy",
+      menuItemId: "menu-banh-mi-legacy",
+      quantity: 2,
+      priceVndMin: 30_000,
+      priceVndMax: 40_000,
+      paymentMode: "pay_at_vendor",
+      activity: "Taste and discuss the selected dish",
+    } : 1;
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision: tamperedRevision,
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "SNAPSHOT_MISMATCH",
+      correlationId,
+    });
+    expect(service.commitRefinement).not.toHaveBeenCalled();
   });
 
   it("allows unrestricted full regeneration only when no locks are supplied", async () => {

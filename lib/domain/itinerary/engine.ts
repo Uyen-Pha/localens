@@ -21,6 +21,33 @@ function isValidRankingSource(value: unknown): value is "ai" | "deterministic" {
   return value === "ai" || value === "deterministic";
 }
 
+function explicitLockedFoodlessIds(
+  foodSelections: FoodSelectionInput | undefined,
+  lockedStopIds: readonly string[],
+): Set<string> | null {
+  if (foodSelections === undefined) return new Set();
+  const locked = new Set(lockedStopIds);
+  const foodless = new Set<string>();
+  for (const placeId of Object.keys(foodSelections)) {
+    if (foodSelections[placeId] === null) {
+      if (!locked.has(placeId)) return null;
+      foodless.add(placeId);
+    }
+  }
+  return foodless;
+}
+
+function validationOnlyReportsExplicitFoodless(
+  issues: readonly { key: string; placeId?: string }[],
+  foodless: ReadonlySet<string>,
+): boolean {
+  return issues.length > 0 && issues.every((issue) =>
+    issue.key === "food.selection.missing"
+    && issue.placeId !== undefined
+    && foodless.has(issue.placeId),
+  );
+}
+
 export function createItinerary(
   source: unknown,
   rankedSubset?: unknown,
@@ -40,6 +67,11 @@ export function createItinerary(
     if (!budget.ok) return budget;
     const filtered = filterCandidates(parsed.value, budget.value.budgetVnd);
     if (!filtered.ok) return filtered;
+    const foodless = explicitLockedFoodlessIds(
+      foodSelections,
+      parsed.value.request.lockedStopIds,
+    );
+    if (foodless === null) return invalidInput("foodSelections");
     const ranked = buildRankOrder(
       filtered.value.map((candidate) => candidate.id),
       rankedSubset as readonly string[] | undefined,
@@ -57,7 +89,7 @@ export function createItinerary(
     if (!scheduled.ok) return scheduled;
 
     const validation = validateItinerary(parsed.value, scheduled.value, ranked.value);
-    if (validation.valid) return scheduled;
+    if (validation.valid || validationOnlyReportsExplicitFoodless(validation.issues, foodless)) return scheduled;
 
     const repaired = repairItinerary(parsed.value, scheduled.value, validation.issues, ranked.value);
     if (!repaired.ok) return repaired;
