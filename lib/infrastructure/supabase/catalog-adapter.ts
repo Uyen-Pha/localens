@@ -6,6 +6,12 @@ import {
   type SupportStatus,
   type Result,
 } from "@/lib/domain/itinerary/contracts";
+import type {
+  FoodMenuItemCandidate,
+  FoodServiceType,
+  ServingUnit,
+  FoodVendorCandidate,
+} from "@/lib/domain/food/contracts";
 import type { DataAdapterError } from "@/lib/domain/data/contracts";
 
 /**
@@ -71,6 +77,55 @@ const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_SAFE_INTEGER = BigInt(Number.MAX_SAFE_INTEGER);
 const MAX_PLACE_COST = Math.floor(Number.MAX_SAFE_INTEGER / 20);
+const FOOD_VENDOR_FIELDS = [
+  "snapshot_id",
+  "place_id",
+  "vendor_id",
+  "slug",
+  "title",
+  "description",
+  "location_note",
+  "service_type",
+  "capacity_note",
+  "dietary_support",
+  "mobility_support",
+  "opening_hours",
+  "opening_exceptions",
+  "status",
+  "verified_at",
+] as const;
+const FOOD_ITEM_FIELDS = [
+  "snapshot_id",
+  "place_id",
+  "vendor_id",
+  "item_id",
+  "slug",
+  "title",
+  "description",
+  "serving_unit",
+  "price_vnd_min",
+  "price_vnd_max",
+  "portion_description",
+  "dietary_support",
+  "allergens",
+  "available",
+  "status",
+  "verified_at",
+] as const;
+const FOOD_BUNDLE_FIELDS = ["vendors", "items"] as const;
+const FOOD_SERVICE_TYPES = new Set<FoodServiceType>([
+  "stall",
+  "shop",
+  "food_court",
+  "street_vendor",
+]);
+const SERVING_UNITS = new Set<ServingUnit>([
+  "portion",
+  "bowl",
+  "piece",
+  "drink",
+  "shared_set",
+]);
 type EngineWeekday = CatalogSnapshot["places"][number]["openingHours"][number]["weekday"];
 
 const invalid = (
@@ -91,6 +146,7 @@ function exactFields(
   fields: readonly string[],
   path: string,
 ): Result<Record<string, unknown>, DataAdapterError> {
+  if (value === undefined) return invalid("MISSING_FIELD", "data.adapter.missing_field", path);
   if (!isRecord(value)) return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
   const actual = Object.keys(value);
   const unknown = actual.find((key) => !fields.includes(key));
@@ -107,7 +163,7 @@ function denseArray(value: unknown, path: string): Result<unknown[], DataAdapter
       return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `${path}[${index}]`);
     }
   }
-  if (Object.keys(value).some((key) => !/^\d+$/.test(key))) {
+  if (Object.keys(value).some((key) => !/^(?:0|[1-9]\d*)$/.test(key) || Number(key) >= value.length)) {
     return invalid("UNKNOWN_FIELD", "data.adapter.unknown_field", path);
   }
   return { ok: true, value };
@@ -140,6 +196,71 @@ function safeMoney(value: unknown, path: string): Result<number, DataAdapterErro
   if (parsed > MAX_SAFE_INTEGER) return invalid("UNSAFE_DB_INTEGER", "data.integer.unsafe", path);
   if (parsed > BigInt(MAX_PLACE_COST)) return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
   return { ok: true, value: Number(parsed) };
+}
+
+/** Food prices are bigint-backed too, but unlike admission prices have no domain cap. */
+function safeFoodMoney(value: unknown, path: string): Result<number, DataAdapterError> {
+  if (typeof value !== "string" || !CANONICAL_UNSIGNED_DECIMAL.test(value)) {
+    return invalid("INVALID_DB_DECIMAL", "data.decimal.invalid", path);
+  }
+  let parsed: bigint;
+  try {
+    parsed = BigInt(value);
+  } catch {
+    return invalid("INVALID_DB_DECIMAL", "data.decimal.invalid", path);
+  }
+  if (parsed > MAX_SAFE_INTEGER) return invalid("UNSAFE_DB_INTEGER", "data.integer.unsafe", path);
+  return { ok: true, value: Number(parsed) };
+}
+
+function textValue(value: unknown, path: string, maxLength = 2_000): Result<string, DataAdapterError> {
+  if (
+    typeof value !== "string" ||
+    value.length < 1 ||
+    value.length > maxLength ||
+    value.trim() !== value ||
+    /[\u0000-\u001F\u007F]/.test(value)
+  ) {
+    return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
+  }
+  return { ok: true, value };
+}
+
+function bilingualLabel(value: unknown, path: string): Result<{ en: string; vi: string }, DataAdapterError> {
+  const fields = exactFields(value, ["en", "vi"], path);
+  if (!fields.ok) return fields;
+  const en = textValue(fields.value.en, `${path}.en`);
+  const vi = textValue(fields.value.vi, `${path}.vi`);
+  if (!en.ok) return en;
+  if (!vi.ok) return vi;
+  return { ok: true, value: { en: en.value, vi: vi.value } };
+}
+
+function foodEnum<T extends string>(
+  value: unknown,
+  allowed: ReadonlySet<T>,
+  path: string,
+): Result<T, DataAdapterError> {
+  if (typeof value !== "string" || !allowed.has(value as T)) {
+    return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
+  }
+  return { ok: true, value: value as T };
+}
+
+function foodAllergens(value: unknown, path: string): Result<string[], DataAdapterError> {
+  const array = denseArray(value, path);
+  if (!array.ok) return array;
+  if (array.value.length > 32) return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
+  const result: string[] = [];
+  for (let index = 0; index < array.value.length; index += 1) {
+    const allergen = textValue(array.value[index], `${path}[${index}]`, 160);
+    if (!allergen.ok) return allergen;
+    if (result.includes(allergen.value)) {
+      return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `${path}[${index}]`);
+    }
+    result.push(allergen.value);
+  }
+  return { ok: true, value: result };
 }
 
 function safeDuration(value: unknown, path: string): Result<number, DataAdapterError> {
@@ -310,6 +431,21 @@ type MappedCatalogRow = {
   place: CatalogSnapshot["places"][number];
 };
 
+type MappedFoodVendor = {
+  snapshotId: string;
+  placeId: string;
+  vendorId: string;
+  vendor: FoodVendorCandidate;
+};
+
+type MappedFoodItem = {
+  snapshotId: string;
+  placeId: string;
+  vendorId: string;
+  itemId: string;
+  item: FoodMenuItemCandidate;
+};
+
 function mapRow(value: unknown, rowIndex: number): Result<MappedCatalogRow, DataAdapterError> {
   const fields = exactFields(value, ROW_FIELDS, `rows[${rowIndex}]`);
   if (!fields.ok) return fields;
@@ -357,9 +493,139 @@ function mapRow(value: unknown, rowIndex: number): Result<MappedCatalogRow, Data
   };
 }
 
+function mapFoodVendor(value: unknown, rowIndex: number): Result<MappedFoodVendor, DataAdapterError> {
+  const path = `foodRows.vendors[${rowIndex}]`;
+  const fields = exactFields(value, FOOD_VENDOR_FIELDS, path);
+  if (!fields.ok) return fields;
+  const snapshotId = safeId(fields.value.snapshot_id, `${path}.snapshot_id`);
+  const placeId = safeId(fields.value.place_id, `${path}.place_id`);
+  const vendorId = safeId(fields.value.vendor_id, `${path}.vendor_id`);
+  const slug = textValue(fields.value.slug, `${path}.slug`, 160);
+  const title = bilingualLabel(fields.value.title, `${path}.title`);
+  const description = bilingualLabel(fields.value.description, `${path}.description`);
+  const locationNote = textValue(fields.value.location_note, `${path}.location_note`);
+  const serviceType = foodEnum(fields.value.service_type, FOOD_SERVICE_TYPES, `${path}.service_type`);
+  const capacityNote = textValue(fields.value.capacity_note, `${path}.capacity_note`);
+  const dietarySupport = supportRecord(fields.value.dietary_support, `${path}.dietary_support`);
+  const mobilitySupport = supportRecord(fields.value.mobility_support, `${path}.mobility_support`);
+  const hours = openingHours(fields.value.opening_hours, `${path}.opening_hours`);
+  const exceptions = openingExceptions(fields.value.opening_exceptions, `${path}.opening_exceptions`);
+  const verifiedAt = localDate(fields.value.verified_at, `${path}.verified_at`);
+  if (!snapshotId.ok) return snapshotId;
+  if (!placeId.ok) return placeId;
+  if (!vendorId.ok) return vendorId;
+  if (!slug.ok) return slug;
+  if (!title.ok) return title;
+  if (!description.ok) return description;
+  if (!locationNote.ok) return locationNote;
+  if (!serviceType.ok) return serviceType;
+  if (!capacityNote.ok) return capacityNote;
+  if (!dietarySupport.ok) return dietarySupport;
+  if (!mobilitySupport.ok) return mobilitySupport;
+  if (!hours.ok) return hours;
+  if (!exceptions.ok) return exceptions;
+  if (!verifiedAt.ok) return verifiedAt;
+  if (fields.value.status !== "published") {
+    return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `${path}.status`);
+  }
+  return {
+    ok: true,
+    value: {
+      snapshotId: snapshotId.value,
+      placeId: placeId.value,
+      vendorId: vendorId.value,
+      vendor: {
+        id: vendorId.value,
+        placeId: placeId.value,
+        slug: slug.value,
+        title: title.value,
+        description: description.value,
+        locationNote: locationNote.value,
+        serviceType: serviceType.value,
+        capacityNote: capacityNote.value,
+        dietarySupport: dietarySupport.value,
+        mobilitySupport: mobilitySupport.value,
+        openingHours: hours.value,
+        openingExceptions: exceptions.value,
+        status: "sellable",
+        menuItems: [],
+      },
+    },
+  };
+}
+
+function mapFoodItem(value: unknown, rowIndex: number): Result<MappedFoodItem, DataAdapterError> {
+  const path = `foodRows.items[${rowIndex}]`;
+  const fields = exactFields(value, FOOD_ITEM_FIELDS, path);
+  if (!fields.ok) return fields;
+  const snapshotId = safeId(fields.value.snapshot_id, `${path}.snapshot_id`);
+  const placeId = safeId(fields.value.place_id, `${path}.place_id`);
+  const vendorId = safeId(fields.value.vendor_id, `${path}.vendor_id`);
+  const itemId = safeId(fields.value.item_id, `${path}.item_id`);
+  const slug = textValue(fields.value.slug, `${path}.slug`, 160);
+  const title = bilingualLabel(fields.value.title, `${path}.title`);
+  const description = bilingualLabel(fields.value.description, `${path}.description`);
+  const servingUnit = foodEnum(fields.value.serving_unit, SERVING_UNITS, `${path}.serving_unit`);
+  const priceMin = safeFoodMoney(fields.value.price_vnd_min, `${path}.price_vnd_min`);
+  const priceMax = safeFoodMoney(fields.value.price_vnd_max, `${path}.price_vnd_max`);
+  const portionDescription = textValue(fields.value.portion_description, `${path}.portion_description`);
+  const dietarySupport = supportRecord(fields.value.dietary_support, `${path}.dietary_support`);
+  const allergens = foodAllergens(fields.value.allergens, `${path}.allergens`);
+  const verifiedAt = localDate(fields.value.verified_at, `${path}.verified_at`);
+  if (!snapshotId.ok) return snapshotId;
+  if (!placeId.ok) return placeId;
+  if (!vendorId.ok) return vendorId;
+  if (!itemId.ok) return itemId;
+  if (!slug.ok) return slug;
+  if (!title.ok) return title;
+  if (!description.ok) return description;
+  if (!servingUnit.ok) return servingUnit;
+  if (!priceMin.ok) return priceMin;
+  if (!priceMax.ok) return priceMax;
+  if (!portionDescription.ok) return portionDescription;
+  if (!dietarySupport.ok) return dietarySupport;
+  if (!allergens.ok) return allergens;
+  if (typeof fields.value.available !== "boolean") {
+    return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `${path}.available`);
+  }
+  if (!verifiedAt.ok) return verifiedAt;
+  if (fields.value.status !== "published") {
+    return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `${path}.status`);
+  }
+  if (priceMin.value > priceMax.value) {
+    return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `${path}.price_vnd_max`);
+  }
+  return {
+    ok: true,
+    value: {
+      snapshotId: snapshotId.value,
+      placeId: placeId.value,
+      vendorId: vendorId.value,
+      itemId: itemId.value,
+      item: {
+        id: itemId.value,
+        vendorId: vendorId.value,
+        slug: slug.value,
+        title: title.value,
+        description: description.value,
+        servingUnit: servingUnit.value,
+        priceVndMin: priceMin.value,
+        priceVndMax: priceMax.value,
+        portionDescription: portionDescription.value,
+        dietarySupport: dietarySupport.value,
+        allergens: allergens.value,
+        available: fields.value.available,
+        status: "sellable",
+        verifiedAt: verifiedAt.value,
+      },
+    },
+  };
+}
+
 /** Map only the named published catalog projection into the strict engine DTO. */
 export function mapCatalogSnapshot(
   rows: unknown,
+  foodRows: unknown,
 ): Result<CatalogSnapshot, DataAdapterError> {
   const array = denseArray(rows, "rows");
   if (!array.ok) return array;
@@ -381,10 +647,79 @@ export function mapCatalogSnapshot(
     placeIds.add(item.placeId);
   }
 
+  const foodFields = exactFields(foodRows, FOOD_BUNDLE_FIELDS, "foodRows");
+  if (!foodFields.ok) return foodFields;
+  const vendorRows = denseArray(foodFields.value.vendors, "foodRows.vendors");
+  const itemRows = denseArray(foodFields.value.items, "foodRows.items");
+  if (!vendorRows.ok) return vendorRows;
+  if (!itemRows.ok) return itemRows;
+
+  const foodVendors: MappedFoodVendor[] = [];
+  const vendorIds = new Set<string>();
+  const vendorKeys = new Set<string>();
+  for (let index = 0; index < vendorRows.value.length; index += 1) {
+    const result = mapFoodVendor(vendorRows.value[index], index);
+    if (!result.ok) return result;
+    const mappedVendor = result.value;
+    if (mappedVendor.snapshotId !== snapshotId) {
+      return invalid("SNAPSHOT_MISMATCH", "data.snapshot.mismatch", `foodRows.vendors[${index}].snapshot_id`);
+    }
+    if (vendorIds.has(mappedVendor.vendorId)) {
+      return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `foodRows.vendors[${index}].vendor_id`);
+    }
+    const vendorKey = `${mappedVendor.snapshotId}\u0000${mappedVendor.placeId}\u0000${mappedVendor.vendorId}`;
+    if (vendorKeys.has(vendorKey)) {
+      return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `foodRows.vendors[${index}]`);
+    }
+    if (!placeIds.has(mappedVendor.placeId)) {
+      return invalid("SNAPSHOT_MISMATCH", "data.snapshot.mismatch", `foodRows.vendors[${index}].place_id`);
+    }
+    vendorIds.add(mappedVendor.vendorId);
+    vendorKeys.add(vendorKey);
+    foodVendors.push(mappedVendor);
+  }
+
+  const vendorByKey = new Map<string, MappedFoodVendor>();
+  for (const mappedVendor of foodVendors) {
+    vendorByKey.set(`${mappedVendor.snapshotId}\u0000${mappedVendor.placeId}\u0000${mappedVendor.vendorId}`, mappedVendor);
+  }
+  const foodItems: MappedFoodItem[] = [];
+  const itemIds = new Set<string>();
+  const itemKeys = new Set<string>();
+  for (let index = 0; index < itemRows.value.length; index += 1) {
+    const result = mapFoodItem(itemRows.value[index], index);
+    if (!result.ok) return result;
+    const mappedItem = result.value;
+    if (mappedItem.snapshotId !== snapshotId) {
+      return invalid("SNAPSHOT_MISMATCH", "data.snapshot.mismatch", `foodRows.items[${index}].snapshot_id`);
+    }
+    if (itemIds.has(mappedItem.itemId)) {
+      return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `foodRows.items[${index}].item_id`);
+    }
+    const itemKey = `${mappedItem.snapshotId}\u0000${mappedItem.placeId}\u0000${mappedItem.vendorId}\u0000${mappedItem.itemId}`;
+    if (itemKeys.has(itemKey)) {
+      return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `foodRows.items[${index}]`);
+    }
+    const parentKey = `${mappedItem.snapshotId}\u0000${mappedItem.placeId}\u0000${mappedItem.vendorId}`;
+    if (!vendorByKey.has(parentKey)) {
+      return invalid("SNAPSHOT_MISMATCH", "data.snapshot.mismatch", `foodRows.items[${index}]`);
+    }
+    itemIds.add(mappedItem.itemId);
+    itemKeys.add(itemKey);
+    foodItems.push(mappedItem);
+  }
+
   const candidate: CatalogSnapshot = {
     id: snapshotId ?? "",
     places: mapped.map((item) => item.place),
   };
+  const placeById = new Map(candidate.places.map((place) => [place.id, place]));
+  for (const mappedVendor of foodVendors) {
+    placeById.get(mappedVendor.placeId)?.foodVendors.push(mappedVendor.vendor);
+  }
+  for (const mappedItem of foodItems) {
+    vendorByKey.get(`${mappedItem.snapshotId}\u0000${mappedItem.placeId}\u0000${mappedItem.vendorId}`)?.vendor.menuItems.push(mappedItem.item);
+  }
   const parsed = catalogSnapshotSchema.safeParse(candidate);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];

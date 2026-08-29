@@ -41,9 +41,11 @@ function row(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const emptyFoodRows = { vendors: [], items: [] };
+
 describe("mapCatalogSnapshot", () => {
   it("maps the exact PostgREST projection to the engine catalog without inventing facts", () => {
-    const result = mapCatalogSnapshot([row()]);
+    const result = mapCatalogSnapshot([row()], emptyFoodRows);
 
     expect(result).toEqual({
       ok: true,
@@ -74,7 +76,7 @@ describe("mapCatalogSnapshot", () => {
     const result = mapCatalogSnapshot([row({
       opening_hours: [opening(6, "22:00:00", "02:00:00")],
       opening_exceptions: [{ local_date: "2026-09-03", closed: true, windows: [] }],
-    })]);
+    })], emptyFoodRows);
 
     expect(result).toEqual({
       ok: true,
@@ -92,15 +94,15 @@ describe("mapCatalogSnapshot", () => {
       [row({ unexpected: true })],
       [row({ area_id: undefined })],
     ]) {
-      const result = mapCatalogSnapshot(input);
+      const result = mapCatalogSnapshot(input, emptyFoodRows);
       expect(result.ok).toBe(false);
       if (!result.ok) expect(["UNKNOWN_FIELD", "MISSING_FIELD"]).toContain(result.error.code);
     }
   });
 
   it("rejects duplicate places and mixed snapshot IDs instead of merging unrelated facts", () => {
-    const duplicate = mapCatalogSnapshot([row(), row({ place_id: "00000000-0000-0000-0000-000000000502" })]);
-    const mixed = mapCatalogSnapshot([row(), row({ place_id: "00000000-0000-0000-0000-000000000504", snapshot_id: "00000000-0000-0000-0000-000000000505" })]);
+    const duplicate = mapCatalogSnapshot([row(), row({ place_id: "00000000-0000-0000-0000-000000000502" })], emptyFoodRows);
+    const mixed = mapCatalogSnapshot([row(), row({ place_id: "00000000-0000-0000-0000-000000000504", snapshot_id: "00000000-0000-0000-0000-000000000505" })], emptyFoodRows);
 
     expect(duplicate).toMatchObject({ ok: false, error: { code: "SNAPSHOT_MISMATCH" } });
     expect(mixed).toMatchObject({ ok: false, error: { code: "SNAPSHOT_MISMATCH" } });
@@ -108,7 +110,7 @@ describe("mapCatalogSnapshot", () => {
 
   it("requires canonical safe decimal-string money and never accepts a client number", () => {
     for (const price of [125000, "0125000", "+125000", "125000.0", "1e3", "9007199254740992"]) {
-      const result = mapCatalogSnapshot([row({ price_vnd_per_person: price })]);
+      const result = mapCatalogSnapshot([row({ price_vnd_per_person: price })], emptyFoodRows);
       expect(result.ok).toBe(false);
       if (!result.ok) expect(["INVALID_DB_DECIMAL", "UNSAFE_DB_INTEGER"]).toContain(result.error.code);
     }
@@ -120,11 +122,11 @@ describe("mapCatalogSnapshot", () => {
     sparse[0] = opening();
     delete sparse[0];
 
-    expect(mapCatalogSnapshot([row({ opening_hours: sparse })])).toMatchObject({
+    expect(mapCatalogSnapshot([row({ opening_hours: sparse })], emptyFoodRows)).toMatchObject({
       ok: false,
       error: { code: "INVALID_SHAPE" },
     });
-    expect(mapCatalogSnapshot([row({ opening_hours: [opening(1, "08:00:00+07:00", "18:00:00")] })])).toMatchObject({
+    expect(mapCatalogSnapshot([row({ opening_hours: [opening(1, "08:00:00+07:00", "18:00:00")] })], emptyFoodRows)).toMatchObject({
       ok: false,
       error: { code: "INVALID_SHAPE" },
     });
@@ -132,7 +134,7 @@ describe("mapCatalogSnapshot", () => {
 
   it("rejects non-UUID snapshot, place, and area identifiers", () => {
     for (const field of ["snapshot_id", "place_id", "area_id"] as const) {
-      expect(mapCatalogSnapshot([row({ [field]: "place-1" })])).toMatchObject({
+      expect(mapCatalogSnapshot([row({ [field]: "place-1" })], emptyFoodRows)).toMatchObject({
         ok: false,
         error: { code: "INVALID_SHAPE" },
       });
@@ -149,7 +151,7 @@ describe("mapCatalogSnapshot", () => {
     ];
 
     for (const value of invalid) {
-      expect(mapCatalogSnapshot([value])).toMatchObject({ ok: false, error: { code: "INVALID_SHAPE" } });
+      expect(mapCatalogSnapshot([value], emptyFoodRows)).toMatchObject({ ok: false, error: { code: "INVALID_SHAPE" } });
     }
   });
 
