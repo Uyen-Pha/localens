@@ -97,8 +97,8 @@ CREATE TABLE public.food_items (
   slug text NOT NULL,
   status public.place_status NOT NULL DEFAULT 'draft',
   serving_unit text NOT NULL,
-  price_vnd_min bigint NOT NULL DEFAULT 0,
-  price_vnd_max bigint NOT NULL DEFAULT 0,
+  price_vnd_min bigint,
+  price_vnd_max bigint,
   portion_description text NOT NULL,
   available boolean NOT NULL DEFAULT false,
   allergens text[] NOT NULL DEFAULT '{}'::text[],
@@ -117,6 +117,15 @@ CREATE TABLE public.food_items (
   CONSTRAINT food_items_price_min_check CHECK (price_vnd_min BETWEEN 0 AND 9007199254740991),
   CONSTRAINT food_items_price_max_check CHECK (price_vnd_max BETWEEN 0 AND 9007199254740991),
   CONSTRAINT food_items_price_order_check CHECK (price_vnd_min <= price_vnd_max),
+  CONSTRAINT food_items_price_pair_check CHECK (
+    (price_vnd_min IS NULL AND price_vnd_max IS NULL)
+    OR (
+      price_vnd_min IS NOT NULL AND price_vnd_max IS NOT NULL
+      AND price_vnd_min BETWEEN 0 AND 9007199254740991
+      AND price_vnd_max BETWEEN 0 AND 9007199254740991
+      AND price_vnd_min <= price_vnd_max
+    )
+  ),
   CONSTRAINT food_items_portion_description_check CHECK (length(btrim(portion_description)) BETWEEN 1 AND 500 AND portion_description = btrim(portion_description)),
   CONSTRAINT food_items_allergens_check CHECK (
     array_position(allergens, NULL) IS NULL
@@ -729,6 +738,8 @@ BEGIN
   END IF;
   IF item_row.serving_unit IS NULL OR btrim(item_row.serving_unit) = ''
      OR item_row.portion_description IS NULL OR btrim(item_row.portion_description) = ''
+     OR item_row.price_vnd_min IS NULL
+     OR item_row.price_vnd_max IS NULL
      OR item_row.price_vnd_min NOT BETWEEN 0 AND 9007199254740991
      OR item_row.price_vnd_max NOT BETWEEN 0 AND 9007199254740991
      OR item_row.price_vnd_min > item_row.price_vnd_max THEN

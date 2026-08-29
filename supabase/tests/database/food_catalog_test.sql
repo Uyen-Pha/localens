@@ -5,7 +5,7 @@
 -- intentionally rollback-only and contains no vendor/menu source facts.
 BEGIN;
 
-SELECT plan(125);
+SELECT plan(131);
 
 -- Every base relation is present.
 SELECT ok(to_regclass('public.food_vendors') IS NOT NULL, 'food vendors exists');
@@ -33,6 +33,7 @@ SELECT ok((SELECT relrowsecurity AND relforcerowsecurity FROM pg_catalog.pg_clas
 SELECT ok((SELECT count(*) FROM pg_constraint WHERE conrelid = 'public.food_items'::regclass AND conname = 'food_items_price_min_check') = 1, 'food minimum price uses the safe non-negative bound');
 SELECT ok((SELECT count(*) FROM pg_constraint WHERE conrelid = 'public.food_items'::regclass AND conname = 'food_items_price_max_check') = 1, 'food maximum price uses the safe non-negative bound');
 SELECT ok((SELECT count(*) FROM pg_constraint WHERE conrelid = 'public.food_items'::regclass AND conname = 'food_items_price_order_check') = 1, 'food minimum price cannot exceed maximum price');
+SELECT ok((SELECT count(*) FROM pg_constraint WHERE conrelid = 'public.food_items'::regclass AND conname = 'food_items_price_pair_check') = 1, 'food draft prices are pairwise unknown or known');
 SELECT ok((SELECT count(*) FROM pg_constraint WHERE conrelid = 'public.food_items'::regclass AND conname = 'food_items_serving_unit_check') = 1, 'food serving unit is closed');
 SELECT ok((SELECT count(*) FROM pg_constraint WHERE conrelid = 'public.food_vendor_supports'::regclass AND conname = 'food_vendor_supports_kind_check') = 1, 'vendor support kind is closed');
 SELECT ok((SELECT count(*) FROM pg_constraint WHERE conrelid = 'public.food_item_supports'::regclass AND conname = 'food_item_supports_kind_check') = 1, 'item support kind is closed');
@@ -136,6 +137,7 @@ SELECT ok((SELECT count(*) = 1 FROM pg_trigger WHERE tgname = 'food_items_vendor
 SELECT ok((SELECT count(*) = 2 FROM pg_trigger WHERE tgname IN ('food_item_translations_published_completeness', 'food_item_supports_published_completeness') AND tgrelid IN ('public.food_item_translations'::regclass, 'public.food_item_supports'::regclass) AND NOT tgisinternal), 'food item child guards retain self-completeness');
 SELECT ok((SELECT pg_get_functiondef('private.assert_published_food_vendor_complete(uuid)'::regprocedure) LIKE '%source_url IS NULL%' AND pg_get_functiondef('private.assert_published_food_vendor_complete(uuid)'::regprocedure) ~ $$locale[[:space:]]+IN[[:space:]]*\('en'::public\.locale,[[:space:]]*'vi'::public\.locale\)$$ AND pg_get_functiondef('private.assert_published_food_vendor_complete(uuid)'::regprocedure) LIKE '%support_kind = ''mobility''%' AND pg_get_functiondef('private.assert_published_food_vendor_complete(uuid)'::regprocedure) LIKE '%food_items%'), 'vendor completeness checks provenance translations support and a menu item');
 SELECT ok((SELECT pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) LIKE '%source_url IS NULL%' AND pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) ~ $$locale[[:space:]]+IN[[:space:]]*\('en'::public\.locale,[[:space:]]*'vi'::public\.locale\)$$ AND pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) LIKE '%support_kind = ''dietary''%' AND pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) LIKE '%support_kind = ''allergen''%'), 'item completeness checks provenance translations and explicit support evidence');
+SELECT ok((SELECT pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) LIKE '%item_row.price_vnd_min IS NULL%' AND pg_get_functiondef('private.assert_published_food_item_complete(uuid)'::regprocedure) LIKE '%item_row.price_vnd_max IS NULL%'), 'item completeness rejects unknown prices explicitly');
 
 SELECT ok((SELECT prosecdef AND proconfig @> ARRAY['search_path='] AND proconfig @> ARRAY['statement_timeout=5s'] FROM pg_proc WHERE oid = 'private.create_catalog_snapshot()'::regprocedure), 'food snapshot creator remains pinned SECURITY DEFINER');
 SELECT is((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'private.create_catalog_snapshot()'::regprocedure), 'localens_catalog_rpc_owner', 'food snapshot creator keeps named owner');
@@ -236,6 +238,31 @@ INSERT INTO public.food_item_translations (food_item_id, locale, title, descript
 INSERT INTO public.food_item_supports (food_item_id, support_kind, requirement, status) VALUES
   ('00000000-0000-0000-0000-000000000402'::uuid, 'dietary', 'vegetarian', 'supported'),
   ('00000000-0000-0000-0000-000000000402'::uuid, 'allergen', 'peanut', 'unknown');
+
+INSERT INTO public.food_items (id, food_vendor_id, slug, status, serving_unit, portion_description, available, allergens)
+VALUES ('00000000-0000-0000-0000-000000000406'::uuid, '00000000-0000-0000-0000-000000000401'::uuid, 'unknown-price-dish', 'draft', 'portion', 'Unknown price portion', false, '{}');
+SELECT is((SELECT price_vnd_min IS NULL AND price_vnd_max IS NULL FROM public.food_items WHERE id = '00000000-0000-0000-0000-000000000406'::uuid), true, 'draft price omission stores NULL');
+SELECT throws_ok($$UPDATE public.food_items SET status = 'published' WHERE id = '00000000-0000-0000-0000-000000000406'::uuid$$,
+  '23514', NULL, 'draft item with unknown prices cannot publish');
+
+INSERT INTO public.food_items (
+  id, food_vendor_id, slug, status, serving_unit, price_vnd_min, price_vnd_max,
+  portion_description, available, allergens, source_url, verified_at, attribution
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000407'::uuid,
+  '00000000-0000-0000-0000-000000000401'::uuid,
+  'zero-price-dish', 'draft', 'portion', 0, 0, 'Complimentary portion', true,
+  '{}', 'https://example.invalid/zero-price-item', DATE '2026-08-20', 'Synthetic fixture'
+);
+INSERT INTO public.food_item_translations (food_item_id, locale, title, description) VALUES
+  ('00000000-0000-0000-0000-000000000407'::uuid, 'en', 'Zero price dish', 'Complimentary English dish'),
+  ('00000000-0000-0000-0000-000000000407'::uuid, 'vi', 'Món giá không', 'Món miễn phí tiếng Việt');
+INSERT INTO public.food_item_supports (food_item_id, support_kind, requirement, status) VALUES
+  ('00000000-0000-0000-0000-000000000407'::uuid, 'dietary', 'vegetarian', 'supported'),
+  ('00000000-0000-0000-0000-000000000407'::uuid, 'allergen', 'none', 'unknown');
+SELECT lives_ok($$UPDATE public.food_items SET status = 'published' WHERE id = '00000000-0000-0000-0000-000000000407'::uuid$$, 'explicit zero prices publish with complete evidence');
+SELECT is((SELECT price_vnd_min = 0 AND price_vnd_max = 0 FROM public.food_items WHERE id = '00000000-0000-0000-0000-000000000407'::uuid), true, 'explicit zero prices remain known zero');
 UPDATE public.food_items SET status = 'published' WHERE id = '00000000-0000-0000-0000-000000000402'::uuid;
 UPDATE public.food_vendors SET status = 'published' WHERE id = '00000000-0000-0000-0000-000000000401'::uuid;
 
@@ -255,7 +282,7 @@ SELECT throws_ok($$UPDATE public.food_items SET status = 'draft' WHERE id = '000
 SELECT throws_ok($$UPDATE public.food_items SET food_vendor_id = '00000000-0000-0000-0000-000000000405'::uuid WHERE id = '00000000-0000-0000-0000-000000000402'::uuid$$,
   '23514', NULL, 'published vendor cannot lose its sole item by reparenting');
 SELECT throws_ok($$DELETE FROM public.food_items WHERE id = '00000000-0000-0000-0000-000000000402'::uuid$$,
-  '23514', NULL, 'published vendor cannot delete its sole item');
+  '23503', NULL, 'food item delete is blocked by restrictive child foreign keys');
 
 INSERT INTO auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000905'::uuid, 'authenticated', 'authenticated', 'food-catalog-admin@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now())

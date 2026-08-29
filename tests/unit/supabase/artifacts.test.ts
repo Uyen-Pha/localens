@@ -249,6 +249,18 @@ describe("static Supabase artifact gate", () => {
     expect(Number(plan?.[1]), "food pgTAP plan must match executable assertion count").toBe(executableAssertions.length);
   });
 
+  it("keeps draft food prices explicitly unknown and requires known prices for publication", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260828120000_food_catalog_snapshots.sql"), "utf8");
+    const pgTap = readFileSync(join(repoRoot, "supabase", "tests", "database", "food_catalog_test.sql"), "utf8");
+    expect(migration).not.toMatch(/CREATE TABLE public\.food_items[\s\S]*?price_vnd_min bigint NOT NULL DEFAULT 0/i);
+    expect(migration).toMatch(/CONSTRAINT food_items_price_pair_check CHECK \([\s\S]*?price_vnd_min IS NULL[\s\S]*?price_vnd_max IS NULL[\s\S]*?price_vnd_min IS NOT NULL[\s\S]*?price_vnd_max IS NOT NULL/i);
+    expect(migration).toMatch(/item_row\.price_vnd_min IS NULL[\s\S]*?item_row\.price_vnd_max IS NULL/i);
+    expect(pgTap).toMatch(/draft price omission stores NULL/i);
+    expect(pgTap).toMatch(/draft item with unknown prices cannot publish/i);
+    expect(pgTap).toMatch(/explicit zero prices publish with complete evidence/i);
+    expect(pgTap).toMatch(/'23503', NULL, 'food item delete is blocked by restrictive child foreign keys'/i);
+  });
+
   it("passes an empty migration directory because seed data is optional", () => {
     const root = fixtureRoot({});
     try {

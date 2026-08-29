@@ -1,80 +1,12 @@
-# Task 3 interim report — BLOCKED
+# Task 3 implementation report — current status
 
 ## Current status
 
-Implementation is intentionally stopped at the parent agent's request. The
-canonical migration has not been written, so no production SQL changes or
-security-artifact updates have been made. The test-first artifact that was
-written is:
-
-- `supabase/tests/database/food_catalog_test.sql`
-
-It covers the requested relation/RLS surface, bounds/status/support checks,
-direct API privilege denial, catalog-owner writes, parent foreign keys,
-published projections, fixed lock ordering, snapshot copying, immutable rows,
-and old/new price retention.
-
-## Required runtime attempts
-
-Both requested RED-phase commands were attempted from the worktree:
-
-```text
-pnpm db:reset
-SUPABASE_CLI_NOT_FOUND: project-local Supabase CLI is required; install the pinned dev dependency only after a local container runtime is available
-
-pnpm db:test
-SUPABASE_CLI_NOT_FOUND: project-local Supabase CLI is required; install the pinned dev dependency only after a local container runtime is available
-```
-
-Therefore no PostgreSQL runtime result is claimed.
-
-## Unresolved design decisions
-
-The brief fixes the relation families and security boundary but does not name
-every SQL column or projection key. Before implementing safely, the parent
-agent must confirm these points against the Task 4 adapter contract:
-
-1. Whether canonical IDs in snapshot tables are named `vendor_id`/`item_id` or
-   `food_vendor_id`/`food_item_id`; the projection contract explicitly needs
-   `snapshot_id`, `place_id`, and `vendor_id`.
-2. The exact canonical names for vendor capacity (`capacity_note`) and menu
-   serving evidence (`portion_description`), plus whether `allergens` is an
-   array column or a normalized child table.
-3. Whether publication completeness and opening-window overlap are enforced by
-   new trigger functions or only by the snapshot-copy RPC. New SECURITY
-   DEFINER helpers would require additional matrix signatures, owners, and
-   5-second timeout hardening.
-4. The intended source/verification nullability for mutable draft rows versus
-   the non-null requirements of published snapshot rows.
-5. Whether the checked-in data-access matrix, grants manifest, policies
-   manifest, and generated Markdown are in scope for this task despite the
-   brief's narrower file list. Adding 18 tables, 2 views, owner policies, and
-   explicit owner/view grants will otherwise make `pnpm db:static` fail by
-   design.
-6. The pgTAP fixture's final assertion count and runtime setup should be
-   rechecked after those names are fixed; runtime was unavailable during the
-   RED attempt.
-
-## Safe independently testable split
-
-If the migration remains too large for one review boundary, use this split:
-
-1. **Canonical base schema** — create the nine `food_*` tables, constraints,
-   timestamps, forced RLS, owner policies, and owner/API grants. Test relation
-   existence, bounds, enum/support checks, and direct privilege denial.
-2. **Immutable snapshot and RPC** — create the nine
-   `catalog_snapshot_food_*` tables, composite parent FKs, append-only
-   triggers, and the forward replacement of `private.create_catalog_snapshot`
-   with venue-then-food locking and complete-row copying. Test snapshot
-   immutability, parent membership, and old-price retention.
-3. **Published projections and artifact gate** — add the two safe views,
-   decimal-string money fields, projection grants, then update the matrix,
-   grant/policy manifests, generated Markdown, and static/unit assertions.
-   Run static checks and, when the local CLI/runtime exists, the full database
-   lint/test/type commands.
-
-No commit was created because the migration is not implemented and the parent
-agent requested a status-only stop.
+Task 3A, 3B, and 3C implementation slices are complete in the forward-only
+food catalog migration, including their security-artifact and regression-test
+updates. Static/unit verification evidence and the separate runtime database
+blocker are recorded in the sections below. PostgreSQL runtime verification is
+not claimed while the local CLI remains unavailable.
 
 ## Task 3A — canonical food base schema and RLS
 
@@ -329,3 +261,41 @@ database/type result is claimed:
 - `pnpm db:test` — same exact `SUPABASE_CLI_NOT_FOUND` blocker.
 - `pnpm db:lint` — same exact `SUPABASE_CLI_NOT_FOUND` blocker.
 - `pnpm db:types:check` — same exact `SUPABASE_CLI_NOT_FOUND` blocker.
+
+## Task 3B composed fix round 2 — 2026-08-29
+
+Status: implementation complete; static/unit verification passed; runtime
+database verification remains blocked.
+
+I1 fixed the mutable price-evidence ambiguity. `public.food_items` now keeps
+`price_vnd_min` and `price_vnd_max` nullable with no implicit zero defaults and
+enforces a pairwise both-NULL or both-known constraint. Explicit `0/0` remains
+valid. `private.assert_published_food_item_complete` rejects NULL prices before
+numeric bounds/order checks, while immutable snapshot price columns remain
+non-null. The rollback fixture covers omitted draft prices persisting as NULL,
+publication rejection for unknown prices, and explicit zero-price publication
+with complete evidence.
+
+I2 records the actual delete path without weakening the schema: deleting the
+fixture item is blocked by its restrictive child foreign keys before the
+AFTER-row vendor guard, so the pgTAP assertion expects SQLSTATE `23503` and
+describes that FK path. The available=false, status=draft, and reparent checks
+continue to assert the vendor lifecycle guard itself.
+
+The static artifact regression also checks the nullable/no-default price shape,
+explicit NULL rejection in the publish helper, zero-price fixture coverage,
+and the deterministic `23503` delete assertion. The food pgTAP plan is now
+`SELECT plan(131)` for exactly 131 executable assertions.
+
+### Fix-round verification evidence
+
+- `pnpm db:static` — exit 0; 16 migration files checked.
+- `pnpm test:run tests/unit/supabase/artifacts.test.ts tests/unit/supabase/rls-matrix.test.ts` — exit 0; 2 files, 27 tests passed.
+- `pnpm test:run` — exit 0; 57 files, 593 tests passed.
+- `pnpm lint` — exit 0; no ESLint errors.
+- `pnpm typecheck` — exit 0.
+- `git diff --check` — clean.
+- Runtime `pnpm db:test` remains blocked by the exact
+  `SUPABASE_CLI_NOT_FOUND` error; no PostgreSQL runtime result is claimed.
+
+Implementation verified; fix-round 2 commit follows in this delivery.
