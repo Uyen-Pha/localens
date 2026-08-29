@@ -21,7 +21,7 @@ const request: PersonalizationRequest = {
   budget: { currency: "VND", amountMinor: 1_500_000 },
   partySize: 3,
   guideLanguage: "en",
-  priorityWeights: { street_food: 5, history: 3, traditional_craft: 0, traditional_market: 0 },
+  priorityWeights: { street_food: 0, history: 3, traditional_craft: 0, traditional_market: 1 },
   pace: "active",
   dietaryRequirements: [],
   mobilityRequirements: [],
@@ -69,7 +69,7 @@ describe("CustomRequestFlow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: copy.simulateQuoteLabel }));
     expect(screen.getByRole("heading", { name: copy.quoteHeading })).toBeInTheDocument();
-    expect(screen.getAllByText(/₫450,000/)).toHaveLength(2);
+    expect(screen.getAllByText(/₫240,000/)).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: copy.acceptQuoteLabel }));
     expect(screen.getByRole("status")).toHaveTextContent(copy.quoteAcceptedMessage);

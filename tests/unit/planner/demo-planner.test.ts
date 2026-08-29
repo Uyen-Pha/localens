@@ -14,7 +14,7 @@ const personalizedRequest: PersonalizationRequest = {
   partySize: 4,
   guideLanguage: "vi",
   priorityWeights: {
-    street_food: 5,
+    street_food: 0,
     history: 0,
     traditional_craft: 2,
     traditional_market: 1,
@@ -72,7 +72,7 @@ describe("demo planner adapter", () => {
       areas: ["demo-hcmc-district-1"],
       budget: { currency: "VND", amountMinor: 500_000 },
       priorityWeights: {
-        street_food: 5,
+        street_food: 0,
         history: 0,
         traditional_craft: 0,
         traditional_market: 1,

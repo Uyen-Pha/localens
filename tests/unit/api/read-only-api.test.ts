@@ -19,7 +19,7 @@ const validRequest = {
   partySize: 2,
   guideLanguage: "en",
   priorityWeights: {
-    street_food: 5,
+    street_food: 0,
     history: 4,
     traditional_craft: 3,
     traditional_market: 2,

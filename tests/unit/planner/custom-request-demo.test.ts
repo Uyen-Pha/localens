@@ -35,7 +35,7 @@ const request: PersonalizationRequest = {
   budget: { currency: "VND", amountMinor: 1_500_000 },
   partySize: 3,
   guideLanguage: "en",
-  priorityWeights: { street_food: 5, history: 3, traditional_craft: 3, traditional_market: 3 },
+  priorityWeights: { street_food: 0, history: 3, traditional_craft: 3, traditional_market: 3 },
   pace: "active",
   dietaryRequirements: ["vegetarian"],
   mobilityRequirements: ["step-free"],

@@ -11,6 +11,18 @@ import { readPersonalizationRequest } from "@/lib/application/planner/personaliz
 
 afterEach(cleanup);
 
+function chooseDemoMarketPriority(copy: {
+  priorities: ReadonlyArray<{ key: string; label: string }>;
+}) {
+  const streetFood = copy.priorities.find((priority) => priority.key === "street_food");
+  const traditionalMarket = copy.priorities.find((priority) => priority.key === "traditional_market");
+  if (streetFood === undefined || traditionalMarket === undefined) {
+    throw new Error("expected food and market priority controls");
+  }
+  fireEvent.change(screen.getByLabelText(streetFood.label), { target: { value: "0" } });
+  fireEvent.change(screen.getByLabelText(traditionalMarket.label), { target: { value: "1" } });
+}
+
 describe("PersonalizationForm", () => {
   it("exposes every planning preference in a labeled, grouped form", () => {
     const dictionary = getDictionary("en");
@@ -96,6 +108,7 @@ describe("PersonalizationForm", () => {
       target: { value: "09:00" },
     });
     fireEvent.click(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[0].label));
+    chooseDemoMarketPriority(dictionary.home.personalizationForm);
     fireEvent.submit(form);
 
     expect(screen.getByRole("status")).toHaveTextContent(
@@ -148,6 +161,7 @@ describe("PersonalizationForm", () => {
       target: { value: "2026-09-05" },
     });
     fireEvent.click(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[0].label));
+    chooseDemoMarketPriority(dictionary.home.personalizationForm);
     fireEvent.submit(form);
 
     expect(screen.getByRole("region", { name: previewCopy.heading })).toBeInTheDocument();
@@ -169,6 +183,7 @@ describe("PersonalizationForm", () => {
       target: { value: "2026-09-05" },
     });
     fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
+    chooseDemoMarketPriority(copy);
     fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
 
     expect(screen.getByRole("link", { name: copy.plannerLinkLabel }).getAttribute("href"))
@@ -197,6 +212,7 @@ describe("PersonalizationForm", () => {
       target: { value: "Prefer a quiet route." },
     });
     fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
+    chooseDemoMarketPriority(copy);
     fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
 
     expect(readPersonalizationRequest()).toMatchObject({
@@ -219,6 +235,7 @@ describe("PersonalizationForm", () => {
       render(<PersonalizationForm copy={copy} locale="en" />);
       fireEvent.change(screen.getByLabelText(copy.startDateLabel), { target: { value: "2026-09-05" } });
       fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
+      chooseDemoMarketPriority(copy);
       fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
 
       expect(screen.queryByRole("link", { name: copy.plannerLinkLabel })).not.toBeInTheDocument();
