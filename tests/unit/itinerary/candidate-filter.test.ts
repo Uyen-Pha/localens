@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { filterCandidates } from "@/lib/domain/itinerary/candidate-filter";
 import type { FoodVendorCandidate } from "@/lib/domain/food/contracts";
+import type { EngineInput, PlaceCandidate } from "@/lib/domain/itinerary/contracts";
 import { itineraryFixture } from "@/tests/fixtures/itinerary/catalog.v1";
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -210,5 +211,76 @@ describe("filterCandidates", () => {
     const result = filterCandidates(input, 2_000_000);
 
     expect(result).toEqual({ ok: true, value: [] });
+  });
+
+  const lockedFoodCases: Array<[
+    string,
+    (place: PlaceCandidate) => void,
+  ]> = [
+    ["empty vendors", (place: PlaceCandidate) => { place.foodVendors = []; }],
+    ["unavailable item", (place: PlaceCandidate) => { place.foodVendors = [marketVendor()]; }],
+    ["closed vendor", (place: PlaceCandidate) => {
+      const candidate = marketVendor();
+      candidate.menuItems[0].available = true;
+      candidate.openingHours = [{ weekday: 6, opensAt: "11:00", closesAt: "17:00" }];
+      place.foodVendors = [candidate];
+    }],
+    ["over-budget selection", (place: PlaceCandidate) => {
+      const candidate = marketVendor();
+      candidate.menuItems[0].available = true;
+      candidate.menuItems[0].priceVndMin = 40_000;
+      candidate.menuItems[0].priceVndMax = 50_000;
+      place.foodVendors = [candidate];
+    }],
+  ];
+
+  it.each(lockedFoodCases)("fails closed for a locked food stop with %s", (_label, configure) => {
+    const input = clone(itineraryFixture);
+    input.request.lockedStopIds = ["place-market"];
+    input.request.areas = ["district-5"];
+    input.request.dietaryRequirements = ["halal"];
+    input.request.mobilityRequirements = ["step-free"];
+    input.request.priorityWeights = {
+      street_food: 5,
+      history: 0,
+      traditional_craft: 0,
+      traditional_market: 5,
+    };
+    const market = {
+      ...input.catalog.places[3],
+      mobilitySupport: { "step-free": "supported" as const },
+    };
+    configure(market);
+    input.catalog.places = [market];
+    const budget = _label === "over-budget selection" ? 200_000 : 2_000_000;
+
+    expect(filterCandidates(input, budget)).toMatchObject({
+      ok: false,
+      error: {
+        code: "NO_FEASIBLE_ITINERARY",
+        messageKey: "itinerary.locked_stop.ineligible",
+      },
+    });
+  });
+
+  const runtimeCorruptions: Array<[
+    string,
+    (input: EngineInput) => void,
+  ]> = [
+    ["types", (input) => { (input.catalog.places[0] as unknown as { types: unknown }).types = null; }],
+    ["types entry", (input) => { (input.catalog.places[0] as unknown as { types: unknown }).types = [null]; }],
+    ["foodVendors", (input) => { (input.catalog.places[0] as unknown as { foodVendors: unknown }).foodVendors = null; }],
+    ["food vendor entry", (input) => { (input.catalog.places[0] as unknown as { foodVendors: unknown }).foodVendors = [null]; }],
+  ];
+
+  it.each(runtimeCorruptions)("fails closed without throwing for malformed runtime %s", (_field, corrupt) => {
+    const input = clone(itineraryFixture);
+    corrupt(input);
+
+    expect(() => filterCandidates(input, 2_000_000)).not.toThrow();
+    expect(filterCandidates(input, 2_000_000)).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ITINERARY_INPUT" },
+    });
   });
 });

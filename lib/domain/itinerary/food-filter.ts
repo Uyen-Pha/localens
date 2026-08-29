@@ -13,7 +13,12 @@ import {
   type FoodSelection,
   type FoodVendorCandidate,
 } from "@/lib/domain/food/contracts";
-import { formatHcmMinute, normalizeToHcmMinute, MINUTES_PER_DAY } from "@/lib/domain/itinerary/local-time";
+import {
+  formatHcmMinute,
+  isSupportedHcmEpochMinute,
+  normalizeToHcmMinute,
+  MINUTES_PER_DAY,
+} from "@/lib/domain/itinerary/local-time";
 import { getOpeningIntervals } from "@/lib/domain/itinerary/opening-hours";
 import { multiplyVnd } from "@/lib/domain/itinerary/money";
 
@@ -214,7 +219,9 @@ function validInterval(interval: unknown): interval is FoodActivityInterval {
     Number.isSafeInteger(interval.startEpochMinute) &&
     typeof interval.endEpochMinute === "number" &&
     Number.isSafeInteger(interval.endEpochMinute) &&
-    interval.startEpochMinute < interval.endEpochMinute
+    interval.startEpochMinute < interval.endEpochMinute &&
+    isSupportedHcmEpochMinute(interval.startEpochMinute) &&
+    isSupportedHcmEpochMinute(interval.endEpochMinute)
   );
 }
 
@@ -272,9 +279,12 @@ function vendorCoversInterval(
 }
 
 /**
- * Diagnostic companion for the required array-returning filter API. Parent,
- * vendors, and menu items are parsed as one strict catalog object graph, so a
- * child cannot silently come from another snapshot or parent relationship.
+ * Diagnostic companion for the required array-returning filter API.
+ *
+ * Preconditions: `place` is the nested graph from the validated immutable
+ * catalog snapshot produced by the catalog adapter. That upstream boundary
+ * verifies snapshot identity; this domain boundary rechecks strict shape and
+ * placeId/vendorId parent links without inventing child snapshot IDs.
  */
 export function diagnoseFoodVendors(
   place: PlaceCandidate,

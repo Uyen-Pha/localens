@@ -161,6 +161,20 @@ describe("food vendor filtering", () => {
     ]);
   });
 
+  it("returns a structured failure for an interval outside the supported HCMC epoch range", () => {
+    const candidate = place();
+    const outside = {
+      startEpochMinute: Number.MAX_SAFE_INTEGER - 1,
+      endEpochMinute: Number.MAX_SAFE_INTEGER,
+    };
+
+    expect(() => diagnoseFoodVendors(candidate, request, "2026-09-05", outside)).not.toThrow();
+    expect(diagnoseFoodVendors(candidate, request, "2026-09-05", outside)).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: "NO_SELLABLE_VENDOR" }),
+    });
+  });
+
   it("rejects a ranged price when only its lower bound fits the budget", () => {
     const candidate = place();
     candidate.foodVendors[0].menuItems[0].priceVndMin = 100_000;

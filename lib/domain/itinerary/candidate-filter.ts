@@ -1,4 +1,6 @@
 import {
+  itineraryRequestSchema,
+  placeCandidateSchema,
   type EngineInput,
   type PlaceCandidate,
   type Result,
@@ -41,13 +43,6 @@ function isSafeBudget(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
-function isStringArray(value: unknown): value is string[] {
-  return (
-    Array.isArray(value) &&
-    value.every((item) => typeof item === "string")
-  );
-}
-
 function supportSatisfies(
   support: unknown,
   requirements: readonly string[],
@@ -75,11 +70,6 @@ function foodPriorityNeedsConcreteSelection(
     return true;
   }
 
-  // Empty food bundles are retained for legacy catalog rows until the
-  // published food projection is present. Any published vendor bundle is
-  // fail-closed through the concrete selector below.
-  if (place.foodVendors.length === 0) return true;
-
   const start = normalizeToHcmMinute(input.request.startAt);
   if (!start.ok) return false;
   const end = start.value + place.visitDurationMinutes;
@@ -104,23 +94,25 @@ function foodPriorityNeedsConcreteSelection(
 }
 
 function isUsableInput(input: unknown): input is EngineInput {
-  if (typeof input !== "object" || input === null) return false;
-  const candidate = input as Partial<EngineInput>;
-  const request = candidate.request;
-  const catalog = candidate.catalog;
-  if (typeof request !== "object" || request === null) return false;
-  if (typeof catalog !== "object" || catalog === null) return false;
-  return (
-    Array.isArray(catalog.places) &&
-    isStringArray(request.areas) &&
-    isStringArray(request.dietaryRequirements) &&
-    isStringArray(request.mobilityRequirements) &&
-    isStringArray(request.lockedStopIds) &&
-    typeof request.priorityWeights === "object" &&
-    request.priorityWeights !== null &&
-    Number.isSafeInteger(request.partySize) &&
-    request.partySize >= 1
-  );
+  try {
+    if (typeof input !== "object" || input === null) return false;
+    const candidate = input as Partial<EngineInput>;
+    const request = candidate.request;
+    const catalog = candidate.catalog;
+    if (typeof request !== "object" || request === null) return false;
+    if (typeof catalog !== "object" || catalog === null) return false;
+    if (!itineraryRequestSchema.safeParse(request).success) return false;
+    if (!Array.isArray(catalog.places)) return false;
+    return catalog.places.every((place) => {
+      if (typeof place !== "object" || place === null) return false;
+      const catalogPlace = { ...place } as PlaceCandidate & OptionalSellability;
+      delete catalogPlace.active;
+      delete catalogPlace.sellable;
+      return placeCandidateSchema.safeParse(catalogPlace).success;
+    });
+  } catch {
+    return false;
+  }
 }
 
 export function filterCandidates(
