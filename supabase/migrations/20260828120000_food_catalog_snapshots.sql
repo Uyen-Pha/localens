@@ -1,7 +1,7 @@
 BEGIN;
 
--- Task 3A: canonical food facts are mutable catalog evidence.  Snapshot
--- history and public projections are added in later slices of this migration.
+-- Task 3A/3B/3C: canonical food facts, immutable snapshots, and published
+-- projections. The public views below never read mutable food relations.
 
 CREATE TABLE public.food_vendors (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1228,5 +1228,121 @@ $function$;
 ALTER FUNCTION private.create_catalog_snapshot() OWNER TO localens_catalog_rpc_owner;
 REVOKE ALL ON FUNCTION private.create_catalog_snapshot() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION private.create_catalog_snapshot() TO localens_admin_rpc_owner;
+
+-- Task 3C: safe, published-only projections for the catalog adapter. Every
+-- nested value is built from immutable snapshot children in a deterministic
+-- order, and bigint money is converted to canonical decimal text at the SQL
+-- boundary so PostgREST/JavaScript cannot lose integer precision.
+CREATE OR REPLACE VIEW public.catalog_snapshot_food_vendors_v
+WITH (security_invoker = false, security_barrier = true)
+AS
+SELECT
+  v.snapshot_id,
+  v.place_id,
+  v.vendor_id,
+  v.slug,
+  COALESCE((
+    SELECT jsonb_object_agg(t.locale::text, t.title ORDER BY t.locale::text)
+    FROM public.catalog_snapshot_food_vendor_translations AS t
+    WHERE t.snapshot_id = v.snapshot_id AND t.vendor_id = v.vendor_id
+  ), '{}'::jsonb) AS title,
+  COALESCE((
+    SELECT jsonb_object_agg(t.locale::text, t.description ORDER BY t.locale::text)
+    FROM public.catalog_snapshot_food_vendor_translations AS t
+    WHERE t.snapshot_id = v.snapshot_id AND t.vendor_id = v.vendor_id
+  ), '{}'::jsonb) AS description,
+  v.location_note,
+  v.service_type,
+  v.capacity_note,
+  COALESCE((
+    SELECT jsonb_object_agg(s.requirement, s.status ORDER BY s.requirement)
+    FROM public.catalog_snapshot_food_vendor_supports AS s
+    WHERE s.snapshot_id = v.snapshot_id
+      AND s.vendor_id = v.vendor_id
+      AND s.support_kind = 'dietary'
+  ), '{}'::jsonb) AS dietary_support,
+  COALESCE((
+    SELECT jsonb_object_agg(s.requirement, s.status ORDER BY s.requirement)
+    FROM public.catalog_snapshot_food_vendor_supports AS s
+    WHERE s.snapshot_id = v.snapshot_id
+      AND s.vendor_id = v.vendor_id
+      AND s.support_kind = 'mobility'
+  ), '{}'::jsonb) AS mobility_support,
+  COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'weekday', h.weekday,
+      'opens_at', h.opens_at::text,
+      'closes_at', h.closes_at::text
+    ) ORDER BY h.weekday, h.opens_at, h.closes_at, h.opening_id), '[]'::jsonb
+  ) AS opening_hours,
+  COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'local_date', e.local_date::text,
+      'closed', e.closed,
+      'windows', COALESCE((
+        SELECT jsonb_agg(jsonb_build_object(
+          'opens_at', w.opens_at::text,
+          'closes_at', w.closes_at::text
+        ) ORDER BY w.opens_at, w.closes_at, w.window_id)
+        FROM public.catalog_snapshot_food_vendor_opening_exception_windows AS w
+        WHERE w.snapshot_id = e.snapshot_id
+          AND w.vendor_id = e.vendor_id
+          AND w.exception_id = e.exception_id
+      ), '[]'::jsonb)
+    ) ORDER BY e.local_date, e.exception_id)
+    FROM public.catalog_snapshot_food_vendor_opening_exceptions AS e
+    WHERE e.snapshot_id = v.snapshot_id AND e.vendor_id = v.vendor_id
+  ), '[]'::jsonb) AS opening_exceptions,
+  v.status::text AS status,
+  v.verified_at::text AS verified_at
+FROM public.catalog_snapshot_food_vendors AS v
+JOIN public.catalog_snapshots AS s ON s.id = v.snapshot_id
+WHERE s.status = 'published'::public.snapshot_status;
+
+ALTER VIEW public.catalog_snapshot_food_vendors_v OWNER TO localens_catalog_rpc_owner;
+REVOKE ALL ON public.catalog_snapshot_food_vendors_v FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.catalog_snapshot_food_vendors_v TO anon, authenticated;
+
+CREATE OR REPLACE VIEW public.catalog_snapshot_food_items_v
+WITH (security_invoker = false, security_barrier = true)
+AS
+SELECT
+  i.snapshot_id,
+  i.place_id,
+  i.vendor_id,
+  i.item_id,
+  i.slug,
+  COALESCE((
+    SELECT jsonb_object_agg(t.locale::text, t.title ORDER BY t.locale::text)
+    FROM public.catalog_snapshot_food_item_translations AS t
+    WHERE t.snapshot_id = i.snapshot_id AND t.item_id = i.item_id
+  ), '{}'::jsonb) AS title,
+  COALESCE((
+    SELECT jsonb_object_agg(t.locale::text, t.description ORDER BY t.locale::text)
+    FROM public.catalog_snapshot_food_item_translations AS t
+    WHERE t.snapshot_id = i.snapshot_id AND t.item_id = i.item_id
+  ), '{}'::jsonb) AS description,
+  i.serving_unit,
+  i.price_vnd_min::text AS price_vnd_min,
+  i.price_vnd_max::text AS price_vnd_max,
+  i.portion_description,
+  COALESCE((
+    SELECT jsonb_object_agg(support.requirement, support.status ORDER BY support.requirement)
+    FROM public.catalog_snapshot_food_item_supports AS support
+    WHERE support.snapshot_id = i.snapshot_id
+      AND support.item_id = i.item_id
+      AND support.support_kind = 'dietary'
+  ), '{}'::jsonb) AS dietary_support,
+  COALESCE(to_jsonb(i.allergens), '[]'::jsonb) AS allergens,
+  i.available,
+  i.status::text AS status,
+  i.verified_at::text AS verified_at
+FROM public.catalog_snapshot_food_items AS i
+JOIN public.catalog_snapshots AS s ON s.id = i.snapshot_id
+WHERE s.status = 'published'::public.snapshot_status;
+
+ALTER VIEW public.catalog_snapshot_food_items_v OWNER TO localens_catalog_rpc_owner;
+REVOKE ALL ON public.catalog_snapshot_food_items_v FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.catalog_snapshot_food_items_v TO anon, authenticated;
 
 COMMIT;

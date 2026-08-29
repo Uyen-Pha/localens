@@ -1155,6 +1155,28 @@
       "securityBarrier": true
     },
     {
+      "name": "public.catalog_snapshot_food_items_v",
+      "owner": "localens_catalog_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated"
+      ],
+      "apiExposure": "published-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendors_v",
+      "owner": "localens_catalog_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated"
+      ],
+      "apiExposure": "published-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
       "name": "public.catalog_snapshot_places_v",
       "owner": "localens_catalog_rpc_owner",
       "readerRoles": [
@@ -1536,7 +1558,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 527,
+  "grantCount": 531,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }

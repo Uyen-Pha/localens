@@ -1902,6 +1902,20 @@
     },
     {
       "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_items_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_items_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
       "objectName": "public.catalog_snapshot_food_items",
       "privilege": "insert",
       "columns": [],
@@ -1983,6 +1997,20 @@
       "privilege": "select",
       "columns": [],
       "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendors_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "anon"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendors_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
     },
     {
       "objectType": "table",

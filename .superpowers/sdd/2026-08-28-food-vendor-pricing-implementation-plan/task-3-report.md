@@ -280,3 +280,52 @@ no runtime result is claimed.
   claimed.
 
 Implementation verified; fix-round commit follows in this delivery.
+
+## Task 3C — published food snapshot projection views
+
+Status: implementation complete for the independently reviewable published
+projection slice. The existing forward-only food migration now adds exactly
+`public.catalog_snapshot_food_vendors_v` and
+`public.catalog_snapshot_food_items_v`. Both use the existing safe-definer
+view pattern (`security_invoker = false`, `security_barrier = true`, named
+`localens_catalog_rpc_owner`, revoke-all-first, and SELECT only for `anon` and
+`authenticated`). Each view joins `catalog_snapshots` and filters to the
+published status, reads only immutable snapshot relations, retains exact
+snapshot/place/vendor/item parent IDs, builds deterministic dense JSON arrays
+and objects, and exposes item bigint prices as canonical decimal text. Source
+URLs/attributions and mutable `food_*` relations are not exposed.
+
+### Task 3C TDD and verification evidence
+
+RED:
+
+- Extended `tests/unit/supabase/artifacts.test.ts` and
+  `tests/unit/supabase/rls-matrix.test.ts` first; the focused suite failed
+  because both views were absent and the matrix still had 12 views.
+- Extended `supabase/tests/database/food_catalog_test.sql` to 125 exact
+  executable assertions; `pnpm db:test` was attempted and returned the exact
+  environment blocker below. No PostgreSQL runtime result is claimed.
+
+GREEN/static:
+
+- `pnpm db:static` — exit 0; 16 migration files checked, seed optional.
+- `pnpm test:run tests/unit/supabase/artifacts.test.ts tests/unit/supabase/rls-matrix.test.ts` — exit 0; 2 files, 26 tests passed.
+- `pnpm test:run` — exit 0; 57 files, 592 tests passed.
+- `pnpm lint` — exit 0; no ESLint errors or warnings.
+- `pnpm typecheck` — exit 0.
+- `git diff --check` — clean.
+- Food pgTAP plan is `SELECT plan(125)` with exactly 125 executable
+  `ok`/`is`/`throws_ok`/`lives_ok` assertions.
+- Generated access artifacts now enumerate 14 views and 531 explicit grants;
+  the policy manifest remains unchanged because this slice adds no policies.
+- `tsconfig.tsbuildinfo` was removed after typecheck. Pre-existing untracked
+  `AGENTS.md`, `CLAUDE.md`, and `next-env.d.ts` were not touched or staged.
+
+Runtime/type gates remain blocked by the local environment and no runtime
+database/type result is claimed:
+
+- `pnpm db:reset` —
+  `SUPABASE_CLI_NOT_FOUND: project-local Supabase CLI is required; install the pinned dev dependency only after a local container runtime is available`.
+- `pnpm db:test` — same exact `SUPABASE_CLI_NOT_FOUND` blocker.
+- `pnpm db:lint` — same exact `SUPABASE_CLI_NOT_FOUND` blocker.
+- `pnpm db:types:check` — same exact `SUPABASE_CLI_NOT_FOUND` blocker.

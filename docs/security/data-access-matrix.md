@@ -142,6 +142,8 @@ Migration owner for default privileges: postgres
 | public.admin_audit_events_v | localens_content_admin_owner | admin-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.admin_content_drafts_v | localens_content_admin_owner | admin-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.admin_custom_request_queue_v | localens_request_admin_rpc_owner | admin-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
+| public.catalog_snapshot_food_items_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
+| public.catalog_snapshot_food_vendors_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.catalog_snapshot_places_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.customer_bookings_v | localens_booking_projection_owner | owner-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.customer_custom_quotes_v | localens_request_customer_rpc_owner | owner-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
@@ -272,7 +274,7 @@ Enumerated internal functions: 91. All are non-API and must use a named NOLOGIN/
 
 ## Explicit grants
 
-Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (527 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (531 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Dynamic policy semantics
 

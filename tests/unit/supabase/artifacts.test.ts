@@ -197,6 +197,41 @@ describe("static Supabase artifact gate", () => {
     expect(collisions, "trigger names must remain unique after PostgreSQL truncation").toEqual([]);
   });
 
+  it("requires Task 3C published food projection views to expose immutable dense rows", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260828120000_food_catalog_snapshots.sql"), "utf8");
+    const pgTap = readFileSync(join(repoRoot, "supabase", "tests", "database", "food_catalog_test.sql"), "utf8");
+    const viewNames = [
+      "public.catalog_snapshot_food_vendors_v",
+      "public.catalog_snapshot_food_items_v",
+    ];
+    for (const viewName of viewNames) {
+      const unqualified = viewName.slice("public.".length);
+      expect(migration).toMatch(new RegExp(`CREATE OR REPLACE VIEW ${viewName.replaceAll(".", "\\.")}\\s+WITH \\(`, "i"));
+      expect(migration).toMatch(new RegExp(`${unqualified}\\s+WITH \\(security_invoker = false, security_barrier = true\\)`, "i"));
+      expect(migration).toMatch(new RegExp(`ALTER VIEW ${viewName.replaceAll(".", "\\.")} OWNER TO localens_catalog_rpc_owner`, "i"));
+      expect(migration).toMatch(new RegExp(`REVOKE ALL ON ${viewName.replaceAll(".", "\\.")} FROM PUBLIC, anon, authenticated`, "i"));
+      expect(migration).toMatch(new RegExp(`GRANT SELECT ON ${viewName.replaceAll(".", "\\.")} TO anon, authenticated`, "i"));
+    }
+
+    const projectionSql = migration.slice(migration.indexOf("CREATE OR REPLACE VIEW public.catalog_snapshot_food_vendors_v"));
+    expect(projectionSql).not.toMatch(/public\.food_(?:vendors|items|vendor_|item_)/i);
+    expect(projectionSql).toMatch(/JOIN public\.catalog_snapshots AS s ON s\.id = [a-z]+\.snapshot_id[\s\S]*?WHERE s\.status = 'published'::public\.snapshot_status/gi);
+    for (const field of [
+      "snapshot_id", "place_id", "vendor_id", "item_id", "slug", "title", "description",
+      "location_note", "service_type", "capacity_note", "dietary_support", "mobility_support",
+      "opening_hours", "opening_exceptions", "serving_unit", "price_vnd_min", "price_vnd_max",
+      "portion_description", "allergens", "available", "verified_at", "status",
+    ]) {
+      expect(projectionSql).toMatch(new RegExp(`\\b${field}\\b`, "i"));
+    }
+    expect(projectionSql).toMatch(/price_vnd_min::text/i);
+    expect(projectionSql).toMatch(/price_vnd_max::text/i);
+    expect(projectionSql).toMatch(/COALESCE\([\s\S]*'\[\]'::jsonb/i);
+    expect(projectionSql).toMatch(/COALESCE\([\s\S]*'\{\}'::jsonb/i);
+    expect(pgTap).toMatch(/Task 3C[\s\S]*catalog_snapshot_food_vendors_v/i);
+    expect(pgTap).toMatch(/catalog_snapshot_food_items_v[\s\S]*decimal/i);
+  });
+
   it("guards a published vendor when its food item loses availability, status, owner, or row", () => {
     const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260828120000_food_catalog_snapshots.sql"), "utf8");
     const pgTap = readFileSync(join(repoRoot, "supabase", "tests", "database", "food_catalog_test.sql"), "utf8");

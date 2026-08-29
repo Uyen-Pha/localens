@@ -1,9 +1,11 @@
--- Task 3A pgTAP coverage for the canonical mutable food catalog base schema.
+-- Task 3A/3B/3C pgTAP coverage for the food catalog, immutable snapshots, and
+-- published projection boundary. The assertions are metadata/security checks
+-- plus a synthetic rollback-only fixture; no source facts are published.
 -- The assertions are metadata/security checks only; this fixture is
 -- intentionally rollback-only and contains no vendor/menu source facts.
 BEGIN;
 
-SELECT plan(108);
+SELECT plan(125);
 
 -- Every base relation is present.
 SELECT ok(to_regclass('public.food_vendors') IS NOT NULL, 'food vendors exists');
@@ -150,7 +152,27 @@ SELECT ok((SELECT bool_and(has_table_privilege('localens_catalog_rpc_owner', for
   'catalog_snapshot_food_item_translations', 'catalog_snapshot_food_item_supports'
 ]) AS table_name), 'catalog RPC owner can create all food snapshot rows');
 SELECT is((SELECT count(*)::integer FROM pg_policies WHERE schemaname = 'public' AND tablename LIKE 'catalog_snapshot_food_%' AND (roles @> ARRAY['anon'::name] OR roles @> ARRAY['authenticated'::name])), 0, 'food snapshots have no direct API policies before a projection slice');
-SELECT is((SELECT count(*)::integer FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname LIKE 'catalog_snapshot_food_%_v'), 0, 'food snapshot projection views are deferred');
+
+-- Task 3C published food snapshot projections: the API sees only immutable,
+-- published rows and receives canonical text money with dense JSON values.
+SELECT ok(to_regclass('public.catalog_snapshot_food_vendors_v') IS NOT NULL, 'published food vendor projection exists');
+SELECT ok(to_regclass('public.catalog_snapshot_food_items_v') IS NOT NULL, 'published food item projection exists');
+SELECT is((SELECT pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid = 'public.catalog_snapshot_food_vendors_v'::regclass), 'localens_catalog_rpc_owner', 'published vendor projection has named owner');
+SELECT is((SELECT pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid = 'public.catalog_snapshot_food_items_v'::regclass), 'localens_catalog_rpc_owner', 'published item projection has named owner');
+SELECT ok((SELECT reloptions @> ARRAY['security_invoker=false', 'security_barrier=true'] FROM pg_catalog.pg_class WHERE oid = 'public.catalog_snapshot_food_vendors_v'::regclass), 'published vendor projection is non-invoker and barrier protected');
+SELECT ok((SELECT reloptions @> ARRAY['security_invoker=false', 'security_barrier=true'] FROM pg_catalog.pg_class WHERE oid = 'public.catalog_snapshot_food_items_v'::regclass), 'published item projection is non-invoker and barrier protected');
+SELECT ok(pg_get_viewdef('public.catalog_snapshot_food_vendors_v'::regclass, true) ~ $$JOIN public\.catalog_snapshots( AS)? s$$ AND pg_get_viewdef('public.catalog_snapshot_food_vendors_v'::regclass, true) ~ $$s\.status[[:space:]]*=[[:space:]]*'published'::(public\.)?snapshot_status$$, 'vendor projection is published-only');
+SELECT ok(pg_get_viewdef('public.catalog_snapshot_food_items_v'::regclass, true) ~ $$JOIN public\.catalog_snapshots( AS)? s$$ AND pg_get_viewdef('public.catalog_snapshot_food_items_v'::regclass, true) ~ $$s\.status[[:space:]]*=[[:space:]]*'published'::(public\.)?snapshot_status$$, 'item projection is published-only');
+SELECT ok(pg_get_viewdef('public.catalog_snapshot_food_vendors_v'::regclass, true) LIKE '%catalog_snapshot_food_vendors%' AND pg_get_viewdef('public.catalog_snapshot_food_vendors_v'::regclass, true) NOT LIKE '%public.food_%', 'vendor projection reads immutable snapshot tables only');
+SELECT ok(pg_get_viewdef('public.catalog_snapshot_food_items_v'::regclass, true) LIKE '%catalog_snapshot_food_items%' AND pg_get_viewdef('public.catalog_snapshot_food_items_v'::regclass, true) NOT LIKE '%public.food_%', 'item projection reads immutable snapshot tables only');
+SELECT is((SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'catalog_snapshot_food_vendors_v'), 'snapshot_id,place_id,vendor_id,slug,title,description,location_note,service_type,capacity_note,dietary_support,mobility_support,opening_hours,opening_exceptions,status,verified_at', 'vendor projection exposes exact parent and catalog fields');
+SELECT is((SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'catalog_snapshot_food_items_v'), 'snapshot_id,place_id,vendor_id,item_id,slug,title,description,serving_unit,price_vnd_min,price_vnd_max,portion_description,dietary_support,allergens,available,status,verified_at', 'item projection exposes exact parent and catalog fields');
+SELECT ok(pg_get_viewdef('public.catalog_snapshot_food_items_v'::regclass, true) LIKE '%price_vnd_min::text%' AND pg_get_viewdef('public.catalog_snapshot_food_items_v'::regclass, true) LIKE '%price_vnd_max::text%', 'item projection exposes decimal-safe text prices');
+SELECT ok(pg_get_viewdef('public.catalog_snapshot_food_vendors_v'::regclass, true) LIKE '%''[]''::jsonb%' AND pg_get_viewdef('public.catalog_snapshot_food_vendors_v'::regclass, true) LIKE '%''{}''::jsonb%', 'vendor projection uses dense array and object defaults');
+SELECT ok(pg_get_viewdef('public.catalog_snapshot_food_items_v'::regclass, true) LIKE '%''[]''::jsonb%' AND pg_get_viewdef('public.catalog_snapshot_food_items_v'::regclass, true) LIKE '%''{}''::jsonb%', 'item projection uses dense array and object defaults');
+SELECT is((SELECT count(*)::integer FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('catalog_snapshot_food_vendors_v', 'catalog_snapshot_food_items_v') AND column_name = 'status'), 2, 'both projections expose published status');
+SELECT ok(has_table_privilege('anon', 'public.catalog_snapshot_food_vendors_v', 'SELECT') AND has_table_privilege('authenticated', 'public.catalog_snapshot_food_vendors_v', 'SELECT'), 'API roles can read the published vendor projection');
+SELECT ok(has_table_privilege('anon', 'public.catalog_snapshot_food_items_v', 'SELECT') AND has_table_privilege('authenticated', 'public.catalog_snapshot_food_items_v', 'SELECT'), 'API roles can read the published item projection');
 
 -- Synthetic rollback-only publication and copy fixture.  It uses the complete
 -- behavior place from the catalog snapshot suite and never introduces a real
