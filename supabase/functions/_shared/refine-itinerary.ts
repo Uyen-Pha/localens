@@ -22,6 +22,7 @@ import {
   itineraryItemSchema,
   itineraryResultSchema,
   parseEngineInput,
+  type FoodSelectionInput,
   type ItineraryRequest,
   type ItineraryResult,
 } from "@/lib/domain/itinerary/contracts";
@@ -40,6 +41,14 @@ import type {
   AccessTokenVerification,
   VerifiedAccessPrincipal,
 } from "@/supabase/functions/_shared/recommend-itinerary";
+import {
+  foodMenuItemSchema,
+  foodSelectionSchema,
+  foodVendorSchema,
+  type FoodSelection,
+} from "@/lib/domain/food/contracts";
+import { calculateFoodSelectionCost, calculateItineraryCostBreakdown } from "@/lib/domain/itinerary/food-cost";
+import { multiplyVnd, sumVnd } from "@/lib/domain/itinerary/money";
 
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
 const TOKEN_MAX_LENGTH = 4096;
@@ -534,6 +543,20 @@ function domainFailureResponse(error: JsonRecord, correlationId: string, corsHea
  * locked stop. Full regeneration has the same preservation rule whenever the
  * caller supplied locks; a full regeneration without locks is unrestricted.
  */
+function sameFoodSelection(
+  left: FoodSelection | null,
+  right: FoodSelection | null,
+): boolean {
+  if (left === null || right === null) return left === right;
+  return left.vendorId === right.vendorId
+    && left.menuItemId === right.menuItemId
+    && left.quantity === right.quantity
+    && left.priceVndMin === right.priceVndMin
+    && left.priceVndMax === right.priceVndMax
+    && left.paymentMode === right.paymentMode
+    && left.activity === right.activity;
+}
+
 function preservesLockedStops(
   result: ItineraryResult,
   previousRevision: PreviousRevisionContext,
@@ -546,10 +569,14 @@ function preservesLockedStops(
       .filter(({ item }) => item.placeId === lockedItem.placeId);
     if (matches.length !== 1) return false;
     const [{ item, index }] = matches;
+    const previousItem = previousRevision.items.find((candidate) => candidate.itemId === lockedItem.itemId);
     if (index <= previousResultIndex
       || item.startAt !== lockedItem.startAt
       || item.endAt !== lockedItem.endAt
-      || item.visitDurationMinutes !== lockedItem.visitDurationMinutes) {
+      || item.visitDurationMinutes !== lockedItem.visitDurationMinutes
+      || (previousItem?.foodSelection !== null
+        && previousItem?.foodSelection !== undefined
+        && !sameFoodSelection(item.foodSelection, previousItem.foodSelection))) {
       return false;
     }
     previousResultIndex = index;
@@ -581,7 +608,13 @@ function sameResultItem(left: ItineraryResult["items"][number], right: Canonical
     && left.transitionBufferMinutesBefore === right.transitionBufferMinutesBefore
     && left.travelCostVndBefore === right.travelCostVndBefore
     && left.placeCostVnd === right.placeCostVnd
-    && left.score === right.score;
+    && left.score === right.score
+    && sameFoodSelection(left.foodSelection, right.foodSelection)
+    && left.foodCostMinVnd === right.foodCostMinVnd
+    && left.foodCostMaxVnd === right.foodCostMaxVnd
+    && left.payAtVendorMinVnd === right.payAtVendorMinVnd
+    && left.payAtVendorMaxVnd === right.payAtVendorMaxVnd
+    && left.customerPayableVnd === right.customerPayableVnd;
 }
 
 type PreviousMaterialCheck =
@@ -589,6 +622,67 @@ type PreviousMaterialCheck =
   | { kind: "locked" }
   | { kind: "snapshot" }
   | { kind: "invalid" };
+
+function supports(
+  support: Readonly<Record<string, string>>,
+  requirements: readonly string[],
+): boolean {
+  return requirements.every((requirement) => support[requirement] === "supported");
+}
+
+function previousFoodMaterialIsAuthoritative(
+  input: ParsedEngineInput,
+  result: ItineraryResult,
+): boolean {
+  for (const item of result.items) {
+    const place = input.catalog.places.find((candidate) => candidate.id === item.placeId);
+    if (place === undefined) return false;
+    const admission = multiplyVnd(place.priceVndPerPerson, input.request.partySize);
+    if (!admission.ok) return false;
+    if (item.foodSelection === null) {
+      if (item.foodCostMinVnd !== 0 || item.foodCostMaxVnd !== 0
+        || item.payAtVendorMinVnd !== 0 || item.payAtVendorMaxVnd !== 0) return false;
+      const customerPayable = sumVnd([admission.value, item.travelCostVndBefore]);
+      if (!customerPayable.ok || item.customerPayableVnd !== customerPayable.value) return false;
+      continue;
+    }
+    const vendor = place.foodVendors.find((candidate) => candidate.id === item.foodSelection?.vendorId);
+    if (vendor === undefined || vendor.placeId !== place.id || vendor.status !== "sellable"
+      || !supports(vendor.dietarySupport, input.request.dietaryRequirements)
+      || !supports(vendor.mobilitySupport, input.request.mobilityRequirements)) return false;
+    const menuItem = vendor.menuItems.find((candidate) => candidate.id === item.foodSelection?.menuItemId);
+    if (menuItem === undefined || menuItem.vendorId !== vendor.id || menuItem.status !== "sellable" || menuItem.available !== true
+      || !supports(menuItem.dietarySupport, input.request.dietaryRequirements)) return false;
+    if (item.foodSelection.activity !== "Taste and discuss the selected dish") return false;
+    if (item.foodSelection.priceVndMin !== menuItem.priceVndMin || item.foodSelection.priceVndMax !== menuItem.priceVndMax) return false;
+    const expectedQuantity = menuItem.servingUnit === "shared_set" ? 1 : input.request.partySize;
+    if (item.foodSelection.quantity !== expectedQuantity || item.foodSelection.paymentMode !== "pay_at_vendor") return false;
+    if (!foodVendorSchema.safeParse(vendor).success || !foodMenuItemSchema.safeParse(menuItem).success) return false;
+    const cost = calculateFoodSelectionCost(item.foodSelection, menuItem, input.request.partySize);
+    if (!cost.ok
+      || item.foodCostMinVnd !== cost.value.minVnd
+      || item.foodCostMaxVnd !== cost.value.maxVnd
+      || item.payAtVendorMinVnd !== cost.value.payAtVendorMinVnd
+      || item.payAtVendorMaxVnd !== cost.value.payAtVendorMaxVnd) return false;
+    const customerPayable = sumVnd([admission.value, item.travelCostVndBefore, cost.value.customerPayableVnd]);
+    if (!customerPayable.ok || item.customerPayableVnd !== customerPayable.value) return false;
+  }
+  const travelCost = sumVnd(result.items.map((item) => item.travelCostVndBefore));
+  if (!travelCost.ok) return false;
+  const expected = calculateItineraryCostBreakdown(result.items, travelCost.value, 0);
+  if (!expected.ok) return false;
+  return result.totals.admissionCostVnd === expected.value.admissionCostVnd
+    && result.totals.foodCostMinVnd === expected.value.foodCostMinVnd
+    && result.totals.foodCostMaxVnd === expected.value.foodCostMaxVnd
+    && result.totals.travelCostVnd === expected.value.travelCostVnd
+    && result.totals.guideCostVnd === expected.value.guideCostVnd
+    && result.totals.payAtVendorMinVnd === expected.value.payAtVendorMinVnd
+    && result.totals.payAtVendorMaxVnd === expected.value.payAtVendorMaxVnd
+    && result.totals.customerPayableVnd === expected.value.customerPayableVnd
+    && result.totals.groupCostMinVnd === expected.value.groupCostMinVnd
+    && result.totals.groupCostMaxVnd === expected.value.groupCostMaxVnd
+    && result.totals.groupCostVnd === expected.value.groupCostVnd;
+}
 
 async function validatePreviousMaterial(
   previousRevision: PreviousRevisionContext,
@@ -623,6 +717,7 @@ async function validatePreviousMaterial(
     }
     if (!priorInput.value.catalog.places.some((place) => place.id === lockedItem.placeId)) return { kind: "locked" };
   }
+  if (!previousFoodMaterialIsAuthoritative(priorInput.value, priorResult)) return { kind: "snapshot" };
   let fingerprint: string;
   try {
     fingerprint = await fingerprintRevisionBinding(
@@ -637,6 +732,34 @@ async function validatePreviousMaterial(
   }
   if (fingerprint !== previousRevision.fingerprint) return { kind: "snapshot" };
   return { kind: "ok", input: priorInput.value };
+}
+
+function lockedFoodSelections(
+  previousRevision: PreviousRevisionContext,
+): FoodSelectionInput {
+  const selections = Object.create(null) as Record<string, FoodSelection>;
+  const itemsById = new Map(previousRevision.items.map((item) => [item.itemId, item]));
+  for (const lockedItem of previousRevision.lockedItems) {
+    const item = itemsById.get(lockedItem.itemId);
+    if (item?.foodSelection === null || item?.foodSelection === undefined) continue;
+    const parsed = foodSelectionSchema.safeParse(item.foodSelection);
+    if (!parsed.success) continue;
+    Object.defineProperty(selections, lockedItem.placeId, {
+      value: {
+        vendorId: parsed.data.vendorId,
+        menuItemId: parsed.data.menuItemId,
+        quantity: parsed.data.quantity,
+        priceVndMin: parsed.data.priceVndMin,
+        priceVndMax: parsed.data.priceVndMax,
+        paymentMode: parsed.data.paymentMode,
+        activity: parsed.data.activity,
+      },
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+  return selections;
 }
 
 export function createRefineItineraryHandler(
@@ -722,7 +845,18 @@ export function createRefineItineraryHandler(
     if (previousMaterial.kind === "snapshot") {
       return adapterFailureResponse({ code: "SNAPSHOT_MISMATCH" }, gateway.correlationId, gateway.corsHeaders);
     }
-    const engineInput = { ok: true as const, value: previousMaterial.input };
+    const lockedPlaceIds = inspectedPreparation.previousRevision.lockedItems.map((item) => item.placeId);
+    const engineInput = {
+      ok: true as const,
+      value: {
+        ...previousMaterial.input,
+        request: {
+          ...previousMaterial.input.request,
+          lockedStopIds: [...lockedPlaceIds],
+        },
+      },
+    };
+    const priorLockedFoodSelections = lockedFoodSelections(inspectedPreparation.previousRevision);
     let recommendation: Awaited<ReturnType<typeof recommendItinerary>>;
     try {
       const ranker: Ranker | undefined = inspectedPreparation.ranker
@@ -730,10 +864,13 @@ export function createRefineItineraryHandler(
             ...request,
             feedback: inspectedPreparation.normalizedDelta.feedback,
             scope: inspectedPreparation.normalizedDelta.scope,
-            lockedPlaceIds: inspectedPreparation.previousRevision.lockedItems.map((item) => item.placeId),
+            lockedPlaceIds: [...lockedPlaceIds],
           }, signal)
         : undefined;
-      recommendation = await recommendItinerary(engineInput.value, { ranker });
+      recommendation = await recommendItinerary(engineInput.value, {
+        ranker,
+        lockedFoodSelections: priorLockedFoodSelections,
+      });
     } catch {
       return internalResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     }

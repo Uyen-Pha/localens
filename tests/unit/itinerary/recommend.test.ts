@@ -40,6 +40,18 @@ function deterministicSource() {
   };
 }
 
+function canonicalBanhMiSelection() {
+  return {
+    vendorId: "vendor-banh-mi-legacy",
+    menuItemId: "menu-banh-mi-legacy",
+    quantity: 2,
+    priceVndMin: 30_000,
+    priceVndMax: 40_000,
+    paymentMode: "pay_at_vendor" as const,
+    activity: "Taste and discuss the selected dish",
+  };
+}
+
 function manualTimeoutFactory() {
   const controller = new AbortController();
   let cancelCount = 0;
@@ -78,6 +90,7 @@ describe("recommendItinerary", () => {
         return {
           orderedIds: ["place-history"],
           rationales: { "place-history": "Best fit for the selected history preference." },
+          foodSelections: [],
         };
       },
     });
@@ -92,6 +105,8 @@ describe("recommendItinerary", () => {
     });
     expect(captured).toBeDefined();
     expect(Object.keys(captured ?? {}).sort()).toEqual([
+      "allowedMenuItemIds",
+      "allowedVendorIds",
       "candidates",
       "pace",
       "priorityWeights",
@@ -104,6 +119,69 @@ describe("recommendItinerary", () => {
         "visitDurationMinutes",
       ]);
     }
+  });
+
+  it("sends food allowlists and accepts an exact canonical AI food selection", async () => {
+    let captured: RankRequest | undefined;
+    const result = await recommendItinerary(sourceWithMultipleCandidates(), {
+      ranker: async (request) => {
+        captured = request;
+        return {
+          orderedIds: ["place-banh-mi"],
+          rationales: { "place-banh-mi": "Matches the food preference." },
+          foodSelections: [{
+            placeId: "place-banh-mi",
+            selection: canonicalBanhMiSelection(),
+          }],
+        };
+      },
+    });
+
+    expect(result).toMatchObject({ ok: true, value: { degraded: false } });
+    if (!result.ok) return;
+    expect(result.value.result.rankingSource).toBe("ai");
+    expect(result.value.result.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        placeId: "place-banh-mi",
+        foodSelection: canonicalBanhMiSelection(),
+      }),
+    ]));
+    expect(captured).toMatchObject({
+      allowedVendorIds: ["vendor-banh-mi-legacy"],
+      allowedMenuItemIds: ["menu-banh-mi-legacy"],
+    });
+  });
+
+  it.each([
+    ["missing selection", []],
+    ["unknown vendor", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), vendorId: "vendor-forged" } }]],
+    ["unknown menu", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), menuItemId: "menu-forged" } }]],
+    ["changed price", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), priceVndMax: 1 } }]],
+    ["fractional quantity", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), quantity: 1.5 } }]],
+    ["changed activity", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), activity: "Book a table" } }]],
+    ["included in quote", [{ placeId: "place-banh-mi", selection: { ...canonicalBanhMiSelection(), paymentMode: "included_in_quote" } }]],
+    ["duplicate selection", [
+      { placeId: "place-banh-mi", selection: canonicalBanhMiSelection() },
+      { placeId: "place-banh-mi", selection: canonicalBanhMiSelection() },
+    ]],
+    ["unranked selection", [{ placeId: "place-history", selection: canonicalBanhMiSelection() }]],
+  ] as const)("falls back for hostile food output: %s", async (_label, foodSelections) => {
+    const result = await recommendItinerary(sourceWithMultipleCandidates(), {
+      ranker: async () => ({
+        orderedIds: ["place-banh-mi"],
+        rationales: { "place-banh-mi": "matched" },
+        foodSelections,
+      }),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        degraded: true,
+        messageKey: "itinerary.ai_invalid",
+        result: { rankingSource: "deterministic" },
+      },
+    });
   });
 
   it.each([
@@ -156,7 +234,7 @@ describe("recommendItinerary", () => {
   it("does not invoke a ranker when the caller is already aborted", async () => {
     const controller = new AbortController();
     controller.abort();
-    const ranker = vi.fn(async () => ({ orderedIds: ["place-banh-mi"], rationales: { "place-banh-mi": "ok" } }));
+    const ranker = vi.fn(async () => ({ orderedIds: ["place-banh-mi"], rationales: { "place-banh-mi": "ok" }, foodSelections: [] }));
 
     const result = await recommendItinerary(deterministicSource(), {
       ranker,
@@ -208,6 +286,7 @@ describe("recommendItinerary", () => {
     resolveLate({
       orderedIds: ["place-banh-mi"],
       rationales: { "place-banh-mi": "late" },
+      foodSelections: [],
     });
     await Promise.resolve();
     expect(timedOut).toMatchObject({
@@ -267,6 +346,7 @@ describe("recommendItinerary", () => {
     resolveLate({
       orderedIds: ["place-banh-mi"],
       rationales: { "place-banh-mi": "late" },
+      foodSelections: [],
     });
     await Promise.resolve();
     expect(aborted).toMatchObject({
@@ -307,9 +387,10 @@ describe("recommendItinerary", () => {
         ranker = async () => ({
           orderedIds: ["place-banh-mi"],
           rationales: { "place-banh-mi": "ok" },
+          foodSelections: [],
         });
       } else if (outcome === "invalid") {
-        ranker = async () => ({ orderedIds: [], rationales: {} });
+        ranker = async () => ({ orderedIds: [], rationales: {}, foodSelections: [] });
       } else if (outcome === "provider reject") {
         ranker = async () => {
           throw new Error("provider failure");
@@ -342,7 +423,7 @@ describe("recommendItinerary", () => {
       },
       asOfUtc: "2026-09-12T01:01:00Z",
     };
-    const ranker = vi.fn(async () => ({ orderedIds: ["place-banh-mi"], rationales: { "place-banh-mi": "ok" } }));
+    const ranker = vi.fn(async () => ({ orderedIds: ["place-banh-mi"], rationales: { "place-banh-mi": "ok" }, foodSelections: [] }));
 
     const result = await recommendItinerary(staleUsd, { ranker });
 
@@ -359,6 +440,7 @@ describe("recommendItinerary", () => {
     const ranker = vi.fn(async () => ({
       orderedIds: ["guest@example.com"],
       rationales: { "guest@example.com": "must not run" },
+      foodSelections: [],
     }));
 
     const created = createItinerary(input);
@@ -389,6 +471,7 @@ describe("recommendItinerary", () => {
     const ranker = vi.fn(async () => ({
       orderedIds: ["place-banh-mi"],
       rationales: { "place-banh-mi": "must not run" },
+      foodSelections: [],
     }));
 
     const result = await recommendItinerary(impossible, { ranker });

@@ -220,6 +220,85 @@ describe("refine-itinerary Edge handler contract", () => {
     );
   });
 
+  it("preserves the exact prior locked food selection during refinement", async () => {
+    const authoritativeInput = structuredClone(itineraryFixture);
+    const place = authoritativeInput.catalog.places.find((candidate) => candidate.id === lockedPlaceId);
+    if (!place) throw new Error("food fixture place missing");
+    const vendor = place.foodVendors[0];
+    if (!vendor) throw new Error("food fixture vendor missing");
+    vendor.menuItems.push({
+      ...vendor.menuItems[0],
+      id: "menu-a-cheaper",
+      slug: "a-cheaper",
+      priceVndMin: 10_000,
+      priceVndMax: 12_000,
+    });
+    const lockedSelection = {
+      vendorId: "vendor-banh-mi-legacy",
+      menuItemId: "menu-banh-mi-legacy",
+      quantity: 2,
+      priceVndMin: 30_000,
+      priceVndMax: 40_000,
+      paymentMode: "pay_at_vendor" as const,
+      activity: "Taste and discuss the selected dish",
+    };
+    const authoritativeResult: ItineraryResult = structuredClone(previousResult);
+    authoritativeResult.items[0].foodSelection = lockedSelection;
+    authoritativeResult.items[0].foodCostMinVnd = 60_000;
+    authoritativeResult.items[0].foodCostMaxVnd = 80_000;
+    authoritativeResult.items[0].payAtVendorMinVnd = 60_000;
+    authoritativeResult.items[0].payAtVendorMaxVnd = 80_000;
+    authoritativeResult.items[0].customerPayableVnd = 360_000;
+    authoritativeResult.totals.foodCostMinVnd = 60_000;
+    authoritativeResult.totals.foodCostMaxVnd = 80_000;
+    authoritativeResult.totals.payAtVendorMinVnd = 60_000;
+    authoritativeResult.totals.payAtVendorMaxVnd = 80_000;
+    authoritativeResult.totals.groupCostMinVnd = 420_000;
+    authoritativeResult.totals.groupCostMaxVnd = 440_000;
+    authoritativeResult.totals.groupCostVnd = 440_000;
+    const lockedRevision = {
+      ...previousRevision,
+      authoritativeInput,
+      authoritativeResult,
+      items: [{ ...authoritativeResult.items[0], itemId, position: 1 }],
+    };
+    lockedRevision.fingerprint = await fingerprintRevisionBinding(
+      planId,
+      3,
+      authoritativeInput,
+      authoritativeResult,
+      async (bytes) => new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes.buffer as ArrayBuffer)),
+    );
+    const service = adapter({
+      prepareRefinement: vi.fn(async () => ({
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        previousRevision: lockedRevision,
+        ranker: vi.fn(async () => ({
+          orderedIds: [lockedPlaceId],
+          rationales: { [lockedPlaceId]: "conflict" },
+          foodSelections: [{
+            placeId: lockedPlaceId,
+            selection: { ...lockedSelection, menuItemId: "unknown-menu", priceVndMin: 1, priceVndMax: 1 },
+          }],
+        })),
+      })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.degraded).toBe(true);
+    expect(body.proposal.items[0].foodSelection).toEqual(lockedSelection);
+  });
+
   it("passes normalized feedback, scope, and authoritative locked place mapping to the ranker", async () => {
     let received: { feedback: string; scope: "partial" | "full"; lockedPlaceIds: string[] } | undefined;
     const service = adapter({
@@ -238,6 +317,7 @@ describe("refine-itinerary Edge handler contract", () => {
           return {
             orderedIds: rankRequest.candidates.map((candidate) => candidate.id),
             rationales: Object.fromEntries(rankRequest.candidates.map((candidate) => [candidate.id, "matched"])),
+            foodSelections: [],
           };
         }),
       })),
@@ -271,6 +351,7 @@ describe("refine-itinerary Edge handler contract", () => {
           return {
             orderedIds: rankRequest.candidates.map((candidate) => candidate.id),
             rationales: Object.fromEntries(rankRequest.candidates.map((candidate) => [candidate.id, "matched"])),
+            foodSelections: [],
           };
         }),
       })),
@@ -437,6 +518,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ranker: vi.fn(async () => ({
           orderedIds: ["forged-place-id"],
           rationales: { "forged-place-id": "malicious" },
+          foodSelections: [],
         })),
       })),
     });
@@ -516,6 +598,7 @@ describe("refine-itinerary Edge handler contract", () => {
     const ranker = vi.fn(async (rankRequest: RefinementRankRequest) => ({
       orderedIds: rankRequest.candidates.map((candidate) => candidate.id),
       rationales: Object.fromEntries(rankRequest.candidates.map((candidate) => [candidate.id, "should not run"])),
+      foodSelections: [],
     }));
     const service = adapter({
       prepareRefinement: vi.fn(async () => ({
@@ -684,6 +767,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ranker: vi.fn(async () => ({
           orderedIds: ["place-market"],
           rationales: { "place-market": "omit locked stop" },
+          foodSelections: [],
         })),
       })),
     });

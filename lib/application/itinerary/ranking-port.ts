@@ -5,6 +5,10 @@ import type {
   PriorityWeights,
   Result,
 } from "@/lib/domain/itinerary/contracts";
+import {
+  foodSelectionSchema,
+  type FoodSelection,
+} from "@/lib/domain/food/contracts";
 import { domainError } from "@/lib/domain/itinerary/errors";
 
 export interface PublicRankCandidate {
@@ -15,14 +19,22 @@ export interface PublicRankCandidate {
 }
 
 export interface RankRequest {
-  candidates: PublicRankCandidate[];
-  priorityWeights: PriorityWeights;
-  pace: Pace;
+  readonly candidates: readonly PublicRankCandidate[];
+  readonly priorityWeights: PriorityWeights;
+  readonly pace: Pace;
+  readonly allowedVendorIds: readonly string[];
+  readonly allowedMenuItemIds: readonly string[];
+}
+
+export interface RankFoodSelection {
+  readonly placeId: string;
+  readonly selection: FoodSelection;
 }
 
 export interface RankResponse {
-  orderedIds: string[];
-  rationales: Record<string, string>;
+  readonly orderedIds: readonly string[];
+  readonly rationales: Readonly<Record<string, string>>;
+  readonly foodSelections: readonly RankFoodSelection[];
 }
 
 export type Ranker = (
@@ -33,6 +45,7 @@ export type Ranker = (
 export interface ValidatedRankResponse {
   orderedIds: string[];
   rationales: Record<string, string>;
+  foodSelections: RankFoodSelection[];
 }
 
 const invalidRankResponse = <T>(): Result<T> => ({
@@ -83,6 +96,24 @@ function isDenseStringArray(value: unknown): value is string[] {
   return true;
 }
 
+function isDenseArray(value: unknown): value is readonly unknown[] {
+  if (!Array.isArray(value)) return false;
+  const ownKeys = Reflect.ownKeys(value);
+  const allowedKeys = new Set<string>(["length"]);
+  for (let index = 0; index < value.length; index += 1) {
+    allowedKeys.add(String(index));
+  }
+  if (
+    ownKeys.some((key) => typeof key !== "string" || !allowedKeys.has(key)) ||
+    ownKeys.length !== value.length + 1
+  ) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    if (descriptor === undefined || !descriptor.enumerable || !("value" in descriptor)) return false;
+  }
+  return true;
+}
+
 function isCodePointSafe(value: string): boolean {
   return Array.from(value).length <= 240;
 }
@@ -96,6 +127,8 @@ export function toPublicRankRequest(
   candidates: readonly PlaceCandidate[],
   priorityWeights: PriorityWeights,
   pace: Pace,
+  allowedVendorIds: readonly string[] = [],
+  allowedMenuItemIds: readonly string[] = [],
 ): RankRequest {
   return {
     candidates: candidates.map((candidate) => ({
@@ -106,7 +139,105 @@ export function toPublicRankRequest(
     })),
     priorityWeights: { ...priorityWeights },
     pace,
+    allowedVendorIds: Object.freeze([...allowedVendorIds]),
+    allowedMenuItemIds: Object.freeze([...allowedMenuItemIds]),
   };
+}
+
+export interface RankFoodValidationOptions {
+  readonly allowedVendorIds: readonly string[];
+  readonly allowedMenuItemIds: readonly string[];
+  readonly canonicalSelectionsByPlace: ReadonlyMap<
+    string,
+    readonly FoodSelection[]
+  >;
+}
+
+function cloneFoodSelection(selection: FoodSelection): FoodSelection {
+  return {
+    vendorId: selection.vendorId,
+    menuItemId: selection.menuItemId,
+    quantity: selection.quantity,
+    priceVndMin: selection.priceVndMin,
+    priceVndMax: selection.priceVndMax,
+    paymentMode: selection.paymentMode,
+    activity: selection.activity,
+  };
+}
+
+function sameFoodSelection(left: FoodSelection, right: FoodSelection): boolean {
+  return left.vendorId === right.vendorId
+    && left.menuItemId === right.menuItemId
+    && left.quantity === right.quantity
+    && left.priceVndMin === right.priceVndMin
+    && left.priceVndMax === right.priceVndMax
+    && left.paymentMode === right.paymentMode
+    && left.activity === right.activity;
+}
+
+function validateFoodSelections(
+  value: unknown,
+  orderedIds: readonly string[],
+  options: RankFoodValidationOptions | undefined,
+): RankFoodSelection[] | null {
+  if (!isDenseArray(value)) return null;
+  if (options === undefined) {
+    return value.length === 0 ? [] : null;
+  }
+
+  const allowedVendors = new Set(options.allowedVendorIds);
+  const allowedMenuItems = new Set(options.allowedMenuItemIds);
+  if (
+    !Array.isArray(options.allowedVendorIds) ||
+    !Array.isArray(options.allowedMenuItemIds) ||
+    new Set(options.allowedVendorIds).size !== options.allowedVendorIds.length ||
+    new Set(options.allowedMenuItemIds).size !== options.allowedMenuItemIds.length ||
+    options.allowedVendorIds.some((id) => typeof id !== "string") ||
+    options.allowedMenuItemIds.some((id) => typeof id !== "string")
+  ) return null;
+
+  const foodPlaceIds = new Set(options.canonicalSelectionsByPlace.keys());
+  const orderedSet = new Set(orderedIds);
+  const seenPlaces = new Set<string>();
+  const validated: RankFoodSelection[] = [];
+
+  for (const raw of value) {
+    if (!isPlainObject(raw) || !hasExactKeys(raw, ["placeId", "selection"])) return null;
+    const placeId = raw.placeId;
+    if (typeof placeId !== "string" || !orderedSet.has(placeId) || seenPlaces.has(placeId)) return null;
+    if (!foodPlaceIds.has(placeId)) return null;
+    seenPlaces.add(placeId);
+
+    const rawSelection = raw.selection;
+    if (!isPlainObject(rawSelection) || !hasExactKeys(rawSelection, [
+      "vendorId",
+      "menuItemId",
+      "quantity",
+      "priceVndMin",
+      "priceVndMax",
+      "paymentMode",
+      "activity",
+    ])) return null;
+    const parsed = foodSelectionSchema.safeParse(rawSelection);
+    if (!parsed.success) return null;
+    const selection = parsed.data;
+    if (!allowedVendors.has(selection.vendorId) || !allowedMenuItems.has(selection.menuItemId)) return null;
+
+    const canonical = options.canonicalSelectionsByPlace.get(placeId);
+    if (canonical === undefined) return null;
+    const match = canonical.find((candidate) => sameFoodSelection(candidate, selection));
+    if (match === undefined) return null;
+    const cloned = cloneFoodSelection(match);
+    validated.push({ placeId, selection: cloned });
+  }
+
+  for (const placeId of orderedIds) {
+    if (!foodPlaceIds.has(placeId)) continue;
+    const canonical = options.canonicalSelectionsByPlace.get(placeId);
+    if (canonical === undefined || canonical.length === 0 || !seenPlaces.has(placeId)) return null;
+  }
+
+  return validated;
 }
 
 /**
@@ -118,6 +249,7 @@ export function toPublicRankRequest(
 export function validateRankResponse(
   value: unknown,
   filteredIds: readonly string[],
+  foodOptions?: RankFoodValidationOptions,
 ): Result<ValidatedRankResponse> {
   try {
     if (!Array.isArray(filteredIds)) return invalidRankResponse();
@@ -126,7 +258,7 @@ export function validateRankResponse(
       if (typeof id !== "string" || filteredSet.has(id)) return invalidRankResponse();
       filteredSet.add(id);
     }
-    if (!isPlainObject(value) || !hasExactKeys(value, ["orderedIds", "rationales"])) {
+    if (!isPlainObject(value) || !hasExactKeys(value, ["orderedIds", "rationales", "foodSelections"])) {
       return invalidRankResponse();
     }
 
@@ -166,11 +298,19 @@ export function validateRankResponse(
       });
     }
 
+    const foodSelections = validateFoodSelections(
+      value.foodSelections,
+      [...orderedIdsValue],
+      foodOptions,
+    );
+    if (foodSelections === null) return invalidRankResponse();
+
     return {
       ok: true,
       value: {
         orderedIds: [...orderedIdsValue],
         rationales,
+        foodSelections,
       },
     };
   } catch {

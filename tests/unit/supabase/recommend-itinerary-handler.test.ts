@@ -266,6 +266,7 @@ describe("recommend-itinerary Edge handler contract", () => {
       ranker: vi.fn(async () => ({
         orderedIds: ["forged-place-id"],
         rationales: { "forged-place-id": "malicious" },
+        foodSelections: [],
       })),
     });
     const handler = createRecommendItineraryHandler(service, {
