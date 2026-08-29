@@ -6,6 +6,14 @@ import {
 } from "@/lib/domain/itinerary/contracts";
 import { domainError } from "@/lib/domain/itinerary/errors";
 import { multiplyVnd } from "@/lib/domain/itinerary/money";
+import {
+  chooseFoodSelection,
+  filterFoodVendors,
+} from "@/lib/domain/itinerary/food-filter";
+import {
+  formatHcmMinute,
+  normalizeToHcmMinute,
+} from "@/lib/domain/itinerary/local-time";
 
 type OptionalSellability = PlaceCandidate & {
   active?: unknown;
@@ -53,6 +61,46 @@ function isActiveAndSellable(place: OptionalSellability): boolean {
   if ("active" in place && place.active !== true) return false;
   if ("sellable" in place && place.sellable !== true) return false;
   return true;
+}
+
+function foodPriorityNeedsConcreteSelection(
+  place: PlaceCandidate,
+  input: EngineInput,
+  remainingBudgetVnd: number,
+): boolean {
+  const isFoodPlace = place.types.some((type) =>
+    type === "street_food" || type === "traditional_market",
+  );
+  if (!isFoodPlace || input.request.priorityWeights.street_food <= 0) {
+    return true;
+  }
+
+  // Empty food bundles are retained for legacy catalog rows until the
+  // published food projection is present. Any published vendor bundle is
+  // fail-closed through the concrete selector below.
+  if (place.foodVendors.length === 0) return true;
+
+  const start = normalizeToHcmMinute(input.request.startAt);
+  if (!start.ok) return false;
+  const end = start.value + place.visitDurationMinutes;
+  if (!Number.isSafeInteger(end)) return false;
+  const visitDate = formatHcmMinute(start.value).slice(0, 10);
+  const preferredInterval = {
+    startEpochMinute: start.value,
+    endEpochMinute: end,
+  };
+  const validatedPlace = { ...place } as OptionalSellability;
+  delete validatedPlace.active;
+  delete validatedPlace.sellable;
+  const vendors = filterFoodVendors(
+    validatedPlace,
+    input.request,
+    visitDate,
+    preferredInterval,
+  );
+  return vendors.some((vendor) =>
+    chooseFoodSelection(vendor, input.request, remainingBudgetVnd).ok,
+  );
 }
 
 function isUsableInput(input: unknown): input is EngineInput {
@@ -130,6 +178,11 @@ export function filterCandidates(
     if (!placeCost.ok) return invalidFilter();
     const budgetMatches = placeCost.value <= budgetVnd;
     const activeAndSellable = isActiveAndSellable(candidate);
+    const foodMatches = foodPriorityNeedsConcreteSelection(
+      place,
+      input,
+      budgetVnd - placeCost.value,
+    );
 
     const eligible =
       activeAndSellable &&
@@ -138,6 +191,7 @@ export function filterCandidates(
       dietaryMatches &&
       mobilityMatches &&
       budgetMatches &&
+      foodMatches &&
       (hasSelectedType || locked);
 
     if (locked && !eligible) {
