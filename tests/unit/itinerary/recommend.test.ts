@@ -52,8 +52,9 @@ function canonicalBanhMiSelection() {
   };
 }
 
-function hostileFoodSelections(kind: "custom-prototype" | "sparse" | "accessor" | "symbol") {
+function hostileFoodSelections(kind: "custom-prototype" | "sparse" | "accessor" | "symbol" | "map") {
   const valid = [{ placeId: "place-banh-mi", selection: canonicalBanhMiSelection() }];
+  if (kind === "map") return new Map(valid.map((entry) => [entry.placeId, entry]));
   if (kind === "custom-prototype") {
     Object.setPrototypeOf(valid, {
       [Symbol.iterator]: function* () {
@@ -266,7 +267,7 @@ describe("recommendItinerary", () => {
     });
   });
 
-  it.each(["custom-prototype", "sparse", "accessor", "symbol"] as const)(
+  it.each(["custom-prototype", "sparse", "accessor", "symbol", "map"] as const)(
     "rejects hostile food selection containers: %s",
     async (kind) => {
       const foodSelections = hostileFoodSelections(kind);

@@ -481,6 +481,8 @@ describe("refine-itinerary Edge handler contract", () => {
     "payAtVendorMinVnd",
     "payAtVendorMaxVnd",
     "customerPayableVnd",
+    "placeCostVnd",
+    "travelCostVndBefore",
   ] as const)("rejects a prior locked item tampered in %s", async (field) => {
     const tamperedRevision = structuredClone(previousRevision);
     const item = tamperedRevision.items[0] as unknown as Record<string, unknown>;
