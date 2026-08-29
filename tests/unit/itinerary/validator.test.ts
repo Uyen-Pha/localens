@@ -569,6 +569,17 @@ describe("validateItinerary", () => {
     }
   });
 
+  it("rejects a same-date closed vendor exception even when the weekly hours are open", () => {
+    const input = clone(itineraryFixture);
+    input.catalog.places[0].foodVendors[0].openingExceptions = [{
+      localDate: "2026-09-05",
+      closed: true,
+      windows: [],
+    }];
+
+    expectIssue(validateItinerary(input, validResult(), ["place-banh-mi"]), "food.vendor.opening_hours");
+  });
+
   it("recomputes every food field and ignores forged client food totals", () => {
     const result = validResult();
     result.items[0].foodCostMinVnd = 0;

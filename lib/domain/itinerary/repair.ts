@@ -163,7 +163,7 @@ function lockedFoodSelections(
   source: EngineInput,
   priorResult: unknown,
 ): Result<Record<string, FoodSelection>> {
-  const selections: Record<string, FoodSelection> = {};
+  const selections = Object.create(null) as Record<string, FoodSelection>;
   if (typeof priorResult !== "object" || priorResult === null) {
     return { ok: false, error: domainError("NO_FEASIBLE_ITINERARY", "itinerary.no_feasible") };
   }

@@ -101,6 +101,132 @@ describe("createItinerary", () => {
     if (result.ok) expect(result.value.items[0]?.foodSelection).toEqual(supplied);
   });
 
+  it("accepts a null-prototype selection container with own data properties", () => {
+    const input = clone(itineraryFixture);
+    const supplied = {
+      vendorId: "vendor-banh-mi-legacy",
+      menuItemId: "menu-banh-mi-legacy",
+      quantity: 2,
+      priceVndMin: 30_000,
+      priceVndMax: 40_000,
+      paymentMode: "pay_at_vendor" as const,
+      activity: "Null-prototype selection",
+    };
+    const selections = Object.create(null) as Record<string, typeof supplied>;
+    Object.defineProperty(selections, "place-banh-mi", {
+      value: supplied,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+
+    const result = createItinerary(input, undefined, "deterministic", selections);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.items[0]?.foodSelection).toEqual(supplied);
+  });
+
+  it.each([
+    ["a Map", () => new Map([["place-banh-mi", {
+      vendorId: "vendor-banh-mi-legacy",
+      menuItemId: "menu-banh-mi-legacy",
+      quantity: 2,
+      priceVndMin: 30_000,
+      priceVndMax: 40_000,
+      paymentMode: "pay_at_vendor",
+      activity: "Map selection",
+    }]])],
+    ["an inherited property", () => Object.create({ "place-banh-mi": {
+      vendorId: "vendor-banh-mi-legacy",
+      menuItemId: "menu-banh-mi-legacy",
+      quantity: 2,
+      priceVndMin: 30_000,
+      priceVndMax: 40_000,
+      paymentMode: "pay_at_vendor",
+      activity: "Inherited selection",
+    } })],
+    ["a non-enumerable property", () => {
+      const value: Record<string, unknown> = {};
+      Object.defineProperty(value, "place-banh-mi", {
+        value: {
+          vendorId: "vendor-banh-mi-legacy",
+          menuItemId: "menu-banh-mi-legacy",
+          quantity: 2,
+          priceVndMin: 30_000,
+          priceVndMax: 40_000,
+          paymentMode: "pay_at_vendor",
+          activity: "Hidden selection",
+        },
+        enumerable: false,
+      });
+      return value;
+    }],
+    ["a symbol property", () => {
+      const value: Record<PropertyKey, unknown> = {};
+      Object.defineProperty(value, Symbol("place-banh-mi"), {
+        value: {
+          vendorId: "vendor-banh-mi-legacy",
+          menuItemId: "menu-banh-mi-legacy",
+          quantity: 2,
+          priceVndMin: 30_000,
+          priceVndMax: 40_000,
+          paymentMode: "pay_at_vendor",
+          activity: "Symbol selection",
+        },
+        enumerable: true,
+      });
+      return value;
+    }],
+    ["an accessor property", () => {
+      const value: Record<string, unknown> = {};
+      Object.defineProperty(value, "place-banh-mi", {
+        get: () => ({
+          vendorId: "vendor-banh-mi-legacy",
+          menuItemId: "menu-banh-mi-legacy",
+          quantity: 2,
+          priceVndMin: 30_000,
+          priceVndMax: 40_000,
+          paymentMode: "pay_at_vendor",
+          activity: "Accessor selection",
+        }),
+        enumerable: true,
+      });
+      return value;
+    }],
+    ["a non-plain object", () => new Date()],
+  ])("rejects %s selection containers instead of falling back", (_label, makeContainer) => {
+    const result = createItinerary(
+      clone(itineraryFixture),
+      undefined,
+      "deterministic",
+      makeContainer() as never,
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ITINERARY_INPUT" },
+    });
+  });
+
+  it("does not retain a caller selection reference after scheduling", () => {
+    const supplied = {
+      vendorId: "vendor-banh-mi-legacy",
+      menuItemId: "menu-banh-mi-legacy",
+      quantity: 2,
+      priceVndMin: 30_000,
+      priceVndMax: 40_000,
+      paymentMode: "pay_at_vendor" as const,
+      activity: "Original authoritative activity",
+    };
+    const selections = { "place-banh-mi": supplied };
+    const result = createItinerary(clone(itineraryFixture), undefined, "deterministic", selections);
+
+    expect(result.ok).toBe(true);
+    supplied.activity = "Mutated after schedule";
+    selections["place-banh-mi"] = supplied;
+    if (result.ok) expect(result.value.items[0]?.foodSelection?.activity).toBe("Original authoritative activity");
+  });
+
   it("rejects an unverified supplied food selection instead of silently replacing it", () => {
     const input = clone(itineraryFixture);
     const result = createItinerary(input, undefined, "deterministic", {

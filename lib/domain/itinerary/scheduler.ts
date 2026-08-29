@@ -187,6 +187,52 @@ function isFoodPriorityPlace(place: PlaceCandidate, input: EngineInput): boolean
   );
 }
 
+function normalizeFoodSelections(
+  input: EngineInput,
+  foodSelections: FoodSelectionInput | undefined,
+  catalogById: ReadonlyMap<string, PlaceCandidate>,
+): Result<Map<string, FoodSelection>> {
+  const normalized = new Map<string, FoodSelection>();
+  if (foodSelections === undefined) return { ok: true, value: normalized };
+
+  let prototype: object | null;
+  let ownKeys: readonly (string | symbol)[];
+  try {
+    if (typeof foodSelections !== "object" || foodSelections === null || Array.isArray(foodSelections)) {
+      return invalidScheduler("foodSelections");
+    }
+    prototype = Object.getPrototypeOf(foodSelections);
+    ownKeys = Reflect.ownKeys(foodSelections);
+  } catch {
+    return invalidScheduler("foodSelections");
+  }
+  if (prototype !== Object.prototype && prototype !== null) return invalidScheduler("foodSelections");
+
+  for (const key of ownKeys) {
+    if (typeof key !== "string") return invalidScheduler("foodSelections");
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(foodSelections, key);
+    } catch {
+      return invalidScheduler("foodSelections");
+    }
+    if (
+      descriptor === undefined ||
+      descriptor.enumerable !== true ||
+      !Object.prototype.hasOwnProperty.call(descriptor, "value")
+    ) return invalidScheduler("foodSelections");
+
+    const place = catalogById.get(key);
+    if (place === undefined || !isFoodPriorityPlace(place, input)) {
+      return invalidScheduler("foodSelections");
+    }
+    const parsed = foodSelectionSchema.safeParse(descriptor.value);
+    if (!parsed.success) return invalidScheduler("foodSelections");
+    normalized.set(key, parsed.data);
+  }
+  return { ok: true, value: normalized };
+}
+
 function supports(
   value: Record<string, unknown>,
   requirements: readonly string[],
@@ -523,23 +569,8 @@ function createContext(
     if (!candidateById.has(id)) return noFeasible();
   }
 
-  const normalizedFoodSelections = new Map<string, FoodSelection>();
-  if (foodSelections !== undefined) {
-    if (typeof foodSelections !== "object" || foodSelections === null || Array.isArray(foodSelections)) {
-      return invalidScheduler("foodSelections");
-    }
-    for (const placeId of Object.keys(foodSelections)) {
-      const place = catalogById.get(placeId);
-      if (place === undefined || !isFoodPriorityPlace(place, canonicalInput)) {
-        return invalidScheduler("foodSelections");
-      }
-      const selection = foodSelections[placeId];
-      if (!foodSelectionSchema.safeParse(selection).success) {
-        return invalidScheduler("foodSelections");
-      }
-      normalizedFoodSelections.set(placeId, selection);
-    }
-  }
+  const normalizedFoodSelections = normalizeFoodSelections(canonicalInput, foodSelections, catalogById);
+  if (!normalizedFoodSelections.ok) return normalizedFoodSelections;
 
   return {
     ok: true,
@@ -556,7 +587,7 @@ function createContext(
       lockedIds: canonicalInput.request.lockedStopIds,
       lockedIndexes,
       budgetVnd,
-      foodSelections: normalizedFoodSelections,
+      foodSelections: normalizedFoodSelections.value,
     },
   };
 }

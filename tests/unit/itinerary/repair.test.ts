@@ -233,12 +233,47 @@ describe("repairItinerary", () => {
     }
   });
 
+  it("preserves a locked food selection when the locked place ID is __proto__", () => {
+    const setup = repairSetup();
+    setup.input.catalog.places[0].id = "__proto__";
+    setup.input.catalog.places[0].foodVendors[0].placeId = "__proto__";
+    setup.input.request.lockedStopIds = ["__proto__"];
+    setup.rankOrder = setup.rankOrder.map((id) => id === "place-banh-mi" ? "__proto__" : id);
+    setup.invalid.items[1].placeId = "__proto__";
+    setup.invalid.items[1].foodSelection = {
+      ...setup.invalid.items[1].foodSelection!,
+      activity: "Locked __proto__ activity",
+    };
+
+    const repaired = repairItinerary(setup.input, setup.invalid, [], setup.rankOrder);
+
+    expect(repaired.ok).toBe(true);
+    if (repaired.ok) {
+      expect(repaired.value.items.find((item) => item.placeId === "__proto__")?.foodSelection?.activity)
+        .toBe("Locked __proto__ activity");
+    }
+  });
+
   it("returns NO_FEASIBLE_ITINERARY when a locked food selection cannot be verified", () => {
     const setup = repairSetup();
     setup.invalid.items[1].foodSelection = {
       ...setup.invalid.items[1].foodSelection!,
       menuItemId: "stale-menu-id",
     };
+
+    expect(repairItinerary(setup.input, setup.invalid, [], setup.rankOrder)).toMatchObject({
+      ok: false,
+      error: { code: "NO_FEASIBLE_ITINERARY" },
+    });
+  });
+
+  it("returns NO_FEASIBLE_ITINERARY when a locked vendor is closed by a same-date exception", () => {
+    const setup = repairSetup();
+    setup.input.catalog.places[0].foodVendors[0].openingExceptions = [{
+      localDate: "2026-09-05",
+      closed: true,
+      windows: [],
+    }];
 
     expect(repairItinerary(setup.input, setup.invalid, [], setup.rankOrder)).toMatchObject({
       ok: false,
