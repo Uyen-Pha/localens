@@ -299,3 +299,39 @@ and the deterministic `23503` delete assertion. The food pgTAP plan is now
   `SUPABASE_CLI_NOT_FOUND` error; no PostgreSQL runtime result is claimed.
 
 Implementation verified; fix-round 2 commit follows in this delivery.
+
+## Task 3B fix round 3 — 2026-08-29
+
+Status: implementation complete; this round is test-isolation only. No schema,
+runtime helper, or snapshot behavior was changed.
+
+The explicit `0/0` price fixture `00000000-0000-0000-0000-000000000407`
+remains complete and publishable but is now `available = false`, so item 402
+is again the sole published and available item for the vendor lifecycle
+available/status/reparent rejection checks. The snapshot fixture remains
+anchored to item 402's exact price bounds.
+
+The unknown-price fixture `00000000-0000-0000-0000-000000000406` now carries
+complete non-price evidence: HTTPS provenance, verification date, attribution,
+both EN/VI translations, and dietary/allergen support rows. Its publication
+assertion expects SQLSTATE `23514` and the exact serving-or-price evidence
+message, proving the NULL-price branch rather than an earlier completeness
+failure. The food pgTAP file remains `SELECT plan(131)` with exactly 131
+executable assertions.
+
+### Fix-round 3 verification evidence
+
+- `pnpm db:static` — exit 0; 16 migration files checked.
+- `pnpm test:run tests/unit/supabase/artifacts.test.ts` — exit 0; 21 tests passed, including RED-first fixture isolation assertions.
+- `pnpm test:run tests/unit/supabase/artifacts.test.ts tests/unit/supabase/rls-matrix.test.ts` — exit 0; 2 files, 27 tests passed.
+- `pnpm test:run` — exit 0; 57 files, 593 tests passed.
+- `pnpm lint` — exit 0; no ESLint errors.
+- `pnpm typecheck` — exit 0.
+- `git diff --check` — exit 0; no whitespace errors.
+- Runtime `pnpm db:test` remains blocked by the exact
+  `SUPABASE_CLI_NOT_FOUND` environment error; no PostgreSQL runtime result is
+  claimed.
+
+The build-info artifact was removed after verification. Pre-existing
+untracked `AGENTS.md`, `CLAUDE.md`, and `next-env.d.ts` were not touched or
+staged. A separate fix-round 3 commit follows in this delivery.

@@ -239,11 +239,25 @@ INSERT INTO public.food_item_supports (food_item_id, support_kind, requirement, 
   ('00000000-0000-0000-0000-000000000402'::uuid, 'dietary', 'vegetarian', 'supported'),
   ('00000000-0000-0000-0000-000000000402'::uuid, 'allergen', 'peanut', 'unknown');
 
-INSERT INTO public.food_items (id, food_vendor_id, slug, status, serving_unit, portion_description, available, allergens)
-VALUES ('00000000-0000-0000-0000-000000000406'::uuid, '00000000-0000-0000-0000-000000000401'::uuid, 'unknown-price-dish', 'draft', 'portion', 'Unknown price portion', false, '{}');
+INSERT INTO public.food_items (
+  id, food_vendor_id, slug, status, serving_unit, portion_description, available, allergens,
+  source_url, verified_at, attribution
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000406'::uuid,
+  '00000000-0000-0000-0000-000000000401'::uuid,
+  'unknown-price-dish', 'draft', 'portion', 'Unknown price portion', false, '{}',
+  'https://example.invalid/unknown-price-item', DATE '2026-08-20', 'Synthetic fixture'
+);
+INSERT INTO public.food_item_translations (food_item_id, locale, title, description) VALUES
+  ('00000000-0000-0000-0000-000000000406'::uuid, 'en', 'Unknown price dish', 'Unknown price English dish'),
+  ('00000000-0000-0000-0000-000000000406'::uuid, 'vi', 'Món chưa biết giá', 'Món chưa biết giá tiếng Việt');
+INSERT INTO public.food_item_supports (food_item_id, support_kind, requirement, status) VALUES
+  ('00000000-0000-0000-0000-000000000406'::uuid, 'dietary', 'vegetarian', 'supported'),
+  ('00000000-0000-0000-0000-000000000406'::uuid, 'allergen', 'none', 'unknown');
 SELECT is((SELECT price_vnd_min IS NULL AND price_vnd_max IS NULL FROM public.food_items WHERE id = '00000000-0000-0000-0000-000000000406'::uuid), true, 'draft price omission stores NULL');
 SELECT throws_ok($$UPDATE public.food_items SET status = 'published' WHERE id = '00000000-0000-0000-0000-000000000406'::uuid$$,
-  '23514', NULL, 'draft item with unknown prices cannot publish');
+  '23514', 'published food item serving or price evidence is incomplete', 'draft item with unknown prices cannot publish');
 
 INSERT INTO public.food_items (
   id, food_vendor_id, slug, status, serving_unit, price_vnd_min, price_vnd_max,
@@ -252,7 +266,7 @@ INSERT INTO public.food_items (
 VALUES (
   '00000000-0000-0000-0000-000000000407'::uuid,
   '00000000-0000-0000-0000-000000000401'::uuid,
-  'zero-price-dish', 'draft', 'portion', 0, 0, 'Complimentary portion', true,
+  'zero-price-dish', 'draft', 'portion', 0, 0, 'Complimentary portion', false,
   '{}', 'https://example.invalid/zero-price-item', DATE '2026-08-20', 'Synthetic fixture'
 );
 INSERT INTO public.food_item_translations (food_item_id, locale, title, description) VALUES

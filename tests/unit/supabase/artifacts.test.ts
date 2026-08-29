@@ -257,7 +257,12 @@ describe("static Supabase artifact gate", () => {
     expect(migration).toMatch(/item_row\.price_vnd_min IS NULL[\s\S]*?item_row\.price_vnd_max IS NULL/i);
     expect(pgTap).toMatch(/draft price omission stores NULL/i);
     expect(pgTap).toMatch(/draft item with unknown prices cannot publish/i);
+    expect(pgTap).toMatch(/'23514', 'published food item serving or price evidence is incomplete', 'draft item with unknown prices cannot publish'/i);
+    expect(pgTap).toMatch(/'unknown-price-dish'[\s\S]*?https:\/\/example\.invalid\/unknown-price-item[\s\S]*?Synthetic fixture/i);
+    expect(pgTap).toMatch(/food_item_translations[\s\S]*?00000000-0000-0000-0000-000000000406[\s\S]*?'en'[\s\S]*?00000000-0000-0000-0000-000000000406[\s\S]*?'vi'/i);
+    expect(pgTap).toMatch(/food_item_supports[\s\S]*?00000000-0000-0000-0000-000000000406[\s\S]*?'dietary'[\s\S]*?00000000-0000-0000-0000-000000000406[\s\S]*?'allergen'/i);
     expect(pgTap).toMatch(/explicit zero prices publish with complete evidence/i);
+    expect(pgTap).toMatch(/'zero-price-dish',\s*'draft',\s*'portion',\s*0,\s*0,\s*'Complimentary portion',\s*false,/i);
     expect(pgTap).toMatch(/'23503', NULL, 'food item delete is blocked by restrictive child foreign keys'/i);
   });
 
