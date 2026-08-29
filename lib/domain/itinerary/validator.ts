@@ -2,11 +2,25 @@ import {
   itineraryResultSchema,
   type EngineInput,
   type PlaceCandidate,
+  type ItineraryItem,
 } from "@/lib/domain/itinerary/contracts";
+import {
+  foodMenuItemSchema,
+  foodSelectionSchema,
+  foodVendorSchema,
+  type FoodSelection,
+  type FoodVendorCandidate,
+} from "@/lib/domain/food/contracts";
 import { filterCandidates } from "@/lib/domain/itinerary/candidate-filter";
 import { normalizeToHcmMinute, formatHcmMinute } from "@/lib/domain/itinerary/local-time";
 import { findEarliestVisitStart } from "@/lib/domain/itinerary/opening-hours";
 import { normalizeBudgetToVnd, multiplyVnd, sumVnd } from "@/lib/domain/itinerary/money";
+import {
+  calculateFoodSelectionCost,
+  calculateItineraryCostBreakdown,
+  type FoodSelectionCost,
+} from "@/lib/domain/itinerary/food-cost";
+import { findEarliestFoodVisitStart } from "@/lib/domain/itinerary/food-filter";
 import { getTransition, indexTravelSnapshot } from "@/lib/domain/itinerary/travel";
 
 export interface ValidationIssue {
@@ -68,6 +82,13 @@ function selectedType(place: PlaceCandidate, input: EngineInput, locked: boolean
   return place.types.some((type) => input.request.priorityWeights[type] > 0);
 }
 
+function isFoodPriorityPlace(place: PlaceCandidate, input: EngineInput): boolean {
+  return (
+    input.request.priorityWeights.street_food > 0 &&
+    place.types.some((type) => type === "street_food" || type === "traditional_market")
+  );
+}
+
 function supports(
   value: Record<string, unknown>,
   requirements: readonly string[],
@@ -118,6 +139,88 @@ function addExactNumberIssue(
   if (typeof actual !== "number" || !Object.is(actual, expected)) {
     collector.add(key, location);
   }
+}
+
+interface ValidatedFood {
+  selection: FoodSelection | null;
+  vendor: FoodVendorCandidate | null;
+  cost: FoodSelectionCost | null;
+}
+
+function validateFoodSelection(
+  collector: IssueCollector,
+  place: PlaceCandidate,
+  input: EngineInput,
+  itemValue: Record<string, unknown>,
+  location: IssueLocation,
+): ValidatedFood {
+  const requiresFood = isFoodPriorityPlace(place, input);
+  const rawSelection = itemValue.foodSelection;
+  if (rawSelection === null) {
+    if (requiresFood) collector.add("food.selection.missing", location);
+    return { selection: null, vendor: null, cost: null };
+  }
+  const parsedSelection = foodSelectionSchema.safeParse(rawSelection);
+  if (!parsedSelection.success) {
+    collector.add("food.selection.malformed", location);
+    if (isObject(rawSelection) && rawSelection.paymentMode !== "pay_at_vendor") {
+      collector.add("food.payment_mode", location);
+    }
+    if (!requiresFood) collector.add("food.selection.unexpected", location);
+    return { selection: null, vendor: null, cost: null };
+  }
+  const selection = parsedSelection.data;
+  if (!requiresFood) collector.add("food.selection.unexpected", location);
+
+  const vendor = place.foodVendors.find((candidate) => candidate.id === selection.vendorId) ?? null;
+  if (vendor === null || vendor.placeId !== place.id) {
+    collector.add("food.vendor.membership", location);
+    return { selection, vendor: null, cost: null };
+  }
+  if (!foodVendorSchema.safeParse(vendor).success) {
+    collector.add("food.vendor.malformed", location);
+    return { selection, vendor, cost: null };
+  }
+  if (vendor.status !== "sellable") collector.add("food.vendor.status", location);
+  if (!supports(vendor.dietarySupport, input.request.dietaryRequirements) ||
+      !supports(vendor.mobilitySupport, input.request.mobilityRequirements)) {
+    collector.add("food.support", location);
+  }
+
+  const menuItem = vendor.menuItems.find((candidate) => candidate.id === selection.menuItemId) ?? null;
+  if (menuItem === null) {
+    const elsewhere = input.catalog.places.some((candidate) =>
+      candidate.foodVendors.some((candidateVendor) =>
+        candidateVendor.menuItems.some((candidateItem) => candidateItem.id === selection.menuItemId),
+      ),
+    );
+    collector.add(elsewhere ? "food.menu.parent" : "food.menu.membership", location);
+    return { selection, vendor, cost: null };
+  }
+  if (menuItem.vendorId !== vendor.id) collector.add("food.menu.parent", location);
+  if (!foodMenuItemSchema.safeParse(menuItem).success) {
+    collector.add("food.menu.malformed", location);
+    return { selection, vendor, cost: null };
+  }
+  if (menuItem.available !== true || menuItem.status !== "sellable") {
+    collector.add("food.item.status", location);
+  }
+  if (!supports(menuItem.dietarySupport, input.request.dietaryRequirements)) {
+    collector.add("food.support", location);
+  }
+  if (selection.priceVndMin !== menuItem.priceVndMin || selection.priceVndMax !== menuItem.priceVndMax) {
+    collector.add("food.price_snapshot", location);
+  }
+  const expectedQuantity = menuItem.servingUnit === "shared_set" ? 1 : input.request.partySize;
+  if (selection.quantity !== expectedQuantity) collector.add("food.quantity", location);
+  if (selection.paymentMode !== "pay_at_vendor") collector.add("food.payment_mode", location);
+
+  const cost = calculateFoodSelectionCost(selection, menuItem, input.request.partySize);
+  if (!cost.ok) {
+    collector.add("food.cost", location);
+    return { selection, vendor, cost: null };
+  }
+  return { selection, vendor, cost: cost.value };
 }
 
 function isDenseArray(value: unknown): value is readonly unknown[] {
@@ -276,8 +379,8 @@ function validateInner(
   let totalVisit = 0;
   let totalTravel = 0;
   let totalBuffer = 0;
-  const placeCosts: number[] = [];
   const transitionCosts: number[] = [];
+  const costItems: Array<Pick<ItineraryItem, "placeCostVnd" | "foodSelection">> = [];
   let totalScore = 0;
   let previousEnd: number | null = null;
   let previousTrustedPlaceId: string | null = null;
@@ -299,6 +402,8 @@ function validateInner(
     const isUniqueTrustedPlace = place !== undefined && filteredPlace !== undefined && !positions.has(place.id);
     let trustedDuration: number | null = null;
     let expectedItemScore: number | null = null;
+    let expectedPlaceCost: number | null = null;
+    let validatedFood: ValidatedFood = { selection: null, vendor: null, cost: null };
     if (typeof placeId !== "string" || !place) {
       collector.add("candidate.membership", location);
     } else {
@@ -313,12 +418,12 @@ function validateInner(
       if (!supports(place.mobilitySupport, input.request.mobilityRequirements)) collector.add("candidate.mobility_support", trustedLocation);
       if (!optionalSellabilityPasses(place)) collector.add("candidate.sellability", trustedLocation);
 
-      const expectedPlaceCost = multiplyVnd(place.priceVndPerPerson, input.request.partySize);
-      if (!expectedPlaceCost.ok) collector.add("item.place_cost", trustedLocation);
+      const expectedPlaceCostResult = multiplyVnd(place.priceVndPerPerson, input.request.partySize);
+      if (!expectedPlaceCostResult.ok) collector.add("item.place_cost", trustedLocation);
       else {
-        addExactNumberIssue(collector, "item.place_cost", itemValue.placeCostVnd, expectedPlaceCost.value, trustedLocation);
-        if (expectedBudget !== null && expectedPlaceCost.value > expectedBudget) collector.add("budget.exceeded", trustedLocation);
-        if (isUniqueTrustedPlace) placeCosts.push(expectedPlaceCost.value);
+        addExactNumberIssue(collector, "item.place_cost", itemValue.placeCostVnd, expectedPlaceCostResult.value, trustedLocation);
+        if (expectedBudget !== null && expectedPlaceCostResult.value > expectedBudget) collector.add("budget.exceeded", trustedLocation);
+        expectedPlaceCost = expectedPlaceCostResult.value;
       }
 
       const rankedIndex = rankIndexes?.get(place.id);
@@ -328,6 +433,7 @@ function validateInner(
         addExactNumberIssue(collector, "item.score", itemValue.score, expectedItemScore, trustedLocation);
       }
       trustedDuration = place.visitDurationMinutes;
+      validatedFood = validateFoodSelection(collector, place, input, itemValue, trustedLocation);
     }
 
     const start = getCanonicalMinute(itemValue.startAt);
@@ -352,6 +458,7 @@ function validateInner(
     const travelMinutes = itemValue.travelMinutesBefore;
     const transitionBuffer = itemValue.transitionBufferMinutesBefore;
     const travelCost = itemValue.travelCostVndBefore;
+    let authoritativeTravelCost = 0;
     if (index === 0) {
       if (travelMinutes !== 0) collector.add("travel.minutes", trustedLocation);
       if (transitionBuffer !== 0) collector.add("travel.buffer", trustedLocation);
@@ -371,6 +478,41 @@ function validateInner(
         totalTravel += edge.minutes;
         totalBuffer += 10;
         transitionCosts.push(edge.groupCostVnd);
+        authoritativeTravelCost = edge.groupCostVnd;
+      }
+    }
+
+    if (place && validatedFood.vendor !== null && start !== null && end !== null && requestEnd !== null && end <= requestEnd) {
+      const foodOpening = findEarliestFoodVisitStart(
+        place,
+        validatedFood.vendor,
+        start,
+        requestEnd,
+        end - start,
+      );
+      if (!foodOpening.ok || foodOpening.value !== start) {
+        collector.add("food.vendor.opening_hours", trustedLocation);
+      }
+    }
+
+    const foodCost = validatedFood.cost;
+    const expectedFoodMin = foodCost?.minVnd ?? 0;
+    const expectedFoodMax = foodCost?.maxVnd ?? 0;
+    const expectedPayMin = foodCost?.payAtVendorMinVnd ?? 0;
+    const expectedPayMax = foodCost?.payAtVendorMaxVnd ?? 0;
+    addExactNumberIssue(collector, "item.food_cost", itemValue.foodCostMinVnd, expectedFoodMin, trustedLocation);
+    addExactNumberIssue(collector, "item.food_cost", itemValue.foodCostMaxVnd, expectedFoodMax, trustedLocation);
+    addExactNumberIssue(collector, "item.pay_at_vendor", itemValue.payAtVendorMinVnd, expectedPayMin, trustedLocation);
+    addExactNumberIssue(collector, "item.pay_at_vendor", itemValue.payAtVendorMaxVnd, expectedPayMax, trustedLocation);
+    if (expectedPlaceCost !== null) {
+      const expectedCustomer = sumVnd([expectedPlaceCost, authoritativeTravelCost, foodCost?.customerPayableVnd ?? 0]);
+      if (!expectedCustomer.ok) collector.add("item.customer_payable", trustedLocation);
+      else addExactNumberIssue(collector, "item.customer_payable", itemValue.customerPayableVnd, expectedCustomer.value, trustedLocation);
+      if (isUniqueTrustedPlace) {
+        costItems.push({
+          placeCostVnd: expectedPlaceCost,
+          foodSelection: validatedFood.cost === null ? null : validatedFood.selection,
+        });
       }
     }
 
@@ -397,9 +539,27 @@ function validateInner(
   addExactNumberIssue(collector, "totals.visit", totals.visitMinutes, totalVisit);
   addExactNumberIssue(collector, "totals.travel", totals.travelMinutes, totalTravel);
   addExactNumberIssue(collector, "totals.buffer", totals.transitionBufferMinutes, totalBuffer);
-  const totalCostResult = sumVnd([...placeCosts, ...transitionCosts]);
-  if (!totalCostResult.ok) collector.add("totals.group_cost");
-  else addExactNumberIssue(collector, "totals.group_cost", totals.groupCostVnd, totalCostResult.value);
+  const totalTravelCostResult = sumVnd(transitionCosts);
+  const totalCostResult = totalTravelCostResult.ok
+    ? calculateItineraryCostBreakdown(costItems, totalTravelCostResult.value, 0)
+    : null;
+  if (totalCostResult === null || !totalCostResult.ok) {
+    collector.add("totals.group_cost");
+  } else {
+    const expectedTotals = totalCostResult.value;
+    addExactNumberIssue(collector, "totals.admission_cost", totals.admissionCostVnd, expectedTotals.admissionCostVnd);
+    addExactNumberIssue(collector, "totals.food_cost", totals.foodCostMinVnd, expectedTotals.foodCostMinVnd);
+    addExactNumberIssue(collector, "totals.food_cost", totals.foodCostMaxVnd, expectedTotals.foodCostMaxVnd);
+    addExactNumberIssue(collector, "totals.travel_cost", totals.travelCostVnd, expectedTotals.travelCostVnd);
+    addExactNumberIssue(collector, "totals.guide_cost", totals.guideCostVnd, expectedTotals.guideCostVnd);
+    addExactNumberIssue(collector, "totals.pay_at_vendor", totals.payAtVendorMinVnd, expectedTotals.payAtVendorMinVnd);
+    addExactNumberIssue(collector, "totals.pay_at_vendor", totals.payAtVendorMaxVnd, expectedTotals.payAtVendorMaxVnd);
+    addExactNumberIssue(collector, "totals.customer_payable", totals.customerPayableVnd, expectedTotals.customerPayableVnd);
+    addExactNumberIssue(collector, "totals.group_cost", totals.groupCostMinVnd, expectedTotals.groupCostMinVnd);
+    addExactNumberIssue(collector, "totals.group_cost", totals.groupCostMaxVnd, expectedTotals.groupCostMaxVnd);
+    addExactNumberIssue(collector, "totals.group_cost", totals.groupCostVnd, expectedTotals.groupCostVnd);
+    if (expectedBudget !== null && expectedTotals.groupCostMaxVnd > expectedBudget) collector.add("budget.exceeded");
+  }
   addExactNumberIssue(collector, "totals.score", totals.score, totalScore);
   if (expectedBudget !== null && isSafeNonNegativeInteger(totals.groupCostVnd) && totals.groupCostVnd > expectedBudget) collector.add("budget.exceeded");
 }

@@ -225,26 +225,27 @@ function validInterval(interval: unknown): interval is FoodActivityInterval {
   );
 }
 
-function dateAtOrAfter(
-  localDate: string,
-  intervalEndEpochMinute: number,
-): string | null {
-  const start = normalizeToHcmMinute(`${localDate}T00:00:00+07:00`);
-  if (!start.ok) return null;
-  const endDate = formatHcmMinute(intervalEndEpochMinute).slice(0, 10);
-  for (let dateStart = start.value; dateStart <= intervalEndEpochMinute; dateStart += MINUTES_PER_DAY) {
-    const date = formatHcmMinute(dateStart).slice(0, 10);
-    if (date === endDate) return date;
-  }
-  return null;
-}
-
 function vendorCoversInterval(
   place: PlaceCandidate,
   vendor: FoodVendorCandidate,
   visitDate: string,
   preferredInterval: FoodActivityInterval,
 ): boolean {
+  if (!normalizeToHcmMinute(`${visitDate}T00:00:00+07:00`).ok) return false;
+  const result = findEarliestFoodVisitStart(
+    place,
+    vendor,
+    preferredInterval.startEpochMinute,
+    preferredInterval.endEpochMinute,
+    preferredInterval.endEpochMinute - preferredInterval.startEpochMinute,
+  );
+  return result.ok && result.value === preferredInterval.startEpochMinute;
+}
+
+function vendorAsPlace(
+  place: PlaceCandidate,
+  vendor: FoodVendorCandidate,
+): PlaceCandidate | null {
   const vendorPlace: PlaceCandidate = {
     ...place,
     openingHours: vendor.openingHours,
@@ -252,30 +253,85 @@ function vendorCoversInterval(
     foodVendors: place.foodVendors,
   };
   const parsed = placeCandidateSchema.safeParse(vendorPlace);
-  if (!parsed.success) return false;
-  const lastDate = dateAtOrAfter(visitDate, preferredInterval.endEpochMinute);
-  if (lastDate === null) return false;
+  return parsed.success ? parsed.data : null;
+}
 
-  const intervals: OpeningInterval[] = [];
-  const firstStart = normalizeToHcmMinute(`${visitDate}T00:00:00+07:00`);
-  if (!firstStart.ok) return false;
-  for (let dateStart = firstStart.value; dateStart <= preferredInterval.endEpochMinute; dateStart += MINUTES_PER_DAY) {
-    const date = formatHcmMinute(dateStart).slice(0, 10);
-    const daily = getOpeningIntervals(parsed.data, date);
-    if (!daily.ok) return false;
-    intervals.push(...daily.value);
-    if (date === lastDate) break;
+/**
+ * Find the earliest interval that is simultaneously open at the parent place
+ * and the selected vendor. This is the shared opening-hours boundary used by
+ * candidate filtering, scheduling, and authoritative validation.
+ */
+export function findEarliestFoodVisitStart(
+  place: PlaceCandidate,
+  vendor: FoodVendorCandidate,
+  earliestEpochMinute: number,
+  latestEndEpochMinute: number,
+  durationMinutes: number,
+): Result<number | null, FoodSelectionError> {
+  if (
+    !placeCandidateSchema.safeParse(place).success ||
+    !foodVendorSchema.safeParse(vendor).success ||
+    vendor.placeId !== place.id ||
+    !Number.isSafeInteger(earliestEpochMinute) ||
+    !Number.isSafeInteger(latestEndEpochMinute) ||
+    !Number.isSafeInteger(durationMinutes) ||
+    durationMinutes <= 0 ||
+    earliestEpochMinute > latestEndEpochMinute ||
+    latestEndEpochMinute - earliestEpochMinute > 720 ||
+    !isSupportedHcmEpochMinute(earliestEpochMinute) ||
+    !isSupportedHcmEpochMinute(latestEndEpochMinute)
+  ) {
+    return failure("NO_SELLABLE_VENDOR");
   }
-  intervals.sort((left, right) => left.startEpochMinute - right.startEpochMinute);
 
-  let coveredUntil = preferredInterval.startEpochMinute;
-  for (const opening of intervals) {
-    if (opening.endEpochMinute <= coveredUntil) continue;
-    if (opening.startEpochMinute > coveredUntil) return false;
-    coveredUntil = Math.max(coveredUntil, opening.endEpochMinute);
-    if (coveredUntil >= preferredInterval.endEpochMinute) return true;
+  const vendorPlace = vendorAsPlace(place, vendor);
+  if (vendorPlace === null) return failure("NO_SELLABLE_VENDOR");
+
+  let dateStart = normalizeToHcmMinute(
+    `${formatHcmMinute(earliestEpochMinute).slice(0, 10)}T00:00:00+07:00`,
+  );
+  if (!dateStart.ok) return failure("NO_SELLABLE_VENDOR");
+
+  const parentIntervals: OpeningInterval[] = [];
+  const vendorIntervals: OpeningInterval[] = [];
+  for (; dateStart.value <= latestEndEpochMinute; dateStart = {
+    ok: true,
+    value: dateStart.value + MINUTES_PER_DAY,
+  }) {
+    const localDate = formatHcmMinute(dateStart.value).slice(0, 10);
+    const parent = getOpeningIntervals(place, localDate);
+    const vendorOpening = getOpeningIntervals(vendorPlace, localDate);
+    if (!parent.ok || !vendorOpening.ok) return failure("NO_SELLABLE_VENDOR");
+    parentIntervals.push(...parent.value);
+    vendorIntervals.push(...vendorOpening.value);
   }
-  return coveredUntil >= preferredInterval.endEpochMinute;
+
+  const mergeIntervals = (intervals: readonly OpeningInterval[]): OpeningInterval[] => {
+    const merged: OpeningInterval[] = [];
+    for (const interval of [...intervals].sort((left, right) =>
+      left.startEpochMinute - right.startEpochMinute || left.endEpochMinute - right.endEpochMinute,
+    )) {
+      const previous = merged[merged.length - 1];
+      if (previous !== undefined && interval.startEpochMinute <= previous.endEpochMinute) {
+        previous.endEpochMinute = Math.max(previous.endEpochMinute, interval.endEpochMinute);
+      } else {
+        merged.push({ ...interval });
+      }
+    }
+    return merged;
+  };
+
+  for (const parent of mergeIntervals(parentIntervals)) {
+    for (const vendorOpening of mergeIntervals(vendorIntervals)) {
+      const start = Math.max(parent.startEpochMinute, vendorOpening.startEpochMinute, earliestEpochMinute);
+      const end = Math.min(parent.endEpochMinute, vendorOpening.endEpochMinute, latestEndEpochMinute);
+      if (start + durationMinutes <= end && start + durationMinutes <= latestEndEpochMinute) {
+        return { ok: true, value: start };
+      }
+    }
+  }
+
+  return { ok: true, value: null };
 }
 
 /**

@@ -43,12 +43,45 @@ function repairSetup() {
         transitionBufferMinutesBefore: 0,
         travelCostVndBefore: 0,
         placeCostVnd: 160_000,
-        foodSelection: null,
-        foodCostMinVnd: 0,
-        foodCostMaxVnd: 0,
-        payAtVendorMinVnd: 0,
-        payAtVendorMaxVnd: 0,
+        foodSelection: {
+          vendorId: "vendor-market-legacy",
+          menuItemId: "menu-market-legacy",
+          quantity: 2,
+          priceVndMin: 20_000,
+          priceVndMax: 30_000,
+          paymentMode: "pay_at_vendor",
+          activity: "Taste and discuss the selected dish",
+        },
+        foodCostMinVnd: 40_000,
+        foodCostMaxVnd: 60_000,
+        payAtVendorMinVnd: 40_000,
+        payAtVendorMaxVnd: 60_000,
         customerPayableVnd: 160_000,
+        score: 0,
+      },
+      {
+        placeId: "place-banh-mi",
+        startAt: "2026-09-05T09:00:00+07:00",
+        endAt: "2026-09-05T09:45:00+07:00",
+        visitDurationMinutes: 45,
+        travelMinutesBefore: 0,
+        transitionBufferMinutesBefore: 0,
+        travelCostVndBefore: 0,
+        placeCostVnd: 360_000,
+        foodSelection: {
+          vendorId: "vendor-banh-mi-legacy",
+          menuItemId: "menu-banh-mi-legacy",
+          quantity: 2,
+          priceVndMin: 30_000,
+          priceVndMax: 40_000,
+          paymentMode: "pay_at_vendor",
+          activity: "Taste and discuss the selected dish",
+        },
+        foodCostMinVnd: 60_000,
+        foodCostMaxVnd: 80_000,
+        payAtVendorMinVnd: 60_000,
+        payAtVendorMaxVnd: 80_000,
+        customerPayableVnd: 360_000,
         score: 0,
       },
     ],
@@ -99,10 +132,7 @@ describe("repairItinerary", () => {
       expect(repaired.value.items.map((item) => item.placeId)).not.toContain("place-market");
       expect(repaired.value.items.map((item) => item.placeId)).toContain("place-banh-mi");
       const remainingRankOrder = setup.rankOrder.filter((id) => id !== "place-market");
-      expect(validateItinerary(setup.input, repaired.value, remainingRankOrder)).toMatchObject({
-        valid: false,
-        issues: expect.arrayContaining([{ key: "rank_order" }]),
-      });
+      expect(validateItinerary(setup.input, repaired.value, remainingRankOrder)).toEqual({ valid: true });
       expect(validateItinerary(setup.input, repaired.value, remainingRankOrder, {
         candidateIds: remainingRankOrder,
       })).toEqual({ valid: true });
@@ -123,6 +153,15 @@ describe("repairItinerary", () => {
     const setup = repairSetup();
     const invalidResult = clone(setup.invalid);
     invalidResult.items[0].placeId = "place-banh-mi";
+    invalidResult.items[0].foodSelection = {
+      vendorId: "vendor-banh-mi-legacy",
+      menuItemId: "menu-banh-mi-legacy",
+      quantity: 2,
+      priceVndMin: 30_000,
+      priceVndMax: 40_000,
+      paymentMode: "pay_at_vendor",
+      activity: "Taste and discuss the selected dish",
+    };
     const issues: ValidationIssue[] = [
       { key: "item.duration", itemIndex: 0, placeId: "place-banh-mi" },
     ];
@@ -137,10 +176,9 @@ describe("repairItinerary", () => {
 
   it("does not let unknown or duplicate issue IDs escape the safe Result boundary", () => {
     const setup = repairSetup();
-    const emptyInvalidResult = { ...setup.invalid, items: [] };
     const repaired = repairItinerary(
       setup.input,
-      emptyInvalidResult,
+      setup.invalid,
       [
         { key: "candidate.membership", placeId: "unknown@example.com" },
         { key: "candidate.membership", placeId: "place-market" },
@@ -150,7 +188,7 @@ describe("repairItinerary", () => {
     );
 
     expect(repaired.ok).toBe(true);
-    if (repaired.ok) expect(repaired.value.items[0]?.score).toBe(5_004);
+    if (repaired.ok) expect(repaired.value.items[0]?.score).toBe(5_003);
   });
 
   it("ignores a forged issue whose index and place ID do not match the invalid result", () => {
@@ -163,7 +201,7 @@ describe("repairItinerary", () => {
     );
 
     expect(repaired.ok).toBe(true);
-    if (repaired.ok) expect(repaired.value.items[0]?.score).toBe(5_004);
+    if (repaired.ok) expect(repaired.value.items[0]?.score).toBe(5_003);
   });
 
   it("returns stable domain errors for adversarial runtime arguments", () => {
@@ -182,5 +220,47 @@ describe("repairItinerary", () => {
     );
 
     expect(result).toMatchObject({ ok: false, error: { code: "INVALID_ITINERARY_INPUT" } });
+  });
+
+  it("preserves the locked food selection exactly", () => {
+    const setup = repairSetup();
+    const locked = clone(setup.invalid.items[1].foodSelection);
+    const repaired = repairItinerary(setup.input, setup.invalid, [], setup.rankOrder);
+
+    expect(repaired.ok).toBe(true);
+    if (repaired.ok) {
+      expect(repaired.value.items.find((item) => item.placeId === "place-banh-mi")?.foodSelection).toEqual(locked);
+    }
+  });
+
+  it("returns NO_FEASIBLE_ITINERARY when a locked food selection cannot be verified", () => {
+    const setup = repairSetup();
+    setup.invalid.items[1].foodSelection = {
+      ...setup.invalid.items[1].foodSelection!,
+      menuItemId: "stale-menu-id",
+    };
+
+    expect(repairItinerary(setup.input, setup.invalid, [], setup.rankOrder)).toMatchObject({
+      ok: false,
+      error: { code: "NO_FEASIBLE_ITINERARY" },
+    });
+  });
+
+  it("replaces an invalid unlocked food selection with a canonical choice", () => {
+    const setup = repairSetup();
+    setup.input.request.lockedStopIds = [];
+    setup.input.catalog.places = [setup.input.catalog.places[3]];
+    setup.input.catalog.places[0].openingHours = [{ weekday: 6, opensAt: "06:00", closesAt: "18:00" }];
+    setup.invalid.items = [{
+      ...setup.invalid.items[0],
+      placeId: "place-market",
+      foodSelection: { ...setup.invalid.items[0].foodSelection!, menuItemId: "untrusted-menu" },
+    }];
+    setup.rankOrder = ["place-market"];
+
+    const repaired = repairItinerary(setup.input, setup.invalid, [], setup.rankOrder);
+
+    expect(repaired.ok).toBe(true);
+    if (repaired.ok) expect(repaired.value.items[0]?.foodSelection?.menuItemId).toBe("menu-market-legacy");
   });
 });

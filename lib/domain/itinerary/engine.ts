@@ -8,6 +8,7 @@ import { filterCandidates } from "@/lib/domain/itinerary/candidate-filter";
 import { normalizeBudgetToVnd } from "@/lib/domain/itinerary/money";
 import { buildRankOrder } from "@/lib/domain/itinerary/scoring";
 import { scheduleItinerary } from "@/lib/domain/itinerary/scheduler";
+import type { FoodSelectionInput } from "@/lib/domain/itinerary/scheduler";
 import { validateItinerary } from "@/lib/domain/itinerary/validator";
 import { repairItinerary } from "@/lib/domain/itinerary/repair";
 
@@ -24,6 +25,7 @@ export function createItinerary(
   source: unknown,
   rankedSubset?: unknown,
   rankingSource: "ai" | "deterministic" = "deterministic",
+  foodSelections?: FoodSelectionInput,
 ): Result<ItineraryResult> {
   try {
     if (!isValidRankingSource(rankingSource)) return invalidInput("rankingSource");
@@ -50,6 +52,7 @@ export function createItinerary(
       ranked.value,
       budget.value.budgetVnd,
       rankingSource,
+      foodSelections,
     );
     if (!scheduled.ok) return scheduled;
 

@@ -141,6 +141,10 @@ describe("food vendor filtering", () => {
 
   it("uses exception and overnight vendor windows when checking the full interval", () => {
     const candidate = place();
+    candidate.openingHours = [
+      { weekday: 6, opensAt: "23:00", closesAt: "02:00" },
+    ];
+    candidate.openingExceptions = [];
     candidate.foodVendors[0].openingHours = [
       { weekday: 6, opensAt: "23:00", closesAt: "02:00" },
     ];

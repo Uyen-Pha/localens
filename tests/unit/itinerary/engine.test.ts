@@ -82,6 +82,45 @@ describe("createItinerary", () => {
     });
   });
 
+  it("accepts an optional place-keyed food selection and preserves the supplied snapshot", () => {
+    const input = clone(itineraryFixture);
+    const supplied = {
+      vendorId: "vendor-banh-mi-legacy",
+      menuItemId: "menu-banh-mi-legacy",
+      quantity: 2,
+      priceVndMin: 30_000,
+      priceVndMax: 40_000,
+      paymentMode: "pay_at_vendor" as const,
+      activity: "Custom activity from the allowlisted planner",
+    };
+    const result = createItinerary(input, undefined, "deterministic", {
+      "place-banh-mi": supplied,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.items[0]?.foodSelection).toEqual(supplied);
+  });
+
+  it("rejects an unverified supplied food selection instead of silently replacing it", () => {
+    const input = clone(itineraryFixture);
+    const result = createItinerary(input, undefined, "deterministic", {
+      "place-banh-mi": {
+        vendorId: "vendor-banh-mi-legacy",
+        menuItemId: "stale-menu-id",
+        quantity: 2,
+        priceVndMin: 30_000,
+        priceVndMax: 40_000,
+        paymentMode: "pay_at_vendor",
+        activity: "Untrusted activity",
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "NO_FEASIBLE_ITINERARY" },
+    });
+  });
+
   it("propagates the scheduler search-limit error without changing its retryability", () => {
     const input = clone(itineraryFixture);
     input.request.lockedStopIds = ["lock-a", "lock-b"];

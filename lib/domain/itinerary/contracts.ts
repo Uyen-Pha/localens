@@ -664,6 +664,8 @@ export type ItineraryItem = z.infer<typeof itineraryItemSchema>;
 export type ItineraryTotals = z.infer<typeof itineraryTotalsSchema>;
 export type ItineraryResult = z.infer<typeof itineraryResultSchema>;
 export type { FoodSelection, FoodVendorCandidate };
+/** Optional caller-supplied food choices keyed by canonical itinerary place ID. */
+export type FoodSelectionInput = Readonly<Record<string, FoodSelection>>;
 
 export const LocaleSchema = localeSchema;
 export const ExperienceTypeSchema = experienceTypeSchema;

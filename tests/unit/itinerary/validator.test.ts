@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { validateItinerary } from "@/lib/domain/itinerary/validator";
 import { itineraryFixture } from "@/tests/fixtures/itinerary/catalog.v1";
-import type { ItineraryResult } from "@/lib/domain/itinerary/contracts";
+import type { EngineInput, ItineraryResult } from "@/lib/domain/itinerary/contracts";
 import { filterCandidates } from "@/lib/domain/itinerary/candidate-filter";
 import { buildRankOrder } from "@/lib/domain/itinerary/scoring";
 
@@ -32,6 +32,16 @@ const zeroFoodTotalsFields = {
   groupCostMaxVnd: 0,
 } as const;
 
+const banhMiSelection = {
+  vendorId: "vendor-banh-mi-legacy",
+  menuItemId: "menu-banh-mi-legacy",
+  quantity: 2,
+  priceVndMin: 30_000,
+  priceVndMax: 40_000,
+  paymentMode: "pay_at_vendor" as const,
+  activity: "Taste and discuss the selected dish",
+};
+
 function validResult(): ItineraryResult {
   return {
     normalizedStartAt: "2026-09-05T08:00:00+07:00",
@@ -47,7 +57,12 @@ function validResult(): ItineraryResult {
         transitionBufferMinutesBefore: 0,
         travelCostVndBefore: 0,
         placeCostVnd: 360_000,
-        ...zeroFoodItemFields,
+        foodSelection: banhMiSelection,
+        foodCostMinVnd: 60_000,
+        foodCostMaxVnd: 80_000,
+        payAtVendorMinVnd: 60_000,
+        payAtVendorMaxVnd: 80_000,
+        customerPayableVnd: 360_000,
         score: 5_001,
       },
     ],
@@ -58,10 +73,14 @@ function validResult(): ItineraryResult {
       transitionBufferMinutes: 0,
       ...zeroFoodTotalsFields,
       admissionCostVnd: 360_000,
+      foodCostMinVnd: 60_000,
+      foodCostMaxVnd: 80_000,
       customerPayableVnd: 360_000,
-      groupCostMinVnd: 360_000,
-      groupCostMaxVnd: 360_000,
-      groupCostVnd: 360_000,
+      payAtVendorMinVnd: 60_000,
+      payAtVendorMaxVnd: 80_000,
+      groupCostMinVnd: 420_000,
+      groupCostMaxVnd: 440_000,
+      groupCostVnd: 440_000,
       score: 5_001,
     },
     snapshotIds: {
@@ -529,5 +548,42 @@ describe("validateItinerary", () => {
     if (!validation.valid) {
       expect(JSON.stringify(validation.issues)).not.toMatch(/guest@example\.com/);
     }
+  });
+
+  it("rejects stale, cross-parent, malformed, unsupported, and closed food facts", () => {
+    const cases: Array<[string, (input: EngineInput, result: ItineraryResult) => void]> = [
+      ["food.menu.parent", (_input, result) => { result.items[0].foodSelection = { ...banhMiSelection, menuItemId: "menu-market-legacy" }; }],
+      ["food.price_snapshot", (_input, result) => { result.items[0].foodSelection = { ...banhMiSelection, priceVndMax: 40_001 }; }],
+      ["food.quantity", (_input, result) => { result.items[0].foodSelection = { ...banhMiSelection, quantity: 1 }; }],
+      ["food.payment_mode", (_input, result) => { result.items[0].foodSelection = { ...banhMiSelection, paymentMode: "included_in_quote" as const }; }],
+      ["food.support", (input) => { input.catalog.places[0].foodVendors[0].menuItems[0].dietarySupport = { halal: "unknown" }; }],
+      ["food.item.status", (input) => { input.catalog.places[0].foodVendors[0].menuItems[0].available = false; }],
+      ["food.vendor.opening_hours", (input) => { input.catalog.places[0].foodVendors[0].openingHours = [{ weekday: 6, opensAt: "11:00", closesAt: "12:00" }]; }],
+    ];
+
+    for (const [key, mutate] of cases) {
+      const input = clone(itineraryFixture);
+      const result = validResult();
+      mutate(input, result);
+      expectIssue(validateItinerary(input, result, ["place-banh-mi"]), key);
+    }
+  });
+
+  it("recomputes every food field and ignores forged client food totals", () => {
+    const result = validResult();
+    result.items[0].foodCostMinVnd = 0;
+    result.items[0].foodCostMaxVnd = 0;
+    result.items[0].payAtVendorMinVnd = 0;
+    result.items[0].payAtVendorMaxVnd = 0;
+    result.items[0].customerPayableVnd = 1;
+    result.totals.foodCostMinVnd = 0;
+    result.totals.foodCostMaxVnd = 0;
+    result.totals.payAtVendorMinVnd = 0;
+    result.totals.payAtVendorMaxVnd = 0;
+    result.totals.groupCostMinVnd = 0;
+    result.totals.groupCostMaxVnd = 0;
+    result.totals.groupCostVnd = 0;
+    expectIssue(validateItinerary(itineraryFixture, result, ["place-banh-mi"]), "item.food_cost");
+    expectIssue(validateItinerary(itineraryFixture, result, ["place-banh-mi"]), "totals.food_cost");
   });
 });

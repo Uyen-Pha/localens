@@ -10,10 +10,9 @@ import { domainError } from "@/lib/domain/itinerary/errors";
 import { multiplyVnd } from "@/lib/domain/itinerary/money";
 import {
   chooseFoodSelection,
-  filterFoodVendors,
+  findEarliestFoodVisitStart,
 } from "@/lib/domain/itinerary/food-filter";
 import {
-  formatHcmMinute,
   normalizeToHcmMinute,
 } from "@/lib/domain/itinerary/local-time";
 
@@ -72,25 +71,24 @@ function foodPriorityNeedsConcreteSelection(
 
   const start = normalizeToHcmMinute(input.request.startAt);
   if (!start.ok) return false;
-  const end = start.value + place.visitDurationMinutes;
+  const end = start.value + input.request.durationMinutes;
   if (!Number.isSafeInteger(end)) return false;
-  const visitDate = formatHcmMinute(start.value).slice(0, 10);
-  const preferredInterval = {
-    startEpochMinute: start.value,
-    endEpochMinute: end,
-  };
   const validatedPlace = { ...place } as OptionalSellability;
   delete validatedPlace.active;
   delete validatedPlace.sellable;
-  const vendors = filterFoodVendors(
-    validatedPlace,
-    input.request,
-    visitDate,
-    preferredInterval,
-  );
-  return vendors.some((vendor) =>
-    chooseFoodSelection(vendor, input.request, remainingBudgetVnd).ok,
-  );
+  if (!placeCandidateSchema.safeParse(validatedPlace).success) return false;
+  return validatedPlace.foodVendors.some((vendor) => {
+    const selection = chooseFoodSelection(vendor, input.request, remainingBudgetVnd);
+    if (!selection.ok) return false;
+    const interval = findEarliestFoodVisitStart(
+      validatedPlace,
+      vendor,
+      start.value,
+      end,
+      validatedPlace.visitDurationMinutes,
+    );
+    return interval.ok && interval.value !== null;
+  });
 }
 
 function isUsableInput(input: unknown): input is EngineInput {

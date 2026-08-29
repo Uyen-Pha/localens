@@ -7,7 +7,14 @@ import {
   type Pace,
   type PlaceCandidate,
   type Result,
+  type FoodSelectionInput,
 } from "@/lib/domain/itinerary/contracts";
+import {
+  foodMenuItemSchema,
+  foodSelectionSchema,
+  type FoodSelection,
+  type FoodVendorCandidate,
+} from "@/lib/domain/food/contracts";
 import { domainError } from "@/lib/domain/itinerary/errors";
 import {
   formatHcmMinute,
@@ -15,6 +22,14 @@ import {
 } from "@/lib/domain/itinerary/local-time";
 import { findEarliestVisitStart } from "@/lib/domain/itinerary/opening-hours";
 import { multiplyVnd, sumVnd } from "@/lib/domain/itinerary/money";
+import {
+  calculateFoodSelectionCost,
+  calculateItineraryCostBreakdown,
+} from "@/lib/domain/itinerary/food-cost";
+import {
+  chooseFoodSelection,
+  findEarliestFoodVisitStart,
+} from "@/lib/domain/itinerary/food-filter";
 import { indexTravelSnapshot, getTransition, type TravelIndex } from "@/lib/domain/itinerary/travel";
 import {
   buildRankOrder,
@@ -35,6 +50,12 @@ interface ScheduledStop {
   transitionBufferMinutesBefore: 0 | 10;
   travelCostVndBefore: number;
   placeCostVnd: number;
+  foodSelection: FoodSelection | null;
+  foodCostMinVnd: number;
+  foodCostMaxVnd: number;
+  payAtVendorMinVnd: number;
+  payAtVendorMaxVnd: number;
+  customerPayableVnd: number;
   score: number;
 }
 
@@ -62,7 +83,10 @@ interface SchedulerContext {
   lockedIds: readonly string[];
   lockedIndexes: Map<string, number>;
   budgetVnd: number;
+  foodSelections: Map<string, FoodSelection>;
 }
+
+export type { FoodSelectionInput };
 
 const invalidScheduler = <T>(issue = "scheduler"): Result<T> => ({
   ok: false,
@@ -156,6 +180,108 @@ function rootPath(startEpochMinute: number): PathState {
   };
 }
 
+function isFoodPriorityPlace(place: PlaceCandidate, input: EngineInput): boolean {
+  return (
+    input.request.priorityWeights.street_food > 0 &&
+    place.types.some((type) => type === "street_food" || type === "traditional_market")
+  );
+}
+
+function supports(
+  value: Record<string, unknown>,
+  requirements: readonly string[],
+): boolean {
+  return requirements.every((requirement) => value[requirement] === "supported");
+}
+
+interface VerifiedFoodSelection {
+  vendor: FoodVendorCandidate;
+  selection: FoodSelection;
+  minVnd: number;
+  maxVnd: number;
+  payAtVendorMinVnd: number;
+  payAtVendorMaxVnd: number;
+  customerPayableVnd: number;
+}
+
+function verifyFoodSelection(
+  place: PlaceCandidate,
+  selection: FoodSelection,
+  input: EngineInput,
+): VerifiedFoodSelection | null {
+  if (!foodSelectionSchema.safeParse(selection).success) return null;
+  const vendor = place.foodVendors.find((candidate) => candidate.id === selection.vendorId);
+  if (vendor === undefined || vendor.placeId !== place.id || vendor.status !== "sellable") return null;
+  if (!supports(vendor.dietarySupport, input.request.dietaryRequirements)) return null;
+  if (!supports(vendor.mobilitySupport, input.request.mobilityRequirements)) return null;
+  const item = vendor.menuItems.find((candidate) => candidate.id === selection.menuItemId);
+  if (item === undefined || item.vendorId !== vendor.id) return null;
+  if (!foodMenuItemSchema.safeParse(item).success || item.available !== true || item.status !== "sellable") return null;
+  if (!supports(item.dietarySupport, input.request.dietaryRequirements)) return null;
+  if (selection.priceVndMin !== item.priceVndMin || selection.priceVndMax !== item.priceVndMax) return null;
+  const expectedQuantity = item.servingUnit === "shared_set" ? 1 : input.request.partySize;
+  if (selection.quantity !== expectedQuantity || selection.paymentMode !== "pay_at_vendor") return null;
+  const cost = calculateFoodSelectionCost(selection, item, input.request.partySize);
+  if (!cost.ok) return null;
+  return {
+    vendor,
+    selection,
+    minVnd: cost.value.minVnd,
+    maxVnd: cost.value.maxVnd,
+    payAtVendorMinVnd: cost.value.payAtVendorMinVnd,
+    payAtVendorMaxVnd: cost.value.payAtVendorMaxVnd,
+    customerPayableVnd: cost.value.customerPayableVnd,
+  };
+}
+
+function chooseScheduledFood(
+  place: PlaceCandidate,
+  earliestEpochMinute: number,
+  context: SchedulerContext,
+  baseCostVnd: number,
+): (VerifiedFoodSelection & { startEpochMinute: number }) | null {
+  const supplied = context.foodSelections.get(place.id);
+  if (supplied !== undefined) {
+    const verified = verifyFoodSelection(place, supplied, context.input);
+    if (verified === null) return null;
+    const start = findEarliestFoodVisitStart(
+      place,
+      verified.vendor,
+      earliestEpochMinute,
+      context.latestEndEpochMinute,
+      place.visitDurationMinutes,
+    );
+    if (!start.ok || start.value === null) return null;
+    const total = sumVnd([baseCostVnd, verified.maxVnd]);
+    if (!total.ok || total.value > context.budgetVnd) return null;
+    return { ...verified, startEpochMinute: start.value };
+  }
+
+  const vendors = [...place.foodVendors].sort((left, right) =>
+    left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+  );
+  const remainingBudget = context.budgetVnd - baseCostVnd;
+  if (!Number.isSafeInteger(remainingBudget) || remainingBudget < 0) return null;
+  for (const vendor of vendors) {
+    const selection = chooseFoodSelection(vendor, context.input.request, remainingBudget);
+    if (!selection.ok) continue;
+    const verified = verifyFoodSelection(place, selection.value, context.input);
+    if (verified === null) continue;
+    const start = findEarliestFoodVisitStart(
+      place,
+      verified.vendor,
+      earliestEpochMinute,
+      context.latestEndEpochMinute,
+      place.visitDurationMinutes,
+    );
+    if (!start.ok || start.value === null) continue;
+    const total = sumVnd([baseCostVnd, verified.maxVnd]);
+    if (!total.ok || total.value > context.budgetVnd) continue;
+    return { ...verified, startEpochMinute: start.value };
+  }
+  return null;
+}
+
 function appendStop(
   path: PathState,
   candidate: PlaceCandidate,
@@ -188,14 +314,26 @@ function appendStop(
   }
 
   if (earliestStart > context.latestEndEpochMinute) return null;
-  const visitStart = findEarliestVisitStart(
-    candidate,
-    earliestStart,
-    context.latestEndEpochMinute,
-    candidate.visitDurationMinutes,
-  );
-  if (!visitStart.ok || visitStart.value === null) return null;
-  const endEpochMinute = visitStart.value + candidate.visitDurationMinutes;
+  const baseCostResult = sumVnd([path.groupCostVnd, placeCost, travelCostVndBefore]);
+  if (!baseCostResult.ok || baseCostResult.value > context.budgetVnd) return null;
+
+  let visitStartEpochMinute: number;
+  let food: (VerifiedFoodSelection & { startEpochMinute: number }) | null = null;
+  if (isFoodPriorityPlace(candidate, context.input)) {
+    food = chooseScheduledFood(candidate, earliestStart, context, baseCostResult.value);
+    if (food === null) return null;
+    visitStartEpochMinute = food.startEpochMinute;
+  } else {
+    const visitStart = findEarliestVisitStart(
+      candidate,
+      earliestStart,
+      context.latestEndEpochMinute,
+      candidate.visitDurationMinutes,
+    );
+    if (!visitStart.ok || visitStart.value === null) return null;
+    visitStartEpochMinute = visitStart.value;
+  }
+  const endEpochMinute = visitStartEpochMinute + candidate.visitDurationMinutes;
   if (endEpochMinute > context.latestEndEpochMinute) return null;
 
   const rankedIndex = context.rankIndexes.get(candidate.id);
@@ -207,11 +345,16 @@ function appendStop(
     context.candidates.length,
   );
   const groupCostResult = sumVnd([
-    path.groupCostVnd,
-    placeCost,
-    travelCostVndBefore,
+    baseCostResult.value,
+    food?.maxVnd ?? 0,
   ]);
   if (!groupCostResult.ok || groupCostResult.value > context.budgetVnd) return null;
+  const customerPayableResult = sumVnd([
+    placeCost,
+    travelCostVndBefore,
+    food?.customerPayableVnd ?? 0,
+  ]);
+  if (!customerPayableResult.ok) return null;
 
   return {
     ids: [...path.ids, candidate.id],
@@ -219,12 +362,18 @@ function appendStop(
       ...path.stops,
       {
         place: candidate,
-        startEpochMinute: visitStart.value,
+        startEpochMinute: visitStartEpochMinute,
         endEpochMinute,
         travelMinutesBefore,
         transitionBufferMinutesBefore,
         travelCostVndBefore,
         placeCostVnd: placeCost,
+        foodSelection: food?.selection ?? null,
+        foodCostMinVnd: food?.minVnd ?? 0,
+        foodCostMaxVnd: food?.maxVnd ?? 0,
+        payAtVendorMinVnd: food?.payAtVendorMinVnd ?? 0,
+        payAtVendorMaxVnd: food?.payAtVendorMaxVnd ?? 0,
+        customerPayableVnd: customerPayableResult.value,
         score,
       },
     ],
@@ -242,7 +391,7 @@ function buildResult(
   path: PathState,
   context: SchedulerContext,
   rankingSource: "ai" | "deterministic",
-): ItineraryResult {
+): Result<ItineraryResult> {
   const items: ItineraryItem[] = path.stops.map((stop) => ({
     placeId: stop.place.id,
     startAt: formatHcmMinute(stop.startEpochMinute),
@@ -252,45 +401,57 @@ function buildResult(
     transitionBufferMinutesBefore: stop.transitionBufferMinutesBefore,
     travelCostVndBefore: stop.travelCostVndBefore,
     placeCostVnd: stop.placeCostVnd,
-    foodSelection: null,
-    foodCostMinVnd: 0,
-    foodCostMaxVnd: 0,
-    payAtVendorMinVnd: 0,
-    payAtVendorMaxVnd: 0,
-    customerPayableVnd: stop.placeCostVnd + stop.travelCostVndBefore,
+    foodSelection: stop.foodSelection,
+    foodCostMinVnd: stop.foodCostMinVnd,
+    foodCostMaxVnd: stop.foodCostMaxVnd,
+    payAtVendorMinVnd: stop.payAtVendorMinVnd,
+    payAtVendorMaxVnd: stop.payAtVendorMaxVnd,
+    customerPayableVnd: stop.customerPayableVnd,
     score: stop.score,
   }));
 
-  return {
-    normalizedStartAt: formatHcmMinute(context.startEpochMinute),
-    budgetVnd: context.budgetVnd,
-    rankingSource,
+  const travelCost = sumVnd(path.stops.map((stop) => stop.travelCostVndBefore));
+  if (!travelCost.ok) return invalidScheduler("travelCost");
+  const cost = calculateItineraryCostBreakdown(
     items,
-    totals: {
+    travelCost.value,
+    0,
+  );
+  if (!cost.ok) return invalidScheduler("cost");
+
+  return {
+    ok: true,
+    value: {
+      normalizedStartAt: formatHcmMinute(context.startEpochMinute),
+      budgetVnd: context.budgetVnd,
+      rankingSource,
+      items,
+      totals: {
       durationMinutes: path.finishEpochMinute - context.startEpochMinute,
       visitMinutes: path.visitMinutes,
       travelMinutes: path.travelMinutes,
       transitionBufferMinutes: path.transitionBufferMinutes,
-      admissionCostVnd: path.stops.reduce((total, stop) => total + stop.placeCostVnd, 0),
-      foodCostMinVnd: 0,
-      foodCostMaxVnd: 0,
-      travelCostVnd: path.stops.reduce((total, stop) => total + stop.travelCostVndBefore, 0),
-      guideCostVnd: 0,
-      payAtVendorMinVnd: 0,
-      payAtVendorMaxVnd: 0,
-      customerPayableVnd: path.groupCostVnd,
-      groupCostMinVnd: path.groupCostVnd,
-      groupCostMaxVnd: path.groupCostVnd,
-      groupCostVnd: path.groupCostVnd,
+      admissionCostVnd: cost.value.admissionCostVnd,
+      foodCostMinVnd: cost.value.foodCostMinVnd,
+      foodCostMaxVnd: cost.value.foodCostMaxVnd,
+      travelCostVnd: cost.value.travelCostVnd,
+      guideCostVnd: cost.value.guideCostVnd,
+      payAtVendorMinVnd: cost.value.payAtVendorMinVnd,
+      payAtVendorMaxVnd: cost.value.payAtVendorMaxVnd,
+      customerPayableVnd: cost.value.customerPayableVnd,
+      groupCostMinVnd: cost.value.groupCostMinVnd,
+      groupCostMaxVnd: cost.value.groupCostMaxVnd,
+      groupCostVnd: cost.value.groupCostVnd,
       score: path.score,
-    },
-    snapshotIds: {
-      catalog: context.input.catalog.id,
-      travel: context.input.travel.id,
-      fx:
-        context.input.request.budget.currency === "USD"
-          ? context.input.fx?.id ?? null
-          : null,
+      },
+      snapshotIds: {
+        catalog: context.input.catalog.id,
+        travel: context.input.travel.id,
+        fx:
+          context.input.request.budget.currency === "USD"
+            ? context.input.fx?.id ?? null
+            : null,
+      },
     },
   };
 }
@@ -300,6 +461,7 @@ function createContext(
   filtered: readonly PlaceCandidate[],
   rankOrder: readonly string[],
   budgetVnd: number,
+  foodSelections?: FoodSelectionInput,
 ): Result<SchedulerContext> {
   const parsedInput = engineInputSchema.safeParse(input);
   if (!parsedInput.success) return invalidScheduler();
@@ -361,6 +523,24 @@ function createContext(
     if (!candidateById.has(id)) return noFeasible();
   }
 
+  const normalizedFoodSelections = new Map<string, FoodSelection>();
+  if (foodSelections !== undefined) {
+    if (typeof foodSelections !== "object" || foodSelections === null || Array.isArray(foodSelections)) {
+      return invalidScheduler("foodSelections");
+    }
+    for (const placeId of Object.keys(foodSelections)) {
+      const place = catalogById.get(placeId);
+      if (place === undefined || !isFoodPriorityPlace(place, canonicalInput)) {
+        return invalidScheduler("foodSelections");
+      }
+      const selection = foodSelections[placeId];
+      if (!foodSelectionSchema.safeParse(selection).success) {
+        return invalidScheduler("foodSelections");
+      }
+      normalizedFoodSelections.set(placeId, selection);
+    }
+  }
+
   return {
     ok: true,
     value: {
@@ -376,6 +556,7 @@ function createContext(
       lockedIds: canonicalInput.request.lockedStopIds,
       lockedIndexes,
       budgetVnd,
+      foodSelections: normalizedFoodSelections,
     },
   };
 }
@@ -459,18 +640,19 @@ export function scheduleItinerary(
   rankOrder: readonly string[],
   budgetVnd: number,
   rankingSource: "ai" | "deterministic",
+  foodSelections?: FoodSelectionInput,
 ): Result<ItineraryResult> {
   try {
     if (rankingSource !== "ai" && rankingSource !== "deterministic") {
       return invalidScheduler("rankingSource");
     }
-    const contextResult = createContext(input, filtered, rankOrder, budgetVnd);
+    const contextResult = createContext(input, filtered, rankOrder, budgetVnd, foodSelections);
     if (!contextResult.ok) return contextResult;
     const context = contextResult.value;
 
     const beamBest = runBeam(context);
     if (beamBest !== null) {
-      return { ok: true, value: buildResult(beamBest, context, rankingSource) };
+      return buildResult(beamBest, context, rankingSource);
     }
 
     // With no locks, no valid first stop means no valid multi-stop route: a
@@ -479,7 +661,7 @@ export function scheduleItinerary(
     if (context.lockedIds.length === 0) {
       const singleBest = findBestSingleStop(context);
       if (singleBest !== null) {
-        return { ok: true, value: buildResult(singleBest, context, rankingSource) };
+        return buildResult(singleBest, context, rankingSource);
       }
       return noFeasible();
     }
@@ -487,7 +669,7 @@ export function scheduleItinerary(
     const fallback = runDfs(context);
     if (fallback.hitLimit) return searchLimit();
     if (fallback.best !== null) {
-      return { ok: true, value: buildResult(fallback.best, context, rankingSource) };
+      return buildResult(fallback.best, context, rankingSource);
     }
     return noFeasible();
   } catch {

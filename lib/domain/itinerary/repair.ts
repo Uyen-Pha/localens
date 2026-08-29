@@ -1,9 +1,11 @@
 import {
   parseEngineInput,
+  type EngineInput,
   type ItineraryResult,
   type PlaceCandidate,
   type Result,
 } from "@/lib/domain/itinerary/contracts";
+import { foodSelectionSchema, type FoodSelection } from "@/lib/domain/food/contracts";
 import { domainError } from "@/lib/domain/itinerary/errors";
 import { filterCandidates } from "@/lib/domain/itinerary/candidate-filter";
 import { normalizeBudgetToVnd } from "@/lib/domain/itinerary/money";
@@ -152,6 +154,42 @@ function rankingSourceOf(value: unknown): "ai" | "deterministic" {
   return "deterministic";
 }
 
+function isFoodPriorityPlace(place: PlaceCandidate, input: EngineInput): boolean {
+  return input.request.priorityWeights.street_food > 0 &&
+    place.types.some((type) => type === "street_food" || type === "traditional_market");
+}
+
+function lockedFoodSelections(
+  source: EngineInput,
+  priorResult: unknown,
+): Result<Record<string, FoodSelection>> {
+  const selections: Record<string, FoodSelection> = {};
+  if (typeof priorResult !== "object" || priorResult === null) {
+    return { ok: false, error: domainError("NO_FEASIBLE_ITINERARY", "itinerary.no_feasible") };
+  }
+  const rawItems = (priorResult as { items?: unknown }).items;
+  if (!Array.isArray(rawItems)) return { ok: false, error: domainError("NO_FEASIBLE_ITINERARY", "itinerary.no_feasible") };
+  for (const lockedId of source.request.lockedStopIds) {
+    const place = source.catalog.places.find((candidate) => candidate.id === lockedId);
+    if (place === undefined || !isFoodPriorityPlace(place, source)) continue;
+    const rawItem = rawItems.find((item) =>
+      typeof item === "object" && item !== null && (item as { placeId?: unknown }).placeId === lockedId,
+    );
+    const rawSelection = rawItem && typeof rawItem === "object"
+      ? (rawItem as { foodSelection?: unknown }).foodSelection
+      : undefined;
+    const parsed = foodSelectionSchema.safeParse(rawSelection);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: domainError("NO_FEASIBLE_ITINERARY", "itinerary.no_feasible"),
+      };
+    }
+    selections[lockedId] = parsed.data;
+  }
+  return { ok: true, value: selections };
+}
+
 export function repairItinerary(
   source: unknown,
   _invalidResult: unknown,
@@ -171,6 +209,8 @@ export function repairItinerary(
     if (!budget.ok) return budget;
     const filtered = filterCandidates(parsed.value, budget.value.budgetVnd);
     if (!filtered.ok) return filtered;
+    const lockedSelections = lockedFoodSelections(parsed.value, _invalidResult);
+    if (!lockedSelections.ok) return lockedSelections;
     const originalOrder = canonicalRankOrder(filtered.value, rankOrder);
     if (!originalOrder.ok) return originalOrder;
 
@@ -195,6 +235,7 @@ export function repairItinerary(
       remainingRankOrder,
       budget.value.budgetVnd,
       rankingSourceOf(_invalidResult),
+      lockedSelections.value,
     );
     if (!scheduled.ok) return scheduled;
 

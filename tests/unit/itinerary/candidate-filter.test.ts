@@ -131,6 +131,7 @@ describe("filterCandidates", () => {
       place.dietarySupport = { halal: "supported" };
       place.mobilitySupport = { "step-free": "supported" };
     });
+    input.catalog.places[3].openingHours = [{ weekday: 6, opensAt: "06:00", closesAt: "11:00" }];
     input.catalog.places.reverse();
 
     const result = filterCandidates(input, 2_000_000);
@@ -154,6 +155,7 @@ describe("filterCandidates", () => {
     input.catalog.places[2].guideLanguages = ["en"];
     input.catalog.places[2].dietarySupport = { halal: "supported" };
     input.catalog.places[2].mobilitySupport = { "step-free": "supported" };
+    input.catalog.places[3].openingHours = [{ weekday: 6, opensAt: "06:00", closesAt: "11:00" }];
     (input.catalog.places[0] as { active?: boolean }).active = false;
     (input.catalog.places[1] as { sellable?: boolean }).sellable = false;
 

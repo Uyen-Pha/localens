@@ -19,6 +19,109 @@ function candidatesFor(input = itineraryFixture) {
 }
 
 describe("scheduleItinerary", () => {
+  it("emits a concrete food selection and separates pay-at-vendor totals", () => {
+    const { filtered, rankOrder } = candidatesFor();
+    const result = scheduleItinerary(
+      itineraryFixture,
+      filtered,
+      rankOrder,
+      2_000_000,
+      "deterministic",
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.items[0]).toMatchObject({
+      placeId: "place-banh-mi",
+      foodSelection: {
+        vendorId: "vendor-banh-mi-legacy",
+        menuItemId: "menu-banh-mi-legacy",
+        quantity: 2,
+        priceVndMin: 30_000,
+        priceVndMax: 40_000,
+        paymentMode: "pay_at_vendor",
+      },
+      foodCostMinVnd: 60_000,
+      foodCostMaxVnd: 80_000,
+      payAtVendorMinVnd: 60_000,
+      payAtVendorMaxVnd: 80_000,
+      customerPayableVnd: 360_000,
+    });
+    expect(result.value.totals).toMatchObject({
+      admissionCostVnd: 360_000,
+      foodCostMinVnd: 60_000,
+      foodCostMaxVnd: 80_000,
+      payAtVendorMinVnd: 60_000,
+      payAtVendorMaxVnd: 80_000,
+      customerPayableVnd: 360_000,
+      groupCostMinVnd: 420_000,
+      groupCostMaxVnd: 440_000,
+      groupCostVnd: 440_000,
+    });
+  });
+
+  it("rejects a food stop when its vendor is closed for the proposed interval", () => {
+    const input = clone(itineraryFixture);
+    input.request.lockedStopIds = ["place-banh-mi"];
+    input.catalog.places[0].foodVendors[0].openingHours = [
+      { weekday: 6, opensAt: "18:00", closesAt: "19:00" },
+    ];
+    const result = scheduleItinerary(
+      input,
+      [input.catalog.places[0]],
+      ["place-banh-mi"],
+      2_000_000,
+      "deterministic",
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "NO_FEASIBLE_ITINERARY" },
+    });
+  });
+
+  it("waits for a later vendor opening when the joint interval still fits", () => {
+    const input = clone(itineraryFixture);
+    input.request.lockedStopIds = ["place-banh-mi"];
+    input.request.durationMinutes = 180;
+    input.catalog.places[0].openingHours = [
+      { weekday: 6, opensAt: "08:00", closesAt: "14:00" },
+    ];
+    input.catalog.places[0].openingExceptions = [];
+    input.catalog.places[0].foodVendors[0].openingHours = [
+      { weekday: 6, opensAt: "10:00", closesAt: "14:00" },
+    ];
+    const result = scheduleItinerary(
+      input,
+      [input.catalog.places[0]],
+      ["place-banh-mi"],
+      2_000_000,
+      "deterministic",
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.items[0]?.startAt).toBe("2026-09-05T10:00:00+07:00");
+  });
+
+  it("uses the food upper bound for hard-budget pruning", () => {
+    const input = clone(itineraryFixture);
+    input.request.lockedStopIds = ["place-banh-mi"];
+    input.catalog.places[0].foodVendors[0].menuItems[0].priceVndMin = 1;
+    input.catalog.places[0].foodVendors[0].menuItems[0].priceVndMax = 1_000_000;
+    const result = scheduleItinerary(
+      input,
+      [input.catalog.places[0]],
+      ["place-banh-mi"],
+      360_001,
+      "deterministic",
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "NO_FEASIBLE_ITINERARY" },
+    });
+  });
+
   it("uses zero travel, buffer, and cost for the first stop", () => {
     const { filtered, rankOrder } = candidatesFor();
     const result = scheduleItinerary(
