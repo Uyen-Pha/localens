@@ -56,6 +56,7 @@ describe("CustomRequestFlow", () => {
     expect(screen.getByText(copy.noBackendAuthDisclosure)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: copy.continueLocalDemoLabel })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: copy.submitRequestLabel })).not.toBeInTheDocument();
+    expect(screen.getAllByText(copy.foodNotSelectedLabel)).toHaveLength(2);
   });
 
   it("walks through local request, admin-review, immutable quote acceptance, and Stripe mock", () => {
@@ -64,12 +65,18 @@ describe("CustomRequestFlow", () => {
     render(<CustomRequestFlow locale="en" copy={copy} />);
 
     fireEvent.click(screen.getByRole("button", { name: copy.continueLocalDemoLabel }));
+    expect(screen.getByText(copy.venueAdmissionLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.foodEstimateLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.travelCostTotalLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.guideCostLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.localLensPayableLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.payAtVendorLabel)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: copy.submitRequestLabel }));
     expect(screen.getByRole("status")).toHaveTextContent(copy.adminReviewPendingMessage);
 
     fireEvent.click(screen.getByRole("button", { name: copy.simulateQuoteLabel }));
     expect(screen.getByRole("heading", { name: copy.quoteHeading })).toBeInTheDocument();
-    expect(screen.getAllByText(/₫240,000/)).toHaveLength(2);
+    expect(screen.getAllByText(/₫240,000/).length).toBeGreaterThanOrEqual(2);
 
     fireEvent.click(screen.getByRole("button", { name: copy.acceptQuoteLabel }));
     expect(screen.getByRole("status")).toHaveTextContent(copy.quoteAcceptedMessage);

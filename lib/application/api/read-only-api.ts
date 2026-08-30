@@ -1,11 +1,13 @@
 import {
   itineraryRequestSchema,
   type DomainErrorCode,
+  type EngineInput,
   type ExperienceType,
   type ItineraryRequest,
   type Locale,
   type ItineraryResult,
 } from "@/lib/domain/itinerary/contracts";
+import type { ServingUnit } from "@/lib/domain/food/contracts";
 import {
   API_ERROR_CODES,
   API_MESSAGE_CATALOG,
@@ -120,7 +122,33 @@ export interface ItineraryPreviewItemDto {
   transitionBufferMinutesBefore: 0 | 10;
   travelCostVndBefore: number;
   placeCostVnd: number;
+  foodSelection: ItineraryPreviewFoodSelectionDto | null;
+  foodCostMinVnd: number;
+  foodCostMaxVnd: number;
+  payAtVendorMinVnd: number;
+  payAtVendorMaxVnd: number;
+  customerPayableVnd: number;
   score: number;
+}
+
+/**
+ * Customer-safe, server-derived food facts. IDs and mutable catalog records
+ * stay behind the read-only API boundary; customer flows receive only the
+ * facts needed to explain the selected stop and who receives payment.
+ */
+export interface ItineraryPreviewFoodSelectionDto {
+  venueTitle: string;
+  vendorTitle: string;
+  locationNote: string;
+  menuTitle: string;
+  servingUnit: ServingUnit;
+  quantity: number;
+  priceVndMin: number;
+  priceVndMax: number;
+  activity: string;
+  dietaryAllergenCaveat: string;
+  accessibilityVendorWarning: string;
+  paymentMode: "pay_at_vendor";
 }
 
 export interface ItineraryPreviewDto {
@@ -407,8 +435,42 @@ function mapTour(tour: DemoTourRecord): PublicTourDto {
 function mapPreview(
   result: ItineraryResult,
   repository: InternalDemoCatalogRepository,
+  engineInput: EngineInput,
   locale: Locale,
 ): ItineraryPreviewDto {
+  const foodSelectionFor = (item: ItineraryResult["items"][number]): ItineraryPreviewFoodSelectionDto | null => {
+    const selection = item.foodSelection;
+    if (selection === null || selection.paymentMode !== "pay_at_vendor") return null;
+    const place = engineInput.catalog.places.find((candidate) => candidate.id === item.placeId);
+    const vendor = place?.foodVendors.find((candidate) => candidate.id === selection.vendorId);
+    const menuItem = vendor?.menuItems.find((candidate) => candidate.id === selection.menuItemId);
+    if (place === undefined || vendor === undefined || menuItem === undefined) return null;
+
+    const dietaryFacts = [
+      ...Object.entries(vendor.dietarySupport).map(([key, value]) => `${key}: ${value}`),
+      ...Object.entries(menuItem.dietarySupport).map(([key, value]) => `${key}: ${value}`),
+      `allergens: ${menuItem.allergens.length > 0 ? menuItem.allergens.join(", ") : "none listed"}`,
+    ];
+    const accessibilityFacts = [
+      ...Object.entries(vendor.mobilitySupport).map(([key, value]) => `${key}: ${value}`),
+      vendor.capacityNote,
+    ].filter((value) => value.length > 0);
+    return {
+      venueTitle: repository.getPlaceTitle(item.placeId, locale) ?? item.placeId,
+      vendorTitle: vendor.title[locale],
+      locationNote: vendor.locationNote,
+      menuTitle: menuItem.title[locale],
+      servingUnit: menuItem.servingUnit,
+      quantity: selection.quantity,
+      priceVndMin: selection.priceVndMin,
+      priceVndMax: selection.priceVndMax,
+      activity: selection.activity,
+      dietaryAllergenCaveat: dietaryFacts.join("; "),
+      accessibilityVendorWarning: accessibilityFacts.join("; "),
+      paymentMode: "pay_at_vendor",
+    };
+  };
+
   return {
     environment: repository.environment,
     city: repository.city,
@@ -425,6 +487,12 @@ function mapPreview(
       transitionBufferMinutesBefore: item.transitionBufferMinutesBefore,
       travelCostVndBefore: item.travelCostVndBefore,
       placeCostVnd: item.placeCostVnd,
+      foodSelection: foodSelectionFor(item),
+      foodCostMinVnd: item.foodCostMinVnd,
+      foodCostMaxVnd: item.foodCostMaxVnd,
+      payAtVendorMinVnd: item.payAtVendorMinVnd,
+      payAtVendorMaxVnd: item.payAtVendorMaxVnd,
+      customerPayableVnd: item.customerPayableVnd,
       score: item.score,
     })),
     totals: {
@@ -527,7 +595,7 @@ export function createReadOnlyApi(options: ReadOnlyApiOptions = {}): ReadOnlyApi
         const engineInput = repository.getEngineInput(request);
         const result = createItinerary(engineInput, undefined, "deterministic");
         if (!result.ok) return domainFailure(correlationId, result);
-        return success(correlationId, mapPreview(result.value, repository, request.guideLanguage));
+        return success(correlationId, mapPreview(result.value, repository, engineInput, request.guideLanguage));
       } catch {
         return failure(correlationId, "INTERNAL_ERROR", API_MESSAGE_KEYS.internal, true);
       }

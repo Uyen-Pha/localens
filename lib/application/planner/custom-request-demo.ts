@@ -3,6 +3,7 @@ import {
   type PersonalizationRequest,
 } from "@/lib/application/planner/personalization-session";
 import type { DemoPlannerRevision, DemoPlannerItem } from "@/lib/application/planner/demo-planner";
+import type { ItineraryPreviewFoodSelectionDto } from "@/lib/application/api/read-only-api";
 
 export const CUSTOM_REQUEST_SESSION_KEY = "localens.custom-request.v1";
 export const CUSTOM_REQUEST_SESSION_TTL_MS = 30 * 60 * 1000;
@@ -36,6 +37,40 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isSafeNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+const FOOD_SELECTION_FIELDS = [
+  "venueTitle",
+  "vendorTitle",
+  "locationNote",
+  "menuTitle",
+  "servingUnit",
+  "quantity",
+  "priceVndMin",
+  "priceVndMax",
+  "activity",
+  "dietaryAllergenCaveat",
+  "accessibilityVendorWarning",
+  "paymentMode",
+] as const;
+
+function isFoodSelection(value: unknown): value is ItineraryPreviewFoodSelectionDto {
+  if (!isRecord(value)) return false;
+  if (Object.keys(value).some((key) => !FOOD_SELECTION_FIELDS.includes(key as (typeof FOOD_SELECTION_FIELDS)[number]))) return false;
+  if (FOOD_SELECTION_FIELDS.some((key) => !Object.prototype.hasOwnProperty.call(value, key))) return false;
+  return (
+    typeof value.venueTitle === "string" && value.venueTitle.length > 0 &&
+    typeof value.vendorTitle === "string" && value.vendorTitle.length > 0 &&
+    typeof value.locationNote === "string" && value.locationNote.length > 0 &&
+    typeof value.menuTitle === "string" && value.menuTitle.length > 0 &&
+    (value.servingUnit === "portion" || value.servingUnit === "bowl" || value.servingUnit === "piece" || value.servingUnit === "drink" || value.servingUnit === "shared_set") &&
+    isSafeNonNegativeNumber(value.quantity) && value.quantity > 0 &&
+    isSafeNonNegativeNumber(value.priceVndMin) && isSafeNonNegativeNumber(value.priceVndMax) && value.priceVndMin <= value.priceVndMax &&
+    typeof value.activity === "string" && value.activity.length > 0 &&
+    typeof value.dietaryAllergenCaveat === "string" && value.dietaryAllergenCaveat.length > 0 &&
+    typeof value.accessibilityVendorWarning === "string" && value.accessibilityVendorWarning.length > 0 &&
+    value.paymentMode === "pay_at_vendor"
+  );
 }
 
 const FNV32_PRIME = 16_777_619;
@@ -79,6 +114,12 @@ function canonicalDraftMaterial(draft: CustomRequestDraftInput): string {
         transitionBufferMinutesBefore: item.transitionBufferMinutesBefore,
         travelCostVndBefore: item.travelCostVndBefore,
         placeCostVnd: item.placeCostVnd,
+        foodSelection: item.foodSelection,
+        foodCostMinVnd: item.foodCostMinVnd,
+        foodCostMaxVnd: item.foodCostMaxVnd,
+        payAtVendorMinVnd: item.payAtVendorMinVnd,
+        payAtVendorMaxVnd: item.payAtVendorMaxVnd,
+        customerPayableVnd: item.customerPayableVnd,
         locked: item.locked,
       })),
       totals: draft.revisionSnapshot.totals,
@@ -110,6 +151,14 @@ function isDemoPlannerItem(value: unknown): value is DemoPlannerItem {
     (value.transitionBufferMinutesBefore === 0 || value.transitionBufferMinutesBefore === 10) &&
     isSafeNonNegativeNumber(value.travelCostVndBefore) &&
     isSafeNonNegativeNumber(value.placeCostVnd) &&
+    (value.foodSelection === null || isFoodSelection(value.foodSelection)) &&
+    isSafeNonNegativeNumber(value.foodCostMinVnd) &&
+    isSafeNonNegativeNumber(value.foodCostMaxVnd) &&
+    value.foodCostMinVnd <= value.foodCostMaxVnd &&
+    isSafeNonNegativeNumber(value.payAtVendorMinVnd) &&
+    isSafeNonNegativeNumber(value.payAtVendorMaxVnd) &&
+    value.payAtVendorMinVnd <= value.payAtVendorMaxVnd &&
+    isSafeNonNegativeNumber(value.customerPayableVnd) &&
     typeof value.locked === "boolean"
   );
 }
@@ -129,14 +178,42 @@ function isDemoPlannerRevision(value: unknown): value is DemoPlannerRevision {
     0,
   );
   const costVnd = items.reduce(
-    (total, item) => total + item.travelCostVndBefore + item.placeCostVnd,
+    (total, item) => total + item.customerPayableVnd,
     0,
   );
+  const admissionCostVnd = items.reduce((total, item) => total + item.placeCostVnd, 0);
+  const foodCostMinVnd = items.reduce((total, item) => total + item.foodCostMinVnd, 0);
+  const foodCostMaxVnd = items.reduce((total, item) => total + item.foodCostMaxVnd, 0);
+  const travelCostVnd = items.reduce((total, item) => total + item.travelCostVndBefore, 0);
+  const payAtVendorMinVnd = items.reduce((total, item) => total + item.payAtVendorMinVnd, 0);
+  const payAtVendorMaxVnd = items.reduce((total, item) => total + item.payAtVendorMaxVnd, 0);
+  const groupCostMinVnd = admissionCostVnd + foodCostMinVnd + travelCostVnd;
+  const groupCostMaxVnd = admissionCostVnd + foodCostMaxVnd + travelCostVnd;
   return (
     isSafeNonNegativeNumber(value.totals.durationMinutes) &&
     isSafeNonNegativeNumber(value.totals.costVnd) &&
     value.totals.durationMinutes === durationMinutes &&
     value.totals.costVnd === costVnd &&
+    isSafeNonNegativeNumber(value.totals.admissionCostVnd) &&
+    isSafeNonNegativeNumber(value.totals.foodCostMinVnd) &&
+    isSafeNonNegativeNumber(value.totals.foodCostMaxVnd) &&
+    isSafeNonNegativeNumber(value.totals.travelCostVnd) &&
+    isSafeNonNegativeNumber(value.totals.guideCostVnd) &&
+    isSafeNonNegativeNumber(value.totals.payAtVendorMinVnd) &&
+    isSafeNonNegativeNumber(value.totals.payAtVendorMaxVnd) &&
+    isSafeNonNegativeNumber(value.totals.customerPayableVnd) &&
+    isSafeNonNegativeNumber(value.totals.groupCostMinVnd) &&
+    isSafeNonNegativeNumber(value.totals.groupCostMaxVnd) &&
+    value.totals.admissionCostVnd === admissionCostVnd &&
+    value.totals.foodCostMinVnd === foodCostMinVnd &&
+    value.totals.foodCostMaxVnd === foodCostMaxVnd &&
+    value.totals.travelCostVnd === travelCostVnd &&
+    value.totals.guideCostVnd === 0 &&
+    value.totals.payAtVendorMinVnd === payAtVendorMinVnd &&
+    value.totals.payAtVendorMaxVnd === payAtVendorMaxVnd &&
+    value.totals.customerPayableVnd === costVnd &&
+    value.totals.groupCostMinVnd === groupCostMinVnd &&
+    value.totals.groupCostMaxVnd === groupCostMaxVnd &&
     Array.isArray(value.warnings) && value.warnings.every((warning) => typeof warning === "string") &&
     typeof value.feedback === "string"
   );

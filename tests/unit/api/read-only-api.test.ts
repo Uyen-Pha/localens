@@ -245,6 +245,8 @@ describe("read-only API application boundary", () => {
     expect(Object.keys(result.value.items[0] ?? {}).sort()).toEqual([
       "endAt", "placeCostVnd", "placeId", "placeTitle", "score", "startAt", "travelCostVndBefore",
       "travelMinutesBefore", "transitionBufferMinutesBefore", "visitDurationMinutes",
+      "foodSelection", "foodCostMinVnd", "foodCostMaxVnd", "payAtVendorMinVnd", "payAtVendorMaxVnd",
+      "customerPayableVnd",
     ].sort());
     expect(result.value).not.toHaveProperty("catalog");
     expect(result.value).not.toHaveProperty("travel");

@@ -8,6 +8,7 @@ import {
   type DemoPlannerState,
   type PlannerAdapter,
 } from "@/lib/application/planner/demo-planner";
+import type { ItineraryPreviewFoodSelectionDto } from "@/lib/application/api/read-only-api";
 import {
   saveCustomRequestDraft,
 } from "@/lib/application/planner/custom-request-demo";
@@ -29,6 +30,16 @@ function formatVnd(value: number, locale: Locale): string {
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatVndRange(min: number, max: number, locale: Locale): string {
+  if (min === max) return formatVnd(min, locale);
+  return `${formatVnd(min, locale)}–${formatVnd(max, locale)}`;
+}
+
+function formatServingUnit(selection: ItineraryPreviewFoodSelectionDto, locale: Locale, labels: Record<ItineraryPreviewFoodSelectionDto["servingUnit"], string>): string {
+  const label = labels[selection.servingUnit];
+  return `${selection.quantity} ${label}${locale === "en" && selection.quantity !== 1 && selection.servingUnit !== "shared_set" ? "s" : ""}`;
 }
 
 function formatBudget(request: PersonalizationRequest, locale: Locale): string {
@@ -271,6 +282,28 @@ export function PlannerFlow({
                   <div><dt>{copy.travelDurationLabel}</dt><dd>{formatMinutes(item.travelMinutesBefore, locale)}</dd></div>
                   <div><dt>{copy.costLabel}</dt><dd>{formatVnd(item.travelCostVndBefore + item.placeCostVnd, locale)}</dd></div>
                 </dl>
+                {item.foodSelection ? (
+                  <section className="planner-food" aria-labelledby={`planner-food-${item.id}`}>
+                    <h4 id={`planner-food-${item.id}`}>{item.foodSelection.venueTitle}</h4>
+                    <dl className="planner-food__details">
+                      <div><dt>{copy.vendorLabel}</dt><dd>{item.foodSelection.vendorTitle}</dd></div>
+                      <div><dt>{copy.locationNoteLabel}</dt><dd>{item.foodSelection.locationNote}</dd></div>
+                      <div><dt>{copy.menuItemLabel}</dt><dd>{item.foodSelection.menuTitle}</dd></div>
+                      <div><dt>{copy.quantityLabel}</dt><dd>{formatServingUnit(item.foodSelection, locale, copy.servingUnitValues)}</dd></div>
+                      <div><dt>{copy.servingUnitLabel}</dt><dd>{copy.servingUnitValues[item.foodSelection.servingUnit]}</dd></div>
+                      <div><dt>{copy.unitPriceLabel}</dt><dd>{formatVndRange(item.foodSelection.priceVndMin, item.foodSelection.priceVndMax, locale)}</dd></div>
+                      <div><dt>{copy.estimatedRangeLabel}</dt><dd>{formatVndRange(item.foodCostMinVnd, item.foodCostMaxVnd, locale)}</dd></div>
+                      <div><dt>{copy.activityLabel}</dt><dd>{item.foodSelection.activity}</dd></div>
+                      <div><dt>{copy.dietaryAllergenLabel}</dt><dd>{item.foodSelection.dietaryAllergenCaveat}</dd></div>
+                      <div><dt>{copy.accessibilityWarningLabel}</dt><dd>{item.foodSelection.accessibilityVendorWarning}</dd></div>
+                      <div><dt>{copy.payAtVendorLabel}</dt><dd>{item.foodSelection.paymentMode === "pay_at_vendor" ? copy.payAtVendorValue : item.foodSelection.paymentMode}</dd></div>
+                    </dl>
+                  </section>
+                ) : item.foodCostMinVnd > 0 || item.foodCostMaxVnd > 0 ? (
+                  <p className="planner-food__unavailable">{copy.foodCostUnavailableLabel}</p>
+                ) : (
+                  <p className="planner-food__none">{copy.foodNotSelectedLabel}</p>
+                )}
               </article>
             </li>
           ))}
@@ -306,9 +339,24 @@ export function PlannerFlow({
         <div className="planner-flow__totals">
           <dl>
             <div><dt>{copy.totalDurationLabel}</dt><dd>{formatMinutes(state.current.totals.durationMinutes, locale)}</dd></div>
+            <div><dt>{copy.venueAdmissionLabel}</dt><dd>{formatVnd(state.current.totals.admissionCostVnd, locale)}</dd></div>
+            <div><dt>{copy.foodEstimateLabel}</dt><dd>{state.current.items.some((item) => item.foodSelection === null && (item.foodCostMinVnd > 0 || item.foodCostMaxVnd > 0))
+              ? copy.foodCostUnavailableLabel
+              : state.current.totals.foodCostMinVnd === 0 && state.current.totals.foodCostMaxVnd === 0
+                ? copy.foodNotSelectedLabel
+                : formatVndRange(state.current.totals.foodCostMinVnd, state.current.totals.foodCostMaxVnd, locale)}</dd></div>
+            <div><dt>{copy.travelCostTotalLabel}</dt><dd>{formatVnd(state.current.totals.travelCostVnd, locale)}</dd></div>
+            <div><dt>{copy.guideCostLabel}</dt><dd>{formatVnd(state.current.totals.guideCostVnd, locale)}</dd></div>
+            <div><dt>{copy.localLensPayableLabel}</dt><dd>{formatVnd(state.current.totals.customerPayableVnd, locale)}</dd></div>
+            <div><dt>{copy.payAtVendorLabel}</dt><dd>{state.current.totals.payAtVendorMinVnd === 0 && state.current.totals.payAtVendorMaxVnd === 0
+              ? formatVnd(0, locale)
+              : formatVndRange(state.current.totals.payAtVendorMinVnd, state.current.totals.payAtVendorMaxVnd, locale)}</dd></div>
             <div><dt>{copy.totalCostLabel}</dt><dd>{formatVnd(state.current.totals.costVnd, locale)}</dd></div>
           </dl>
         </div>
+        {state.preferences && state.preferences.budget.currency === "VND" && state.current.totals.groupCostMaxVnd > state.preferences.budget.amountMinor ? (
+          <p className="planner-flow__budget-warning" role="note" aria-label={copy.budgetWarningLabel}>{copy.budgetWarningMessage}</p>
+        ) : null}
       </article>
 
       <section className="planner-flow__checks" aria-labelledby="planner-warnings-heading">

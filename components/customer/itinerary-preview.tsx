@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import type { ItineraryPreviewDto } from "@/lib/application/api/read-only-api";
+import type { ItineraryPreviewDto, ItineraryPreviewFoodSelectionDto } from "@/lib/application/api/read-only-api";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 
@@ -29,6 +29,21 @@ function formatVnd(value: number, locale: Locale): string {
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatVndRange(min: number, max: number, locale: Locale): string {
+  if (min === max) return formatVnd(min, locale);
+  return `${formatVnd(min, locale)}–${formatVnd(max, locale)}`;
+}
+
+function formatServingUnit(
+  value: ItineraryPreviewFoodSelectionDto["servingUnit"],
+  quantity: number,
+  locale: Locale,
+  labels: Record<string, string>,
+): string {
+  const label = labels[value] ?? value;
+  return `${quantity} ${label}${locale === "en" && quantity !== 1 && value !== "shared_set" ? "s" : ""}`;
 }
 
 export function ItineraryPreview({
@@ -115,10 +130,65 @@ export function ItineraryPreview({
                       <dd>{formatVnd(item.travelCostVndBefore, locale)}</dd>
                     </div>
                     <div>
-                      <dt>{copy.placeCostLabel}</dt>
+                      <dt>{copy.venueAdmissionLabel}</dt>
                       <dd>{formatVnd(item.placeCostVnd, locale)}</dd>
                     </div>
                   </dl>
+                  {item.foodSelection ? (
+                    <section className="itinerary-food" aria-labelledby={`itinerary-food-${item.placeId}`}>
+                      <h5 id={`itinerary-food-${item.placeId}`}>{item.foodSelection.venueTitle}</h5>
+                      <dl className="itinerary-food__details">
+                        <div>
+                          <dt>{copy.vendorLabel}</dt>
+                          <dd>{item.foodSelection.vendorTitle}</dd>
+                        </div>
+                        <div>
+                          <dt>{copy.locationNoteLabel}</dt>
+                          <dd>{item.foodSelection.locationNote}</dd>
+                        </div>
+                        <div>
+                          <dt>{copy.menuItemLabel}</dt>
+                          <dd>{item.foodSelection.menuTitle}</dd>
+                        </div>
+                        <div>
+                          <dt>{copy.quantityLabel}</dt>
+                          <dd>{formatServingUnit(item.foodSelection.servingUnit, item.foodSelection.quantity, locale, copy.servingUnitValues)}</dd>
+                        </div>
+                        <div>
+                          <dt>{copy.servingUnitLabel}</dt>
+                          <dd>{copy.servingUnitValues[item.foodSelection.servingUnit]}</dd>
+                        </div>
+                        <div>
+                          <dt>{copy.unitPriceLabel}</dt>
+                          <dd>{formatVndRange(item.foodSelection.priceVndMin, item.foodSelection.priceVndMax, locale)}</dd>
+                        </div>
+                        <div>
+                          <dt>{copy.estimatedRangeLabel}</dt>
+                          <dd>{formatVndRange(item.foodCostMinVnd, item.foodCostMaxVnd, locale)}</dd>
+                        </div>
+                        <div>
+                          <dt>{copy.activityLabel}</dt>
+                          <dd>{item.foodSelection.activity}</dd>
+                        </div>
+                        <div>
+                          <dt>{copy.dietaryAllergenLabel}</dt>
+                          <dd>{item.foodSelection.dietaryAllergenCaveat}</dd>
+                        </div>
+                        <div>
+                          <dt>{copy.accessibilityWarningLabel}</dt>
+                          <dd>{item.foodSelection.accessibilityVendorWarning}</dd>
+                        </div>
+                        <div>
+                          <dt>{copy.payAtVendorLabel}</dt>
+                          <dd>{item.foodSelection.paymentMode === "pay_at_vendor" ? copy.payAtVendorValue : item.foodSelection.paymentMode}</dd>
+                        </div>
+                      </dl>
+                    </section>
+                  ) : item.foodCostMinVnd > 0 || item.foodCostMaxVnd > 0 ? (
+                    <p className="itinerary-food__unavailable">{copy.foodCostUnavailableLabel}</p>
+                  ) : (
+                    <p className="itinerary-food__none">{copy.foodNotSelectedLabel}</p>
+                  )}
                 </article>
               </li>
             ))}
@@ -140,11 +210,46 @@ export function ItineraryPreview({
                 <dd>{formatMinutes(preview.totals.travelMinutes, locale)}</dd>
               </div>
               <div>
+                <dt>{copy.venueAdmissionLabel}</dt>
+                <dd>{formatVnd(preview.totals.admissionCostVnd, locale)}</dd>
+              </div>
+              <div>
+                <dt>{copy.foodEstimateLabel}</dt>
+                <dd>{preview.items.some((item) => item.foodSelection === null && (item.foodCostMinVnd > 0 || item.foodCostMaxVnd > 0))
+                  ? copy.foodCostUnavailableLabel
+                  : preview.totals.foodCostMinVnd === 0 && preview.totals.foodCostMaxVnd === 0
+                    ? copy.foodNotSelectedLabel
+                    : formatVndRange(preview.totals.foodCostMinVnd, preview.totals.foodCostMaxVnd, locale)}</dd>
+              </div>
+              <div>
+                <dt>{copy.travelCostTotalLabel}</dt>
+                <dd>{formatVnd(preview.totals.travelCostVnd, locale)}</dd>
+              </div>
+              <div>
+                <dt>{copy.guideCostLabel}</dt>
+                <dd>{formatVnd(preview.totals.guideCostVnd, locale)}</dd>
+              </div>
+              <div>
+                <dt>{copy.localLensPayableLabel}</dt>
+                <dd>{formatVnd(preview.totals.customerPayableVnd, locale)}</dd>
+              </div>
+              <div>
+                <dt>{copy.payAtVendorLabel}</dt>
+                <dd>{preview.totals.payAtVendorMinVnd === 0 && preview.totals.payAtVendorMaxVnd === 0
+                  ? formatVnd(0, locale)
+                  : formatVndRange(preview.totals.payAtVendorMinVnd, preview.totals.payAtVendorMaxVnd, locale)}</dd>
+              </div>
+              <div>
                 <dt>{copy.totalCostLabel}</dt>
                 <dd>{formatVnd(preview.totals.groupCostVnd, locale)}</dd>
               </div>
             </dl>
           </div>
+          {preview.totals.groupCostMaxVnd > preview.budgetVnd ? (
+            <p className="itinerary-preview__budget-warning" role="note" aria-label={copy.budgetWarningLabel}>
+              {copy.budgetWarningMessage}
+            </p>
+          ) : null}
         </>
       ) : null}
     </section>

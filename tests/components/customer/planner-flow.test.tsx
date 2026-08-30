@@ -30,6 +30,13 @@ describe("PlannerFlow", () => {
     expect(screen.getAllByTestId("planner-activity")).toHaveLength(3);
     expect(screen.getByText(copy.totalDurationLabel)).toBeInTheDocument();
     expect(screen.getByText(copy.totalCostLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.venueAdmissionLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.foodEstimateLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.travelCostTotalLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.guideCostLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.localLensPayableLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.payAtVendorLabel)).toBeInTheDocument();
+    expect(screen.getAllByText(copy.foodNotSelectedLabel)).toHaveLength(4);
     expect(screen.getByRole("heading", { name: copy.warningsHeading })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: copy.revisionHistoryHeading })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /book|đặt/i })).not.toBeInTheDocument();

@@ -10,6 +10,7 @@ import {
 import {
   readPersonalizationState,
 } from "@/lib/application/planner/personalization-session";
+import type { ItineraryPreviewFoodSelectionDto } from "@/lib/application/api/read-only-api";
 import type { Locale } from "@/lib/i18n/config";
 import type { CustomRequestCopy } from "@/lib/i18n/dictionaries";
 
@@ -22,6 +23,20 @@ function formatVnd(value: number, locale: Locale): string {
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatMinutes(value: number, locale: Locale): string {
+  return locale === "vi" ? `${value} phút` : `${value} min`;
+}
+
+function formatVndRange(min: number, max: number, locale: Locale): string {
+  if (min === max) return formatVnd(min, locale);
+  return `${formatVnd(min, locale)}–${formatVnd(max, locale)}`;
+}
+
+function formatServingUnit(selection: ItineraryPreviewFoodSelectionDto, locale: Locale, labels: Record<ItineraryPreviewFoodSelectionDto["servingUnit"], string>): string {
+  const label = labels[selection.servingUnit];
+  return `${selection.quantity} ${label}${locale === "en" && selection.quantity !== 1 && selection.servingUnit !== "shared_set" ? "s" : ""}`;
 }
 
 function samePreferences(left: CustomRequestDraft["preferences"], right: CustomRequestDraft["preferences"]): boolean {
@@ -92,9 +107,47 @@ export function CustomRequestFlow({
             <dl className="custom-request-flow__facts">
               <div><dt>{copy.revisionLabel}</dt><dd>{draft.revision}</dd></div>
               <div><dt>{copy.planIdLabel}</dt><dd><code>{draft.planId}</code></dd></div>
-              <div><dt>{copy.totalDurationLabel}</dt><dd>{draft.revisionSnapshot.totals.durationMinutes} min</dd></div>
+              <div><dt>{copy.totalDurationLabel}</dt><dd>{formatMinutes(draft.revisionSnapshot.totals.durationMinutes, locale)}</dd></div>
+              <div><dt>{copy.venueAdmissionLabel}</dt><dd>{formatVnd(draft.revisionSnapshot.totals.admissionCostVnd, locale)}</dd></div>
+              <div><dt>{copy.foodEstimateLabel}</dt><dd>{draft.revisionSnapshot.items.some((item) => item.foodSelection === null && (item.foodCostMinVnd > 0 || item.foodCostMaxVnd > 0))
+                ? copy.foodCostUnavailableLabel
+                : draft.revisionSnapshot.totals.foodCostMinVnd === 0 && draft.revisionSnapshot.totals.foodCostMaxVnd === 0
+                  ? copy.foodNotSelectedLabel
+                  : formatVndRange(draft.revisionSnapshot.totals.foodCostMinVnd, draft.revisionSnapshot.totals.foodCostMaxVnd, locale)}</dd></div>
+              <div><dt>{copy.travelCostTotalLabel}</dt><dd>{formatVnd(draft.revisionSnapshot.totals.travelCostVnd, locale)}</dd></div>
+              <div><dt>{copy.guideCostLabel}</dt><dd>{formatVnd(draft.revisionSnapshot.totals.guideCostVnd, locale)}</dd></div>
+              <div><dt>{copy.localLensPayableLabel}</dt><dd>{formatVnd(draft.revisionSnapshot.totals.customerPayableVnd, locale)}</dd></div>
+              <div><dt>{copy.payAtVendorLabel}</dt><dd>{draft.revisionSnapshot.totals.payAtVendorMinVnd === 0 && draft.revisionSnapshot.totals.payAtVendorMaxVnd === 0
+                ? formatVnd(0, locale)
+                : formatVndRange(draft.revisionSnapshot.totals.payAtVendorMinVnd, draft.revisionSnapshot.totals.payAtVendorMaxVnd, locale)}</dd></div>
               <div><dt>{copy.totalCostLabel}</dt><dd>{formatVnd(draft.revisionSnapshot.totals.costVnd, locale)}</dd></div>
             </dl>
+            <ol className="custom-request-flow__food-list">
+              {draft.revisionSnapshot.items.map((item) => (
+                <li key={item.id}>
+                  <h3>{item.title}</h3>
+                  {item.foodSelection ? (
+                    <dl className="custom-request-flow__facts">
+                      <div><dt>{copy.vendorLabel}</dt><dd>{item.foodSelection.vendorTitle}</dd></div>
+                      <div><dt>{copy.locationNoteLabel}</dt><dd>{item.foodSelection.locationNote}</dd></div>
+                      <div><dt>{copy.menuItemLabel}</dt><dd>{item.foodSelection.menuTitle}</dd></div>
+                      <div><dt>{copy.quantityLabel}</dt><dd>{formatServingUnit(item.foodSelection, locale, copy.servingUnitValues)}</dd></div>
+                      <div><dt>{copy.servingUnitLabel}</dt><dd>{copy.servingUnitValues[item.foodSelection.servingUnit]}</dd></div>
+                      <div><dt>{copy.unitPriceLabel}</dt><dd>{formatVndRange(item.foodSelection.priceVndMin, item.foodSelection.priceVndMax, locale)}</dd></div>
+                      <div><dt>{copy.estimatedRangeLabel}</dt><dd>{formatVndRange(item.foodCostMinVnd, item.foodCostMaxVnd, locale)}</dd></div>
+                      <div><dt>{copy.activityLabel}</dt><dd>{item.foodSelection.activity}</dd></div>
+                      <div><dt>{copy.dietaryAllergenLabel}</dt><dd>{item.foodSelection.dietaryAllergenCaveat}</dd></div>
+                      <div><dt>{copy.accessibilityWarningLabel}</dt><dd>{item.foodSelection.accessibilityVendorWarning}</dd></div>
+                      <div><dt>{copy.payAtVendorLabel}</dt><dd>{item.foodSelection.paymentMode === "pay_at_vendor" ? copy.payAtVendorValue : item.foodSelection.paymentMode}</dd></div>
+                    </dl>
+                  ) : item.foodCostMinVnd > 0 || item.foodCostMaxVnd > 0 ? (
+                    <p>{copy.foodCostUnavailableLabel}</p>
+                  ) : (
+                    <p>{copy.foodNotSelectedLabel}</p>
+                  )}
+                </li>
+              ))}
+            </ol>
           </section>
 
           {phase === "sign-in" ? (

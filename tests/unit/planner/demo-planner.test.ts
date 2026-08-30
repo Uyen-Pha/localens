@@ -37,6 +37,16 @@ describe("demo planner adapter", () => {
     expect(state.current.totals).toEqual({
       durationMinutes: 240,
       costVnd: 255_000,
+      admissionCostVnd: 200_000,
+      foodCostMinVnd: 0,
+      foodCostMaxVnd: 0,
+      travelCostVnd: 55_000,
+      guideCostVnd: 0,
+      payAtVendorMinVnd: 0,
+      payAtVendorMaxVnd: 0,
+      customerPayableVnd: 255_000,
+      groupCostMinVnd: 255_000,
+      groupCostMaxVnd: 255_000,
     });
     expect(state.current.warnings).toContain(
       "Demo proposal only: operating hours and availability still require company confirmation.",

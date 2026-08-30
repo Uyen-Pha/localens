@@ -1,5 +1,9 @@
 import type { Locale } from "@/lib/i18n/config";
-import { createReadOnlyApi, type ItineraryPreviewItemDto } from "@/lib/application/api/read-only-api";
+import {
+  createReadOnlyApi,
+  type ItineraryPreviewFoodSelectionDto,
+  type ItineraryPreviewItemDto,
+} from "@/lib/application/api/read-only-api";
 import {
   toItineraryRequest,
   type PersonalizationRequest,
@@ -17,12 +21,28 @@ export type DemoPlannerItem = Readonly<{
   transitionBufferMinutesBefore: 0 | 10;
   travelCostVndBefore: number;
   placeCostVnd: number;
+  foodSelection: ItineraryPreviewFoodSelectionDto | null;
+  foodCostMinVnd: number;
+  foodCostMaxVnd: number;
+  payAtVendorMinVnd: number;
+  payAtVendorMaxVnd: number;
+  customerPayableVnd: number;
   locked: boolean;
 }>;
 
 export type DemoPlannerTotals = Readonly<{
   durationMinutes: number;
   costVnd: number;
+  admissionCostVnd: number;
+  foodCostMinVnd: number;
+  foodCostMaxVnd: number;
+  travelCostVnd: number;
+  guideCostVnd: number;
+  payAtVendorMinVnd: number;
+  payAtVendorMaxVnd: number;
+  customerPayableVnd: number;
+  groupCostMinVnd: number;
+  groupCostMaxVnd: number;
 }>;
 
 export type DemoPlannerRevision = Readonly<{
@@ -102,6 +122,12 @@ const INITIAL_ITEM_FACTS = [
     transitionBufferMinutesBefore: 0,
     travelCostVndBefore: 0,
     placeCostVnd: 80_000,
+    foodSelection: null,
+    foodCostMinVnd: 0,
+    foodCostMaxVnd: 0,
+    payAtVendorMinVnd: 0,
+    payAtVendorMaxVnd: 0,
+    customerPayableVnd: 80_000,
     locked: false,
   },
   {
@@ -122,6 +148,12 @@ const INITIAL_ITEM_FACTS = [
     transitionBufferMinutesBefore: 10,
     travelCostVndBefore: 25_000,
     placeCostVnd: 120_000,
+    foodSelection: null,
+    foodCostMinVnd: 0,
+    foodCostMaxVnd: 0,
+    payAtVendorMinVnd: 0,
+    payAtVendorMaxVnd: 0,
+    customerPayableVnd: 145_000,
     locked: false,
   },
   {
@@ -134,14 +166,20 @@ const INITIAL_ITEM_FACTS = [
       vi: "Ẩm thực đường phố Quận 1",
     },
     activity: {
-      en: "Taste a small selection of everyday Saigon dishes and compare local flavors.",
-      vi: "Thưởng thức một số món ăn đời thường và so sánh hương vị địa phương.",
+      en: "Explore the area; no vendor or menu item has been selected for this demo stop.",
+      vi: "Khám phá khu vực; điểm dừng demo này chưa chọn nhà bán hàng hay món cụ thể.",
     },
     visitDurationMinutes: 65,
     travelMinutesBefore: 10,
     transitionBufferMinutesBefore: 10,
     travelCostVndBefore: 30_000,
     placeCostVnd: 0,
+    foodSelection: null,
+    foodCostMinVnd: 0,
+    foodCostMaxVnd: 0,
+    payAtVendorMinVnd: 0,
+    payAtVendorMaxVnd: 0,
+    customerPayableVnd: 30_000,
     locked: false,
   },
 ] as const;
@@ -151,16 +189,34 @@ function cloneItem(item: DemoPlannerItem, locked = item.locked): DemoPlannerItem
 }
 
 function totalsFor(items: readonly DemoPlannerItem[]): DemoPlannerTotals {
+  const admissionCostVnd = items.reduce((total, item) => total + item.placeCostVnd, 0);
+  const foodCostMinVnd = items.reduce((total, item) => total + item.foodCostMinVnd, 0);
+  const foodCostMaxVnd = items.reduce((total, item) => total + item.foodCostMaxVnd, 0);
+  const travelCostVnd = items.reduce((total, item) => total + item.travelCostVndBefore, 0);
+  const payAtVendorMinVnd = items.reduce((total, item) => total + item.payAtVendorMinVnd, 0);
+  const payAtVendorMaxVnd = items.reduce((total, item) => total + item.payAtVendorMaxVnd, 0);
+  const customerPayableVnd = items.reduce((total, item) => total + item.customerPayableVnd, 0);
+  const groupCostMinVnd = admissionCostVnd + foodCostMinVnd + travelCostVnd;
+  const groupCostMaxVnd = admissionCostVnd + foodCostMaxVnd + travelCostVnd;
   return {
     durationMinutes: items.reduce(
       (total, item) =>
         total + item.visitDurationMinutes + item.travelMinutesBefore + item.transitionBufferMinutesBefore,
       0,
     ),
-    costVnd: items.reduce(
-      (total, item) => total + item.travelCostVndBefore + item.placeCostVnd,
-      0,
-    ),
+    // Keep the legacy quote field scoped to what LocalLens collects. Food
+    // marked pay_at_vendor belongs only in the separate estimate fields.
+    costVnd: customerPayableVnd,
+    admissionCostVnd,
+    foodCostMinVnd,
+    foodCostMaxVnd,
+    travelCostVnd,
+    guideCostVnd: 0,
+    payAtVendorMinVnd,
+    payAtVendorMaxVnd,
+    customerPayableVnd,
+    groupCostMinVnd,
+    groupCostMaxVnd,
   };
 }
 
@@ -205,6 +261,12 @@ function mapPreviewItem(item: ItineraryPreviewItemDto, lockedStopIds: readonly s
     transitionBufferMinutesBefore: item.transitionBufferMinutesBefore,
     travelCostVndBefore: item.travelCostVndBefore,
     placeCostVnd: item.placeCostVnd,
+    foodSelection: item.foodSelection,
+    foodCostMinVnd: item.foodCostMinVnd,
+    foodCostMaxVnd: item.foodCostMaxVnd,
+    payAtVendorMinVnd: item.payAtVendorMinVnd,
+    payAtVendorMaxVnd: item.payAtVendorMaxVnd,
+    customerPayableVnd: item.customerPayableVnd,
     locked: lockedStopIds.includes(item.placeId),
   };
 }
@@ -222,7 +284,7 @@ function generatedItems(
   const totals = totalsFor(items);
   if (
     totals.durationMinutes > preferences.durationMinutes ||
-    totals.costVnd > result.value.budgetVnd
+    totals.groupCostMaxVnd > result.value.budgetVnd
   ) {
     return { items: [], warning: PLANNER_COPY[locale].noProposal };
   }
@@ -256,9 +318,9 @@ function shiftedItems(
 function initialState(locale: Locale = "en", preferences?: PersonalizationRequest | null): DemoPlannerState {
   const fixtureItems = preferences === undefined
     ? shiftedItems(INITIAL_ITEM_FACTS.map((item) => ({
-      ...item,
-      title: item.title[locale],
-      activity: item.activity[locale],
+        ...item,
+        title: item.title[locale],
+        activity: item.activity[locale],
     })), null)
     : [];
   const generated = preferences === undefined
@@ -305,8 +367,8 @@ function adjustedActivity(feedback: string, locale: Locale): string {
   const normalized = feedback.toLocaleLowerCase("en-US");
   if (normalized.includes("food") || normalized.includes("ẩm thực")) {
     return locale === "vi"
-      ? "Thêm thời gian thưởng thức chậm rãi và so sánh hương vị đời thường cùng người địa phương."
-      : "Add a slower tasting moment and compare everyday Saigon flavors with a local host.";
+      ? "Giữ lựa chọn món ăn ở trạng thái tuỳ chọn; demo này chưa chọn nhà bán hàng hay món cụ thể."
+      : "Keep food optional; this demo has no selected vendor or menu item.";
   }
   if (normalized.includes("history") || normalized.includes("lịch sử")) {
     return locale === "vi"

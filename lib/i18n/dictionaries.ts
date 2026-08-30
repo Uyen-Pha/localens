@@ -29,6 +29,34 @@ export type CustomRequestCopy = {
   planIdLabel: string;
   totalDurationLabel: string;
   totalCostLabel: string;
+  venueAdmissionLabel: string;
+  foodEstimateLabel: string;
+  travelCostTotalLabel: string;
+  guideCostLabel: string;
+  localLensPayableLabel: string;
+  payAtVendorLabel: string;
+  payAtVendorValue: string;
+  foodNotSelectedLabel: string;
+  foodCostUnavailableLabel: string;
+  budgetWarningLabel: string;
+  budgetWarningMessage: string;
+  vendorLabel: string;
+  menuItemLabel: string;
+  locationNoteLabel: string;
+  quantityLabel: string;
+  servingUnitLabel: string;
+  servingUnitValues: {
+    portion: string;
+    bowl: string;
+    piece: string;
+    drink: string;
+    shared_set: string;
+  };
+  unitPriceLabel: string;
+  estimatedRangeLabel: string;
+  activityLabel: string;
+  dietaryAllergenLabel: string;
+  accessibilityWarningLabel: string;
   requestHeading: string;
   requestIntro: string;
   submitRequestLabel: string;
@@ -87,6 +115,33 @@ export type PlannerCopy = {
   costLabel: string;
   totalDurationLabel: string;
   totalCostLabel: string;
+  venueAdmissionLabel: string;
+  foodEstimateLabel: string;
+  travelCostTotalLabel: string;
+  guideCostLabel: string;
+  localLensPayableLabel: string;
+  payAtVendorLabel: string;
+  payAtVendorValue: string;
+  foodNotSelectedLabel: string;
+  foodCostUnavailableLabel: string;
+  budgetWarningLabel: string;
+  budgetWarningMessage: string;
+  vendorLabel: string;
+  menuItemLabel: string;
+  locationNoteLabel: string;
+  quantityLabel: string;
+  servingUnitLabel: string;
+  servingUnitValues: {
+    portion: string;
+    bowl: string;
+    piece: string;
+    drink: string;
+    shared_set: string;
+  };
+  unitPriceLabel: string;
+  estimatedRangeLabel: string;
+  dietaryAllergenLabel: string;
+  accessibilityWarningLabel: string;
   warningsHeading: string;
   revisionHistoryHeading: string;
   noHistoryLabel: string;
@@ -234,6 +289,34 @@ export type Dictionary = {
         totalVisitLabel: string;
         totalTravelLabel: string;
         totalCostLabel: string;
+        venueAdmissionLabel: string;
+        foodEstimateLabel: string;
+        travelCostTotalLabel: string;
+        guideCostLabel: string;
+        localLensPayableLabel: string;
+        payAtVendorLabel: string;
+        payAtVendorValue: string;
+        foodNotSelectedLabel: string;
+        foodCostUnavailableLabel: string;
+        budgetWarningLabel: string;
+        budgetWarningMessage: string;
+        vendorLabel: string;
+        menuItemLabel: string;
+        locationNoteLabel: string;
+        quantityLabel: string;
+        servingUnitLabel: string;
+        servingUnitValues: {
+          portion: string;
+          bowl: string;
+          piece: string;
+          drink: string;
+          shared_set: string;
+        };
+        unitPriceLabel: string;
+        estimatedRangeLabel: string;
+        activityLabel: string;
+        dietaryAllergenLabel: string;
+        accessibilityWarningLabel: string;
         warningMessage: string;
         errorMessage: string;
         retryableMessage: string;
@@ -531,6 +614,28 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
         totalVisitLabel: "Time visiting",
         totalTravelLabel: "Time travelling",
         totalCostLabel: "Group cost",
+        venueAdmissionLabel: "Venue/admission",
+        foodEstimateLabel: "Food estimate",
+        travelCostTotalLabel: "Travel",
+        guideCostLabel: "Guide",
+        localLensPayableLabel: "LocalLens payable",
+        payAtVendorLabel: "Pay at vendor",
+        payAtVendorValue: "Pay directly at vendors",
+        foodNotSelectedLabel: "Food not selected",
+        foodCostUnavailableLabel: "Food cost unavailable",
+        budgetWarningLabel: "Budget warning",
+        budgetWarningMessage: "The upper-bound estimate exceeds your budget.",
+        vendorLabel: "Vendor/stall",
+        menuItemLabel: "Menu item",
+        locationNoteLabel: "Location",
+        quantityLabel: "Quantity",
+        servingUnitLabel: "Serving unit",
+        servingUnitValues: { portion: "portion", bowl: "bowl", piece: "piece", drink: "drink", shared_set: "shared set" },
+        unitPriceLabel: "Price per unit",
+        estimatedRangeLabel: "Estimated group range",
+        activityLabel: "Activity",
+        dietaryAllergenLabel: "Dietary/allergen caveat",
+        accessibilityWarningLabel: "Accessibility/vendor warning",
         warningMessage: "This proposal includes a transition buffer between stops.",
         errorMessage: "The demo preview could not build a route.",
         retryableMessage: "Please review your choices and try again.",
@@ -746,6 +851,28 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
         totalVisitLabel: "Thời gian tham quan",
         totalTravelLabel: "Thời gian di chuyển",
         totalCostLabel: "Chi phí cả nhóm",
+        venueAdmissionLabel: "Phí địa điểm/vé vào cửa",
+        foodEstimateLabel: "Ước tính đồ ăn",
+        travelCostTotalLabel: "Di chuyển",
+        guideCostLabel: "Hướng dẫn viên",
+        localLensPayableLabel: "Khoản trả cho LocalLens",
+        payAtVendorLabel: "Thanh toán tại điểm bán",
+        payAtVendorValue: "Tự thanh toán trực tiếp cho các điểm bán",
+        foodNotSelectedLabel: "Chưa chọn món ăn",
+        foodCostUnavailableLabel: "Chưa có thông tin chi phí đồ ăn",
+        budgetWarningLabel: "Cảnh báo ngân sách",
+        budgetWarningMessage: "Ước tính ở mức cao nhất vượt quá ngân sách của bạn.",
+        vendorLabel: "Nhà bán hàng/quầy",
+        menuItemLabel: "Món trong thực đơn",
+        locationNoteLabel: "Vị trí",
+        quantityLabel: "Số lượng",
+        servingUnitLabel: "Đơn vị phần",
+        servingUnitValues: { portion: "phần", bowl: "tô", piece: "miếng", drink: "ly", shared_set: "set dùng chung" },
+        unitPriceLabel: "Giá mỗi đơn vị",
+        estimatedRangeLabel: "Khoảng ước tính cho cả nhóm",
+        activityLabel: "Hoạt động",
+        dietaryAllergenLabel: "Lưu ý chế độ ăn/dị ứng",
+        accessibilityWarningLabel: "Cảnh báo tiếp cận/điểm bán",
         warningMessage: "Đề xuất này có thêm thời gian đệm giữa các điểm.",
         errorMessage: "Không thể tạo lịch trình từ bản demo.",
         retryableMessage: "Hãy kiểm tra lựa chọn và thử lại.",
@@ -795,6 +922,27 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     costLabel: "Estimated cost",
     totalDurationLabel: "Total time",
     totalCostLabel: "Estimated group cost",
+    venueAdmissionLabel: "Venue/admission",
+    foodEstimateLabel: "Food estimate",
+    travelCostTotalLabel: "Travel",
+    guideCostLabel: "Guide",
+    localLensPayableLabel: "LocalLens payable",
+    payAtVendorLabel: "Pay at vendor",
+    payAtVendorValue: "Pay directly at vendors",
+    foodNotSelectedLabel: "Food not selected",
+    foodCostUnavailableLabel: "Food cost unavailable",
+    budgetWarningLabel: "Budget warning",
+    budgetWarningMessage: "The upper-bound estimate exceeds your budget.",
+    vendorLabel: "Vendor/stall",
+    menuItemLabel: "Menu item",
+    locationNoteLabel: "Location",
+    quantityLabel: "Quantity",
+    servingUnitLabel: "Serving unit",
+    servingUnitValues: { portion: "portion", bowl: "bowl", piece: "piece", drink: "drink", shared_set: "shared set" },
+    unitPriceLabel: "Price per unit",
+    estimatedRangeLabel: "Estimated group range",
+    dietaryAllergenLabel: "Dietary/allergen caveat",
+    accessibilityWarningLabel: "Accessibility/vendor warning",
     warningsHeading: "Checks and warnings",
     revisionHistoryHeading: "Revision history",
     noHistoryLabel: "No refinements yet.",
@@ -853,6 +1001,27 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     costLabel: "Chi phí dự kiến",
     totalDurationLabel: "Tổng thời gian",
     totalCostLabel: "Chi phí nhóm dự kiến",
+    venueAdmissionLabel: "Phí địa điểm/vé vào cửa",
+    foodEstimateLabel: "Ước tính đồ ăn",
+    travelCostTotalLabel: "Di chuyển",
+    guideCostLabel: "Hướng dẫn viên",
+    localLensPayableLabel: "Khoản trả cho LocalLens",
+    payAtVendorLabel: "Thanh toán tại điểm bán",
+    payAtVendorValue: "Tự thanh toán trực tiếp cho các điểm bán",
+    foodNotSelectedLabel: "Chưa chọn món ăn",
+    foodCostUnavailableLabel: "Chưa có thông tin chi phí đồ ăn",
+    budgetWarningLabel: "Cảnh báo ngân sách",
+    budgetWarningMessage: "Ước tính ở mức cao nhất vượt quá ngân sách của bạn.",
+    vendorLabel: "Nhà bán hàng/quầy",
+    menuItemLabel: "Món trong thực đơn",
+    locationNoteLabel: "Vị trí",
+    quantityLabel: "Số lượng",
+    servingUnitLabel: "Đơn vị phần",
+    servingUnitValues: { portion: "phần", bowl: "tô", piece: "miếng", drink: "ly", shared_set: "set dùng chung" },
+    unitPriceLabel: "Giá mỗi đơn vị",
+    estimatedRangeLabel: "Khoảng ước tính cho cả nhóm",
+    dietaryAllergenLabel: "Lưu ý chế độ ăn/dị ứng",
+    accessibilityWarningLabel: "Cảnh báo tiếp cận/điểm bán",
     warningsHeading: "Kiểm tra và cảnh báo",
     revisionHistoryHeading: "Lịch sử điều chỉnh",
     noHistoryLabel: "Chưa có lần điều chỉnh nào.",
@@ -894,6 +1063,28 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
     planIdLabel: "Plan ID",
     totalDurationLabel: "Estimated duration",
     totalCostLabel: "Estimated group cost",
+    venueAdmissionLabel: "Venue/admission",
+    foodEstimateLabel: "Food estimate",
+    travelCostTotalLabel: "Travel",
+    guideCostLabel: "Guide",
+    localLensPayableLabel: "LocalLens payable",
+    payAtVendorLabel: "Pay at vendor",
+    payAtVendorValue: "Pay directly at vendors",
+    foodNotSelectedLabel: "Food not selected",
+    foodCostUnavailableLabel: "Food cost unavailable",
+    budgetWarningLabel: "Budget warning",
+    budgetWarningMessage: "The upper-bound estimate exceeds your budget.",
+    vendorLabel: "Vendor/stall",
+    menuItemLabel: "Menu item",
+    locationNoteLabel: "Location",
+    quantityLabel: "Quantity",
+    servingUnitLabel: "Serving unit",
+    servingUnitValues: { portion: "portion", bowl: "bowl", piece: "piece", drink: "drink", shared_set: "shared set" },
+    unitPriceLabel: "Price per unit",
+    estimatedRangeLabel: "Estimated group range",
+    activityLabel: "Activity",
+    dietaryAllergenLabel: "Dietary/allergen caveat",
+    accessibilityWarningLabel: "Accessibility/vendor warning",
     requestHeading: "Submit for local admin review",
     requestIntro: "This action only changes local screen state; it does not contact an admin or create a booking.",
     submitRequestLabel: "Submit local demo request",
@@ -931,6 +1122,28 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
     planIdLabel: "Mã lịch trình",
     totalDurationLabel: "Thời lượng dự kiến",
     totalCostLabel: "Chi phí nhóm dự kiến",
+    venueAdmissionLabel: "Phí địa điểm/vé vào cửa",
+    foodEstimateLabel: "Ước tính đồ ăn",
+    travelCostTotalLabel: "Di chuyển",
+    guideCostLabel: "Hướng dẫn viên",
+    localLensPayableLabel: "Khoản trả cho LocalLens",
+    payAtVendorLabel: "Thanh toán tại điểm bán",
+    payAtVendorValue: "Tự thanh toán trực tiếp cho các điểm bán",
+    foodNotSelectedLabel: "Chưa chọn món ăn",
+    foodCostUnavailableLabel: "Chưa có thông tin chi phí đồ ăn",
+    budgetWarningLabel: "Cảnh báo ngân sách",
+    budgetWarningMessage: "Ước tính ở mức cao nhất vượt quá ngân sách của bạn.",
+    vendorLabel: "Nhà bán hàng/quầy",
+    menuItemLabel: "Món trong thực đơn",
+    locationNoteLabel: "Vị trí",
+    quantityLabel: "Số lượng",
+    servingUnitLabel: "Đơn vị phần",
+    servingUnitValues: { portion: "phần", bowl: "tô", piece: "miếng", drink: "ly", shared_set: "set dùng chung" },
+    unitPriceLabel: "Giá mỗi đơn vị",
+    estimatedRangeLabel: "Khoảng ước tính cho cả nhóm",
+    activityLabel: "Hoạt động",
+    dietaryAllergenLabel: "Lưu ý chế độ ăn/dị ứng",
+    accessibilityWarningLabel: "Cảnh báo tiếp cận/điểm bán",
     requestHeading: "Gửi để admin demo xem xét",
     requestIntro: "Thao tác này chỉ đổi trạng thái trên màn hình cục bộ; không liên hệ admin và không tạo đặt tour.",
     submitRequestLabel: "Gửi yêu cầu demo cục bộ",

@@ -27,6 +27,12 @@ const preview: ItineraryPreviewDto = {
       transitionBufferMinutesBefore: 0,
       travelCostVndBefore: 0,
       placeCostVnd: 80_000,
+      foodSelection: null,
+      foodCostMinVnd: 0,
+      foodCostMaxVnd: 0,
+      payAtVendorMinVnd: 0,
+      payAtVendorMaxVnd: 0,
+      customerPayableVnd: 80_000,
       score: 4.5,
     },
     {
@@ -39,6 +45,12 @@ const preview: ItineraryPreviewDto = {
       transitionBufferMinutesBefore: 10,
       travelCostVndBefore: 25_000,
       placeCostVnd: 150_000,
+      foodSelection: null,
+      foodCostMinVnd: 0,
+      foodCostMaxVnd: 0,
+      payAtVendorMinVnd: 0,
+      payAtVendorMaxVnd: 0,
+      customerPayableVnd: 175_000,
       score: 4.2,
     },
   ],
@@ -81,6 +93,85 @@ describe("ItineraryPreview", () => {
     expect(screen.getByText(copy.deterministicDisclosure)).toBeInTheDocument();
     expect(screen.getByText(copy.proposalOnly)).toBeInTheDocument();
     expect(screen.getByRole("note")).toHaveTextContent(copy.warningMessage);
+    expect(screen.getAllByText(copy.foodNotSelectedLabel)).toHaveLength(3);
+    expect(screen.getAllByText(copy.venueAdmissionLabel)).toHaveLength(3);
+    expect(screen.getByText(copy.foodEstimateLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.travelCostTotalLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.guideCostLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.localLensPayableLabel)).toBeInTheDocument();
+    expect(screen.getByText(copy.payAtVendorLabel)).toBeInTheDocument();
+  });
+
+  it("renders exact vendor facts and warns when the upper food estimate exceeds budget", () => {
+    const copy = getDictionary("en").home.personalizationForm.preview;
+    const selectedPreview: ItineraryPreviewDto = {
+      ...preview,
+      budgetVnd: 100_000,
+      items: [{
+        ...preview.items[0]!,
+        placeTitle: "Ben Thanh Market",
+        placeCostVnd: 0,
+        foodSelection: {
+          venueTitle: "Ben Thanh Market",
+          vendorTitle: "Bún bò Cô Ba",
+          locationNote: "Aisle 4, west gate",
+          menuTitle: "Bún bò Huế",
+          servingUnit: "bowl",
+          quantity: 2,
+          priceVndMin: 45_000,
+          priceVndMax: 60_000,
+          activity: "Taste and discuss the selected dish.",
+          dietaryAllergenCaveat: "Peanuts: confirm with vendor.",
+          accessibilityVendorWarning: "Step-free access not confirmed.",
+          paymentMode: "pay_at_vendor",
+        },
+        foodCostMinVnd: 90_000,
+        foodCostMaxVnd: 120_000,
+        payAtVendorMinVnd: 90_000,
+        payAtVendorMaxVnd: 120_000,
+        customerPayableVnd: 0,
+      }],
+      totals: {
+        ...preview.totals,
+        admissionCostVnd: 0,
+        foodCostMinVnd: 90_000,
+        foodCostMaxVnd: 120_000,
+        travelCostVnd: 25_000,
+        guideCostVnd: 0,
+        payAtVendorMinVnd: 90_000,
+        payAtVendorMaxVnd: 120_000,
+        customerPayableVnd: 25_000,
+        groupCostMinVnd: 115_000,
+        groupCostMaxVnd: 145_000,
+        groupCostVnd: 145_000,
+      },
+    };
+
+    render(<ItineraryPreview locale="en" copy={copy} preview={selectedPreview} />);
+
+    expect(screen.getByText("Bún bò Cô Ba")).toBeInTheDocument();
+    expect(screen.getByText("Bún bò Huế")).toBeInTheDocument();
+    expect(screen.getByText("Aisle 4, west gate")).toBeInTheDocument();
+    expect(screen.getByText(/2 bowls?/i)).toBeInTheDocument();
+    expect(screen.getByText("₫45,000–₫60,000")).toBeInTheDocument();
+    expect(screen.getByText("Peanuts: confirm with vendor.")).toBeInTheDocument();
+    expect(screen.getByText("Step-free access not confirmed.")).toBeInTheDocument();
+    expect(screen.getByText(copy.payAtVendorValue)).toBeInTheDocument();
+    expect(screen.getByRole("note", { name: copy.budgetWarningLabel })).toHaveTextContent(copy.budgetWarningMessage);
+  });
+
+  it("distinguishes unavailable food cost from an explicit no-food stop", () => {
+    const copy = getDictionary("vi").home.personalizationForm.preview;
+    const unavailable: ItineraryPreviewDto = {
+      ...preview,
+      items: [{ ...preview.items[0]!, foodSelection: null, foodCostMinVnd: 1, foodCostMaxVnd: 2 }],
+      totals: { ...preview.totals, foodCostMinVnd: 1, foodCostMaxVnd: 2 },
+    };
+
+    render(<ItineraryPreview locale="vi" copy={copy} preview={unavailable} />);
+
+    expect(screen.getAllByText(copy.foodCostUnavailableLabel)).toHaveLength(2);
+    expect(screen.queryByText(copy.foodNotSelectedLabel)).not.toBeInTheDocument();
   });
 
   it("renders a localized retryable API error with correlation context", () => {

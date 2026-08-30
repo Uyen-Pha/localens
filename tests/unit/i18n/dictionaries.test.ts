@@ -30,6 +30,42 @@ describe("localized dictionaries", () => {
     expect(dictionary.navigation.planTrip).toBe("Lên kế hoạch chuyến đi");
   });
 
+  it("contains complete customer food and payment-split copy in both locales", () => {
+    for (const locale of ["en", "vi"] as const) {
+      const preview = getDictionary(locale).home.personalizationForm.preview;
+      const planner = getDictionary(locale).planner;
+      const customRequest = getDictionary(locale).customRequest;
+
+      for (const value of [
+        preview.vendorLabel,
+        preview.menuItemLabel,
+        preview.quantityLabel,
+        preview.estimatedRangeLabel,
+        preview.payAtVendorLabel,
+        preview.foodCostUnavailableLabel,
+        preview.foodNotSelectedLabel,
+        preview.budgetWarningMessage,
+        planner.vendorLabel,
+        planner.menuItemLabel,
+        planner.quantityLabel,
+        planner.estimatedRangeLabel,
+        planner.payAtVendorLabel,
+        planner.foodCostUnavailableLabel,
+        planner.foodNotSelectedLabel,
+        customRequest.vendorLabel,
+        customRequest.menuItemLabel,
+        customRequest.quantityLabel,
+        customRequest.estimatedRangeLabel,
+        customRequest.payAtVendorLabel,
+        customRequest.foodCostUnavailableLabel,
+        customRequest.foodNotSelectedLabel,
+      ]) {
+        expect(value).toEqual(expect.any(String));
+        expect(value.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it("requires the typed locale boundary", () => {
     expectTypeOf(getDictionary)
       .parameter(0)
