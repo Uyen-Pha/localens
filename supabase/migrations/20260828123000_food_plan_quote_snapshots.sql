@@ -382,6 +382,7 @@ BEGIN
           AND food_items.place_id = (result_item->>'placeId')::uuid
           AND vendors.place_id = (result_item->>'placeId')::uuid
           AND food_items.status = 'published'::public.place_status
+          AND food_items.available IS TRUE
           AND vendors.status = 'published'::public.place_status
           AND food_items.price_vnd_min = price_min::bigint
           AND food_items.price_vnd_max = price_max::bigint
@@ -725,6 +726,14 @@ DECLARE
   checkout_amount numeric;
   localens_payable numeric;
   authority_time timestamptz;
+  result_totals jsonb;
+  totals_key text;
+  food_total_material boolean := false;
+  food_selection_count integer := 0;
+  food_total_keys constant text[] := ARRAY[
+    'foodCostMinVnd', 'foodCostMaxVnd', 'payAtVendorMinVnd',
+    'payAtVendorMaxVnd', 'customerPayableVnd'
+  ];
 BEGIN
   IF actor_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles WHERE user_id = actor_user_id AND role = 'admin'::public.app_role
@@ -833,6 +842,7 @@ BEGIN
         AND items.vendor_id = (selection->>'vendorId')::uuid
         AND items.place_id = (selected_item->>'placeId')::uuid
         AND items.status = 'published'::public.place_status
+        AND items.available IS TRUE
         AND ((items.serving_unit = 'shared_set' AND food_quantity = 1)
              OR (items.serving_unit <> 'shared_set'
                  AND food_quantity = (revision_row.request_json->>'partySize')::numeric))
@@ -846,6 +856,7 @@ BEGIN
       AND food_items_translated.price_min::numeric = (selection->>'priceVndMin')::numeric
       AND food_items_translated.price_max::numeric = (selection->>'priceVndMax')::numeric;
     IF NOT FOUND THEN RAISE EXCEPTION 'food quote snapshot source unavailable' USING ERRCODE = 'P0001'; END IF;
+    food_selection_count := food_selection_count + 1;
     food_min := food_min + food_price_min * food_quantity;
     food_max := food_max + food_price_max * food_quantity;
     food_snapshot_value := food_snapshot_value || jsonb_build_array(jsonb_build_object(
@@ -860,21 +871,47 @@ BEGIN
   IF food_min > 9007199254740991 OR food_max > 9007199254740991 THEN
     RAISE EXCEPTION 'food quote snapshot overflow' USING ERRCODE = '22003';
   END IF;
-  IF revision_row.result_json->'totals' ? 'foodCostMinVnd' THEN
-    IF (revision_row.result_json->'totals'->>'foodCostMinVnd')::numeric <> food_min
-       OR (revision_row.result_json->'totals'->>'foodCostMaxVnd')::numeric <> food_max
-       OR (revision_row.result_json->'totals'->>'payAtVendorMinVnd')::numeric <> food_min
-       OR (revision_row.result_json->'totals'->>'payAtVendorMaxVnd')::numeric <> food_max THEN
+  result_totals := revision_row.result_json->'totals';
+  IF (revision_row.result_json ? 'totals')
+     AND jsonb_typeof(result_totals) IS DISTINCT FROM 'object' THEN
+    RAISE EXCEPTION 'food quote totals must be an object' USING ERRCODE = 'P0001';
+  END IF;
+  food_total_material := result_totals IS NOT NULL AND EXISTS (
+    SELECT 1 FROM jsonb_object_keys(result_totals) AS keys(key_name)
+    WHERE key_name = ANY(food_total_keys)
+  );
+  IF food_total_material THEN
+    IF (SELECT count(*) FROM jsonb_object_keys(result_totals) AS keys(key_name)
+        WHERE key_name = ANY(food_total_keys)) <> cardinality(food_total_keys)
+       OR EXISTS (SELECT 1 FROM unnest(food_total_keys) AS keys(key_name)
+                  WHERE NOT (result_totals ? key_name)) THEN
+      RAISE EXCEPTION 'food totals material requires exact keys' USING ERRCODE = 'P0001';
+    END IF;
+    FOREACH totals_key IN ARRAY food_total_keys LOOP
+      IF jsonb_typeof(result_totals->totals_key) IS DISTINCT FROM 'number'
+         OR result_totals->>totals_key !~ '^(?:0|[1-9][0-9]*)$'
+         OR length(result_totals->>totals_key) > 16
+         OR (length(result_totals->>totals_key) = 16
+             AND (result_totals->>totals_key)::numeric > 9007199254740991) THEN
+        RAISE EXCEPTION 'food quote total scalar is invalid' USING ERRCODE = 'P0001';
+      END IF;
+    END LOOP;
+    IF result_totals->>'foodCostMinVnd' IS DISTINCT FROM food_min::text
+       OR result_totals->>'foodCostMaxVnd' IS DISTINCT FROM food_max::text
+       OR result_totals->>'payAtVendorMinVnd' IS DISTINCT FROM food_min::text
+       OR result_totals->>'payAtVendorMaxVnd' IS DISTINCT FROM food_max::text THEN
       RAISE EXCEPTION 'food quote total mismatch' USING ERRCODE = 'P0001';
     END IF;
-    localens_payable := (revision_row.result_json->'totals'->>'customerPayableVnd')::numeric;
+    localens_payable := (result_totals->>'customerPayableVnd')::numeric;
+  ELSIF food_selection_count <> 0 THEN
+    RAISE EXCEPTION 'food quote totals are missing' USING ERRCODE = 'P0001';
   ELSE
     -- Historical museum/history revisions predate Task 9 and have no food
     -- material. Preserve their old quote behavior unchanged: the existing
     -- admin-provided quote amount remains the sellable LocalLens amount.
     localens_payable := p_amount_vnd_minor::numeric;
   END IF;
-  IF p_amount_vnd_minor::numeric <> localens_payable THEN
+  IF p_amount_vnd_minor::numeric IS DISTINCT FROM localens_payable THEN
     RAISE EXCEPTION 'quote amount must equal LocalLens payable amount' USING ERRCODE = 'P0001';
   END IF;
 

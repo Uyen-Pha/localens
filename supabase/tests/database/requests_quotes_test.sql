@@ -3,7 +3,7 @@
 -- fixtures and the authenticated JWT roles.
 BEGIN;
 
-SELECT plan(136);
+SELECT plan(164);
 
 RESET ROLE;
 DELETE FROM auth.users
@@ -49,6 +49,55 @@ ON CONFLICT (id) DO NOTHING;
 UPDATE public.travel_snapshots
 SET status = 'published'::public.snapshot_status, published_at = now()
 WHERE id = '00000000-0000-0000-0000-000000000812'::uuid;
+INSERT INTO public.catalog_snapshot_areas (snapshot_id, area_id, slug)
+VALUES ('00000000-0000-0000-0000-000000000811'::uuid, '00000000-0000-0000-0000-000000000817'::uuid, 'quote-test-area');
+INSERT INTO public.catalog_snapshot_places (
+  snapshot_id, place_id, area_id, slug, price_vnd_per_person,
+  visit_duration_minutes, source_url, verified_at, attribution
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000811'::uuid,
+  '00000000-0000-0000-0000-000000000816'::uuid,
+  '00000000-0000-0000-0000-000000000817'::uuid,
+  'quote-test-place', 100000, 60, 'https://example.invalid/quote-test-place', DATE '2026-08-22', 'fixture'
+);
+INSERT INTO public.catalog_snapshot_food_vendors (
+  snapshot_id, vendor_id, place_id, slug, status, service_type,
+  location_note, capacity_note, source_url, verified_at, attribution,
+  created_at, updated_at
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000811'::uuid,
+  '00000000-0000-0000-0000-000000000818'::uuid,
+  '00000000-0000-0000-0000-000000000816'::uuid,
+  'quote-food-vendor', 'published', 'shop', 'Ground floor', 'Small dining room',
+  'https://example.invalid/quote-food-vendor', DATE '2026-08-22', 'fixture', now(), now()
+);
+INSERT INTO public.catalog_snapshot_food_vendor_translations (
+  snapshot_id, vendor_id, locale, title, description
+)
+VALUES
+  ('00000000-0000-0000-0000-000000000811'::uuid, '00000000-0000-0000-0000-000000000818'::uuid, 'en', 'Quote Food Vendor', 'Fixture quote vendor'),
+  ('00000000-0000-0000-0000-000000000811'::uuid, '00000000-0000-0000-0000-000000000818'::uuid, 'vi', 'Quán Ăn Báo Giá', 'Nhà cung cấp báo giá');
+INSERT INTO public.catalog_snapshot_food_items (
+  snapshot_id, item_id, place_id, vendor_id, slug, status, serving_unit,
+  price_vnd_min, price_vnd_max, portion_description, available, allergens,
+  source_url, verified_at, attribution, created_at, updated_at
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000811'::uuid,
+  '00000000-0000-0000-0000-000000000819'::uuid,
+  '00000000-0000-0000-0000-000000000816'::uuid,
+  '00000000-0000-0000-0000-000000000818'::uuid,
+  'quote-food-item', 'published', 'bowl', 35000, 45000, 'One bowl', true, ARRAY[]::text[],
+  'https://example.invalid/quote-food-item', DATE '2026-08-22', 'fixture', now(), now()
+);
+INSERT INTO public.catalog_snapshot_food_item_translations (
+  snapshot_id, item_id, locale, title, description
+)
+VALUES
+  ('00000000-0000-0000-0000-000000000811'::uuid, '00000000-0000-0000-0000-000000000819'::uuid, 'en', 'Quote Noodle Bowl', 'Fixture quote item'),
+  ('00000000-0000-0000-0000-000000000811'::uuid, '00000000-0000-0000-0000-000000000819'::uuid, 'vi', 'Tô Mì Báo Giá', 'Món báo giá');
 INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)
 VALUES ('00000000-0000-0000-0000-000000000813'::uuid, 25000.00000000, 'task8-fixture', now(), 'demo', true)
 ON CONFLICT (id) DO NOTHING;
@@ -407,6 +456,121 @@ SELECT is((SELECT status FROM public.custom_quotes WHERE request_id = (SELECT id
 SELECT throws_ok($$UPDATE public.custom_quotes SET status = 'active'::public.quote_status WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid)$$, '42501', 'custom quote state transition is invalid', 'expired quote cannot reactivate');
 SELECT throws_ok($$UPDATE public.custom_quotes SET status = 'expired'::public.quote_status WHERE request_id = (SELECT id FROM public.custom_requests WHERE plan_id = '00000000-0000-0000-0000-000000000824'::uuid)$$, '42501', 'custom quote state transition is invalid', 'same quote state is rejected');
 SELECT set_config('localens.quote_transition', 'off', true);
+
+-- Task 9 food quote path: each quote is bound to an immutable revision and
+-- derives names, prices, quantity, payment mode, and evidence from the
+-- authoritative catalog snapshot.  Malformed or partial totals never reach
+-- quote persistence.
+RESET ROLE;
+CREATE TEMP TABLE task9_quote_variants ON COMMIT DROP AS
+WITH base AS (
+  SELECT jsonb_build_object(
+    'items', jsonb_build_array(jsonb_build_object(
+      'placeId', '00000000-0000-0000-0000-000000000816',
+      'foodSelection', jsonb_build_object(
+        'vendorId', '00000000-0000-0000-0000-000000000818',
+        'menuItemId', '00000000-0000-0000-0000-000000000819',
+        'quantity', 1, 'priceVndMin', 35000, 'priceVndMax', 45000,
+        'paymentMode', 'pay_at_vendor', 'activity', 'meal'
+      )
+    )),
+    'totals', jsonb_build_object(
+      'foodCostMinVnd', 35000, 'foodCostMaxVnd', 45000,
+      'payAtVendorMinVnd', 35000, 'payAtVendorMaxVnd', 45000,
+      'customerPayableVnd', 100000
+    )
+  ) AS result_json
+), variants(variant_no, result_json) AS (
+  SELECT 0, result_json FROM base
+  UNION ALL SELECT 1, result_json #- '{totals,foodCostMinVnd}' FROM base
+  UNION ALL SELECT 2, result_json #- '{totals,foodCostMaxVnd}' FROM base
+  UNION ALL SELECT 3, result_json #- '{totals,payAtVendorMinVnd}' FROM base
+  UNION ALL SELECT 4, result_json #- '{totals,payAtVendorMaxVnd}' FROM base
+  UNION ALL SELECT 5, result_json #- '{totals,customerPayableVnd}' FROM base
+  UNION ALL SELECT 6, jsonb_set(result_json, '{totals,foodCostMinVnd}', 'null'::jsonb, false) FROM base
+  UNION ALL SELECT 7, jsonb_set(result_json, '{totals,foodCostMaxVnd}', to_jsonb('45000'::text), false) FROM base
+  UNION ALL SELECT 8, jsonb_set(result_json, '{totals,foodCostMaxVnd}', to_jsonb(45001), false) FROM base
+  UNION ALL SELECT 9, result_json - 'totals' FROM base
+  UNION ALL SELECT 10, jsonb_set(result_json, '{items,0,foodSelection,paymentMode}', to_jsonb('included_in_quote'::text), false) FROM base
+)
+SELECT variant_no, result_json,
+  format('00000000-0000-0000-0000-%s', lpad((830 + variant_no * 3)::text, 12, '0'))::uuid AS plan_id,
+  format('00000000-0000-0000-0000-%s', lpad((831 + variant_no * 3)::text, 12, '0'))::uuid AS revision_id,
+  format('00000000-0000-0000-0000-%s', lpad((832 + variant_no * 3)::text, 12, '0'))::uuid AS request_id
+FROM variants;
+INSERT INTO public.trip_plans (id, owner_user_id, latest_revision_no)
+SELECT plan_id, '00000000-0000-0000-0000-000000000801'::uuid, 1
+FROM task9_quote_variants;
+INSERT INTO public.trip_plan_revisions (
+  id, plan_id, revision_no, base_revision_no, request_json, result_json,
+  fingerprint, ranking_source, catalog_snapshot_id, travel_snapshot_id,
+  fx_snapshot_id, fx_vnd_per_usd, currency, budget_vnd, total_cost_vnd,
+  total_duration_minutes, actor_user_id
+)
+SELECT revision_id, plan_id, 1, 0, '{"partySize":1}'::jsonb, result_json,
+  repeat(chr(97 + variant_no), 64), 'deterministic'::public.ranking_source,
+  '00000000-0000-0000-0000-000000000811'::uuid,
+  '00000000-0000-0000-0000-000000000812'::uuid,
+  NULL, NULL, 'VND'::public.currency_code, 200000, 135000, 60,
+  '00000000-0000-0000-0000-000000000801'::uuid
+FROM task9_quote_variants;
+INSERT INTO public.custom_requests (
+  id, plan_id, revision_id, revision_no, owner_user_id, status,
+  submitted_at, updated_at, created_at
+)
+SELECT request_id, plan_id, revision_id, 1,
+  '00000000-0000-0000-0000-000000000801'::uuid, 'draft'::public.request_status,
+  now(), now(), now()
+FROM task9_quote_variants;
+SET LOCAL ROLE localens_request_admin_rpc_owner;
+SELECT set_config('localens.request_transition', 'on', true);
+UPDATE public.custom_requests
+SET status = 'pending_review'::public.request_status
+WHERE plan_id IN (SELECT plan_id FROM task9_quote_variants);
+UPDATE public.custom_requests
+SET status = 'approved'::public.request_status
+WHERE plan_id IN (SELECT plan_id FROM task9_quote_variants);
+SELECT set_config('localens.request_transition', 'off', true);
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000802', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000802', 'role', 'admin')::text, true);
+SELECT is((SELECT status FROM public.create_custom_quote('00000000-0000-0000-0000-000000000832'::uuid, 100000, 'vnd'::public.checkout_currency, 'Food walk', 'Đi bộ ăn uống', 'Food policy')), 'active'::public.quote_status, 'food quote is created from the selected revision');
+SELECT is((SELECT food_snapshot->0->>'vendor_name_en' FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), 'Quote Food Vendor', 'food quote derives the English vendor name');
+SELECT is((SELECT food_snapshot->0->>'vendor_name_vi' FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), 'Quán Ăn Báo Giá', 'food quote derives the Vietnamese vendor name');
+SELECT is((SELECT food_snapshot->0->>'menu_item_name_en' FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), 'Quote Noodle Bowl', 'food quote derives the English menu name');
+SELECT is((SELECT food_snapshot->0->>'menu_item_name_vi' FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), 'Tô Mì Báo Giá', 'food quote derives the Vietnamese menu name');
+SELECT is((SELECT food_snapshot->0->>'quantity' FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), '1', 'food quote stores the authoritative quantity');
+SELECT is((SELECT food_snapshot->0->>'price_vnd_min' FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), '35000', 'food quote stores the authoritative minimum price');
+SELECT is((SELECT food_snapshot->0->>'price_vnd_max' FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), '45000', 'food quote stores the authoritative maximum price');
+SELECT is((SELECT food_snapshot->0->>'payment_mode' FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), 'pay_at_vendor', 'food quote stores only the accepted payment mode');
+SELECT is((SELECT food_snapshot->0->>'evidence_date' FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), '2026-08-22', 'food quote stores the catalog evidence date');
+SELECT is((SELECT food_estimate_min_vnd FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), 35000::bigint, 'food estimate minimum is stored separately');
+SELECT is((SELECT food_estimate_max_vnd FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), 45000::bigint, 'food estimate maximum is stored separately');
+SELECT is((SELECT pay_at_vendor_min_vnd FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), 35000::bigint, 'pay-at-vendor minimum is display-only');
+SELECT is((SELECT pay_at_vendor_max_vnd FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), 45000::bigint, 'pay-at-vendor maximum is display-only');
+SELECT is((SELECT amount_vnd_minor FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), 100000::bigint, 'quote amount is only the LocalLens payable amount');
+SELECT is((SELECT checkout_amount_minor FROM public.custom_quotes WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid), 100000::bigint, 'VND checkout excludes pay-at-vendor estimates');
+SELECT throws_ok($$UPDATE public.custom_quotes SET food_snapshot = '[{"payment_mode":"included_in_quote"}]'::jsonb WHERE request_id = '00000000-0000-0000-0000-000000000832'::uuid$$, '42501', 'custom quote commercial facts are immutable', 'food quote snapshot cannot be changed after creation');
+SELECT throws_ok($$SELECT public.create_custom_quote('00000000-0000-0000-0000-000000000862'::uuid, 100000, 'vnd'::public.checkout_currency, 'Included', 'Đã gồm', 'Food policy')$$, 'P0001', 'food quote snapshot rejected', 'included-in-quote food selections are rejected');
+SELECT throws_ok($$SELECT public.create_custom_quote('00000000-0000-0000-0000-000000000835'::uuid, 100000, 'vnd'::public.checkout_currency, 'Missing min', 'Thiếu min', 'Food policy')$$, 'P0001', 'food totals material requires exact keys', 'missing food minimum total is rejected by quote RPC');
+SELECT throws_ok($$SELECT public.create_custom_quote('00000000-0000-0000-0000-000000000838'::uuid, 100000, 'vnd'::public.checkout_currency, 'Missing max', 'Thiếu max', 'Food policy')$$, 'P0001', 'food totals material requires exact keys', 'missing food maximum total is rejected by quote RPC');
+SELECT throws_ok($$SELECT public.create_custom_quote('00000000-0000-0000-0000-000000000841'::uuid, 100000, 'vnd'::public.checkout_currency, 'Missing pay min', 'Thiếu pay min', 'Food policy')$$, 'P0001', 'food totals material requires exact keys', 'missing pay minimum total is rejected by quote RPC');
+SELECT throws_ok($$SELECT public.create_custom_quote('00000000-0000-0000-0000-000000000844'::uuid, 100000, 'vnd'::public.checkout_currency, 'Missing pay max', 'Thiếu pay max', 'Food policy')$$, 'P0001', 'food totals material requires exact keys', 'missing pay maximum total is rejected by quote RPC');
+SELECT throws_ok($$SELECT public.create_custom_quote('00000000-0000-0000-0000-000000000847'::uuid, 100000, 'vnd'::public.checkout_currency, 'Missing payable', 'Thiếu payable', 'Food policy')$$, 'P0001', 'food totals material requires exact keys', 'missing customer payable total is rejected by quote RPC');
+SELECT throws_ok($$SELECT public.create_custom_quote('00000000-0000-0000-0000-000000000850'::uuid, 100000, 'vnd'::public.checkout_currency, 'Null total', 'Null total', 'Food policy')$$, 'P0001', 'food quote total scalar is invalid', 'null food total is rejected by quote RPC');
+SELECT throws_ok($$SELECT public.create_custom_quote('00000000-0000-0000-0000-000000000853'::uuid, 100000, 'vnd'::public.checkout_currency, 'String total', 'String total', 'Food policy')$$, 'P0001', 'food quote total scalar is invalid', 'string food total is rejected by quote RPC');
+SELECT throws_ok($$SELECT public.create_custom_quote('00000000-0000-0000-0000-000000000856'::uuid, 100000, 'vnd'::public.checkout_currency, 'Mismatch total', 'Mismatch total', 'Food policy')$$, 'P0001', 'food quote total mismatch', 'mismatched food total is rejected by quote RPC');
+SELECT throws_ok($$SELECT public.create_custom_quote('00000000-0000-0000-0000-000000000859'::uuid, 100000, 'vnd'::public.checkout_currency, 'No totals', 'Geen totals', 'Food policy')$$, 'P0001', 'food quote totals are missing', 'food selection without totals is rejected by quote RPC');
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM public.custom_quotes WHERE request_id IN (
+  '00000000-0000-0000-0000-000000000835'::uuid, '00000000-0000-0000-0000-000000000838'::uuid,
+  '00000000-0000-0000-0000-000000000841'::uuid, '00000000-0000-0000-0000-000000000844'::uuid,
+  '00000000-0000-0000-0000-000000000847'::uuid, '00000000-0000-0000-0000-000000000850'::uuid,
+  '00000000-0000-0000-0000-000000000853'::uuid, '00000000-0000-0000-0000-000000000856'::uuid,
+  '00000000-0000-0000-0000-000000000859'::uuid, '00000000-0000-0000-0000-000000000862'::uuid
+)), 0, 'rejected food revisions create no quote rows');
 
 SELECT * FROM finish();
 ROLLBACK;

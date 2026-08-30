@@ -379,9 +379,21 @@ describe("trip-plan revision migration contract", () => {
     expect(foodPersistenceMigration).toMatch(/validate_food_plan_revision_dto/);
     expect(foodPersistenceMigration).toMatch(/food selection does not match immutable result/);
     expect(foodPersistenceMigration).toMatch(/food amount formula mismatch/);
+    expect(foodPersistenceMigration).toMatch(/food_items\.available\s+IS\s+TRUE/);
+    expect(foodPersistenceMigration).toMatch(/food totals material requires exact keys/);
     expect(foodPersistenceMigration).toMatch(/ALTER FUNCTION private\.persist_trip_plan_revision[\s\S]*OWNER TO localens_plan_rpc_owner/);
     expect(foodPersistenceMigration).toMatch(/SECURITY DEFINER[\s\S]*SET search_path = ''/);
     expect(foodPersistenceMigration).toMatch(/ON CONFLICT \(plan_id, revision_no\) DO NOTHING/);
+  });
+
+  it("keeps the executable food revision fixture plan exact", () => {
+    const assertions = databaseFixture.match(/^SELECT (?:ok|is|isnt|like|unlike|throws_ok|has_table_privilege|has_function_privilege)\(/gim) ?? [];
+    const planned = Number(databaseFixture.match(/SELECT plan\((\d+)\);/)?.[1]);
+    expect(assertions.length).toBe(planned);
+    expect(planned).toBe(112);
+    expect(databaseFixture).toMatch(/available, allergens/);
+    expect(databaseFixture).toMatch(/unavailable food items are rejected before persistence/);
+    expect(databaseFixture).toMatch(/missing food minimum total is rejected/);
   });
 
   it("defines owner-scoped plan/revision/item history with restrictive snapshot membership", () => {

@@ -54,3 +54,61 @@ This exact blocker was returned by both `pnpm db:test` and `pnpm db:lint`. There
 The migration keeps the existing immutable guards, snapshot binding, auth/RLS owners and grants, stale-revision CAS, idempotency, and museum quote path. Food selections are validated from the canonical Task 8 shape, only `pay_at_vendor` is accepted, snapshot quote facts are derived from the immutable revision and catalog snapshot, and Stripe checkout continues to consume only the server-owned LocalLens payable amount/currency. Decimal arithmetic uses PostgreSQL numeric and JavaScript BigInt checks with fail-closed bounds.
 
 Concern for the runtime gate: run `pnpm db:test` and `pnpm db:lint` with the pinned Supabase CLI and a local container runtime before production readiness is claimed.
+
+## Fix round 1/5 — unavailable catalog items and fail-closed quote totals
+
+### Status
+
+`DONE_WITH_CONCERNS`: the two reported SQL root causes are fixed and regression fixtures/static checks pass. PostgreSQL/pgTAP execution remains blocked by the workstation runtime gate.
+
+### Root causes fixed
+
+- The revision validator and quote snapshot source now require both `status = 'published'` and `available IS TRUE` for food items.
+- Quote validation now distinguishes wholly absent legacy food material from partial food material. Any food total key activates an exact five-key guard; every required value must be a non-null JSON number, an integer decimal string, and within the safe bound before casts. Food totals, source totals, and the LocalLens payable amount use explicit `IS DISTINCT FROM` checks.
+- Regression fixtures exercise valid food persistence, unavailable/unknown/cross-vendor/changed-price/included-mode/malformed-selection rejection, every missing food total key, null/string/mismatched totals, valid immutable quote snapshots, pay-at-vendor estimate separation, included-mode quote rejection, and quote snapshot immutability.
+
+### TDD evidence
+
+RED was captured before the SQL production fix:
+
+```text
+pnpm test:run tests/unit/infrastructure/plan-revision-adapter.test.ts tests/unit/infrastructure/request-quote-adapter.test.ts -t "SQL contract|migration contract"
+Test Files  2 failed (2)
+Tests  2 failed | 12 passed | 12 skipped (26)
+Failures: missing /food_items\.available\s+IS\s+TRUE/ and /items\.available\s+IS\s+TRUE/ assertions
+```
+
+GREEN after the migration and regression fixtures:
+
+- `pnpm test:run tests/unit/infrastructure/plan-revision-adapter.test.ts tests/unit/infrastructure/request-quote-adapter.test.ts` — 2 files, 27/27 passed.
+- `pnpm test:run` — 60 files, 690/690 tests passed.
+- `pnpm db:static` — 17 migration files checked successfully.
+- `pnpm typecheck` — passed (`tsc --noEmit`).
+- `pnpm lint` — passed (`eslint . --max-warnings=0`).
+- `git diff --check` — passed; Git emitted only the existing LF-to-CRLF working-copy warnings.
+- Exact pgTAP fixture assertion plans are mechanically checked as `112` (`trip_plan_revisions_test.sql`) and `164` (`requests_quotes_test.sql`). They are not runtime results.
+
+### Runtime blocker
+
+`pnpm db:test` was run once in this fix round and returned exactly:
+
+```text
+$ node scripts/supabase-local.mjs test db --local
+SUPABASE_CLI_NOT_FOUND: project-local Supabase CLI is required; install the pinned dev dependency only after a local container runtime is available
+[ELIFECYCLE] Command failed with exit code 2.
+```
+
+`pnpm db:lint` was also attempted and returned the same `SUPABASE_CLI_NOT_FOUND` line and exit code `2`. Therefore pgTAP execution, PostgreSQL parsing, RLS, locking/CAS, and concurrency behavior remain unverified.
+
+### Fix-round files and commit
+
+- `supabase/migrations/20260828123000_food_plan_quote_snapshots.sql`
+- `supabase/tests/database/requests_quotes_test.sql`
+- `supabase/tests/database/trip_plan_revisions_test.sql`
+- `tests/unit/infrastructure/plan-revision-adapter.test.ts`
+- `tests/unit/infrastructure/request-quote-adapter.test.ts`
+- Fix commit: to be created after this report and final diff audit.
+
+### Self-review and concerns
+
+The migration remains additive and keeps the existing SECURITY DEFINER owners, empty `search_path`, RLS/grants, append-only guards, snapshot binding, stale-revision CAS, idempotency, checkout payable/currency authority, and legacy museum quote behavior. No client-supplied commercial facts are accepted as quote authority. Generated security artifacts were not changed because this round adds no policy, grant, table, or function surface. The sole remaining concern is the unavailable pinned Supabase CLI/local container runtime; production readiness must wait for that gate.

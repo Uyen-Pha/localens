@@ -2,7 +2,7 @@
 -- workstation; this suite is intentionally ready for the Task 16 runtime gate.
 BEGIN;
 
-SELECT plan(91);
+SELECT plan(112);
 
 CREATE TEMP TABLE task6_revision_fixture ON COMMIT DROP AS
 WITH fixture AS (
@@ -80,6 +80,7 @@ SELECT fixture.*,
   ) AS usd_dto
 FROM fixture;
 
+
 GRANT SELECT ON task6_revision_fixture TO authenticated;
 
 SELECT ok(to_regclass('public.trip_plans') IS NOT NULL, 'trip plans exists');
@@ -125,14 +126,116 @@ INSERT INTO auth.users (id, aud, role, email, encrypted_password, raw_app_meta_d
 VALUES ('00000000-0000-0000-0000-000000000701'::uuid, 'authenticated', 'authenticated', 'plan-owner@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now())
 ON CONFLICT (id) DO NOTHING;
 SELECT ok(EXISTS (SELECT 1 FROM private.user_roles WHERE user_id = '00000000-0000-0000-0000-000000000701'::uuid AND role = 'customer'), 'fixture owner has customer role');
-INSERT INTO public.catalog_snapshots (id, status)
-VALUES ('00000000-0000-0000-0000-000000000702'::uuid, 'building');
+INSERT INTO public.catalog_snapshots (id, status, published_at)
+VALUES ('00000000-0000-0000-0000-000000000702'::uuid, 'published', now());
 INSERT INTO public.catalog_snapshot_areas (snapshot_id, area_id, slug)
 VALUES ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000703'::uuid, 'plan-test-area');
 INSERT INTO public.catalog_snapshot_places (snapshot_id, place_id, area_id, slug, price_vnd_per_person, visit_duration_minutes, source_url, verified_at, attribution)
 VALUES ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000704'::uuid, '00000000-0000-0000-0000-000000000703'::uuid, 'plan-test-place', 0, 60, 'https://example.invalid/plan-place', DATE '2026-08-20', 'fixture');
-INSERT INTO public.travel_snapshots (id, catalog_snapshot_id, status)
-VALUES ('00000000-0000-0000-0000-000000000705'::uuid, '00000000-0000-0000-0000-000000000702'::uuid, 'building');
+INSERT INTO public.travel_snapshots (id, catalog_snapshot_id, status, published_at)
+VALUES ('00000000-0000-0000-0000-000000000705'::uuid, '00000000-0000-0000-0000-000000000702'::uuid, 'published', now());
+
+INSERT INTO public.catalog_snapshot_food_vendors (
+  snapshot_id, vendor_id, place_id, slug, status, service_type,
+  location_note, capacity_note, source_url, verified_at, attribution,
+  created_at, updated_at
+)
+VALUES
+  ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000720'::uuid,
+   '00000000-0000-0000-0000-000000000704'::uuid, 'plan-food-vendor', 'published', 'shop',
+   'Ground floor', 'Small dining room', 'https://example.invalid/plan-food-vendor', DATE '2026-08-20', 'fixture', now(), now()),
+  ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000723'::uuid,
+   '00000000-0000-0000-0000-000000000704'::uuid, 'plan-other-vendor', 'published', 'stall',
+   'Market aisle', 'Counter service', 'https://example.invalid/plan-other-vendor', DATE '2026-08-20', 'fixture', now(), now());
+INSERT INTO public.catalog_snapshot_food_vendor_translations (
+  snapshot_id, vendor_id, locale, title, description
+)
+VALUES
+  ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000720'::uuid, 'en', 'Plan Food Vendor', 'Fixture vendor'),
+  ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000720'::uuid, 'vi', 'Quán Ăn Kế Hoạch', 'Nhà cung cấp kiểm thử'),
+  ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000723'::uuid, 'en', 'Other Food Vendor', 'Fixture cross-vendor'),
+  ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000723'::uuid, 'vi', 'Quán Khác', 'Nhà cung cấp khác');
+INSERT INTO public.catalog_snapshot_food_items (
+  snapshot_id, item_id, place_id, vendor_id, slug, status, serving_unit,
+  price_vnd_min, price_vnd_max, portion_description, available, allergens,
+  source_url, verified_at, attribution, created_at, updated_at
+)
+VALUES
+  ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000721'::uuid,
+   '00000000-0000-0000-0000-000000000704'::uuid, '00000000-0000-0000-0000-000000000720'::uuid,
+   'plan-food-item', 'published', 'bowl', 35000, 45000, 'One bowl', true, ARRAY[]::text[],
+   'https://example.invalid/plan-food-item', DATE '2026-08-20', 'fixture', now(), now()),
+  ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000722'::uuid,
+   '00000000-0000-0000-0000-000000000704'::uuid, '00000000-0000-0000-0000-000000000720'::uuid,
+   'plan-unavailable-item', 'published', 'bowl', 35000, 45000, 'One unavailable bowl', false, ARRAY[]::text[],
+   'https://example.invalid/plan-unavailable-item', DATE '2026-08-20', 'fixture', now(), now());
+INSERT INTO public.catalog_snapshot_food_item_translations (
+  snapshot_id, item_id, locale, title, description
+)
+VALUES
+  ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000721'::uuid, 'en', 'Plan Noodle Bowl', 'Fixture menu item'),
+  ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000721'::uuid, 'vi', 'Tô Mì Kế Hoạch', 'Món kiểm thử'),
+  ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000722'::uuid, 'en', 'Unavailable Bowl', 'Unavailable fixture item'),
+  ('00000000-0000-0000-0000-000000000702'::uuid, '00000000-0000-0000-0000-000000000722'::uuid, 'vi', 'Tô Không Bán', 'Món không khả dụng');
+
+CREATE TEMP TABLE task9_food_revision_fixture ON COMMIT DROP AS
+WITH fixture AS (
+  SELECT request_json,
+    jsonb_build_object(
+      'vendorId', '00000000-0000-0000-0000-000000000720',
+      'menuItemId', '00000000-0000-0000-0000-000000000721',
+      'quantity', 1, 'priceVndMin', 35000, 'priceVndMax', 45000,
+      'paymentMode', 'pay_at_vendor', 'activity', 'meal'
+    ) AS food_selection
+  FROM task6_revision_fixture
+)
+SELECT request_json, food_selection,
+  jsonb_build_object(
+    'revisionNo', 1, 'request', jsonb_set(request_json, '{budget,amountMinor}', to_jsonb(200000), false),
+    'result', jsonb_build_object(
+      'normalizedStartAt', '2026-08-20T08:00:00+07:00', 'budgetVnd', 200000,
+      'rankingSource', 'deterministic',
+      'items', jsonb_build_array(jsonb_build_object(
+        'placeId', '00000000-0000-0000-0000-000000000704',
+        'startAt', '2026-08-20T08:00:00+07:00', 'endAt', '2026-08-20T09:00:00+07:00',
+        'visitDurationMinutes', 60, 'travelMinutesBefore', 0,
+        'transitionBufferMinutesBefore', 0, 'travelCostVndBefore', 0,
+        'placeCostVnd', 100000, 'foodSelection', food_selection,
+        'foodCostMinVnd', 35000, 'foodCostMaxVnd', 45000,
+        'payAtVendorMinVnd', 35000, 'payAtVendorMaxVnd', 45000,
+        'customerPayableVnd', 100000, 'score', 1
+      )),
+      'totals', jsonb_build_object(
+        'durationMinutes', 60, 'visitMinutes', 60, 'travelMinutes', 0,
+        'transitionBufferMinutes', 0, 'admissionCostVnd', 100000,
+        'foodCostMinVnd', 35000, 'foodCostMaxVnd', 45000, 'travelCostVnd', 0,
+        'guideCostVnd', 0, 'payAtVendorMinVnd', 35000,
+        'payAtVendorMaxVnd', 45000, 'customerPayableVnd', 100000,
+        'groupCostMinVnd', 135000, 'groupCostMaxVnd', 145000,
+        'groupCostVnd', 135000, 'score', 1
+      ),
+      'snapshotIds', jsonb_build_object('catalog', '00000000-0000-0000-0000-000000000702',
+        'travel', '00000000-0000-0000-0000-000000000705', 'fx', NULL::text)
+    ),
+    'fingerprint', repeat('d', 64), 'rankingSource', 'deterministic',
+    'catalogSnapshotId', '00000000-0000-0000-0000-000000000702',
+    'travelSnapshotId', '00000000-0000-0000-0000-000000000705',
+    'fxSnapshotId', NULL::text, 'fxVndPerUsd', NULL::text, 'currency', 'VND',
+    'budgetVnd', '200000', 'totalCostVnd', '135000', 'totalDurationMinutes', 60,
+    'lockedPlaceIds', jsonb_build_array(),
+    'items', jsonb_build_array(jsonb_build_object(
+      'placeId', '00000000-0000-0000-0000-000000000704',
+      'startAt', '2026-08-20T08:00:00+07:00', 'endAt', '2026-08-20T09:00:00+07:00',
+      'visitDurationMinutes', 60, 'travelMinutesBefore', 0,
+      'transitionBufferMinutesBefore', 0, 'travelCostVndBefore', '0',
+      'placeCostVnd', '100000', 'foodSelectionJson', food_selection::text,
+      'foodCostMinVnd', '35000', 'foodCostMaxVnd', '45000',
+      'payAtVendorMinVnd', '35000', 'payAtVendorMaxVnd', '45000',
+      'customerPayableVnd', '100000', 'score', 1
+    ))
+  ) AS food_dto
+FROM fixture;
+GRANT SELECT ON task9_food_revision_fixture TO authenticated;
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000706'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
 
@@ -161,6 +264,108 @@ SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
 RESET ROLE;
 SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000706'::uuid), 1, 'stale CAS creates no orphan revision');
 SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_id = '00000000-0000-0000-0000-000000000706'::uuid), 1, 'stale CAS creates no orphan recommendation run');
+
+-- Task 9 food path: the canonical serialized selection is persisted only when
+-- every item and total fact agrees with the immutable catalog snapshot.
+INSERT INTO public.trip_plans (id, owner_user_id)
+SELECT format('00000000-0000-0000-0000-%s', suffix)::uuid,
+       '00000000-0000-0000-0000-000000000701'::uuid
+FROM unnest(ARRAY['000000000718', '000000000719', '000000000720', '000000000721',
+                  '000000000722', '000000000723', '000000000724', '000000000725']) AS values(suffix);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT lives_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000718'::uuid, 0,
+  (SELECT food_dto FROM task9_food_revision_fixture)
+)$$, 'canonical food revision persists through the guarded RPC');
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000718'::uuid), 1, 'food revision is persisted once');
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000718'::uuid)), 1, 'food revision persists one immutable item');
+SELECT is((SELECT food_selection_json->>'menuItemId' FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000718'::uuid)), '00000000-0000-0000-0000-000000000721', 'food selection JSON is the canonical menu selection');
+SELECT is((SELECT food_cost_min_vnd FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000718'::uuid)), 35000::bigint, 'food minimum is persisted as a decimal-safe integer');
+SELECT is((SELECT food_cost_max_vnd FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000718'::uuid)), 45000::bigint, 'food maximum is persisted as a decimal-safe integer');
+SELECT is((SELECT pay_at_vendor_min_vnd FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000718'::uuid)), 35000::bigint, 'pay-at-vendor minimum is persisted separately');
+SELECT is((SELECT pay_at_vendor_max_vnd FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000718'::uuid)), 45000::bigint, 'pay-at-vendor maximum is persisted separately');
+SELECT is((SELECT customer_payable_vnd FROM public.trip_plan_items WHERE revision_id IN (SELECT id FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000718'::uuid)), 100000::bigint, 'customer payable is persisted separately');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000719'::uuid, 0,
+  jsonb_set(jsonb_set((SELECT food_dto FROM task9_food_revision_fixture),
+    '{items,0,foodSelectionJson}', to_jsonb(jsonb_set((SELECT food_selection FROM task9_food_revision_fixture), '{menuItemId}', to_jsonb('00000000-0000-0000-0000-000000000722'::text), false)::text), false),
+    '{result,items,0,foodSelection,menuItemId}', to_jsonb('00000000-0000-0000-0000-000000000722'::text), false))$$,
+  '23514', NULL, 'unavailable food items are rejected before persistence');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000720'::uuid, 0,
+  jsonb_set(jsonb_set((SELECT food_dto FROM task9_food_revision_fixture),
+    '{items,0,foodSelectionJson}', to_jsonb(jsonb_set((SELECT food_selection FROM task9_food_revision_fixture), '{menuItemId}', to_jsonb('00000000-0000-0000-0000-000000000799'::text), false)::text), false),
+    '{result,items,0,foodSelection,menuItemId}', to_jsonb('00000000-0000-0000-0000-000000000799'::text), false))$$,
+  '23514', NULL, 'unknown food item IDs are rejected before persistence');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000721'::uuid, 0,
+  jsonb_set(jsonb_set((SELECT food_dto FROM task9_food_revision_fixture),
+    '{items,0,foodSelectionJson}', to_jsonb(jsonb_set((SELECT food_selection FROM task9_food_revision_fixture), '{vendorId}', to_jsonb('00000000-0000-0000-0000-000000000723'::text), false)::text), false),
+    '{result,items,0,foodSelection,vendorId}', to_jsonb('00000000-0000-0000-0000-000000000723'::text), false))$$,
+  '23514', NULL, 'cross-vendor food selections are rejected before persistence');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000722'::uuid, 0,
+  jsonb_set(jsonb_set((SELECT food_dto FROM task9_food_revision_fixture),
+    '{items,0,foodSelectionJson}', to_jsonb(jsonb_set((SELECT food_selection FROM task9_food_revision_fixture), '{priceVndMin}', to_jsonb(36000), false)::text), false),
+    '{result,items,0,foodSelection,priceVndMin}', to_jsonb(36000), false))$$,
+  '23514', NULL, 'changed food prices are rejected before persistence');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000723'::uuid, 0,
+  jsonb_set(jsonb_set((SELECT food_dto FROM task9_food_revision_fixture),
+    '{items,0,foodSelectionJson}', to_jsonb(jsonb_set((SELECT food_selection FROM task9_food_revision_fixture), '{paymentMode}', to_jsonb('included_in_quote'::text), false)::text), false),
+    '{result,items,0,foodSelection,paymentMode}', to_jsonb('included_in_quote'::text), false))$$,
+  '22023', NULL, 'included-in-quote selections are rejected in the MVP');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000724'::uuid, 0,
+  jsonb_set((SELECT food_dto FROM task9_food_revision_fixture), '{items,0,foodSelectionJson}', to_jsonb('{malformed'::text), false))$$,
+  '22023', NULL, 'malformed serialized food selection JSON is rejected');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000725'::uuid, 0,
+  jsonb_set((SELECT food_dto FROM task9_food_revision_fixture), '{result,totals}',
+    (SELECT (food_dto->'result'->'totals') - 'foodCostMinVnd' FROM task9_food_revision_fixture), false))$$,
+  '22023', NULL, 'missing food minimum total is rejected');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000725'::uuid, 0,
+  jsonb_set((SELECT food_dto FROM task9_food_revision_fixture), '{result,totals}',
+    (SELECT (food_dto->'result'->'totals') - 'foodCostMaxVnd' FROM task9_food_revision_fixture), false))$$,
+  '22023', NULL, 'missing food maximum total is rejected');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000725'::uuid, 0,
+  jsonb_set((SELECT food_dto FROM task9_food_revision_fixture), '{result,totals}',
+    (SELECT (food_dto->'result'->'totals') - 'payAtVendorMinVnd' FROM task9_food_revision_fixture), false))$$,
+  '22023', NULL, 'missing pay-at-vendor minimum total is rejected');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000725'::uuid, 0,
+  jsonb_set((SELECT food_dto FROM task9_food_revision_fixture), '{result,totals}',
+    (SELECT (food_dto->'result'->'totals') - 'payAtVendorMaxVnd' FROM task9_food_revision_fixture), false))$$,
+  '22023', NULL, 'missing pay-at-vendor maximum total is rejected');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000725'::uuid, 0,
+  jsonb_set((SELECT food_dto FROM task9_food_revision_fixture), '{result,totals}',
+    (SELECT (food_dto->'result'->'totals') - 'customerPayableVnd' FROM task9_food_revision_fixture), false))$$,
+  '22023', NULL, 'missing customer payable total is rejected');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000725'::uuid, 0,
+  jsonb_set((SELECT food_dto FROM task9_food_revision_fixture), '{result,totals,foodCostMaxVnd}', 'null'::jsonb, false))$$,
+  '22023', NULL, 'null food total is rejected');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000725'::uuid, 0,
+  jsonb_set((SELECT food_dto FROM task9_food_revision_fixture), '{result,totals,foodCostMaxVnd}', to_jsonb('45000'::text), false))$$,
+  '22023', NULL, 'string food total is rejected');
+SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
+  '00000000-0000-0000-0000-000000000725'::uuid, 0,
+  jsonb_set((SELECT food_dto FROM task9_food_revision_fixture), '{result,totals,foodCostMaxVnd}', to_jsonb(45001), false))$$,
+  '23514', NULL, 'mismatched food total is rejected');
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id IN (
+  SELECT format('00000000-0000-0000-0000-%s', suffix)::uuid FROM unnest(ARRAY['000000000719', '000000000720', '000000000721', '000000000722', '000000000723', '000000000724', '000000000725']) AS values(suffix)
+)), 0, 'invalid food DTOs create no revisions');
+SELECT is((SELECT count(*)::integer FROM public.trip_plan_items WHERE revision_id IN (
+  SELECT id FROM public.trip_plan_revisions WHERE plan_id IN (
+    SELECT format('00000000-0000-0000-0000-%s', suffix)::uuid FROM unnest(ARRAY['000000000719', '000000000720', '000000000721', '000000000722', '000000000723', '000000000724', '000000000725']) AS values(suffix)
+  )
+)), 0, 'invalid food DTOs create no orphan items');
 
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000710'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);

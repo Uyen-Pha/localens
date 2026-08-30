@@ -274,6 +274,10 @@ describe("Task 8 SQL contract", () => {
     expect(foodPersistenceMigration).toMatch(/food quote snapshot source unavailable/);
     expect(foodPersistenceMigration).toMatch(/food quote total mismatch/);
     expect(foodPersistenceMigration).toMatch(/quote amount must equal LocalLens payable amount/);
+    expect(foodPersistenceMigration).toMatch(/items\.available\s+IS\s+TRUE/);
+    expect(foodPersistenceMigration).toMatch(/food_total_material boolean/);
+    expect(foodPersistenceMigration).toMatch(/food_total_keys constant text\[\]/);
+    expect(foodPersistenceMigration).toMatch(/IS DISTINCT FROM localens_payable/);
     expect(foodPersistenceMigration).toMatch(/OLD\.food_snapshot IS DISTINCT FROM NEW\.food_snapshot/);
     expect(foodPersistenceMigration).toMatch(/food_snapshot,[\s\S]*food_estimate_min_vnd/);
     expect(foodPersistenceMigration).toMatch(/CREATE OR REPLACE VIEW public\.customer_custom_quotes_v/);
