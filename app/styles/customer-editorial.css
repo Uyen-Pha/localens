@@ -183,7 +183,7 @@
   border: 1px solid var(--customer-ink);
   border-radius: 50%;
   background: #e7eee8;
-  box-shadow: 0 1.5rem 2.5rem rgba(24, 53, 45, 0.12);
+  box-shadow: var(--shadow-display);
   color: var(--customer-ink);
   text-align: center;
   transform: translate(-50%, -50%) rotate(-8deg);
@@ -197,9 +197,9 @@
 
 .hero-stamp strong {
   margin-top: 0.75rem;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-display, Georgia), "Times New Roman", serif;
   font-size: clamp(1.8rem, 3vw, 2.8rem);
-  font-weight: 400;
+  font-weight: 600;
   letter-spacing: -0.07em;
   line-height: 0.88;
 }
@@ -264,7 +264,7 @@
 
 .tour-card:hover {
   border-color: var(--customer-ink);
-  box-shadow: 0 1rem 2rem rgba(24, 53, 45, 0.08);
+  box-shadow: var(--shadow-card-hover);
   transform: translateY(-4px);
 }
 
@@ -316,7 +316,7 @@
   border: 1px solid var(--customer-line);
   border-radius: var(--radius-media);
   background: var(--customer-paper);
-  box-shadow: 0 1rem 2.5rem rgba(24, 53, 45, 0.06);
+  box-shadow: var(--shadow-panel);
 }
 
 .personalization-form__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
@@ -368,7 +368,7 @@
 .demo-tour-card__details-body code { color: var(--customer-ink-soft); font-size: 0.75rem; overflow-wrap: anywhere; }
 .demo-tour-card__booking-link { width: 100%; justify-content: center; margin-top: var(--space-4); text-decoration: none; }
 .booking-flow { max-width: 60rem; }
-.booking-flow__card { display: grid; gap: var(--space-4); margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); box-shadow: 0 1rem 2.5rem rgba(24, 53, 45, 0.06); }
+.booking-flow__card { display: grid; gap: var(--space-4); margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); box-shadow: var(--shadow-panel); }
 .booking-flow__card h2 { margin: 0; color: var(--customer-ink); font-size: clamp(1.35rem, 2vw, 1.8rem); }
 .booking-flow__facts, .booking-flow__price-summary { display: grid; gap: var(--space-2); margin: 0; }
 .booking-flow__facts div, .booking-flow__price-summary div { display: grid; grid-template-columns: minmax(9rem, 0.75fr) 1.25fr; gap: var(--space-3); border-bottom: 1px solid var(--customer-line); padding-bottom: 0.45rem; }
@@ -403,7 +403,7 @@
 
 .planner-flow { max-width: 66rem; }
 .custom-request-flow { max-width: 66rem; }
-.custom-request-flow__card { display: grid; gap: var(--space-3); margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); box-shadow: 0 1rem 2.5rem rgba(24, 53, 45, 0.06); }
+.custom-request-flow__card { display: grid; gap: var(--space-3); margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); box-shadow: var(--shadow-panel); }
 .custom-request-flow__card h2 { margin: 0; color: var(--customer-ink); font-size: clamp(1.25rem, 2vw, 1.7rem); }
 .custom-request-flow__card p { margin: 0; color: var(--customer-ink-soft); line-height: 1.55; }
 .custom-request-flow__facts { display: grid; gap: var(--space-2); margin: 0; }
@@ -422,7 +422,7 @@
 .planner-flow__preferences dl div { display: flex; justify-content: space-between; gap: var(--space-3); border-bottom: 1px solid var(--customer-line); padding-bottom: 0.35rem; }
 .planner-flow__preferences dt { color: var(--customer-ink-soft); font-size: 0.82rem; }
 .planner-flow__preferences dd { margin: 0; color: var(--customer-ink); font-weight: 700; text-align: right; }
-.planner-flow__proposal-card { margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); box-shadow: 0 1rem 2.5rem rgba(24, 53, 45, 0.06); }
+.planner-flow__proposal-card { margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); box-shadow: var(--shadow-panel); }
 .planner-flow__proposal-card:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 4px; }
 .planner-flow__proposal-header, .planner-timeline__item-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
 .planner-flow__proposal-header h2, .planner-flow__checks h2, .planner-flow__history h2 { margin: 0; color: var(--customer-ink); font-size: clamp(1.35rem, 2vw, 1.8rem); }

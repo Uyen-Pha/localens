@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -64,6 +64,15 @@ async function createFontPackageFixture(root: string) {
   }
 }
 
+function isLinkCreationPermissionError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error.code === "EPERM" || error.code === "EACCES")
+  );
+}
+
 describe("copy-editorial-fonts", () => {
   it("pins the two reproducible Fontsource packages to version 5.3.0", async () => {
     const packageVersions = await Promise.all(
@@ -127,6 +136,43 @@ describe("copy-editorial-fonts", () => {
       );
     } finally {
       await rm(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a linked public/fonts directory before writing outside the repository", async () => {
+    const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "localens-editorial-fonts-"));
+    const outsideRoot = await mkdtemp(path.join(os.tmpdir(), "localens-editorial-fonts-outside-"));
+    const publicRoot = path.join(fixtureRoot, "public");
+    const outsideFonts = path.join(outsideRoot, "fonts");
+    const linkedOutput = path.join(publicRoot, "fonts");
+    let linkCreated = false;
+
+    try {
+      await createFontPackageFixture(fixtureRoot);
+      await mkdir(publicRoot, { recursive: true });
+      await mkdir(outsideFonts, { recursive: true });
+
+      try {
+        await symlink(outsideFonts, linkedOutput, process.platform === "win32" ? "junction" : "dir");
+        linkCreated = true;
+      } catch (error) {
+        if (isLinkCreationPermissionError(error)) {
+          console.warn(`Skipping linked output safety regression: ${String(error)}`);
+          return;
+        }
+        throw error;
+      }
+
+      const { copyEditorialFonts } = await loadCopyScript();
+
+      await expect(copyEditorialFonts({ repositoryRoot: fixtureRoot })).rejects.toThrow(
+        /font output directory.*(symbolic|symlink|junction|reparse|canonical)/i,
+      );
+      expect(await readdir(outsideFonts)).toEqual([]);
+    } finally {
+      if (linkCreated) await unlink(linkedOutput).catch(() => undefined);
+      await rm(fixtureRoot, { recursive: true, force: true });
+      await rm(outsideRoot, { recursive: true, force: true });
     }
   });
 });

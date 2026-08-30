@@ -21,6 +21,9 @@
 
   --radius-control: 2px;
   --radius-media: 0px;
+  --shadow-display: 0 1.5rem 2.5rem rgba(24, 53, 45, 0.12);
+  --shadow-card-hover: 0 1rem 2rem rgba(24, 53, 45, 0.08);
+  --shadow-panel: 0 1rem 2.5rem rgba(24, 53, 45, 0.06);
   --border-hairline: 1px solid var(--color-rule);
   --focus-ring: 3px solid var(--color-indigo);
 

@@ -1,4 +1,4 @@
-import { copyFile, lstat, mkdir, readFile } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readFile, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -48,6 +48,63 @@ function assertContained(basePath, candidatePath, label, { direct = false } = {}
   }
 
   return candidate;
+}
+
+function isMissingPathError(error) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error.code === "ENOENT" || error.code === "ENOTDIR")
+  );
+}
+
+async function canonicalRepositoryRoot(repositoryRoot) {
+  const root = resolve(repositoryRoot);
+  try {
+    return await realpath(root);
+  } catch (error) {
+    fail(`repository root cannot be resolved: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function assertSafeDestinationChain(repositoryRoot, destinationRoot) {
+  const root = resolve(repositoryRoot);
+  const destination = resolve(destinationRoot);
+  const canonicalRoot = await canonicalRepositoryRoot(root);
+  const destinationRelative = assertContained(root, destination, "font output directory").slice(root.length + 1);
+  let current = root;
+
+  for (const segment of destinationRelative.split(sep)) {
+    current = join(current, segment);
+    let currentInfo;
+    try {
+      currentInfo = await lstat(current);
+    } catch (error) {
+      if (isMissingPathError(error)) break;
+      fail(`font output directory cannot be inspected: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    if (currentInfo.isSymbolicLink()) {
+      fail("font output directory must not contain a symbolic link, junction, or reparse point");
+    }
+
+    let currentCanonical;
+    try {
+      currentCanonical = await realpath(current);
+    } catch (error) {
+      fail(`font output directory cannot be canonicalized: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const expectedCanonical = resolve(canonicalRoot, relative(root, current));
+    if (currentCanonical !== expectedCanonical) {
+      fail("font output directory canonical path must stay inside the repository root");
+    }
+    if (!currentInfo.isDirectory()) {
+      fail("font output directory chain must contain only directories");
+    }
+  }
+
+  return canonicalRoot;
 }
 
 async function assertRegularFile(filePath, label) {
@@ -107,6 +164,7 @@ async function copyChecked(sourcePath, destinationPath, label) {
 export async function copyEditorialFonts({ repositoryRoot = REPOSITORY_ROOT } = {}) {
   const root = resolve(repositoryRoot);
   const outputRoot = assertContained(root, join(root, "public", "fonts"), "font output directory");
+  await assertSafeDestinationChain(root, outputRoot);
   const operations = [];
   const licenses = new Map();
 
@@ -154,6 +212,7 @@ export async function copyEditorialFonts({ repositoryRoot = REPOSITORY_ROOT } = 
   }
 
   await mkdir(outputRoot, { recursive: true });
+  await assertSafeDestinationChain(root, outputRoot);
   for (const operation of operations) {
     await copyChecked(operation.sourcePath, operation.destinationPath, operation.label);
   }
