@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { CustomerHome } from "@/components/customer/customer-home";
+import { FixedToursGrid } from "@/components/customer/fixed-tours-grid";
 import ToursPage, { generateMetadata } from "@/app/[locale]/tours/page";
 import { createReadOnlyApi } from "@/lib/application/api/read-only-api";
 import { getDemoDepartureForTourSlug } from "@/lib/application/booking/mock-booking";
@@ -105,7 +105,7 @@ describe("localized fixed tours page", () => {
   it("keeps the fixed-tour grid and cards on the editorial class contract", () => {
     const dictionary = getDictionary("en");
 
-    render(<CustomerHome locale="en" dictionary={dictionary} />);
+    render(<FixedToursGrid locale="en" copy={dictionary.home} />);
 
     const grid = document.querySelector(".tour-grid");
     expect(grid).not.toBeNull();
