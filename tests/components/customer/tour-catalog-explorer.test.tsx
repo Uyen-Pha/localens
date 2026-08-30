@@ -55,6 +55,95 @@ describe("TourCatalogExplorer", () => {
     });
   });
 
+  it("filters the read-only catalog by experience type", async () => {
+    const dictionary = getDictionary("en");
+    const copy = dictionary.home.tourCatalog;
+    const catalogResult = createReadOnlyApi().listTours("en");
+    if (!catalogResult.ok) throw new Error("expected demo catalog");
+
+    render(
+      <TourCatalogExplorer
+        locale="en"
+        copy={copy}
+        areaOptions={copy.areaOptions}
+        initialCatalog={catalogResult.value}
+      />,
+    );
+
+    const experienceSelect = screen.getByLabelText(copy.experienceLabel);
+    fireEvent.change(experienceSelect, { target: { value: "traditional_craft" } });
+    await waitFor(() => {
+      expect(experienceSelect).toHaveValue("traditional_craft");
+      expect(screen.getByRole("heading", { level: 2, name: "Cho Lon Craft Traditions" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { level: 2, name: "Markets and Street Food" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps native filters, details, and booking actions keyboard reachable", async () => {
+    const dictionary = getDictionary("en");
+    const copy = dictionary.home.tourCatalog;
+    const catalogResult = createReadOnlyApi().listTours("en");
+    if (!catalogResult.ok) throw new Error("expected demo catalog");
+
+    render(
+      <TourCatalogExplorer
+        locale="en"
+        copy={copy}
+        areaOptions={copy.areaOptions}
+        initialCatalog={catalogResult.value}
+      />,
+    );
+
+    const keywordInput = screen.getByLabelText(copy.keywordLabel);
+    const areaSelect = screen.getByLabelText(copy.areaLabel);
+    const experienceSelect = screen.getByLabelText(copy.experienceLabel);
+    const clearButton = screen.getByRole("button", { name: copy.clearFiltersLabel });
+    const summary = screen.getAllByText(copy.detailsLabel)[0];
+    const bookingLink = screen.getByRole("link", { name: `${copy.bookLabel} Markets and Street Food` });
+
+    for (const control of [keywordInput, areaSelect, experienceSelect, clearButton, summary, bookingLink]) {
+      control.focus();
+      expect(control).toHaveFocus();
+    }
+    expect(summary.tagName).toBe("SUMMARY");
+
+    keywordInput.focus();
+    fireEvent.keyDown(keywordInput, { key: "Enter", code: "Enter" });
+    expect(keywordInput).toHaveFocus();
+    areaSelect.focus();
+    fireEvent.keyDown(areaSelect, { key: "ArrowDown", code: "ArrowDown" });
+    expect(areaSelect).toHaveFocus();
+    experienceSelect.focus();
+    fireEvent.keyDown(experienceSelect, { key: "ArrowDown", code: "ArrowDown" });
+    expect(experienceSelect).toHaveFocus();
+
+    fireEvent.change(keywordInput, { target: { value: "CHO LON" } });
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Cho Lon Craft Traditions" })).toBeInTheDocument());
+    clearButton.focus();
+    fireEvent.keyDown(clearButton, { key: "Enter", code: "Enter" });
+    fireEvent.keyUp(clearButton, { key: "Enter", code: "Enter" });
+    fireEvent.click(clearButton);
+    await waitFor(() => {
+      expect(keywordInput).toHaveValue("");
+      expect(screen.getByRole("heading", { level: 2, name: "Markets and Street Food" })).toBeInTheDocument();
+    });
+
+    const refreshedSummary = screen.getAllByText(copy.detailsLabel)[0];
+    refreshedSummary.focus();
+    fireEvent.keyDown(refreshedSummary, { key: "Enter", code: "Enter" });
+    fireEvent.keyUp(refreshedSummary, { key: "Enter", code: "Enter" });
+    fireEvent.click(refreshedSummary);
+    expect(refreshedSummary.parentElement).toHaveAttribute("open");
+
+    const refreshedBookingLink = screen.getByRole("link", { name: `${copy.bookLabel} Markets and Street Food` });
+    refreshedBookingLink.focus();
+    fireEvent.keyDown(refreshedBookingLink, { key: "Enter", code: "Enter" });
+    fireEvent.keyUp(refreshedBookingLink, { key: "Enter", code: "Enter" });
+    refreshedBookingLink.addEventListener("click", (event) => event.preventDefault(), { once: true });
+    fireEvent.click(refreshedBookingLink);
+    expect(refreshedBookingLink).toHaveFocus();
+  });
+
   it("renders localized empty and API error states", async () => {
     const dictionary = getDictionary("vi");
     const catalogResult = createReadOnlyApi().listTours("vi");
