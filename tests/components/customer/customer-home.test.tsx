@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -14,6 +17,7 @@ describe("CustomerHome", () => {
 
     expect(dictionary.home.title).toBe("The city is more than its landmarks");
     expect(dictionary.home.discoveryTitle).toBe("Four ways into the city");
+    expect(document.querySelector(".customer-home")).toHaveClass("customer-home--landing");
     expect(
       screen.getByRole("heading", {
         level: 1,
@@ -72,5 +76,44 @@ describe("CustomerHome", () => {
     expect(screen.getByRole("heading", { level: 2, name: dictionary.home.discoveryTitle })).toBeInTheDocument();
     expect(screen.getByRole("note")).toHaveTextContent(dictionary.home.demoDisclosure);
     expect(screen.getByRole("img", { name: dictionary.home.heroImageAlt })).toBeInTheDocument();
+  });
+
+  it("keeps editorial home selectors scoped away from non-home routes", async () => {
+    const css = await readFile(resolve(process.cwd(), "app/styles/editorial-home.css"), "utf8");
+    const homeSelectors = [
+      "customer-home",
+      "customer-hero",
+      "customer-section",
+      "section-heading",
+      "button",
+      "button--primary",
+      "button--secondary",
+      "experience-grid",
+      "experience-intro",
+      "experience-card",
+      "editorial-rule",
+      "tour-grid",
+      "tour-card",
+      "trust-grid",
+      "trust-card",
+      "personalization-form",
+      "form-timezone",
+      "form-preview",
+      "form-validation",
+    ];
+
+    expect(css).toContain(".customer-home--landing");
+    for (const selector of homeSelectors) {
+      expect(css).not.toMatch(new RegExp(`^\\s*\\.${selector}(?=\\s|[{: ,])`, "m"));
+    }
+  });
+
+  it("keeps the SAI/GON mark inside the tablet gutter", async () => {
+    const css = await readFile(resolve(process.cwd(), "app/styles/editorial-home.css"), "utf8");
+
+    expect(css).not.toContain("left: -1.5rem");
+    expect(css).toMatch(
+      /@media \(max-width: 1100px\) \{[\s\S]*?\.customer-home--landing \.customer-hero__mark \{[\s\S]*?left: 0;/,
+    );
   });
 });

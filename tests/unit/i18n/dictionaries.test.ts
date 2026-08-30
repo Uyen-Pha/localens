@@ -15,6 +15,7 @@ describe("localized dictionaries", () => {
     );
     expect(dictionary.home.heroPrimaryCta).toBe("Discover Saigon tours");
     expect(dictionary.home.heroSecondaryCta).toBe("Design a private journey");
+    expect(dictionary.home.heroCoordinates).toBe("10.8231° N · 106.6297° E");
     expect(dictionary.home.experienceCategories.map(({ key }) => key)).toEqual([
       "street_food",
       "history",
@@ -37,6 +38,7 @@ describe("localized dictionaries", () => {
     );
     expect(dictionary.home.heroPrimaryCta).toBe("Khám phá tour Sài Gòn");
     expect(dictionary.home.heroSecondaryCta).toBe("Thiết kế hành trình riêng");
+    expect(dictionary.home.heroCoordinates).toBe("10.8231° B · 106.6297° Đ");
     expect(dictionary.home.experienceCategories.map(({ key }) => key)).toEqual([
       "street_food",
       "history",

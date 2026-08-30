@@ -25,7 +25,7 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
   const copy: HomeCopy = dictionary.home;
 
   return (
-    <div className="customer-home">
+    <div className="customer-home customer-home--landing">
       <section className="customer-hero" aria-labelledby="customer-hero-title">
         <div className="customer-hero__content">
           <p className="customer-hero__mark" aria-hidden="true">
