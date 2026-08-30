@@ -76,6 +76,19 @@ describe("editorial style foundations", () => {
     }
   });
 
+  it("defines the shared customer color aliases on the tours route root", async () => {
+    const toursCss = normalizeLineEndings(await readStyle("editorial-tours.css"));
+    const rootRuleStart = toursCss.indexOf(".customer-tours-page {");
+    const rootRuleEnd = toursCss.indexOf("}", rootRuleStart);
+    const rootRule = rootRuleStart >= 0 ? toursCss.slice(rootRuleStart, rootRuleEnd + 1) : "";
+
+    expect(rootRule).toContain("--customer-ink: var(--color-ink);");
+    expect(rootRule).toContain("--customer-ink-soft: var(--color-muted);");
+    expect(rootRule).toContain("--customer-paper: var(--color-surface);");
+    expect(rootRule).toContain("--customer-line: var(--color-rule);");
+    expect(rootRule).toContain("--customer-orange: var(--color-vermilion);");
+  });
+
   it("uses the configured display family for the stamp treatment", async () => {
     const editorialCss = await readEditorialStyles();
     const stampRuleStart = editorialCss.indexOf(".hero-stamp strong {");

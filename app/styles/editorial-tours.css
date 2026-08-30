@@ -1,4 +1,12 @@
-/* editorial-css-sha256: 3d1cf195ca8fd9d449153a7e5907e923201c581ed4ad73aa2d359189456c28ac */
+/* editorial-css-sha256: f051c0b31986e90c1374bfa803a08119b2ecce246fe7976860ac83ee6f966508 */
+.customer-tours-page {
+  --customer-ink: var(--color-ink);
+  --customer-ink-soft: var(--color-muted);
+  --customer-paper: var(--color-surface);
+  --customer-line: var(--color-rule);
+  --customer-orange: var(--color-vermilion);
+}
+
 .customer-tours-page .section-heading--tours {
   max-width: 56rem;
 }
