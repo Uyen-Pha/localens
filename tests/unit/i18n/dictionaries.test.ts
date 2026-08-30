@@ -15,6 +15,12 @@ describe("localized dictionaries", () => {
     );
     expect(dictionary.home.heroPrimaryCta).toBe("Discover Saigon tours");
     expect(dictionary.home.heroSecondaryCta).toBe("Design a private journey");
+    expect(dictionary.home.heroImageAlt).toBe(
+      "Elderly artisan weaving a rattan basket in Saigon",
+    );
+    expect(dictionary.home.heroInsetAlt).toBe(
+      "Arched facade of Saigon Central Post Office",
+    );
     expect(dictionary.home.heroCoordinates).toBe("10.8231° N · 106.6297° E");
     expect(dictionary.home.experienceCategories.map(({ key }) => key)).toEqual([
       "street_food",
@@ -38,6 +44,12 @@ describe("localized dictionaries", () => {
     );
     expect(dictionary.home.heroPrimaryCta).toBe("Khám phá tour Sài Gòn");
     expect(dictionary.home.heroSecondaryCta).toBe("Thiết kế hành trình riêng");
+    expect(dictionary.home.heroImageAlt).toBe(
+      "Nghệ nhân lớn tuổi đan giỏ mây ở Sài Gòn",
+    );
+    expect(dictionary.home.heroInsetAlt).toBe(
+      "Mặt tiền mái vòm Bưu điện Trung tâm Sài Gòn",
+    );
     expect(dictionary.home.heroCoordinates).toBe("10.8231° B · 106.6297° Đ");
     expect(dictionary.home.experienceCategories.map(({ key }) => key)).toEqual([
       "street_food",
