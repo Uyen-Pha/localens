@@ -106,9 +106,9 @@ Display headings use Cormorant Garamond Semibold; navigation, form controls, bod
 
 Generate clean original assets inspired by the composition; do not crop the mockup:
 
-| Asset | File | Minimum source size | Requirement |
+| Asset | File | Accepted generator-native source / final output | Requirement |
 | --- | --- | --- | --- |
-| Hero artisan scene | `public/images/editorial/saigon-artisan-hero.webp` | 1600 x 1200 | Documentary horizontal crop with safe text-free edges |
+| Hero artisan scene | `public/images/editorial/saigon-artisan-hero.webp` | 1448 x 1086 native / 1600 x 1200 final | Documentary horizontal crop with safe text-free edges; pass the native generator output directly to the committed processor, with no ad-hoc intermediate upscale |
 | Architecture inset | `public/images/editorial/saigon-post-office-inset.webp` | 720 x 960 | Vertical architectural detail |
 | Street-food mark | `public/images/editorial/category-street-food.webp` | 256 x 256 | Transparent background, one-color editorial illustration |
 | History mark | `public/images/editorial/category-history.webp` | 256 x 256 | Transparent background, one-color editorial illustration |
@@ -118,6 +118,7 @@ Generate clean original assets inspired by the composition; do not crop the mock
 Use exact dev dependency `sharp@0.35.4` (`Apache-2.0`, package integrity `sha512-n++8XWcj+jCOr2IOl7h8LbKnGBDY4aPbmprMONBNFdn0ImXqpGVv5zliDs0V9HbmbCQLpbuo2ej9rAoOQTvMDA==`) through `scripts/process-editorial-assets.mjs`; do not depend on a machine-global image binary.
 
 - Image generation produces scratch PNG sources inside this plan's ignored `.superpowers/sdd/2026-08-30-localens-editorial-design-restoration/source-assets/` directory. Do not stage those non-deterministic intermediates.
+- The bundled ImageGen service was asked twice for a `2048 x 1536` hero upscale/enhancement but returned its `1448 x 1086` 4:3 native ceiling both times. The contract therefore accepts that decoded native source and the single final resize performed by photo mode; do not create a separately upscaled scratch source or claim a larger native input.
 - Photo mode uses `sharp` with `fit: cover` and `position: attention`, emits exact `1600 x 1200` and `720 x 960` WebP outputs, strips metadata, and encodes at quality `82`, effort `6`.
 - Mark mode starts from a black one-color mark on a pure-white source. It resizes with `contain` to `256 x 256`, converts inverted luminance into the alpha channel, applies the asset color to RGB, strips metadata, and emits lossless WebP. White must become alpha `0`, black must become alpha `255`, and antialiased edges retain intermediate alpha rather than a hard threshold. Use `#791312` for Street food, `#17345F` for History, `#B56E00` for Craft villages, and `#17345F` for Traditional markets.
 - The processor fails unless every output decodes, has the exact dimensions, and each category mark has an alpha channel with both transparent and opaque pixels. Size limits are `900 KiB` for the hero, `500 KiB` for the inset, and `80 KiB` for each category mark.
