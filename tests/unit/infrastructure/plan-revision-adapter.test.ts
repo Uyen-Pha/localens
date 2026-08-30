@@ -12,6 +12,10 @@ const migration = readFileSync(
   join(process.cwd(), "supabase", "migrations", "20260823095000_trip_plans_revisions.sql"),
   "utf8",
 );
+const foodPersistenceMigration = readFileSync(
+  join(process.cwd(), "supabase", "migrations", "20260828123000_food_plan_quote_snapshots.sql"),
+  "utf8",
+);
 const databaseFixture = readFileSync(
   join(process.cwd(), "supabase", "tests", "database", "trip_plan_revisions_test.sql"),
   "utf8",
@@ -32,6 +36,18 @@ const ids = {
   area: "00000000-0000-0000-0000-000000000604",
   firstPlace: "00000000-0000-0000-0000-000000000605",
   secondPlace: "00000000-0000-0000-0000-000000000606",
+  vendor: "00000000-0000-0000-0000-000000000607",
+  menuItem: "00000000-0000-0000-0000-000000000608",
+};
+
+const selectedFood = {
+  vendorId: ids.vendor,
+  menuItemId: ids.menuItem,
+  quantity: 2,
+  priceVndMin: 35_000,
+  priceVndMax: 45_000,
+  paymentMode: "pay_at_vendor" as const,
+  activity: "Try the vendor's signature bowl",
 };
 
 const place = (id: string, areaId = ids.area) => ({
@@ -197,9 +213,50 @@ describe("toPlanRevisionInsert", () => {
       expect(mapped.value.items).toHaveLength(2);
       expect(Object.keys(mapped.value.items[0] ?? {})).toEqual([
         "placeId", "startAt", "endAt", "visitDurationMinutes", "travelMinutesBefore",
-        "transitionBufferMinutesBefore", "travelCostVndBefore", "placeCostVnd", "score",
+        "transitionBufferMinutesBefore", "travelCostVndBefore", "placeCostVnd",
+        "foodSelectionJson", "foodCostMinVnd", "foodCostMaxVnd", "payAtVendorMinVnd",
+        "payAtVendorMaxVnd", "customerPayableVnd", "score",
       ]);
     }
+  });
+
+  it("serializes a canonical food selection and every food amount as decimal-safe strings", () => {
+    const foodResult: ItineraryResult = {
+      ...result,
+      items: [{
+        ...result.items[0]!,
+        foodSelection: selectedFood,
+        foodCostMinVnd: 70_000,
+        foodCostMaxVnd: 90_000,
+        payAtVendorMinVnd: 70_000,
+        payAtVendorMaxVnd: 90_000,
+        customerPayableVnd: 180_000,
+      }, result.items[1]!],
+    };
+    const mapped = toPlanRevisionInsert(input, foodResult, "a".repeat(64), 3);
+    expect(mapped).toMatchObject({
+      ok: true,
+      value: {
+        items: [expect.objectContaining({
+          foodSelectionJson: JSON.stringify(selectedFood),
+          foodCostMinVnd: "70000",
+          foodCostMaxVnd: "90000",
+          payAtVendorMinVnd: "70000",
+          payAtVendorMaxVnd: "90000",
+          customerPayableVnd: "180000",
+        }), expect.any(Object)],
+      },
+    });
+  });
+
+  it("rejects an included-in-quote food selection at the persistence boundary", () => {
+    expect(toPlanRevisionInsert(input, {
+      ...result,
+      items: [{
+        ...result.items[0]!,
+        foodSelection: { ...selectedFood, paymentMode: "included_in_quote" },
+      }, result.items[1]!],
+    }, "a".repeat(64), 1)).toMatchObject({ ok: false });
   });
 
   it("rejects a result from a different immutable snapshot set", () => {
@@ -312,6 +369,21 @@ describe("toPlanRevisionInsert", () => {
 });
 
 describe("trip-plan revision migration contract", () => {
+  it("persists food selections and decimal-safe cost snapshots without weakening append-only/CAS guards", () => {
+    expect(foodPersistenceMigration).toMatch(/food_selection_json jsonb/);
+    expect(foodPersistenceMigration).toMatch(/food_cost_min_vnd bigint/);
+    expect(foodPersistenceMigration).toMatch(/pay_at_vendor_min_vnd bigint/);
+    expect(foodPersistenceMigration).toMatch(/customer_payable_vnd bigint/);
+    expect(foodPersistenceMigration).toMatch(/expected_item_keys constant text\[\][\s\S]*foodSelectionJson/);
+    expect(foodPersistenceMigration).toMatch(/food_selection_json[\s\S]*food_cost_min_vnd[\s\S]*customer_payable_vnd/);
+    expect(foodPersistenceMigration).toMatch(/validate_food_plan_revision_dto/);
+    expect(foodPersistenceMigration).toMatch(/food selection does not match immutable result/);
+    expect(foodPersistenceMigration).toMatch(/food amount formula mismatch/);
+    expect(foodPersistenceMigration).toMatch(/ALTER FUNCTION private\.persist_trip_plan_revision[\s\S]*OWNER TO localens_plan_rpc_owner/);
+    expect(foodPersistenceMigration).toMatch(/SECURITY DEFINER[\s\S]*SET search_path = ''/);
+    expect(foodPersistenceMigration).toMatch(/ON CONFLICT \(plan_id, revision_no\) DO NOTHING/);
+  });
+
   it("defines owner-scoped plan/revision/item history with restrictive snapshot membership", () => {
     expect(migration).toMatch(/CREATE TABLE public\.trip_plans[\s\S]*owner_user_id uuid[\s\S]*guest_binding_id uuid/);
     expect(migration).toMatch(/CREATE TABLE public\.trip_plan_revisions[\s\S]*UNIQUE \(plan_id, revision_no\)/);

@@ -234,7 +234,29 @@ export interface PlanRevisionItem {
   transitionBufferMinutesBefore: 0 | 10;
   travelCostVndBefore: string;
   placeCostVnd: string;
+  /** Canonical FoodSelection JSON, serialized before crossing the RPC boundary. */
+  foodSelectionJson: string | null;
+  foodCostMinVnd: string;
+  foodCostMaxVnd: string;
+  payAtVendorMinVnd: string;
+  payAtVendorMaxVnd: string;
+  customerPayableVnd: string;
   score: number;
+}
+
+/** Immutable commercial food facts copied into a quote snapshot. */
+export interface FoodQuoteSnapshot {
+  vendorId: string;
+  vendorNameEn: string;
+  vendorNameVi: string;
+  menuItemId: string;
+  menuItemNameEn: string;
+  menuItemNameVi: string;
+  quantity: number;
+  priceVndMin: string;
+  priceVndMax: string;
+  paymentMode: "pay_at_vendor";
+  evidenceDate: string;
 }
 
 export interface CreateGuestPlanArgs {
@@ -306,6 +328,11 @@ export interface CustomerCustomQuote {
   amountMinor: string;
   policy: string;
   validUntil: string;
+  foodSnapshot: FoodQuoteSnapshot[];
+  foodEstimateMinVnd: string;
+  foodEstimateMaxVnd: string;
+  payAtVendorMinVnd: string;
+  payAtVendorMaxVnd: string;
 }
 
 export type CheckoutSource =

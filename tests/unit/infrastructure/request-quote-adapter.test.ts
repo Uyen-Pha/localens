@@ -18,6 +18,10 @@ const migration = readFileSync(
   join(process.cwd(), "supabase", "migrations", "20260823101000_requests_quotes.sql"),
   "utf8",
 );
+const foodPersistenceMigration = readFileSync(
+  join(process.cwd(), "supabase", "migrations", "20260828123000_food_plan_quote_snapshots.sql"),
+  "utf8",
+);
 const pgTap = readFileSync(
   join(process.cwd(), "supabase", "tests", "database", "requests_quotes_test.sql"),
   "utf8",
@@ -55,6 +59,23 @@ const quoteRow = {
   amount_minor: "10000",
   policy: "Cancel up to 48 hours before the start.",
   valid_until: "2026-08-26T10:00:00+07:00",
+  food_snapshot: [{
+    vendor_id: "00000000-0000-0000-0000-000000000807",
+    vendor_name_en: "Bình Tây noodle stall",
+    vendor_name_vi: "Quầy mì Bình Tây",
+    menu_item_id: "00000000-0000-0000-0000-000000000808",
+    menu_item_name_en: "Signature noodle bowl",
+    menu_item_name_vi: "Tô mì đặc trưng",
+    quantity: 2,
+    price_vnd_min: "35000",
+    price_vnd_max: "45000",
+    payment_mode: "pay_at_vendor",
+    evidence_date: "2026-08-20",
+  }],
+  food_estimate_min_vnd: "70000",
+  food_estimate_max_vnd: "90000",
+  pay_at_vendor_min_vnd: "70000",
+  pay_at_vendor_max_vnd: "90000",
 };
 
 describe("request and quote adapter contracts", () => {
@@ -212,6 +233,23 @@ describe("request and quote adapter contracts", () => {
         amountMinor: "10000",
         policy: "Cancel up to 48 hours before the start.",
         validUntil: "2026-08-26T10:00:00+07:00",
+        foodSnapshot: [{
+          vendorId: "00000000-0000-0000-0000-000000000807",
+          vendorNameEn: "Bình Tây noodle stall",
+          vendorNameVi: "Quầy mì Bình Tây",
+          menuItemId: "00000000-0000-0000-0000-000000000808",
+          menuItemNameEn: "Signature noodle bowl",
+          menuItemNameVi: "Tô mì đặc trưng",
+          quantity: 2,
+          priceVndMin: "35000",
+          priceVndMax: "45000",
+          paymentMode: "pay_at_vendor",
+          evidenceDate: "2026-08-20",
+        }],
+        foodEstimateMinVnd: "70000",
+        foodEstimateMaxVnd: "90000",
+        payAtVendorMinVnd: "70000",
+        payAtVendorMaxVnd: "90000",
       },
     });
 
@@ -220,11 +258,27 @@ describe("request and quote adapter contracts", () => {
     expect(mapCustomerCustomQuote({ ...quoteRow, fx_snapshot_id: "00000000-0000-0000-0000-000000000805" })).toMatchObject({ ok: false, error: { code: "UNKNOWN_FIELD" } });
     expect(mapCustomerCustomQuote({ ...quoteRow, amount_minor: "9007199254740992" })).toMatchObject({ ok: false, error: { code: "UNSAFE_DB_INTEGER" } });
     expect(mapCustomerCustomQuote({ ...quoteRow, valid_until: "2026-02-30T10:00:00+07:00" })).toMatchObject({ ok: false, error: { code: "INVALID_TIMESTAMP" } });
+    expect(mapCustomerCustomQuote({ ...quoteRow, food_snapshot: [{ ...quoteRow.food_snapshot[0], payment_mode: "included_in_quote" }] })).toMatchObject({ ok: false });
     expect(mapCustomerCustomRequest({ ...requestRow, status: "checkout_pending" })).toMatchObject({ ok: false });
   });
 });
 
 describe("Task 8 SQL contract", () => {
+  it("derives an immutable quote food snapshot from the selected revision and keeps pay-at-vendor costs out of payable amount", () => {
+    expect(foodPersistenceMigration).toMatch(/food_snapshot jsonb NOT NULL/);
+    expect(foodPersistenceMigration).toMatch(/food_estimate_min_vnd bigint/);
+    expect(foodPersistenceMigration).toMatch(/pay_at_vendor_max_vnd bigint/);
+    expect(foodPersistenceMigration).toMatch(/CREATE OR REPLACE FUNCTION private\.create_custom_quote/);
+    expect(foodPersistenceMigration).toMatch(/FROM jsonb_array_elements\(revision_row\.result_json->'items'\)/);
+    expect(foodPersistenceMigration).toMatch(/paymentMode.*pay_at_vendor/);
+    expect(foodPersistenceMigration).toMatch(/food quote snapshot source unavailable/);
+    expect(foodPersistenceMigration).toMatch(/food quote total mismatch/);
+    expect(foodPersistenceMigration).toMatch(/quote amount must equal LocalLens payable amount/);
+    expect(foodPersistenceMigration).toMatch(/OLD\.food_snapshot IS DISTINCT FROM NEW\.food_snapshot/);
+    expect(foodPersistenceMigration).toMatch(/food_snapshot,[\s\S]*food_estimate_min_vnd/);
+    expect(foodPersistenceMigration).toMatch(/CREATE OR REPLACE VIEW public\.customer_custom_quotes_v/);
+  });
+
   it("defines immutable requests, append-only events, and server-owned quotes", () => {
     expect(migration).toMatch(/CREATE TABLE public\.custom_requests/);
     expect(migration).toMatch(/CREATE TABLE private\.custom_request_events/);

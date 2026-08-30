@@ -292,13 +292,16 @@ export function toStripeCheckoutSession(
   if (!Number.isFinite(holdExpiresAt) || holdExpiresAt <= now.getTime() + 30 * 60 * 1000) {
     return invalid("INVALID_TIMESTAMP", "data.checkout.hold_too_short", "result.holdExpiresAt");
   }
-  let amount: number;
+  // The checkout RPC result exposes only the server-owned LocalLens payable
+  // amount.  Food estimates paid directly to a vendor are intentionally not
+  // part of this contract and can never become Stripe line-item amounts.
+  let localensPayableAmount: number;
   try {
-    amount = Number(BigInt(parsedResult.value.amountMinor));
+    localensPayableAmount = Number(BigInt(parsedResult.value.amountMinor));
   } catch {
     return invalid("INVALID_DB_INTEGER", "data.integer.invalid", "result.amountMinor");
   }
-  if (!Number.isSafeInteger(amount) || amount < 1) {
+  if (!Number.isSafeInteger(localensPayableAmount) || localensPayableAmount < 1) {
     return invalid("UNSAFE_DB_INTEGER", "data.integer.unsafe", "result.amountMinor");
   }
   return {
@@ -312,7 +315,7 @@ export function toStripeCheckoutSession(
       line_items: [{
         price_data: {
           currency: parsedResult.value.currency,
-          unit_amount: amount,
+          unit_amount: localensPayableAmount,
           product_data: { name: "LocalLens tour booking" },
         },
         quantity: 1,

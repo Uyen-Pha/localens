@@ -2,7 +2,7 @@
 -- workstation; this suite is intentionally ready for the Task 16 runtime gate.
 BEGIN;
 
-SELECT plan(87);
+SELECT plan(91);
 
 CREATE TEMP TABLE task6_revision_fixture ON COMMIT DROP AS
 WITH fixture AS (
@@ -85,6 +85,10 @@ GRANT SELECT ON task6_revision_fixture TO authenticated;
 SELECT ok(to_regclass('public.trip_plans') IS NOT NULL, 'trip plans exists');
 SELECT ok(to_regclass('public.trip_plan_revisions') IS NOT NULL, 'trip plan revisions exists');
 SELECT ok(to_regclass('public.trip_plan_items') IS NOT NULL, 'trip plan items exists');
+SELECT ok((SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trip_plan_items' AND column_name = 'food_selection_json'), 'trip plan items persist food selection JSON');
+SELECT ok((SELECT count(*) = 5 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trip_plan_items' AND column_name IN ('food_cost_min_vnd', 'food_cost_max_vnd', 'pay_at_vendor_min_vnd', 'pay_at_vendor_max_vnd', 'customer_payable_vnd')), 'trip plan items persist decimal-safe food amounts');
+SELECT ok((SELECT count(*) >= 1 FROM pg_constraint WHERE conrelid = 'public.trip_plan_items'::regclass AND pg_get_constraintdef(oid) LIKE '%food_selection_json%jsonb_typeof%'), 'food selection JSON is object-shaped or null');
+SELECT ok((SELECT count(*) >= 1 FROM pg_proc WHERE oid = 'private.validate_food_plan_revision_dto(jsonb)'::regprocedure), 'food revision validator is installed');
 SELECT ok(to_regclass('private.recommendation_runs') IS NOT NULL, 'recommendation runs exists');
 
 SELECT ok((SELECT relrowsecurity AND relforcerowsecurity FROM pg_catalog.pg_class WHERE oid = 'public.trip_plans'::regclass), 'trip plans have forced RLS');

@@ -3,7 +3,7 @@
 -- fixtures and the authenticated JWT roles.
 BEGIN;
 
-SELECT plan(133);
+SELECT plan(136);
 
 RESET ROLE;
 DELETE FROM auth.users
@@ -308,6 +308,9 @@ SELECT throws_ok($$SELECT public.create_custom_quote((SELECT id FROM public.admi
 RESET ROLE;
 SELECT is((SELECT count(*)::integer FROM public.custom_quotes WHERE request_id = (SELECT id FROM public.custom_requests LIMIT 1)), 1, 'one quote is created');
 SELECT is((SELECT checkout_amount_minor FROM public.custom_quotes LIMIT 1), 2500000::bigint, 'VND checkout amount is server-owned');
+SELECT ok((SELECT jsonb_typeof(food_snapshot) = 'array' AND food_estimate_min_vnd = 0 AND food_estimate_max_vnd = 0 AND pay_at_vendor_min_vnd = 0 AND pay_at_vendor_max_vnd = 0 FROM public.custom_quotes LIMIT 1), 'museum quote has an empty pay-at-vendor snapshot');
+SELECT ok((SELECT amount_vnd_minor = checkout_amount_minor FROM public.custom_quotes WHERE checkout_currency = 'vnd'::public.checkout_currency LIMIT 1), 'museum quote payable amount excludes food estimates');
+SELECT throws_ok($$UPDATE public.custom_quotes SET food_snapshot = '[{"payment_mode":"included_in_quote"}]'::jsonb WHERE request_id = (SELECT id FROM public.custom_requests LIMIT 1)$$, '42501', 'custom quote commercial facts are immutable', 'quote food snapshot cannot be changed after creation');
 SELECT ok((SELECT fx_snapshot_id IS NULL AND fx_vnd_per_usd IS NULL FROM public.custom_quotes LIMIT 1), 'VND quote has no FX snapshot');
 SELECT ok((SELECT valid_until = created_at + interval '48 hours' FROM public.custom_quotes LIMIT 1), 'quote validity is exactly 48 hours');
 SET LOCAL ROLE authenticated;

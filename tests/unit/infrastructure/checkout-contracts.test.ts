@@ -19,6 +19,10 @@ const migration = readFileSync(
   join(process.cwd(), "supabase", "migrations", "20260823102000_bookings_holds_idempotency.sql"),
   "utf8",
 );
+const foodPersistenceMigration = readFileSync(
+  join(process.cwd(), "supabase", "migrations", "20260828123000_food_plan_quote_snapshots.sql"),
+  "utf8",
+);
 const pgTap = readFileSync(
   join(process.cwd(), "supabase", "tests", "database", "bookings_holds_idempotency_test.sql"),
   "utf8",
@@ -260,5 +264,12 @@ describe("Task 9 checkout contracts", () => {
     expect(migration).toMatch(/GRANT USAGE ON SCHEMA public, private TO localens_availability_rpc_owner/i);
     expect(migration).toMatch(/booking_row\.status IN \([\s\S]*confirmed[\s\S]*payment_review[\s\S]*state := 'replayed'/i);
     expect(pgTap).toMatch(/base table|terminal.*replay|early-webhook/i);
+  });
+
+  it("keeps Stripe amount/currency validation limited to the LocalLens payable amount", () => {
+    expect(foodPersistenceMigration).toMatch(/checkout amount remains the LocalLens-payable amount/);
+    expect(foodPersistenceMigration).toMatch(/existing start_checkout_tx and webhook finalizer continue to validate/);
+    expect(foodPersistenceMigration).toMatch(/They intentionally do not consult pay_at_vendor_min_vnd\/max_vnd/);
+    expect(foodPersistenceMigration).not.toMatch(/amount_value\s*:=\s*[^;]*pay_at_vendor/);
   });
 });

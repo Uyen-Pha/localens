@@ -4,6 +4,7 @@ import {
   type EngineInput,
   type ItineraryResult,
 } from "@/lib/domain/itinerary/contracts";
+import { foodSelectionSchema } from "@/lib/domain/food/contracts";
 import type {
   DataAdapterError,
   PlanRevisionInsert,
@@ -118,6 +119,22 @@ function safeFxDecimal(value: unknown, path: string): Result<string, DataAdapter
   return { ok: true, value: `${integerPart}.${fractionPart.padEnd(8, "0")}` };
 }
 
+function serializeFoodSelection(
+  value: unknown,
+  path: string,
+): Result<string | null, DataAdapterError> {
+  if (value === null) return { ok: true, value: null };
+  const parsed = foodSelectionSchema.safeParse(value);
+  if (!parsed.success) return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
+  // The schema is the canonical Task 8 contract.  Explicitly repeat the MVP
+  // policy here so a future schema policy extension cannot silently make an
+  // included food line payable by this persistence adapter.
+  if (parsed.data.paymentMode !== "pay_at_vendor") {
+    return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `${path}.paymentMode`);
+  }
+  return { ok: true, value: JSON.stringify(parsed.data) };
+}
+
 function validateUuidList(values: readonly string[], path: string): Result<string[], DataAdapterError> {
   const result: string[] = [];
   for (let index = 0; index < values.length; index += 1) {
@@ -199,11 +216,23 @@ function projectItem(item: ItineraryResult["items"][number], index: number): Res
   );
   const travelCost = safeUnsignedDecimal(item.travelCostVndBefore, `result.items[${index}].travelCostVndBefore`);
   const placeCost = safeUnsignedDecimal(item.placeCostVnd, `result.items[${index}].placeCostVnd`);
+  const foodSelectionJson = serializeFoodSelection(item.foodSelection, `result.items[${index}].foodSelection`);
+  const foodCostMin = safeUnsignedDecimal(item.foodCostMinVnd, `result.items[${index}].foodCostMinVnd`);
+  const foodCostMax = safeUnsignedDecimal(item.foodCostMaxVnd, `result.items[${index}].foodCostMaxVnd`);
+  const payAtVendorMin = safeUnsignedDecimal(item.payAtVendorMinVnd, `result.items[${index}].payAtVendorMinVnd`);
+  const payAtVendorMax = safeUnsignedDecimal(item.payAtVendorMaxVnd, `result.items[${index}].payAtVendorMaxVnd`);
+  const customerPayable = safeUnsignedDecimal(item.customerPayableVnd, `result.items[${index}].customerPayableVnd`);
   if (!placeId.ok) return placeId;
   if (!visitDuration.ok) return visitDuration;
   if (!travelMinutes.ok) return travelMinutes;
   if (!travelCost.ok) return travelCost;
   if (!placeCost.ok) return placeCost;
+  if (!foodSelectionJson.ok) return foodSelectionJson;
+  if (!foodCostMin.ok) return foodCostMin;
+  if (!foodCostMax.ok) return foodCostMax;
+  if (!payAtVendorMin.ok) return payAtVendorMin;
+  if (!payAtVendorMax.ok) return payAtVendorMax;
+  if (!customerPayable.ok) return customerPayable;
   return {
     ok: true,
     value: {
@@ -215,6 +244,12 @@ function projectItem(item: ItineraryResult["items"][number], index: number): Res
       transitionBufferMinutesBefore: item.transitionBufferMinutesBefore,
       travelCostVndBefore: travelCost.value,
       placeCostVnd: placeCost.value,
+      foodSelectionJson: foodSelectionJson.value,
+      foodCostMinVnd: foodCostMin.value,
+      foodCostMaxVnd: foodCostMax.value,
+      payAtVendorMinVnd: payAtVendorMin.value,
+      payAtVendorMaxVnd: payAtVendorMax.value,
+      customerPayableVnd: customerPayable.value,
       score: item.score,
     },
   };

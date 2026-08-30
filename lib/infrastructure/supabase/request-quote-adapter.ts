@@ -6,6 +6,7 @@ import type {
   CustomerCustomQuote,
   CustomerCustomRequest,
   DataAdapterError,
+  FoodQuoteSnapshot,
   RequestStatus,
   ReviewCustomRequestArgs,
   Result,
@@ -27,6 +28,8 @@ const REQUEST_STATUSES = new Set<RequestStatus>([
 ]);
 const QUOTE_STATUSES = new Set(["active", "checkout_pending", "accepted", "expired", "revoked"]);
 const CHECKOUT_CURRENCIES = new Set<CheckoutCurrency>(["vnd", "usd"]);
+const FOOD_PAYMENT_MODES = new Set(["pay_at_vendor"]);
+const FOOD_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -81,6 +84,110 @@ function safeMoney(value: unknown, path: string): Result<string, DataAdapterErro
   }
   if (parsed < BigInt(1) || parsed > MAX_SAFE_INTEGER) return invalid("UNSAFE_DB_INTEGER", "data.integer.unsafe", path);
   return { ok: true, value: parsed.toString(10) };
+}
+
+function safeFoodMoney(value: unknown, path: string): Result<string, DataAdapterError> {
+  if (typeof value !== "string" || !UNSIGNED_INTEGER_PATTERN.test(value)) {
+    return invalid("INVALID_DB_DECIMAL", "data.decimal.invalid", path);
+  }
+  let parsed: bigint;
+  try {
+    parsed = BigInt(value);
+  } catch {
+    return invalid("INVALID_DB_DECIMAL", "data.decimal.invalid", path);
+  }
+  if (parsed > MAX_SAFE_INTEGER) return invalid("UNSAFE_DB_INTEGER", "data.integer.unsafe", path);
+  return { ok: true, value: parsed.toString(10) };
+}
+
+function safeFoodDate(value: unknown, path: string): Result<string, DataAdapterError> {
+  if (typeof value !== "string") return invalid("INVALID_TIMESTAMP", "data.timestamp.invalid", path);
+  const match = value.match(FOOD_DATE_PATTERN);
+  if (!match) return invalid("INVALID_TIMESTAMP", "data.timestamp.invalid", path);
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return invalid("INVALID_TIMESTAMP", "data.timestamp.invalid", path);
+  }
+  return { ok: true, value };
+}
+
+function safeFoodQuantity(value: unknown, path: string): Result<number, DataAdapterError> {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > 100) {
+    return invalid("INVALID_DB_INTEGER", "data.integer.invalid", path);
+  }
+  return { ok: true, value };
+}
+
+function mapFoodSnapshot(value: unknown, path: string): Result<FoodQuoteSnapshot[], DataAdapterError> {
+  if (!Array.isArray(value) || value.length > 8) {
+    return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
+  }
+  const fields = [
+    "vendor_id", "vendor_name_en", "vendor_name_vi", "menu_item_id", "menu_item_name_en",
+    "menu_item_name_vi", "quantity", "price_vnd_min", "price_vnd_max", "payment_mode", "evidence_date",
+  ] as const;
+  const result: FoodQuoteSnapshot[] = [];
+  let minTotal = BigInt(0);
+  let maxTotal = BigInt(0);
+  for (let index = 0; index < value.length; index += 1) {
+    const itemPath = `${path}[${index}]`;
+    const row = exactFields(value[index], fields, itemPath);
+    if (!row.ok) return row;
+    const vendorId = safeUuid(row.value.vendor_id, `${itemPath}.vendor_id`);
+    const menuItemId = safeUuid(row.value.menu_item_id, `${itemPath}.menu_item_id`);
+    const vendorNameEn = safeText(row.value.vendor_name_en, `${itemPath}.vendor_name_en`, 1, 240);
+    const vendorNameVi = safeText(row.value.vendor_name_vi, `${itemPath}.vendor_name_vi`, 1, 240);
+    const menuItemNameEn = safeText(row.value.menu_item_name_en, `${itemPath}.menu_item_name_en`, 1, 240);
+    const menuItemNameVi = safeText(row.value.menu_item_name_vi, `${itemPath}.menu_item_name_vi`, 1, 240);
+    const quantity = safeFoodQuantity(row.value.quantity, `${itemPath}.quantity`);
+    const priceVndMin = safeFoodMoney(row.value.price_vnd_min, `${itemPath}.price_vnd_min`);
+    const priceVndMax = safeFoodMoney(row.value.price_vnd_max, `${itemPath}.price_vnd_max`);
+    const evidenceDate = safeFoodDate(row.value.evidence_date, `${itemPath}.evidence_date`);
+    if (!vendorId.ok) return vendorId;
+    if (!menuItemId.ok) return menuItemId;
+    if (!vendorNameEn.ok) return vendorNameEn;
+    if (!vendorNameVi.ok) return vendorNameVi;
+    if (!menuItemNameEn.ok) return menuItemNameEn;
+    if (!menuItemNameVi.ok) return menuItemNameVi;
+    if (!quantity.ok) return quantity;
+    if (!priceVndMin.ok) return priceVndMin;
+    if (!priceVndMax.ok) return priceVndMax;
+    if (!evidenceDate.ok) return evidenceDate;
+    if (!FOOD_PAYMENT_MODES.has(row.value.payment_mode as string)) {
+      return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `${itemPath}.payment_mode`);
+    }
+    const min = BigInt(priceVndMin.value) * BigInt(quantity.value);
+    const max = BigInt(priceVndMax.value) * BigInt(quantity.value);
+    minTotal += min;
+    maxTotal += max;
+    if (minTotal > MAX_SAFE_INTEGER || maxTotal > MAX_SAFE_INTEGER) {
+      return invalid("UNSAFE_DB_INTEGER", "data.integer.unsafe", path);
+    }
+    if (BigInt(priceVndMin.value) > BigInt(priceVndMax.value)) {
+      return invalid("INVALID_DB_DECIMAL", "data.decimal.invalid", `${itemPath}.price_vnd_max`);
+    }
+    result.push({
+      vendorId: vendorId.value,
+      vendorNameEn: vendorNameEn.value,
+      vendorNameVi: vendorNameVi.value,
+      menuItemId: menuItemId.value,
+      menuItemNameEn: menuItemNameEn.value,
+      menuItemNameVi: menuItemNameVi.value,
+      quantity: quantity.value,
+      priceVndMin: priceVndMin.value,
+      priceVndMax: priceVndMax.value,
+      paymentMode: "pay_at_vendor",
+      evidenceDate: evidenceDate.value,
+    });
+  }
+  return { ok: true, value: result };
 }
 
 function safeText(value: unknown, path: string, minimum: number, maximum: number): Result<string, DataAdapterError> {
@@ -176,6 +283,11 @@ const CUSTOMER_QUOTE_FIELDS = [
   "amount_minor",
   "policy",
   "valid_until",
+  "food_snapshot",
+  "food_estimate_min_vnd",
+  "food_estimate_max_vnd",
+  "pay_at_vendor_min_vnd",
+  "pay_at_vendor_max_vnd",
 ] as const;
 
 export function toSubmitCustomRequest(input: SubmitCustomRequestInput): Result<SubmitCustomRequestArgs, DataAdapterError> {
@@ -260,6 +372,11 @@ export function mapCustomerCustomQuote(row: unknown): Result<CustomerCustomQuote
   const title = safeText(fields.value.title, "row.title", 1, 240);
   const policy = safeText(fields.value.policy, "row.policy", 1, 4000);
   const validUntil = safeTimestamp(fields.value.valid_until, "row.valid_until");
+  const foodSnapshot = mapFoodSnapshot(fields.value.food_snapshot, "row.food_snapshot");
+  const foodEstimateMinVnd = safeFoodMoney(fields.value.food_estimate_min_vnd, "row.food_estimate_min_vnd");
+  const foodEstimateMaxVnd = safeFoodMoney(fields.value.food_estimate_max_vnd, "row.food_estimate_max_vnd");
+  const payAtVendorMinVnd = safeFoodMoney(fields.value.pay_at_vendor_min_vnd, "row.pay_at_vendor_min_vnd");
+  const payAtVendorMaxVnd = safeFoodMoney(fields.value.pay_at_vendor_max_vnd, "row.pay_at_vendor_max_vnd");
   if (!id.ok) return id;
   if (!requestId.ok) return requestId;
   if (!amountVndMinor.ok) return amountVndMinor;
@@ -267,11 +384,32 @@ export function mapCustomerCustomQuote(row: unknown): Result<CustomerCustomQuote
   if (!title.ok) return title;
   if (!policy.ok) return policy;
   if (!validUntil.ok) return validUntil;
+  if (!foodSnapshot.ok) return foodSnapshot;
+  if (!foodEstimateMinVnd.ok) return foodEstimateMinVnd;
+  if (!foodEstimateMaxVnd.ok) return foodEstimateMaxVnd;
+  if (!payAtVendorMinVnd.ok) return payAtVendorMinVnd;
+  if (!payAtVendorMaxVnd.ok) return payAtVendorMaxVnd;
   if (typeof fields.value.status !== "string" || !QUOTE_STATUSES.has(fields.value.status)) {
     return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "row.status");
   }
   if (!CHECKOUT_CURRENCIES.has(fields.value.currency as CheckoutCurrency)) {
     return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "row.currency");
+  }
+  if (BigInt(foodEstimateMinVnd.value) > BigInt(foodEstimateMaxVnd.value)
+      || BigInt(payAtVendorMinVnd.value) > BigInt(payAtVendorMaxVnd.value)
+      || BigInt(foodEstimateMinVnd.value) !== BigInt(payAtVendorMinVnd.value)
+      || BigInt(foodEstimateMaxVnd.value) !== BigInt(payAtVendorMaxVnd.value)) {
+    return invalid("INVALID_DB_DECIMAL", "data.decimal.invalid", "row.food_estimate_min_vnd");
+  }
+  const snapshotTotals = foodSnapshot.value.reduce(
+    (totals, item) => ({
+      min: totals.min + BigInt(item.priceVndMin) * BigInt(item.quantity),
+      max: totals.max + BigInt(item.priceVndMax) * BigInt(item.quantity),
+    }),
+    { min: BigInt(0), max: BigInt(0) },
+  );
+  if (snapshotTotals.min !== BigInt(foodEstimateMinVnd.value) || snapshotTotals.max !== BigInt(foodEstimateMaxVnd.value)) {
+    return invalid("SNAPSHOT_MISMATCH", "data.snapshot.mismatch", "row.food_snapshot");
   }
   return {
     ok: true,
@@ -285,6 +423,11 @@ export function mapCustomerCustomQuote(row: unknown): Result<CustomerCustomQuote
       amountMinor: amountMinor.value,
       policy: policy.value,
       validUntil: validUntil.value,
+      foodSnapshot: foodSnapshot.value,
+      foodEstimateMinVnd: foodEstimateMinVnd.value,
+      foodEstimateMaxVnd: foodEstimateMaxVnd.value,
+      payAtVendorMinVnd: payAtVendorMinVnd.value,
+      payAtVendorMaxVnd: payAtVendorMaxVnd.value,
     },
   };
 }

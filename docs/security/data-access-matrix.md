@@ -79,14 +79,14 @@ Migration owner for default privileges: postgres
 | public.catalog_snapshot_area_translations | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_area_translations_public_select |  | migration-owner-only |
 | public.catalog_snapshot_areas | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_areas_public_select |  | migration-owner-only |
 | public.catalog_snapshot_food_item_supports | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all |  | migration-owner-only |
-| public.catalog_snapshot_food_item_translations | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all |  | migration-owner-only |
-| public.catalog_snapshot_food_items | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all |  | migration-owner-only |
+| public.catalog_snapshot_food_item_translations | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all, catalog_snapshot_food_item_translations_request_admin_select |  | migration-owner-only |
+| public.catalog_snapshot_food_items | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all, catalog_snapshot_food_items_plan_rpc_owner_select, catalog_snapshot_food_items_request_admin_select |  | migration-owner-only |
 | public.catalog_snapshot_food_vendor_opening_exception_windows | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all |  | migration-owner-only |
 | public.catalog_snapshot_food_vendor_opening_exceptions | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all |  | migration-owner-only |
 | public.catalog_snapshot_food_vendor_opening_hours | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all |  | migration-owner-only |
 | public.catalog_snapshot_food_vendor_supports | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all |  | migration-owner-only |
-| public.catalog_snapshot_food_vendor_translations | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all |  | migration-owner-only |
-| public.catalog_snapshot_food_vendors | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all |  | migration-owner-only |
+| public.catalog_snapshot_food_vendor_translations | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all, catalog_snapshot_food_vendor_translations_request_admin_select |  | migration-owner-only |
+| public.catalog_snapshot_food_vendors | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all, catalog_snapshot_food_vendors_plan_rpc_owner_select, catalog_snapshot_food_vendors_request_admin_select |  | migration-owner-only |
 | public.catalog_snapshot_place_experience_types | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_experience_types_public_select |  | migration-owner-only |
 | public.catalog_snapshot_place_guide_languages | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_guide_languages_public_select |  | migration-owner-only |
 | public.catalog_snapshot_place_opening_exception_windows | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_opening_exception_windows_public_select |  | migration-owner-only |
@@ -178,7 +178,7 @@ Migration owner for default privileges: postgres
 
 ## Internal functions
 
-Enumerated internal functions: 91. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
+Enumerated internal functions: 92. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
 
 - `private.accept_guide_assignment(uuid)`
 - `private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)`
@@ -270,11 +270,12 @@ Enumerated internal functions: 91. All are non-API and must use a named NOLOGIN/
 - `private.submit_custom_request(uuid,integer)`
 - `private.valid_guide_requirement_flags(text[],text)`
 - `private.valid_tour_copy_array(text[])`
+- `private.validate_food_plan_revision_dto(jsonb)`
 - `private.validate_trip_plan_revision_dto(jsonb)`
 
 ## Explicit grants
 
-Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (531 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (543 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Dynamic policy semantics
 

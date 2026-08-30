@@ -761,7 +761,8 @@
     {
       "name": "public.catalog_snapshot_food_item_translations",
       "policies": [
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "catalog_snapshot_food_item_translations_request_admin_select"
       ],
       "writerOperation": "catalog snapshot RPC only",
       "owner": "postgres",
@@ -770,7 +771,9 @@
     {
       "name": "public.catalog_snapshot_food_items",
       "policies": [
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "catalog_snapshot_food_items_plan_rpc_owner_select",
+        "catalog_snapshot_food_items_request_admin_select"
       ],
       "writerOperation": "catalog snapshot RPC only",
       "owner": "postgres",
@@ -815,7 +818,8 @@
     {
       "name": "public.catalog_snapshot_food_vendor_translations",
       "policies": [
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "catalog_snapshot_food_vendor_translations_request_admin_select"
       ],
       "writerOperation": "catalog snapshot RPC only",
       "owner": "postgres",
@@ -824,7 +828,9 @@
     {
       "name": "public.catalog_snapshot_food_vendors",
       "policies": [
-        "catalog_owner_all"
+        "catalog_owner_all",
+        "catalog_snapshot_food_vendors_plan_rpc_owner_select",
+        "catalog_snapshot_food_vendors_request_admin_select"
       ],
       "writerOperation": "catalog snapshot RPC only",
       "owner": "postgres",
@@ -1502,6 +1508,7 @@
     "private.content_url_is_safe(text)",
     "private.create_catalog_snapshot()",
     "private.create_custom_quote(uuid,bigint,public.checkout_currency,text,text,text)",
+    "private.validate_food_plan_revision_dto(jsonb)",
     "private.create_fx_snapshot(numeric,text,timestamptz,text,boolean)",
     "private.create_guest_plan(jsonb)",
     "private.create_travel_snapshot()",
@@ -1558,7 +1565,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 531,
+  "grantCount": 543,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }

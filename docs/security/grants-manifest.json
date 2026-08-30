@@ -1902,6 +1902,13 @@
     },
     {
       "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_item_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
       "objectName": "public.catalog_snapshot_food_items_v",
       "privilege": "select",
       "columns": [],
@@ -1927,6 +1934,20 @@
       "privilege": "select",
       "columns": [],
       "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_items",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_items",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
     },
     {
       "objectType": "table",
@@ -2000,6 +2021,13 @@
     },
     {
       "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendor_translations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
       "objectName": "public.catalog_snapshot_food_vendors_v",
       "privilege": "select",
       "columns": [],
@@ -2025,6 +2053,20 @@
       "privilege": "select",
       "columns": [],
       "grantee": "localens_catalog_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendors",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.catalog_snapshot_food_vendors",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_request_admin_rpc_owner"
     },
     {
       "objectType": "table",
@@ -2414,6 +2456,60 @@
       "objectName": "public.custom_quotes",
       "privilege": "select",
       "columns": [],
+      "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
+      "privilege": "select",
+      "columns": [
+        "amount_vnd_minor",
+        "catalog_snapshot_id",
+        "checkout_amount_minor",
+        "checkout_currency",
+        "created_at",
+        "food_estimate_max_vnd",
+        "food_estimate_min_vnd",
+        "food_snapshot",
+        "fx_snapshot_id",
+        "fx_vnd_per_usd",
+        "id",
+        "pay_at_vendor_max_vnd",
+        "pay_at_vendor_min_vnd",
+        "policy",
+        "request_id",
+        "status",
+        "title_en",
+        "title_vi",
+        "travel_snapshot_id",
+        "valid_until"
+      ],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
+      "privilege": "select",
+      "columns": [
+        "food_estimate_max_vnd",
+        "food_estimate_min_vnd",
+        "food_snapshot",
+        "pay_at_vendor_max_vnd",
+        "pay_at_vendor_min_vnd"
+      ],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
+      "privilege": "select",
+      "columns": [
+        "food_estimate_max_vnd",
+        "food_estimate_min_vnd",
+        "food_snapshot",
+        "pay_at_vendor_max_vnd",
+        "pay_at_vendor_min_vnd"
+      ],
       "grantee": "localens_request_customer_rpc_owner"
     },
     {
@@ -3790,6 +3886,60 @@
       "privilege": "select",
       "columns": [],
       "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_items",
+      "privilege": "select",
+      "columns": [
+        "catalog_snapshot_id",
+        "customer_payable_vnd",
+        "end_at",
+        "food_cost_max_vnd",
+        "food_cost_min_vnd",
+        "food_selection_json",
+        "pay_at_vendor_max_vnd",
+        "pay_at_vendor_min_vnd",
+        "place_cost_vnd",
+        "place_id",
+        "position",
+        "revision_id",
+        "score",
+        "start_at",
+        "transition_buffer_minutes_before",
+        "travel_cost_vnd_before",
+        "travel_minutes_before",
+        "visit_duration_minutes"
+      ],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_items",
+      "privilege": "select",
+      "columns": [
+        "customer_payable_vnd",
+        "food_cost_max_vnd",
+        "food_cost_min_vnd",
+        "food_selection_json",
+        "pay_at_vendor_max_vnd",
+        "pay_at_vendor_min_vnd"
+      ],
+      "grantee": "localens_request_admin_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_items",
+      "privilege": "select",
+      "columns": [
+        "customer_payable_vnd",
+        "food_cost_max_vnd",
+        "food_cost_min_vnd",
+        "food_selection_json",
+        "pay_at_vendor_max_vnd",
+        "pay_at_vendor_min_vnd"
+      ],
+      "grantee": "localens_request_customer_rpc_owner"
     },
     {
       "objectType": "table",
