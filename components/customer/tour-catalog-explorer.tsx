@@ -48,7 +48,7 @@ function TourCard({
   const departure = getDemoDepartureForTourSlug(tour.slug);
 
   return (
-    <article className="demo-tour-card">
+    <article className="demo-tour-card demo-tour-card--editorial">
       <h2 className="demo-tour-card__title">{tour.title}</h2>
       <p className="demo-tour-card__summary">{tour.summary}</p>
       <dl className="demo-tour-card__facts">
@@ -186,7 +186,7 @@ export function TourCatalogExplorer({
   return (
     <div className="tour-catalog-explorer">
       <p className="demo-disclosure" role="note">{copy.disclosure}</p>
-      <fieldset className="tour-catalog-filters" aria-label={copy.filtersLegend}>
+      <fieldset className="tour-catalog-filters tour-catalog-filters--editorial" aria-label={copy.filtersLegend}>
         <legend>{copy.filtersLegend}</legend>
         <label className="field">
           <span>{copy.keywordLabel}</span>
@@ -212,7 +212,7 @@ export function TourCatalogExplorer({
             {copy.experienceTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
-        <button className="button button--secondary" type="button" onClick={clearFilters}>{copy.clearFiltersLabel}</button>
+        <button className="button button--secondary button--quiet" type="button" onClick={clearFilters}>{copy.clearFiltersLabel}</button>
       </fieldset>
 
       {isFiltering ? <p className="tour-catalog-status" role="status">{copy.filteringStatus}</p> : null}
@@ -232,7 +232,7 @@ export function TourCatalogExplorer({
       {catalog && catalog.tours.length > 0 ? (
         <>
           <p className="tour-catalog-count">{catalog.tours.length} {copy.resultCountLabel}</p>
-          <div className="demo-tour-grid">
+          <div className="demo-tour-grid demo-tour-grid--editorial">
             {catalog.tours.map((tour) => (
               <TourCard
                 key={tour.id}

@@ -40,7 +40,7 @@ export default async function ToursPage({
   return (
     <div className="customer-home customer-tours-page">
       <section className="customer-section customer-section--discovery" aria-labelledby="fixed-tours-title">
-        <div className="section-heading">
+        <div className="section-heading section-heading--tours">
           <p className="eyebrow">{copy.discoveryEyebrow}</p>
           <h1 id="fixed-tours-title">{copy.tourCatalog.catalogHeading}</h1>
           <p>{copy.tourCatalog.catalogIntro}</p>

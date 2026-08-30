@@ -26,6 +26,15 @@ describe("TourCatalogExplorer", () => {
     );
 
     expect(screen.getByRole("heading", { level: 2, name: "Markets and Street Food" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: dictionary.home.tourCatalog.filtersLegend })).toHaveClass(
+      "tour-catalog-filters--editorial",
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "Markets and Street Food" }).closest(".demo-tour-card")).toHaveClass(
+      "demo-tour-card--editorial",
+    );
+    expect(screen.getByRole("button", { name: dictionary.home.tourCatalog.clearFiltersLabel })).toHaveClass(
+      "button--quiet",
+    );
     expect(screen.getByRole("link", { name: `${dictionary.home.tourCatalog.bookLabel} Markets and Street Food` })).toHaveAttribute(
       "href",
       "/en/booking?departure=demo-departure-markets-and-street-food-2026-09-05&partySize=1",

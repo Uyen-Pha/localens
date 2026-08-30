@@ -20,10 +20,18 @@ describe("localized fixed tours page", () => {
 
     render(await ToursPage({ params: Promise.resolve({ locale: "en" }) }));
 
-    expect(screen.getByRole("heading", { level: 1, name: dictionary.home.tourCatalog.catalogHeading })).toBeInTheDocument();
+    const heading = screen.getByRole("heading", { level: 1, name: dictionary.home.tourCatalog.catalogHeading });
+    expect(heading).toBeInTheDocument();
+    expect(heading.closest(".section-heading")).toHaveClass("section-heading--tours");
     expect(screen.getByRole("note")).toHaveTextContent(dictionary.home.tourCatalog.disclosure);
+    expect(screen.getByRole("group", { name: dictionary.home.tourCatalog.filtersLegend })).toHaveClass(
+      "tour-catalog-filters--editorial",
+    );
+    expect(document.querySelector(".demo-tour-grid")).toHaveClass("demo-tour-grid--editorial");
     for (const tour of catalogResult.value.tours) {
-      expect(screen.getByRole("heading", { level: 2, name: tour.title })).toBeInTheDocument();
+      const cardHeading = screen.getByRole("heading", { level: 2, name: tour.title });
+      expect(cardHeading).toBeInTheDocument();
+      expect(cardHeading.closest(".demo-tour-card")).toHaveClass("demo-tour-card--editorial");
       expect(screen.getByText(tour.summary)).toBeInTheDocument();
       expect(screen.getByText(tour.meetingPoint)).toBeInTheDocument();
       expect(screen.getByText(tour.sourceUrl)).toBeInTheDocument();

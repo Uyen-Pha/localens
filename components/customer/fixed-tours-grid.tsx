@@ -19,9 +19,9 @@ export function FixedToursGrid({
   const Heading = headingLevel;
 
   return (
-    <div className="tour-grid">
+    <div className="tour-grid tour-grid--editorial">
       {copy.fixedTours.map((tour) => (
-        <article className={`tour-card tour-card--${tour.id}`} id={tour.id} key={tour.id}>
+        <article className={`tour-card tour-card--${tour.id} tour-card--editorial`} id={tour.id} key={tour.id}>
           <div className="tour-card__topline">
             <span className="tour-card__icon" aria-hidden="true">{tour.icon}</span>
             <span className="tour-card__detail">{tour.detail}</span>
