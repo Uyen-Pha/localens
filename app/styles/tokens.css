@@ -1,0 +1,39 @@
+:root {
+  --color-paper: #FAF4EB;
+  --color-surface: #FFFDF8;
+  --color-ink: #171717;
+  --color-muted: #55524D;
+  --color-vermilion: #791312;
+  --color-indigo: #17345F;
+  --color-ochre: #B56E00;
+  --color-rule: #D8CFC2;
+
+  --content-max: 1440px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  --radius-control: 2px;
+  --radius-media: 0px;
+  --border-hairline: 1px solid var(--color-rule);
+  --focus-ring: 3px solid var(--color-indigo);
+
+  /* Compatibility aliases keep existing customer class names stable while the
+     route components migrate to the editorial tokens in later tasks. */
+  --color-brand-forest: var(--color-ink);
+  --color-brand-forest-soft: color-mix(in srgb, var(--color-indigo) 10%, var(--color-surface));
+  --color-cta-vermilion: var(--color-vermilion);
+  --color-cta-vermilion-dark: #5C0E0D;
+  --color-surface-raised: var(--color-surface);
+  --color-ink-muted: var(--color-muted);
+  --color-border: var(--color-rule);
+  --color-focus: var(--color-indigo);
+  --interactive-min: 44px;
+  --content-width: var(--content-max);
+}
