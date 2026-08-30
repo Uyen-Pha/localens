@@ -1,3 +1,4 @@
+/* editorial-css-sha256: bd1cdf7cc27af95696a16d29ad10502130f45c88d6549732244d09378bd2f697 */
 .itinerary-preview { margin-top: var(--space-6); padding: var(--space-5); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); }
 .itinerary-preview > h3 { margin: 0; color: var(--customer-ink); font-size: clamp(1.25rem, 2vw, 1.6rem); }
 .itinerary-preview__disclosure, .itinerary-preview__proposal, .itinerary-preview__warning { margin: var(--space-3) 0 0; color: var(--customer-ink-soft); line-height: 1.5; }

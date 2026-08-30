@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -19,6 +20,10 @@ async function readStyle(name: string) {
 
 async function readEditorialStyles() {
   return Promise.all(editorialStyleFiles.map((name) => readStyle(name))).then((styles) => styles.join("\n"));
+}
+
+function normalizeLineEndings(value: string) {
+  return value.replace(/\r\n?/g, "\n");
 }
 
 describe("editorial style foundations", () => {
@@ -50,6 +55,25 @@ describe("editorial style foundations", () => {
         await readStyle(name);
       }),
     );
+  });
+
+  it("guards each owned stylesheet with a complete-content SHA-256 checksum", async () => {
+    const checksumLine = /^\/\* editorial-css-sha256: ([0-9a-f]{64}) \*\/\n/;
+
+    for (const name of editorialStyleFiles) {
+      const normalizedStyle = normalizeLineEndings(await readStyle(name));
+      const match = normalizedStyle.match(checksumLine);
+
+      expect(match, `${name} must begin with its checksum comment`).not.toBeNull();
+      if (!match) continue;
+
+      const checksum = match[1];
+      expect(checksum).toMatch(/^[0-9a-f]{64}$/);
+      const contentWithoutChecksum = normalizedStyle.slice(match[0].length);
+      const computedChecksum = createHash("sha256").update(contentWithoutChecksum, "utf8").digest("hex");
+
+      expect(computedChecksum).toBe(checksum);
+    }
   });
 
   it("uses the configured display family for the stamp treatment", async () => {

@@ -1,3 +1,4 @@
+/* editorial-css-sha256: 90d146763309c2394c0567890a377d284d724ee3fec10d14efe410c41a6464ee */
 .booking-flow { max-width: 60rem; }
 .booking-flow__card { display: grid; gap: var(--space-4); margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); box-shadow: var(--shadow-panel); }
 .booking-flow__card h2 { margin: 0; color: var(--customer-ink); font-size: clamp(1.35rem, 2vw, 1.8rem); }

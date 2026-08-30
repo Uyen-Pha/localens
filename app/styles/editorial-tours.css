@@ -1,3 +1,4 @@
+/* editorial-css-sha256: 0ea20117eb49aded2f9561baa64fe5037f72d89fae4a52b0134efb967cc89f2e */
 .tour-catalog-explorer { margin-top: var(--space-5); }
 .tour-catalog-filters { display: grid; grid-template-columns: 1.5fr repeat(2, minmax(0, 1fr)) auto; align-items: end; gap: var(--space-3); margin: 0; padding: var(--space-4); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); }
 .tour-catalog-filters legend { grid-column: 1 / -1; padding-inline: var(--space-2); color: var(--customer-ink); font-weight: 700; }
