@@ -107,6 +107,30 @@ describe("SiteHeader", () => {
     );
   });
 
+  it("preserves an opaque hash alongside the exact query string", () => {
+    const search = "?plan=opaque%2F%2B&filter=a+b&filter=%E2%9C%93";
+    const hash = "#experiences%2F%2B?tab=local%20life";
+
+    expect(getEquivalentLocalePath("/en/", "vi", search, hash)).toBe(
+      `/vi/${search}${hash}`,
+    );
+
+    render(
+      <SiteHeader
+        locale="en"
+        labels={labels}
+        pathname="/en/"
+        search={search}
+        hash={hash}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Tiếng Việt" })).toHaveAttribute(
+      "href",
+      `/vi${search}${hash}`,
+    );
+  });
+
   it("renders the Vietnamese navigation with equivalent destinations", () => {
     render(
       <SiteHeader

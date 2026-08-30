@@ -17,6 +17,7 @@ export type LocaleSwitcherProps = {
   labels: LocaleSwitcherLabels;
   pathname?: string | null;
   search?: string | null;
+  hash?: string | null;
 };
 
 function alternateLocale(locale: Locale): Locale {
@@ -27,16 +28,17 @@ export function getEquivalentLocalePath(
   pathname: string | null | undefined,
   targetLocale: Locale,
   search = "",
+  hash = "",
 ): string {
   const path = pathname?.startsWith("/") ? pathname : "/";
   const segments = path.split("/");
 
   if (isLocale(segments[1])) {
     segments[1] = targetLocale;
-    return `${segments.join("/") || `/${targetLocale}/`}${search}`;
+    return `${segments.join("/") || `/${targetLocale}/`}${search}${hash}`;
   }
 
-  return `${path === "/" ? `/${targetLocale}/` : `/${targetLocale}${path}`}${search}`;
+  return `${path === "/" ? `/${targetLocale}/` : `/${targetLocale}${path}`}${search}${hash}`;
 }
 
 function LocaleSwitcherLink({
@@ -44,6 +46,7 @@ function LocaleSwitcherLink({
   labels,
   pathname: pathnameProp,
   search: searchProp,
+  hash: hashProp,
 }: LocaleSwitcherProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -56,6 +59,12 @@ function LocaleSwitcherLink({
           ? `?${searchParams.toString()}`
           : ""
         : window.location.search;
+  const hash =
+    hashProp !== undefined
+      ? hashProp ?? ""
+      : typeof window === "undefined"
+        ? ""
+        : window.location.hash;
 
   return (
     <>
@@ -71,6 +80,7 @@ function LocaleSwitcherLink({
           pathnameProp ?? pathname,
           targetLocale,
           search,
+          hash,
         )}
       >
         {labels.options[targetLocale]}
@@ -84,10 +94,17 @@ function LocaleSwitcherFallback({
   labels,
   pathname,
   search,
+  hash,
 }: LocaleSwitcherProps) {
   const targetLocale = alternateLocale(locale);
   const fallbackSearch =
     search ?? (typeof window === "undefined" ? "" : window.location.search);
+  const fallbackHash =
+    hash !== undefined
+      ? hash ?? ""
+      : typeof window === "undefined"
+        ? ""
+        : window.location.hash;
 
   return (
     <>
@@ -99,7 +116,12 @@ function LocaleSwitcherFallback({
       </span>
       <Link
         className="locale-switcher__link"
-        href={getEquivalentLocalePath(pathname, targetLocale, fallbackSearch)}
+        href={getEquivalentLocalePath(
+          pathname,
+          targetLocale,
+          fallbackSearch,
+          fallbackHash,
+        )}
       >
         {labels.options[targetLocale]}
       </Link>

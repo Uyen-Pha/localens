@@ -23,9 +23,10 @@ export type SiteHeaderProps = {
   labels: SiteHeaderLabels;
   pathname?: string | null;
   search?: string | null;
+  hash?: string | null;
 };
 
-export function SiteHeader({ locale, labels, pathname, search }: SiteHeaderProps) {
+export function SiteHeader({ locale, labels, pathname, search, hash }: SiteHeaderProps) {
   return (
     <header className="site-header">
       <div className="site-header__inner">
@@ -47,6 +48,7 @@ export function SiteHeader({ locale, labels, pathname, search }: SiteHeaderProps
             labels={labels.language}
             pathname={pathname}
             search={search}
+            hash={hash}
           />
           <span
             className="site-header__cta site-header__cta--disabled"
