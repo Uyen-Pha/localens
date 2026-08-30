@@ -52,7 +52,9 @@ describe("CustomRequestFlow", () => {
     const copy = getDictionary("en").customRequest;
     render(<CustomRequestFlow locale="en" copy={copy} />);
 
-    expect(screen.getByRole("heading", { name: copy.signInBoundaryHeading })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: copy.signInBoundaryHeading }).closest(".custom-request-flow")).toHaveClass(
+      "custom-request-flow--editorial",
+    );
     expect(screen.getByText(copy.noBackendAuthDisclosure)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: copy.continueLocalDemoLabel })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: copy.submitRequestLabel })).not.toBeInTheDocument();

@@ -29,7 +29,9 @@ describe("PersonalizationForm", () => {
 
     render(<PersonalizationForm copy={dictionary.home.personalizationForm} />);
 
-    expect(screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel })).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel })).toHaveClass(
+      "personalization-form--editorial",
+    );
     expect(screen.getByLabelText(dictionary.home.personalizationForm.durationLabel)).toHaveAttribute(
       "name",
       "durationMinutes",

@@ -176,7 +176,7 @@ export function PersonalizationForm({
   }
 
   return (
-    <form className="personalization-form" aria-label={copy.formLabel} onSubmit={handleSubmit}>
+    <form className="personalization-form personalization-form--editorial" aria-label={copy.formLabel} onSubmit={handleSubmit}>
       <div className="personalization-form__grid">
         <label className="field">
           <span>{copy.durationLabel}</span>

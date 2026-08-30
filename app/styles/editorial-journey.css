@@ -1,85 +1,907 @@
-/* editorial-css-sha256: bd1cdf7cc27af95696a16d29ad10502130f45c88d6549732244d09378bd2f697 */
-.itinerary-preview { margin-top: var(--space-6); padding: var(--space-5); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); }
-.itinerary-preview > h3 { margin: 0; color: var(--customer-ink); font-size: clamp(1.25rem, 2vw, 1.6rem); }
-.itinerary-preview__disclosure, .itinerary-preview__proposal, .itinerary-preview__warning { margin: var(--space-3) 0 0; color: var(--customer-ink-soft); line-height: 1.5; }
-.itinerary-preview__proposal { color: var(--customer-ink); font-weight: 700; }
-.itinerary-preview__warning { padding: var(--space-3); border-left: 3px solid var(--customer-orange); background: rgba(209, 122, 0, 0.08); }
-.itinerary-preview__error { margin-top: var(--space-4); padding: var(--space-3); border-left: 3px solid var(--color-cta-vermilion); background: rgba(190, 58, 36, 0.08); color: var(--color-cta-vermilion-dark); }
-.itinerary-preview__error p { margin: 0.35rem 0 0; }
-.itinerary-preview__error p:first-child { margin-top: 0; font-weight: 700; }
-.itinerary-timeline { display: grid; gap: var(--space-4); margin: var(--space-5) 0 0; padding: 0; list-style: none; }
-.itinerary-timeline__item { position: relative; padding-left: var(--space-5); border-left: 2px solid var(--customer-orange); }
-.itinerary-timeline__item::before { position: absolute; top: 0.25rem; left: -0.45rem; width: 0.75rem; height: 0.75rem; border-radius: 50%; background: var(--customer-orange); content: ""; }
-.itinerary-timeline__item h4 { margin: 0; color: var(--customer-ink); font-size: 1.05rem; }
-.itinerary-timeline__details, .itinerary-preview__totals dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-5); margin: var(--space-3) 0 0; }
-.itinerary-timeline__details div, .itinerary-preview__totals dl div { display: flex; justify-content: space-between; gap: var(--space-3); border-bottom: 1px solid var(--customer-line); padding-bottom: 0.35rem; }
-.itinerary-timeline__details dt, .itinerary-preview__totals dt { color: var(--customer-ink-soft); font-size: 0.82rem; }
-.itinerary-timeline__details dd, .itinerary-preview__totals dd { margin: 0; color: var(--customer-ink); font-weight: 700; text-align: right; }
-.itinerary-preview__totals { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--customer-line); }
-.itinerary-preview__totals h4 { margin: 0; color: var(--customer-ink); }
+/* editorial-css-sha256: f986559854d7c98a8ab3f5c24a981430d14942d48dc464b8f403d52ed46ab1c7 */
 
-.planner-flow { max-width: 66rem; }
-.custom-request-flow { max-width: 66rem; }
-.custom-request-flow__card { display: grid; gap: var(--space-3); margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); box-shadow: var(--shadow-panel); }
-.custom-request-flow__card h2 { margin: 0; color: var(--customer-ink); font-size: clamp(1.25rem, 2vw, 1.7rem); }
-.custom-request-flow__card p { margin: 0; color: var(--customer-ink-soft); line-height: 1.55; }
-.custom-request-flow__facts { display: grid; gap: var(--space-2); margin: 0; }
-.custom-request-flow__facts > div { display: flex; justify-content: space-between; gap: var(--space-4); padding-bottom: var(--space-2); border-bottom: 1px solid var(--customer-line); }
-.custom-request-flow__facts dt { color: var(--customer-ink-soft); font-size: 0.85rem; }
-.custom-request-flow__facts dd { margin: 0; color: var(--customer-ink); font-weight: 700; text-align: right; }
-.custom-request-flow__error { display: grid; gap: var(--space-3); margin-top: var(--space-5); padding: var(--space-4); border-left: 3px solid var(--color-cta-vermilion); background: rgba(190, 58, 36, 0.08); }
-.custom-request-flow__error p { margin: 0; color: var(--color-cta-vermilion-dark); line-height: 1.5; }
-.planner-flow__proposal { margin: var(--space-3) 0 0; color: var(--customer-ink); font-weight: 700; line-height: 1.5; }
-.planner-flow__default-disclosure { margin: var(--space-4) 0 0; color: var(--customer-ink-soft); font-size: 0.9rem; line-height: 1.5; }
-.planner-flow__handoff-error { display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding: var(--space-4); border-left: 3px solid var(--color-cta-vermilion); background: rgba(178, 56, 38, 0.08); }
-.planner-flow__handoff-error p { margin: 0; line-height: 1.5; }
-.planner-flow__preferences { margin-top: var(--space-5); padding: clamp(1rem, 3vw, 1.5rem); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); }
-.planner-flow__preferences h2 { margin: 0; color: var(--customer-ink); font-size: clamp(1.2rem, 2vw, 1.5rem); }
-.planner-flow__preferences dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-5); margin: var(--space-4) 0 0; }
-.planner-flow__preferences dl div { display: flex; justify-content: space-between; gap: var(--space-3); border-bottom: 1px solid var(--customer-line); padding-bottom: 0.35rem; }
-.planner-flow__preferences dt { color: var(--customer-ink-soft); font-size: 0.82rem; }
-.planner-flow__preferences dd { margin: 0; color: var(--customer-ink); font-weight: 700; text-align: right; }
-.planner-flow__proposal-card { margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); box-shadow: var(--shadow-panel); }
-.planner-flow__proposal-card:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 4px; }
-.planner-flow__proposal-header, .planner-timeline__item-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
-.planner-flow__proposal-header h2, .planner-flow__checks h2, .planner-flow__history h2 { margin: 0; color: var(--customer-ink); font-size: clamp(1.35rem, 2vw, 1.8rem); }
-.planner-flow__plan-id { max-width: 18rem; color: var(--customer-ink-soft); font-size: 0.75rem; overflow-wrap: anywhere; }
-.planner-flow__current-feedback { margin: var(--space-4) 0 0; padding: var(--space-3); border-left: 3px solid var(--customer-orange); background: rgba(209, 122, 0, 0.08); line-height: 1.5; }
-.planner-timeline { display: grid; gap: var(--space-4); margin: var(--space-5) 0 0; padding: 0; list-style: none; }
-.planner-timeline__item { position: relative; padding-left: var(--space-5); border-left: 2px solid var(--customer-orange); }
-.planner-timeline__timezone { margin: 0 0 var(--space-2); color: var(--customer-ink-soft); font-size: 0.78rem; }
-.planner-timeline__item::before { position: absolute; top: 0.25rem; left: -0.45rem; width: 0.75rem; height: 0.75rem; border-radius: 50%; background: var(--customer-orange); content: ""; }
-.planner-timeline__item h3 { margin: 0; color: var(--customer-ink); font-size: 1.15rem; }
-.planner-timeline__lock { min-height: 2.25rem; padding: 0.35rem 0.65rem; font-size: 0.78rem; }
-.planner-timeline__activity { margin: var(--space-3) 0 0; color: var(--customer-ink-soft); line-height: 1.5; }
-.planner-timeline__details, .planner-flow__totals dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-5); margin: var(--space-3) 0 0; }
-.planner-timeline__details div, .planner-flow__totals dl div { display: flex; justify-content: space-between; gap: var(--space-3); border-bottom: 1px solid var(--customer-line); padding-bottom: 0.35rem; }
-.planner-timeline__details dt, .planner-flow__totals dt { color: var(--customer-ink-soft); font-size: 0.82rem; }
-.planner-timeline__details dd, .planner-flow__totals dd { margin: 0; color: var(--customer-ink); font-weight: 700; text-align: right; }
-.planner-flow__totals { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 2px solid var(--customer-line); }
-.planner-flow__totals dd { color: var(--customer-orange); }
-.planner-flow__no-proposal { margin: var(--space-4) 0 0; padding: var(--space-3); border-left: 3px solid var(--color-cta-vermilion); color: var(--color-cta-vermilion-dark); line-height: 1.5; }
-.planner-flow__request-quote { display: grid; gap: var(--space-2); margin-top: var(--space-5); }
-.planner-flow__checks, .planner-flow__history, .planner-flow__refine { margin-top: var(--space-5); padding: clamp(1rem, 3vw, 1.5rem); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); }
-.planner-flow__checks ul, .planner-flow__history ol { margin: var(--space-3) 0 0; padding-left: 1.25rem; color: var(--customer-ink-soft); line-height: 1.55; }
-.planner-flow__checks li + li, .planner-flow__history li + li { margin-top: var(--space-2); }
-.planner-flow__refine { display: grid; gap: var(--space-3); }
-.planner-flow__refine textarea { min-height: 7rem; }
-.planner-flow__hint { margin: 0; color: var(--customer-ink-soft); font-size: 0.85rem; line-height: 1.45; }
-.planner-flow__history p { margin: 0.35rem 0 0; color: var(--customer-ink-soft); line-height: 1.45; }
-.planner-flow__error, .planner-flow__status { margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-left: 3px solid var(--color-cta-vermilion); background: rgba(190, 58, 36, 0.08); color: var(--color-cta-vermilion-dark); line-height: 1.5; }
-.planner-flow__error p { margin: 0 0 var(--space-3); }
-.planner-flow__status { border-left-color: var(--color-brand-forest); background: var(--color-brand-forest-soft); color: var(--customer-ink); }
-.planner-flow__history strong { color: var(--customer-ink); }
+/* Journey pages keep the same quiet, paper-led rhythm as the home and catalog
+   while giving long-form planning data enough room to breathe. */
+.journey-page,
+.personalization-form--editorial,
+.planner-flow--editorial,
+.custom-request-flow--editorial,
+.itinerary-preview--editorial {
+  --customer-ink: var(--color-ink);
+  --customer-ink-soft: var(--color-muted);
+  --customer-paper: var(--color-surface);
+  --customer-orange: var(--color-vermilion);
+  --customer-line: var(--color-rule);
+}
+
+.journey-page {
+  width: 100%;
+  background: linear-gradient(180deg, var(--color-paper) 0, var(--color-paper) 78%, var(--color-surface) 100%);
+}
+
+.planner-flow--editorial,
+.custom-request-flow--editorial {
+  max-width: none;
+}
+
+.planner-flow--editorial .section-heading,
+.custom-request-flow--editorial .section-heading {
+  max-width: 60rem;
+  padding-bottom: var(--space-6);
+  border-bottom: var(--border-hairline);
+}
+
+.planner-flow--editorial .section-heading h1,
+.custom-request-flow--editorial .section-heading h1 {
+  max-width: 14ch;
+  margin: 0;
+  color: var(--customer-ink);
+  font-size: clamp(2.8rem, 6vw, 5.25rem);
+  letter-spacing: -0.055em;
+  line-height: 0.95;
+}
+
+.planner-flow--editorial .section-heading > p:last-child,
+.custom-request-flow--editorial .section-heading > p:last-child {
+  max-width: 38rem;
+  margin-top: var(--space-5);
+  color: var(--customer-ink-soft);
+}
+
+/* Personalization form */
+.personalization-form.personalization-form--editorial {
+  position: relative;
+  display: grid;
+  gap: var(--space-5);
+  margin-top: clamp(2.5rem, 5vw, 4rem);
+  padding: clamp(1rem, 3vw, 2.5rem);
+  border: var(--border-hairline);
+  border-radius: var(--radius-media);
+  background: var(--customer-paper);
+}
+
+.personalization-form--editorial::before {
+  position: absolute;
+  top: -1px;
+  left: clamp(1rem, 3vw, 2.5rem);
+  width: clamp(4rem, 14vw, 10rem);
+  height: 3px;
+  background: var(--customer-orange);
+  content: "";
+}
+
+.personalization-form--editorial > .personalization-form__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-5) var(--space-4);
+  padding-bottom: var(--space-5);
+  border-bottom: var(--border-hairline);
+}
+
+.personalization-form--editorial > .personalization-form__grid--details {
+  margin-top: 0;
+  padding-top: var(--space-1);
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.personalization-form--editorial .field {
+  gap: var(--space-2);
+}
+
+.personalization-form--editorial .field > span {
+  color: var(--customer-ink);
+  font-size: 0.86rem;
+  letter-spacing: 0.01em;
+}
+
+.personalization-form--editorial .field input,
+.personalization-form--editorial .field select,
+.personalization-form--editorial .field textarea {
+  border-color: var(--customer-line);
+  border-radius: var(--radius-control);
+  background: var(--color-paper);
+  color: var(--customer-ink);
+}
+
+.personalization-form--editorial .field input:hover,
+.personalization-form--editorial .field select:hover,
+.personalization-form--editorial .field textarea:hover {
+  border-color: var(--color-muted);
+}
+
+.personalization-form--editorial .field input:focus,
+.personalization-form--editorial .field select:focus,
+.personalization-form--editorial .field textarea:focus {
+  border-color: var(--color-indigo);
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.personalization-form--editorial .field small,
+.personalization-form--editorial .field-group__hint {
+  max-width: 44rem;
+  overflow-wrap: anywhere;
+}
+
+.personalization-form--editorial .form-timezone {
+  margin: calc(-1 * var(--space-5)) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-ochre);
+  background: color-mix(in srgb, var(--color-ochre) 9%, var(--color-surface));
+  color: var(--customer-ink-soft);
+  font-size: 0.82rem;
+}
+
+.personalization-form--editorial .field-group {
+  margin: 0;
+  padding: var(--space-5);
+  border: var(--border-hairline);
+  border-radius: var(--radius-media);
+  background: var(--color-paper);
+}
+
+.personalization-form--editorial .field-group legend {
+  padding-inline: var(--space-2);
+  color: var(--customer-ink);
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.personalization-form--editorial .check-grid,
+.personalization-form--editorial .priority-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.personalization-form--editorial .check-card,
+.personalization-form--editorial .priority-control {
+  min-width: 0;
+  border-color: var(--customer-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  overflow-wrap: anywhere;
+}
+
+.personalization-form--editorial .check-card:hover,
+.personalization-form--editorial .priority-control:focus-within {
+  border-color: var(--customer-ink);
+}
+
+.personalization-form--editorial .check-card:has(input:checked) {
+  border-color: var(--customer-orange);
+  background: color-mix(in srgb, var(--color-vermilion) 8%, var(--color-surface));
+}
+
+.personalization-form--editorial .priority-control input {
+  min-width: 0;
+  border-color: var(--customer-line);
+  background: var(--color-paper);
+}
+
+.personalization-form--editorial .personalization-form__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: 0;
+  padding-top: var(--space-5);
+  border-top: var(--border-hairline);
+}
+
+.personalization-form--editorial .form-preview,
+.personalization-form--editorial .form-validation {
+  flex: 1 1 18rem;
+  max-width: 42rem;
+  overflow-wrap: anywhere;
+}
+
+.personalization-form--editorial .form-validation {
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-vermilion);
+  background: color-mix(in srgb, var(--color-vermilion) 9%, var(--color-surface));
+}
+
+.personalization-form--editorial .personalization-form__planner-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4) 0 0;
+  border-top: var(--border-hairline);
+}
+
+/* Itinerary preview */
+.itinerary-preview.itinerary-preview--editorial {
+  margin-top: var(--space-2);
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 0;
+  border-top: 3px solid var(--customer-ink);
+  border-radius: 0;
+  background: var(--color-paper);
+  box-shadow: none;
+}
+
+.itinerary-preview--editorial > h3 {
+  max-width: 14ch;
+  margin: 0;
+  color: var(--customer-ink);
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  letter-spacing: -0.04em;
+  line-height: 0.98;
+}
+
+.itinerary-preview--editorial .itinerary-preview__disclosure,
+.itinerary-preview--editorial .itinerary-preview__proposal {
+  max-width: 54rem;
+  overflow-wrap: anywhere;
+}
+
+.itinerary-preview--editorial .itinerary-preview__proposal {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--customer-orange);
+  background: color-mix(in srgb, var(--color-vermilion) 8%, var(--color-surface));
+}
+
+.itinerary-preview--editorial .itinerary-preview__warning,
+.itinerary-preview--editorial .itinerary-preview__budget-warning {
+  max-width: 54rem;
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-ochre);
+  background: color-mix(in srgb, var(--color-ochre) 10%, var(--color-surface));
+  color: var(--customer-ink);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.itinerary-preview--editorial .itinerary-preview__error {
+  max-width: 54rem;
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border-left: 3px solid var(--color-vermilion);
+  background: color-mix(in srgb, var(--color-vermilion) 9%, var(--color-surface));
+  color: var(--color-cta-vermilion-dark);
+  overflow-wrap: anywhere;
+}
+
+.itinerary-preview--editorial .itinerary-timeline {
+  display: grid;
+  gap: var(--space-5);
+  margin-top: var(--space-6);
+}
+
+.itinerary-preview--editorial .itinerary-timeline__item {
+  padding-left: var(--space-6);
+  border-left: 1px solid var(--customer-ink);
+}
+
+.itinerary-preview--editorial .itinerary-timeline__item::before {
+  top: var(--space-5);
+  left: -0.43rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 3px solid var(--color-paper);
+  background: var(--customer-orange);
+}
+
+.itinerary-preview--editorial .itinerary-timeline__item > article {
+  min-width: 0;
+  padding: var(--space-5);
+  border: var(--border-hairline);
+  background: var(--color-surface);
+}
+
+.itinerary-preview--editorial .itinerary-timeline__item h4 {
+  font-size: clamp(1.45rem, 2vw, 2rem);
+  letter-spacing: -0.02em;
+}
+
+.itinerary-preview--editorial .itinerary-timeline__details,
+.itinerary-preview--editorial .itinerary-food__details,
+.itinerary-preview--editorial .itinerary-preview__totals dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-5);
+  margin-top: var(--space-4);
+}
+
+.itinerary-preview--editorial .itinerary-timeline__details div,
+.itinerary-preview--editorial .itinerary-food__details div,
+.itinerary-preview--editorial .itinerary-preview__totals dl div {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-hairline);
+}
+
+.itinerary-preview--editorial .itinerary-timeline__details dt,
+.itinerary-preview--editorial .itinerary-food__details dt,
+.itinerary-preview--editorial .itinerary-preview__totals dt {
+  color: var(--customer-ink-soft);
+  font-size: 0.78rem;
+}
+
+.itinerary-preview--editorial .itinerary-timeline__details dd,
+.itinerary-preview--editorial .itinerary-food__details dd,
+.itinerary-preview--editorial .itinerary-preview__totals dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--customer-ink);
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.itinerary-preview--editorial .itinerary-food {
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border-top: 2px solid var(--color-ochre);
+  background: color-mix(in srgb, var(--color-ochre) 7%, var(--color-surface));
+}
+
+.itinerary-preview--editorial .itinerary-food h5 {
+  margin: 0;
+  color: var(--customer-ink);
+  font-size: 1.45rem;
+  font-weight: 600;
+}
+
+.itinerary-preview--editorial .itinerary-food__unavailable,
+.itinerary-preview--editorial .itinerary-food__none {
+  margin: var(--space-4) 0 0;
+  color: var(--customer-ink-soft);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.itinerary-preview--editorial .itinerary-preview__totals {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 2px solid var(--customer-ink);
+}
+
+.itinerary-preview--editorial .itinerary-preview__totals h4 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.itinerary-preview--editorial .itinerary-preview__totals dl div:nth-last-child(2) dd,
+.itinerary-preview--editorial .itinerary-preview__totals dl div:last-child dd {
+  color: var(--customer-orange);
+  font-size: 1.05rem;
+}
+
+/* Planner proposal, revision timeline, and cost ledger */
+.planner-flow--editorial .planner-flow__proposal {
+  max-width: 54rem;
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--customer-orange);
+  background: color-mix(in srgb, var(--color-vermilion) 8%, var(--color-surface));
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.planner-flow--editorial .planner-flow__default-disclosure,
+.planner-flow--editorial .planner-flow__hint {
+  color: var(--customer-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.planner-flow--editorial .planner-flow__handoff-error,
+.planner-flow--editorial .planner-flow__error,
+.planner-flow--editorial .planner-flow__status,
+.planner-flow--editorial .planner-flow__no-proposal {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  max-width: 60rem;
+  border-left: 3px solid var(--color-vermilion);
+  background: color-mix(in srgb, var(--color-vermilion) 9%, var(--color-surface));
+  color: var(--color-cta-vermilion-dark);
+  line-height: 1.5;
+  border-radius: 0;
+  overflow-wrap: anywhere;
+}
+
+.planner-flow--editorial .planner-flow__handoff-error p,
+.planner-flow--editorial .planner-flow__error p {
+  margin: 0;
+}
+
+.planner-flow--editorial .planner-flow__status {
+  border-left-color: var(--color-brand-forest);
+  background: var(--color-brand-forest-soft);
+  color: var(--customer-ink);
+}
+
+.planner-flow--editorial .planner-flow__no-proposal {
+  border-left-color: var(--color-ochre);
+  background: color-mix(in srgb, var(--color-ochre) 10%, var(--color-surface));
+  color: var(--customer-ink);
+}
+
+.planner-flow--editorial .planner-timeline__timezone {
+  margin: 0 0 var(--space-2);
+  color: var(--customer-ink-soft);
+  font-size: 0.76rem;
+}
+
+.planner-flow--editorial .planner-flow__preferences,
+.planner-flow--editorial .planner-flow__checks,
+.planner-flow--editorial .planner-flow__history,
+.planner-flow--editorial .planner-flow__refine {
+  max-width: 60rem;
+  margin-top: var(--space-5);
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: var(--border-hairline);
+  border-radius: var(--radius-media);
+  background: var(--color-surface);
+}
+
+.planner-flow--editorial .planner-flow__preferences h2,
+.planner-flow--editorial .planner-flow__checks h2,
+.planner-flow--editorial .planner-flow__history h2,
+.planner-flow--editorial .planner-flow__refine h2 {
+  margin: 0;
+  color: var(--customer-ink);
+  font-size: clamp(1.45rem, 2vw, 2rem);
+  letter-spacing: -0.02em;
+}
+
+.planner-flow--editorial .planner-flow__preferences dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-5);
+  margin-top: var(--space-4);
+}
+
+.planner-flow--editorial .planner-flow__preferences dl div,
+.planner-flow--editorial .planner-timeline__details div,
+.planner-flow--editorial .planner-food__details div,
+.planner-flow--editorial .planner-flow__totals dl div {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-hairline);
+}
+
+.planner-flow--editorial .planner-flow__preferences dt,
+.planner-flow--editorial .planner-timeline__details dt,
+.planner-flow--editorial .planner-food__details dt,
+.planner-flow--editorial .planner-flow__totals dt {
+  color: var(--customer-ink-soft);
+  font-size: 0.78rem;
+}
+
+.planner-flow--editorial .planner-flow__preferences dd,
+.planner-flow--editorial .planner-timeline__details dd,
+.planner-flow--editorial .planner-food__details dd,
+.planner-flow--editorial .planner-flow__totals dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--customer-ink);
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.planner-flow--editorial .planner-flow__proposal-card {
+  max-width: 66rem;
+  margin-top: var(--space-6);
+  padding: clamp(1rem, 3vw, 2rem);
+  border: var(--border-hairline);
+  border-top: 3px solid var(--customer-ink);
+  border-radius: 0;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.planner-flow--editorial .planner-flow__proposal-header,
+.planner-flow--editorial .planner-timeline__item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.planner-flow--editorial .planner-flow__proposal-header h2 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 2.75rem);
+  letter-spacing: -0.04em;
+}
+
+.planner-flow--editorial .planner-flow__plan-id {
+  max-width: 18rem;
+  color: var(--customer-ink-soft);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.planner-flow--editorial .planner-flow__current-feedback {
+  max-width: 48rem;
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-ochre);
+  background: color-mix(in srgb, var(--color-ochre) 9%, var(--color-surface));
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.planner-flow--editorial .planner-timeline {
+  display: grid;
+  gap: var(--space-5);
+  margin-top: var(--space-6);
+}
+
+.planner-flow--editorial .planner-timeline__item {
+  position: relative;
+  padding-left: var(--space-6);
+  border-left: 1px solid var(--customer-ink);
+}
+
+.planner-flow--editorial .planner-timeline__item::before {
+  top: var(--space-5);
+  left: -0.43rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 3px solid var(--color-surface);
+  background: var(--customer-orange);
+}
+
+.planner-flow--editorial .planner-timeline__item > article {
+  min-width: 0;
+  padding: var(--space-5);
+  border: var(--border-hairline);
+  background: var(--color-paper);
+}
+
+.planner-flow--editorial .planner-timeline__item h3 {
+  font-size: clamp(1.45rem, 2vw, 2rem);
+}
+
+.planner-flow--editorial .planner-timeline__lock {
+  flex: 0 1 auto;
+  min-width: 8rem;
+  border-color: var(--customer-line);
+  border-radius: var(--radius-control);
+}
+
+.planner-flow--editorial .planner-timeline__activity {
+  max-width: 48rem;
+  margin-top: var(--space-3);
+  color: var(--customer-ink-soft);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.planner-flow--editorial .planner-timeline__details,
+.planner-flow--editorial .planner-food__details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-5);
+  margin-top: var(--space-4);
+}
+
+.planner-flow--editorial .planner-food {
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border-top: 2px solid var(--color-ochre);
+  background: color-mix(in srgb, var(--color-ochre) 7%, var(--color-paper));
+}
+
+.planner-flow--editorial .planner-food h4 {
+  margin: 0;
+  color: var(--customer-ink);
+  font-size: 1.45rem;
+  font-weight: 600;
+}
+
+.planner-flow--editorial .planner-food__none,
+.planner-flow--editorial .planner-food__unavailable {
+  margin: var(--space-4) 0 0;
+  color: var(--customer-ink-soft);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.planner-flow--editorial .planner-flow__totals {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 2px solid var(--customer-ink);
+}
+
+.planner-flow--editorial .planner-flow__totals dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-5);
+}
+
+.planner-flow--editorial .planner-flow__totals dd {
+  color: var(--customer-orange);
+}
+
+.planner-flow--editorial .planner-flow__request-quote {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: var(--border-hairline);
+}
+
+.planner-flow--editorial .planner-flow__refine {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.planner-flow--editorial .planner-flow__refine textarea {
+  min-height: 7rem;
+}
+
+.planner-flow--editorial .planner-flow__checks ul,
+.planner-flow--editorial .planner-flow__history ol {
+  margin-top: var(--space-4);
+  color: var(--customer-ink-soft);
+  line-height: 1.55;
+}
+
+.planner-flow--editorial .planner-flow__history p {
+  margin-top: var(--space-2);
+  color: var(--customer-ink-soft);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* Custom quote-request review */
+.custom-request-flow--editorial .demo-disclosure {
+  max-width: 54rem;
+}
+
+.custom-request-flow--editorial .custom-request-flow__error {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border-left: 3px solid var(--color-vermilion);
+  background: color-mix(in srgb, var(--color-vermilion) 9%, var(--color-surface));
+  color: var(--color-cta-vermilion-dark);
+  line-height: 1.5;
+  max-width: 60rem;
+  overflow-wrap: anywhere;
+}
+
+.custom-request-flow--editorial .custom-request-flow__error p {
+  margin: 0;
+}
+
+.custom-request-flow--editorial .custom-request-flow__card {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 66rem;
+  margin-top: var(--space-5);
+  padding: clamp(1rem, 3vw, 2rem);
+  border: var(--border-hairline);
+  border-top: 3px solid var(--customer-ink);
+  border-radius: 0;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.custom-request-flow--editorial .custom-request-flow__card h2 {
+  margin: 0;
+  color: var(--customer-ink);
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  letter-spacing: -0.04em;
+}
+
+.custom-request-flow--editorial .custom-request-flow__card p {
+  margin: 0;
+  max-width: 48rem;
+  color: var(--customer-ink-soft);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.custom-request-flow--editorial .custom-request-flow__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-5);
+  margin: 0;
+}
+
+.custom-request-flow--editorial .custom-request-flow__facts > div {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-hairline);
+}
+
+.custom-request-flow--editorial .custom-request-flow__facts dt {
+  color: var(--customer-ink-soft);
+  font-size: 0.78rem;
+}
+
+.custom-request-flow--editorial .custom-request-flow__facts dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--customer-ink);
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.custom-request-flow--editorial .custom-request-flow__budget-warning {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-ochre);
+  background: color-mix(in srgb, var(--color-ochre) 10%, var(--color-surface));
+  color: var(--customer-ink);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.custom-request-flow--editorial .custom-request-flow__food-list {
+  display: grid;
+  gap: var(--space-5);
+  margin: var(--space-3) 0 0;
+  padding-left: 1.35rem;
+}
+
+.custom-request-flow--editorial .custom-request-flow__food-list > li {
+  padding-left: var(--space-2);
+}
+
+.custom-request-flow--editorial .custom-request-flow__food-list > li > h3 {
+  margin: 0;
+  color: var(--customer-ink);
+  font-size: 1.55rem;
+  font-weight: 600;
+}
+
+.custom-request-flow--editorial .custom-request-flow__food-list > li > .custom-request-flow__facts {
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 2px solid var(--color-ochre);
+  background: color-mix(in srgb, var(--color-ochre) 7%, var(--color-surface));
+}
+
+.custom-request-flow--editorial .custom-request-flow__food-list > li > p {
+  margin-top: var(--space-3);
+}
+
+.custom-request-flow--editorial .custom-request-flow__card > .button,
+.custom-request-flow--editorial > .button {
+  justify-self: start;
+}
+
+.custom-request-flow--editorial > .button.button--secondary {
+  margin-top: var(--space-6);
+}
+
+@media (max-width: 1000px) {
+  .personalization-form--editorial .check-grid,
+  .personalization-form--editorial .priority-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .personalization-form--editorial > .personalization-form__grid,
+  .planner-flow--editorial .planner-flow__preferences dl,
+  .planner-flow--editorial .planner-timeline__details,
+  .planner-flow--editorial .planner-food__details,
+  .planner-flow--editorial .planner-flow__totals dl,
+  .itinerary-preview--editorial .itinerary-timeline__details,
+  .itinerary-preview--editorial .itinerary-food__details,
+  .itinerary-preview--editorial .itinerary-preview__totals dl,
+  .custom-request-flow--editorial .custom-request-flow__facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 @media (max-width: 720px) {
-  .itinerary-preview { padding: var(--space-4); }
-  .itinerary-timeline__details, .itinerary-preview__totals dl { grid-template-columns: 1fr; }
-  .planner-flow__proposal-header, .planner-timeline__item-header { flex-direction: column; }
-  .planner-flow__plan-id { max-width: none; }
-  .planner-flow__preferences dl { grid-template-columns: 1fr; }
-  .custom-request-flow__facts > div { flex-direction: column; gap: var(--space-1); }
-  .custom-request-flow__facts dd { text-align: left; }
-  .planner-timeline__details, .planner-flow__totals dl { grid-template-columns: 1fr; }
-  .planner-timeline__lock { width: 100%; justify-content: center; }
+  .journey-page {
+    overflow: hidden;
+  }
+
+  .planner-flow--editorial .section-heading h1,
+  .custom-request-flow--editorial .section-heading h1 {
+    max-width: 11ch;
+  }
+
+  .personalization-form.personalization-form--editorial {
+    padding: var(--space-4);
+  }
+
+  .personalization-form--editorial > .personalization-form__grid,
+  .personalization-form--editorial > .personalization-form__grid--details,
+  .planner-flow--editorial .planner-flow__preferences dl,
+  .planner-flow--editorial .planner-timeline__details,
+  .planner-flow--editorial .planner-food__details,
+  .planner-flow--editorial .planner-flow__totals dl,
+  .itinerary-preview--editorial .itinerary-timeline__details,
+  .itinerary-preview--editorial .itinerary-food__details,
+  .itinerary-preview--editorial .itinerary-preview__totals dl,
+  .custom-request-flow--editorial .custom-request-flow__facts {
+    grid-template-columns: 1fr;
+  }
+
+  .personalization-form--editorial .check-grid,
+  .personalization-form--editorial .priority-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personalization-form--editorial .personalization-form__footer,
+  .personalization-form--editorial .personalization-form__planner-cta,
+  .planner-flow--editorial .planner-flow__proposal-header,
+  .planner-flow--editorial .planner-timeline__item-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .personalization-form--editorial .personalization-form__footer > *,
+  .personalization-form--editorial .personalization-form__planner-cta > *,
+  .planner-flow--editorial .planner-timeline__lock,
+  .planner-flow--editorial .planner-flow__request-quote > *,
+  .custom-request-flow--editorial .custom-request-flow__card > .button,
+  .custom-request-flow--editorial > .button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .planner-flow--editorial .planner-flow__plan-id {
+    max-width: none;
+  }
+
+  .itinerary-preview--editorial .itinerary-timeline__item,
+  .planner-flow--editorial .planner-timeline__item {
+    padding-left: var(--space-5);
+  }
+
+  .itinerary-preview--editorial .itinerary-timeline__item > article,
+  .planner-flow--editorial .planner-timeline__item > article {
+    padding: var(--space-4);
+  }
+
+  .itinerary-preview--editorial .itinerary-timeline__details div,
+  .itinerary-preview--editorial .itinerary-food__details div,
+  .itinerary-preview--editorial .itinerary-preview__totals dl div,
+  .planner-flow--editorial .planner-flow__preferences dl div,
+  .planner-flow--editorial .planner-timeline__details div,
+  .planner-flow--editorial .planner-food__details div,
+  .planner-flow--editorial .planner-flow__totals dl div,
+  .custom-request-flow--editorial .custom-request-flow__facts > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .itinerary-preview--editorial .itinerary-timeline__details dd,
+  .itinerary-preview--editorial .itinerary-food__details dd,
+  .itinerary-preview--editorial .itinerary-preview__totals dd,
+  .planner-flow--editorial .planner-flow__preferences dd,
+  .planner-flow--editorial .planner-timeline__details dd,
+  .planner-flow--editorial .planner-food__details dd,
+  .planner-flow--editorial .planner-flow__totals dd,
+  .custom-request-flow--editorial .custom-request-flow__facts dd {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .personalization-form--editorial .button:hover,
+  .planner-flow--editorial .button:hover,
+  .custom-request-flow--editorial .button:hover {
+    transform: none;
+  }
 }

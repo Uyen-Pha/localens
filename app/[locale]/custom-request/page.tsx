@@ -31,5 +31,9 @@ export default async function CustomRequestPage({
 }) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
-  return <CustomRequestFlow locale={locale} copy={getDictionary(locale).customRequest} />;
+  return (
+    <div className="journey-page journey-page--custom-request">
+      <CustomRequestFlow locale={locale} copy={getDictionary(locale).customRequest} />
+    </div>
+  );
 }

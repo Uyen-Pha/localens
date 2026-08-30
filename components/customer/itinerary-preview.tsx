@@ -74,7 +74,7 @@ export function ItineraryPreview({
   return (
     <section
       ref={previewRef}
-      className="itinerary-preview"
+      className="itinerary-preview itinerary-preview--editorial"
       aria-labelledby="itinerary-preview-title"
       tabIndex={-1}
     >

@@ -87,7 +87,7 @@ export function CustomRequestFlow({
     && draft.revisionSnapshot.totals.groupCostMaxVnd > draft.revisionSnapshot.budgetVnd;
 
   return (
-    <section className="customer-section custom-request-flow" aria-labelledby="custom-request-heading">
+    <section className="customer-section custom-request-flow custom-request-flow--editorial" aria-labelledby="custom-request-heading">
       <div className="section-heading section-heading--compact">
         <p className="eyebrow">LocalLens</p>
         <h1 id="custom-request-heading">{copy.heading}</h1>

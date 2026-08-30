@@ -33,5 +33,9 @@ export default async function PlannerPage({
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
 
-  return <PlannerFlow locale={locale} copy={getDictionary(locale).planner} />;
+  return (
+    <div className="journey-page journey-page--planner">
+      <PlannerFlow locale={locale} copy={getDictionary(locale).planner} />
+    </div>
+  );
 }

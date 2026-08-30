@@ -187,7 +187,7 @@ export function PlannerFlow({
   }
 
   return (
-    <section className="customer-section planner-flow" aria-labelledby="planner-heading">
+    <section className="customer-section planner-flow planner-flow--editorial" aria-labelledby="planner-heading">
       <div className="section-heading section-heading--compact">
         <p className="eyebrow">LocalLens</p>
         <h1 id="planner-heading">{copy.heading}</h1>

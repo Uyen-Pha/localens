@@ -85,7 +85,7 @@ describe("ItineraryPreview", () => {
 
     render(<ItineraryPreview locale="en" copy={copy} preview={preview} />);
 
-    expect(screen.getByRole("region", { name: copy.heading })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: copy.heading })).toHaveClass("itinerary-preview--editorial");
     expect(screen.getByRole("heading", { level: 4, name: "Ben Thanh Market" })).toBeInTheDocument();
     expect(screen.getByText(/2026-09-05 · 09:00/)).toBeInTheDocument();
     expect(screen.getByText(/80,000/)).toBeInTheDocument();

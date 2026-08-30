@@ -26,7 +26,9 @@ describe("PlannerFlow", () => {
 
     render(<PlannerFlow locale="en" copy={copy} />);
 
-    expect(screen.getByRole("heading", { name: copy.heading })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: copy.heading }).closest(".planner-flow")).toHaveClass(
+      "planner-flow--editorial",
+    );
     expect(screen.getByText(copy.simulatedDisclosure)).toBeInTheDocument();
     expect(screen.getAllByTestId("planner-activity")).toHaveLength(3);
     expect(screen.getByText(copy.totalDurationLabel)).toBeInTheDocument();
