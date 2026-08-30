@@ -161,7 +161,7 @@ The checker remains anchored to executable `SELECT` assertion lines, so comments
 - `tests/unit/infrastructure/plan-revision-adapter.test.ts`
 - `tests/unit/infrastructure/request-quote-adapter.test.ts`
 - This report
-- Fix commit: to be recorded after the final diff audit.
+- Fix commit: `f0be97b fix: align task 9 pgTAP assertion plan`. This hash line is recorded in the follow-up report commit.
 
 ### Self-review and concerns
 
