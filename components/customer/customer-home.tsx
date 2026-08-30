@@ -1,12 +1,20 @@
 import Link from "next/link";
+import Image from "next/image";
 
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/config";
+import type { PersonalizationPriorityKey } from "@/lib/i18n/dictionaries";
 
 import { PersonalizationForm } from "@/components/customer/personalization-form";
-import { FixedToursGrid } from "@/components/customer/fixed-tours-grid";
 
 type HomeCopy = Dictionary["home"];
+
+const categoryImages: Record<PersonalizationPriorityKey, string> = {
+  street_food: "/images/editorial/category-street-food.webp",
+  history: "/images/editorial/category-history.webp",
+  traditional_craft: "/images/editorial/category-craft.webp",
+  traditional_market: "/images/editorial/category-market.webp",
+};
 
 export type CustomerHomeProps = {
   locale: Locale;
@@ -20,42 +28,83 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
     <div className="customer-home">
       <section className="customer-hero" aria-labelledby="customer-hero-title">
         <div className="customer-hero__content">
-          <p className="eyebrow">{copy.eyebrow}</p>
+          <p className="customer-hero__mark" aria-hidden="true">
+            SAI
+            <br />
+            GON
+          </p>
           <h1 id="customer-hero-title">{copy.title}</h1>
           <p className="customer-hero__subtitle">{copy.subtitle}</p>
           <div className="customer-hero__actions" aria-label={copy.heroActionsLabel}>
             <Link className="button button--primary" href={`/${locale}/tours/`}>
               {copy.heroPrimaryCta}
+              <span aria-hidden="true"> →</span>
             </Link>
-            <a className="button button--secondary" href="#personalize">
+            <Link className="button button--secondary" href={`/${locale}/planner/`}>
               {copy.heroSecondaryCta}
-            </a>
+              <span aria-hidden="true"> →</span>
+            </Link>
           </div>
           <p className="customer-hero__note">{copy.heroNote}</p>
         </div>
-        <div className="customer-hero__visual" aria-hidden="true">
-          <div className="hero-orbit hero-orbit--one" />
-          <div className="hero-orbit hero-orbit--two" />
-          <div className="hero-stamp">
-            <span>{copy.heroStampTop}</span>
-            <strong>{copy.heroStampLine1}<br />{copy.heroStampLine2}</strong>
+        <div className="customer-hero__visual">
+          <div className="customer-hero__image-frame">
+            <Image
+              className="customer-hero__image"
+              src="/images/editorial/saigon-artisan-hero.webp"
+              alt={copy.heroImageAlt}
+              fill
+              priority
+              sizes="(max-width: 720px) 100vw, (max-width: 1100px) 56vw, 760px"
+            />
           </div>
-          <span className="hero-spark hero-spark--one">✦</span>
-          <span className="hero-spark hero-spark--two">✦</span>
+          <div className="customer-hero__inset">
+            <Image
+              src="/images/editorial/saigon-post-office-inset.webp"
+              alt={copy.heroInsetAlt}
+              fill
+              sizes="(max-width: 720px) 42vw, 240px"
+            />
+          </div>
+          <p className="customer-hero__coordinates">{copy.heroCoordinates}</p>
         </div>
-        <p className="customer-hero__trust">{copy.heroTrust}</p>
       </section>
 
-      <section className="customer-section customer-section--discovery" aria-labelledby="discovery-title">
-        <div className="section-heading">
-          <p className="eyebrow">{copy.discoveryEyebrow}</p>
-          <h2 id="discovery-title">{copy.discoveryTitle}</h2>
-          <p>{copy.discoveryIntro}</p>
+      <section
+        className="customer-section customer-section--discovery"
+        id="experiences"
+        aria-labelledby="discovery-title"
+      >
+        <div className="experience-grid">
+          <div className="experience-intro">
+            <p className="eyebrow">{copy.discoveryEyebrow}</p>
+            <h2 id="discovery-title">{copy.discoveryTitle}</h2>
+            <span className="editorial-rule" aria-hidden="true" />
+            <p>{copy.discoveryIntro}</p>
+          </div>
+          {copy.experienceCategories.map((category) => (
+            <article className={`experience-card experience-card--${category.key}`} key={category.key}>
+              <Image
+                className="experience-card__image"
+                src={categoryImages[category.key]}
+                alt={category.imageAlt}
+                width={256}
+                height={256}
+                aria-hidden="true"
+              />
+              <h3>
+                <Link href={`/${locale}/tours/`}>
+                  {category.title}
+                  <span aria-hidden="true"> ↗</span>
+                </Link>
+              </h3>
+              <span className="editorial-rule" aria-hidden="true" />
+            </article>
+          ))}
         </div>
         <p className="demo-disclosure" role="note">
           {copy.demoDisclosure}
         </p>
-        <FixedToursGrid locale={locale} copy={copy} />
       </section>
 
       <section className="customer-section customer-section--trust" aria-labelledby="trust-title">

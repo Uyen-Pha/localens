@@ -3,17 +3,17 @@ import { expect, test } from "@playwright/test";
 const localizedShells = [
   {
     locale: "en",
-    heading: "Discover Ho Chi Minh City through local eyes.",
+    heading: "The city is more than its landmarks",
     navigation: "Primary navigation",
     skipLink: "Skip to content",
-    links: ["Explore", "Fixed tours", "Plan my trip"],
+    links: ["Experiences", "Private journeys", "Our city"],
   },
   {
     locale: "vi",
-    heading: "Khám phá Thành phố Hồ Chí Minh qua góc nhìn người bản địa.",
+    heading: "Thành phố không chỉ có những địa danh nổi tiếng",
     navigation: "Điều hướng chính",
     skipLink: "Bỏ qua đến nội dung chính",
-    links: ["Khám phá", "Tour cố định", "Lên kế hoạch chuyến đi"],
+    links: ["Trải nghiệm", "Hành trình riêng", "Thành phố của chúng ta"],
   },
 ] as const;
 

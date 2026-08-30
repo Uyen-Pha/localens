@@ -168,6 +168,9 @@ export type Dictionary = {
     eyebrow: string;
     title: string;
     subtitle: string;
+    heroImageAlt: string;
+    heroInsetAlt: string;
+    heroCoordinates: string;
     heroPrimaryCta: string;
     heroSecondaryCta: string;
     heroActionsLabel: string;
@@ -179,6 +182,11 @@ export type Dictionary = {
     discoveryEyebrow: string;
     discoveryTitle: string;
     discoveryIntro: string;
+    experienceCategories: Array<{
+      key: PersonalizationPriorityKey;
+      title: string;
+      imageAlt: string;
+    }>;
     fixedTours: Array<{
       id: string;
       icon: string;
@@ -407,11 +415,14 @@ export type Dictionary = {
 
 const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
   en: {
-    eyebrow: "Local knowledge, thoughtfully shared",
-    title: "Discover Ho Chi Minh City through local eyes.",
-    subtitle: "Authentic cultural experiences, thoughtfully planned for you.",
-    heroPrimaryCta: "Browse fixed tours",
-    heroSecondaryCta: "Build a personal route",
+    eyebrow: "A city beyond the obvious",
+    title: "The city is more than its landmarks",
+    subtitle: "Meet Saigon through its food, stories, markets and makers.",
+    heroImageAlt: "Artisan shaping a red lacquer vessel in Saigon",
+    heroInsetAlt: "Arched facade of Saigon Central Post Office",
+    heroCoordinates: "10° 82' N · 106° 62' E",
+    heroPrimaryCta: "Discover Saigon tours",
+    heroSecondaryCta: "Design a private journey",
     heroActionsLabel: "Start exploring",
     heroNote: "For curious travelers who want more than a checklist.",
     heroTrust: "Company-managed places · Human-reviewed routes · English-friendly",
@@ -419,9 +430,31 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     heroStampLine1: "seen",
     heroStampLine2: "slowly",
     discoveryEyebrow: "Choose your starting point",
-    discoveryTitle: "Ways to see Saigon",
+    discoveryTitle: "Four ways into the city",
     discoveryIntro:
       "Follow a well-shaped route or tell us what you want to feel, taste, and understand.",
+    experienceCategories: [
+      {
+        key: "street_food",
+        title: "Street food",
+        imageAlt: "",
+      },
+      {
+        key: "history",
+        title: "History",
+        imageAlt: "",
+      },
+      {
+        key: "traditional_craft",
+        title: "Craft villages",
+        imageAlt: "",
+      },
+      {
+        key: "traditional_market",
+        title: "Traditional markets",
+        imageAlt: "",
+      },
+    ],
     fixedTours: [
       {
         id: "food",
@@ -644,11 +677,14 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     },
   },
   vi: {
-    eyebrow: "Hiểu địa phương, chia sẻ có chủ đích",
-    title: "Khám phá Thành phố Hồ Chí Minh qua góc nhìn người bản địa.",
-    subtitle: "Trải nghiệm văn hóa đích thực, được lên kế hoạch dành riêng cho bạn.",
-    heroPrimaryCta: "Xem tour cố định",
-    heroSecondaryCta: "Tạo lịch trình riêng",
+    eyebrow: "Một thành phố vượt khỏi những điều quen thuộc",
+    title: "Thành phố không chỉ có những địa danh nổi tiếng",
+    subtitle: "Gặp gỡ Sài Gòn qua ẩm thực, câu chuyện, khu chợ và những người làm nghề.",
+    heroImageAlt: "Nghệ nhân tạo hình bình sơn mài đỏ ở Sài Gòn",
+    heroInsetAlt: "Mặt tiền mái vòm Bưu điện Trung tâm Sài Gòn",
+    heroCoordinates: "10° 82' B · 106° 62' Đ",
+    heroPrimaryCta: "Khám phá tour Sài Gòn",
+    heroSecondaryCta: "Thiết kế hành trình riêng",
     heroActionsLabel: "Bắt đầu khám phá",
     heroNote: "Dành cho những người muốn hiểu thành phố, không chỉ ghé qua.",
     heroTrust: "Địa điểm do công ty quản lý · Lịch trình được kiểm duyệt · Hỗ trợ tiếng Anh",
@@ -656,9 +692,31 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     heroStampLine1: "nhìn",
     heroStampLine2: "chậm lại",
     discoveryEyebrow: "Chọn cách bắt đầu",
-    discoveryTitle: "Nhìn Sài Gòn theo cách của bạn",
+    discoveryTitle: "Bốn cách bước vào thành phố",
     discoveryIntro:
       "Theo một lịch trình được thiết kế sẵn hoặc chia sẻ điều bạn muốn cảm nhận, nếm thử và tìm hiểu.",
+    experienceCategories: [
+      {
+        key: "street_food",
+        title: "Ẩm thực đường phố",
+        imageAlt: "",
+      },
+      {
+        key: "history",
+        title: "Lịch sử",
+        imageAlt: "",
+      },
+      {
+        key: "traditional_craft",
+        title: "Làng nghề",
+        imageAlt: "",
+      },
+      {
+        key: "traditional_market",
+        title: "Chợ truyền thống",
+        imageAlt: "",
+      },
+    ],
     fixedTours: [
       {
         id: "food",

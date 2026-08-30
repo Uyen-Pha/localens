@@ -8,11 +8,19 @@ describe("localized dictionaries", () => {
     const dictionary = getDictionary("en");
 
     expect(dictionary.home.title).toBe(
-      "Discover Ho Chi Minh City through local eyes.",
+      "The city is more than its landmarks",
     );
     expect(dictionary.home.subtitle).toBe(
-      "Authentic cultural experiences, thoughtfully planned for you.",
+      "Meet Saigon through its food, stories, markets and makers.",
     );
+    expect(dictionary.home.heroPrimaryCta).toBe("Discover Saigon tours");
+    expect(dictionary.home.heroSecondaryCta).toBe("Design a private journey");
+    expect(dictionary.home.experienceCategories.map(({ key }) => key)).toEqual([
+      "street_food",
+      "history",
+      "traditional_craft",
+      "traditional_market",
+    ]);
     expect(dictionary.navigation.experiences).toBe("Experiences");
     expect(dictionary.navigation.privateJourneys).toBe("Private journeys");
     expect(dictionary.navigation.ourCity).toBe("Our city");
@@ -22,11 +30,19 @@ describe("localized dictionaries", () => {
     const dictionary = getDictionary("vi");
 
     expect(dictionary.home.title).toBe(
-      "Khám phá Thành phố Hồ Chí Minh qua góc nhìn người bản địa.",
+      "Thành phố không chỉ có những địa danh nổi tiếng",
     );
     expect(dictionary.home.subtitle).toBe(
-      "Trải nghiệm văn hóa đích thực, được lên kế hoạch dành riêng cho bạn.",
+      "Gặp gỡ Sài Gòn qua ẩm thực, câu chuyện, khu chợ và những người làm nghề.",
     );
+    expect(dictionary.home.heroPrimaryCta).toBe("Khám phá tour Sài Gòn");
+    expect(dictionary.home.heroSecondaryCta).toBe("Thiết kế hành trình riêng");
+    expect(dictionary.home.experienceCategories.map(({ key }) => key)).toEqual([
+      "street_food",
+      "history",
+      "traditional_craft",
+      "traditional_market",
+    ]);
     expect(dictionary.navigation.experiences).toBe("Trải nghiệm");
     expect(dictionary.navigation.privateJourneys).toBe("Hành trình riêng");
     expect(dictionary.navigation.ourCity).toBe("Thành phố của chúng ta");
