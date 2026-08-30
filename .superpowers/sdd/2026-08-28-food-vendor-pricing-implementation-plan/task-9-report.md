@@ -107,7 +107,7 @@ SUPABASE_CLI_NOT_FOUND: project-local Supabase CLI is required; install the pinn
 - `supabase/tests/database/trip_plan_revisions_test.sql`
 - `tests/unit/infrastructure/plan-revision-adapter.test.ts`
 - `tests/unit/infrastructure/request-quote-adapter.test.ts`
-- Fix commit: to be created after this report and final diff audit.
+- Fix commit: `edb66cf fix: harden food snapshot validation`. The report append is committed in the follow-up report commit.
 
 ### Self-review and concerns
 
