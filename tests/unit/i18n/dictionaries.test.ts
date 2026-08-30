@@ -13,8 +13,9 @@ describe("localized dictionaries", () => {
     expect(dictionary.home.subtitle).toBe(
       "Authentic cultural experiences, thoughtfully planned for you.",
     );
-    expect(dictionary.navigation.explore).toBe("Explore");
-    expect(dictionary.navigation.planTrip).toBe("Plan my trip");
+    expect(dictionary.navigation.experiences).toBe("Experiences");
+    expect(dictionary.navigation.privateJourneys).toBe("Private journeys");
+    expect(dictionary.navigation.ourCity).toBe("Our city");
   });
 
   it("contains the published Vietnamese copy", () => {
@@ -26,8 +27,9 @@ describe("localized dictionaries", () => {
     expect(dictionary.home.subtitle).toBe(
       "Trải nghiệm văn hóa đích thực, được lên kế hoạch dành riêng cho bạn.",
     );
-    expect(dictionary.navigation.explore).toBe("Khám phá");
-    expect(dictionary.navigation.planTrip).toBe("Lên kế hoạch chuyến đi");
+    expect(dictionary.navigation.experiences).toBe("Trải nghiệm");
+    expect(dictionary.navigation.privateJourneys).toBe("Hành trình riêng");
+    expect(dictionary.navigation.ourCity).toBe("Thành phố của chúng ta");
   });
 
   it("contains complete customer food and payment-split copy in both locales", () => {

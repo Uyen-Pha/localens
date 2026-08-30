@@ -10,9 +10,9 @@ export type SiteHeaderLabels = {
   brand: string;
   navigation: {
     primary: string;
-    explore: string;
-    fixedTours: string;
-    planTrip: string;
+    experiences: string;
+    privateJourneys: string;
+    ourCity: string;
     signIn: string;
   };
   language: LocaleSwitcherLabels;
@@ -22,9 +22,10 @@ export type SiteHeaderProps = {
   locale: Locale;
   labels: SiteHeaderLabels;
   pathname?: string | null;
+  search?: string | null;
 };
 
-export function SiteHeader({ locale, labels, pathname }: SiteHeaderProps) {
+export function SiteHeader({ locale, labels, pathname, search }: SiteHeaderProps) {
   return (
     <header className="site-header">
       <div className="site-header__inner">
@@ -33,11 +34,11 @@ export function SiteHeader({ locale, labels, pathname }: SiteHeaderProps) {
         </Link>
 
         <nav className="site-header__nav" aria-label={labels.navigation.primary}>
-          <Link href={`/${locale}/tours/`}>{labels.navigation.explore}</Link>
-          <Link href={`/${locale}/tours/`}>
-            {labels.navigation.fixedTours}
+          <Link href={`/${locale}/tours/`}>{labels.navigation.experiences}</Link>
+          <Link href={`/${locale}/planner/`}>
+            {labels.navigation.privateJourneys}
           </Link>
-          <Link href={`/${locale}/#personalize`}>{labels.navigation.planTrip}</Link>
+          <Link href={`/${locale}/#experiences`}>{labels.navigation.ourCity}</Link>
         </nav>
 
         <div className="site-header__actions">
@@ -45,6 +46,7 @@ export function SiteHeader({ locale, labels, pathname }: SiteHeaderProps) {
             locale={locale}
             labels={labels.language}
             pathname={pathname}
+            search={search}
           />
           <span
             className="site-header__cta site-header__cta--disabled"

@@ -381,9 +381,9 @@ export type Dictionary = {
   customRequest: CustomRequestCopy;
   navigation: {
     primary: string;
-    explore: string;
-    fixedTours: string;
-    planTrip: string;
+    experiences: string;
+    privateJourneys: string;
+    ourCity: string;
     signIn: string;
     skipToContent: string;
   };
@@ -1165,8 +1165,34 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
 };
 
 const dictionaries = {
-  en: { ...english, home: customerHomeCopy.en, planner: plannerCopy.en, customRequest: customRequestCopy.en },
-  vi: { ...vietnamese, home: customerHomeCopy.vi, planner: plannerCopy.vi, customRequest: customRequestCopy.vi },
+  en: {
+    ...english,
+    home: customerHomeCopy.en,
+    planner: plannerCopy.en,
+    customRequest: customRequestCopy.en,
+    navigation: {
+      primary: english.navigation.primary,
+      experiences: "Experiences",
+      privateJourneys: "Private journeys",
+      ourCity: "Our city",
+      signIn: english.navigation.signIn,
+      skipToContent: english.navigation.skipToContent,
+    },
+  },
+  vi: {
+    ...vietnamese,
+    home: customerHomeCopy.vi,
+    planner: plannerCopy.vi,
+    customRequest: customRequestCopy.vi,
+    navigation: {
+      primary: vietnamese.navigation.primary,
+      experiences: "Trải nghiệm",
+      privateJourneys: "Hành trình riêng",
+      ourCity: "Thành phố của chúng ta",
+      signIn: vietnamese.navigation.signIn,
+      skipToContent: vietnamese.navigation.skipToContent,
+    },
+  },
 } satisfies Record<Locale, Dictionary>;
 
 export function getDictionary(locale: Locale): Dictionary {

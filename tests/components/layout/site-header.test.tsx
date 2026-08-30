@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement, ReactNode } from "react";
 
 vi.mock("next/font/local", () => ({
@@ -21,9 +21,9 @@ const labels = {
   brand: "LocalLens",
   navigation: {
     primary: "Primary navigation",
-    explore: "Explore",
-    fixedTours: "Fixed tours",
-    planTrip: "Plan my trip",
+    experiences: "Experiences",
+    privateJourneys: "Private journeys",
+    ourCity: "Our city",
     signIn: "Sign in",
   },
   language: {
@@ -36,6 +36,10 @@ const labels = {
 };
 
 describe("SiteHeader", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("preserves the exact opaque search string when switching locale", () => {
     const search = "?plan=opaque%2F%2B&filter=a+b&filter=%E2%9C%93";
 
@@ -56,20 +60,25 @@ describe("SiteHeader", () => {
     expect(
       screen.getByRole("navigation", { name: "Primary navigation" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Explore" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Experiences" })).toHaveAttribute(
       "href",
       "/en/tours",
     );
-    expect(screen.getByRole("link", { name: "Fixed tours" })).toHaveAttribute(
+    expect(
+      screen.getByRole("link", { name: "Private journeys" }),
+    ).toHaveAttribute(
       "href",
-      "/en/tours",
+      "/en/planner",
     );
-    expect(screen.getByRole("link", { name: "Plan my trip" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Our city" })).toHaveAttribute(
       "href",
-      "/en#personalize",
+      "/en#experiences",
     );
+    expect(screen.queryByRole("link", { name: "Journal" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
     expect(screen.getByText("Sign in")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("navigation", { name: "Language" })).toBeInTheDocument();
+    expect(screen.getByText("English")).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Tiếng Việt" })).toHaveAttribute(
       "href",
       "/vi",
@@ -78,6 +87,66 @@ describe("SiteHeader", () => {
     for (const link of screen.getAllByRole("link")) {
       expect(link).not.toHaveAttribute("tabindex", "-1");
     }
+  });
+
+  it("keeps the opaque path and query contract on the locale switch link", () => {
+    const search = "?plan=opaque%2F%2B&filter=a+b&filter=%E2%9C%93";
+
+    render(
+      <SiteHeader
+        locale="en"
+        labels={labels}
+        pathname="/en/planner/"
+        search={search}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Tiếng Việt" })).toHaveAttribute(
+      "href",
+      `/vi/planner${search}`,
+    );
+  });
+
+  it("renders the Vietnamese navigation with equivalent destinations", () => {
+    render(
+      <SiteHeader
+        locale="vi"
+        labels={{
+          ...labels,
+          navigation: {
+            primary: "Điều hướng chính",
+            experiences: "Trải nghiệm",
+            privateJourneys: "Hành trình riêng",
+            ourCity: "Thành phố của chúng ta",
+            signIn: "Đăng nhập",
+          },
+          language: {
+            label: "Ngôn ngữ",
+            options: labels.language.options,
+          },
+        }}
+        pathname="/vi/"
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Trải nghiệm" })).toHaveAttribute(
+      "href",
+      "/vi/tours",
+    );
+    expect(
+      screen.getByRole("link", { name: "Hành trình riêng" }),
+    ).toHaveAttribute("href", "/vi/planner");
+    expect(
+      screen.getByRole("link", { name: "Thành phố của chúng ta" }),
+    ).toHaveAttribute("href", "/vi#experiences");
+    expect(screen.getByText("Tiếng Việt")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "English" })).toHaveAttribute(
+      "href",
+      "/en",
+    );
   });
 
   it("keeps the localized document shell and stable editorial font variables", async () => {

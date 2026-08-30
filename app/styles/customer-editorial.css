@@ -510,3 +510,187 @@
 .customer-section img {
   border-radius: var(--radius-media);
 }
+
+/* Shared editorial shell. The doubled class selectors deliberately keep this
+   presentation layer authoritative over the legacy global shell declarations
+   while leaving the global reset and focus contract untouched. */
+.site-header.site-header {
+  position: relative;
+  z-index: 2;
+  border-bottom: var(--border-hairline);
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+.site-header .site-header__inner {
+  width: min(100% - 2rem, var(--content-max));
+  min-height: 6.5rem;
+  gap: var(--space-6);
+  padding-block: var(--space-4);
+}
+
+.site-header .site-header__brand {
+  color: var(--color-vermilion);
+  font: 600 clamp(2.35rem, 4vw, 3.75rem) / 0.85 var(--font-display, Georgia),
+    "Times New Roman", serif;
+  letter-spacing: -0.075em;
+}
+
+.site-header .site-header__nav {
+  justify-content: center;
+  gap: clamp(var(--space-3), 3vw, var(--space-7));
+  min-width: 0;
+}
+
+.site-header .site-header__nav a,
+.site-header .site-header__actions a,
+.site-header .site-header__actions .site-header__cta {
+  display: inline-flex;
+  min-height: var(--interactive-min);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  color: var(--color-ink);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.site-header .site-header__nav a:hover,
+.site-header .site-header__nav a:focus-visible,
+.site-header .locale-switcher__link:hover,
+.site-header .locale-switcher__link:focus-visible {
+  background: transparent;
+  color: var(--color-vermilion);
+}
+
+.site-header .site-header__actions {
+  flex: 0 0 auto;
+  gap: var(--space-4);
+}
+
+.site-header .locale-switcher {
+  gap: var(--space-2);
+  border-right: var(--border-hairline);
+  padding-right: var(--space-5);
+}
+
+.site-header .locale-switcher__current,
+.site-header .locale-switcher__link {
+  display: inline-flex;
+  min-height: var(--interactive-min);
+  align-items: center;
+  padding-inline: var(--space-2);
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.site-header .locale-switcher__current {
+  border-bottom: 2px solid var(--color-vermilion);
+  color: var(--color-vermilion);
+}
+
+.site-header .locale-switcher__separator {
+  color: var(--color-rule);
+  user-select: none;
+}
+
+.site-header .site-header__cta.site-header__cta--disabled {
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.site-footer.site-footer {
+  border-top: var(--border-hairline);
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+.site-footer .site-footer__inner {
+  width: min(100% - 2rem, var(--content-max));
+  min-height: 9rem;
+  align-items: flex-end;
+  gap: var(--space-6);
+  padding-block: var(--space-7);
+}
+
+.site-footer p {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.site-footer p:first-child {
+  max-width: 32rem;
+  color: var(--color-rule);
+}
+
+.site-footer p:last-child {
+  flex: 0 0 auto;
+  color: var(--color-paper);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .site-header .site-header__inner {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+    padding-block: var(--space-4);
+  }
+
+  .site-header .site-header__nav {
+    order: 3;
+    flex: 1 0 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: var(--space-1) var(--space-3);
+    overflow: visible;
+  }
+
+  .site-header .site-header__actions {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-header .site-header__inner {
+    width: min(100% - 2rem, var(--content-max));
+  }
+
+  .site-header .site-header__brand {
+    font-size: clamp(2.15rem, 13vw, 3rem);
+  }
+
+  .site-header .site-header__actions {
+    gap: var(--space-2);
+  }
+
+  .site-header .locale-switcher {
+    gap: var(--space-1);
+    padding-right: var(--space-2);
+  }
+
+  .site-header .site-header__nav {
+    column-gap: var(--space-2);
+  }
+
+  .site-header .site-header__nav a,
+  .site-header .site-header__actions a,
+  .site-header .site-header__actions .site-header__cta {
+    padding-inline: var(--space-2);
+  }
+
+  .site-footer .site-footer__inner {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+}

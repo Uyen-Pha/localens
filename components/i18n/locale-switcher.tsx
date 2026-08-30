@@ -58,12 +58,24 @@ function LocaleSwitcherLink({
         : window.location.search;
 
   return (
-    <Link
-      className="locale-switcher__link"
-      href={getEquivalentLocalePath(pathnameProp ?? pathname, targetLocale, search)}
-    >
-      {labels.options[targetLocale]}
-    </Link>
+    <>
+      <span className="locale-switcher__current" aria-current="page">
+        {labels.options[locale]}
+      </span>
+      <span className="locale-switcher__separator" aria-hidden="true">
+        /
+      </span>
+      <Link
+        className="locale-switcher__link"
+        href={getEquivalentLocalePath(
+          pathnameProp ?? pathname,
+          targetLocale,
+          search,
+        )}
+      >
+        {labels.options[targetLocale]}
+      </Link>
+    </>
   );
 }
 
@@ -78,12 +90,20 @@ function LocaleSwitcherFallback({
     search ?? (typeof window === "undefined" ? "" : window.location.search);
 
   return (
-    <Link
-      className="locale-switcher__link"
-      href={getEquivalentLocalePath(pathname, targetLocale, fallbackSearch)}
-    >
-      {labels.options[targetLocale]}
-    </Link>
+    <>
+      <span className="locale-switcher__current" aria-current="page">
+        {labels.options[locale]}
+      </span>
+      <span className="locale-switcher__separator" aria-hidden="true">
+        /
+      </span>
+      <Link
+        className="locale-switcher__link"
+        href={getEquivalentLocalePath(pathname, targetLocale, fallbackSearch)}
+      >
+        {labels.options[targetLocale]}
+      </Link>
+    </>
   );
 }
 
