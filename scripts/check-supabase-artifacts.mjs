@@ -12,6 +12,10 @@ const DATABASE_TABLE = new RegExp(`\\bCREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\
 const ENABLE_RLS = new RegExp(`\\bALTER\\s+TABLE\\s+(?:ONLY\\s+)?(${IDENTIFIER})\\s*\\.\\s*(${IDENTIFIER})\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY\\b`, "gi");
 const FORCE_RLS = new RegExp(`\\bALTER\\s+TABLE\\s+(?:ONLY\\s+)?(${IDENTIFIER})\\s*\\.\\s*(${IDENTIFIER})\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY\\b`, "gi");
 
+export function normalizeLineEndings(text) {
+  return text.replace(/\r\n?/g, "\n");
+}
+
 function maskRange(text, start, end) {
   return text.slice(start, end).replace(/[^\r\n]/g, " ");
 }
@@ -568,7 +572,7 @@ function checkDataAccessMatrix(root, files, errors) {
   }
   const generatedPath = join(root, matrix.generatedMarkdown ?? "docs/security/data-access-matrix.md");
   if (!existsSync(generatedPath)) errors.push("data-access-matrix.md: generated artifact is missing");
-  else if (readFileSync(generatedPath, "utf8") !== renderMatrixMarkdown(matrix)) errors.push("data-access-matrix.md: generated Markdown drift; run node scripts/generate-data-access-matrix.mjs");
+  else if (normalizeLineEndings(readFileSync(generatedPath, "utf8")) !== normalizeLineEndings(renderMatrixMarkdown(matrix))) errors.push("data-access-matrix.md: generated Markdown drift; run node scripts/generate-data-access-matrix.mjs");
 
   const task13 = files.find((file) => file.name.startsWith("20260823110000_"));
   if (!task13) errors.push("data-access-matrix.json: Task 13 RLS/RPC security migration is missing");

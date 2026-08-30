@@ -45,6 +45,27 @@ describe("Task 13 RLS/RPC access matrix", () => {
     expect(() => execFileSync(process.execPath, [join(repoRoot, "scripts", "check-supabase-artifacts.mjs"), "--root", repoRoot], { encoding: "utf8" })).not.toThrow();
   });
 
+  it("accepts CRLF generated Markdown without masking content drift", () => {
+    const crlfRoot = checkerFixture();
+    const crlfMarkdownPath = join(crlfRoot, "docs", "security", "data-access-matrix.md");
+    const markdown = readFileSync(crlfMarkdownPath, "utf8").replace(/\r\n?/g, "\n");
+    writeFileSync(crlfMarkdownPath, markdown.replaceAll("\n", "\r\n"), "utf8");
+    try {
+      expect(checkerFailure(crlfRoot)).toBe("");
+    } finally {
+      rmSync(crlfRoot, { recursive: true, force: true });
+    }
+
+    const driftRoot = checkerFixture();
+    const driftMarkdownPath = join(driftRoot, "docs", "security", "data-access-matrix.md");
+    writeFileSync(driftMarkdownPath, `${markdown}Unexpected drift\n`, "utf8");
+    try {
+      expect(checkerFailure(driftRoot)).toMatch(/generated Markdown drift/);
+    } finally {
+      rmSync(driftRoot, { recursive: true, force: true });
+    }
+  });
+
   it("enumerates the live final object surface and exact RPC signatures", () => {
     const matrix = JSON.parse(readFileSync(matrixPath, "utf8")) as {
       tables: Array<{ name: string; policies: string[]; forceRls: boolean }>;
