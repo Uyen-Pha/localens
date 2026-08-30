@@ -453,6 +453,18 @@ const ALLERGEN_LABELS: Record<string, Readonly<Record<Locale, string>>> = {
   gluten: { en: "Gluten", vi: "Gluten" },
 };
 
+function humanizeUnknownIdentifier(identifier: string): string {
+  const humanized = identifier
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (humanized.length === 0) return "Other";
+  return `${humanized[0]?.toLocaleUpperCase("en-US") ?? "O"}${humanized.slice(1)}`;
+}
+
 function localizeSupportFacts(
   support: Readonly<Record<string, SupportStatus>>,
   locale: Locale,
@@ -462,14 +474,16 @@ function localizeSupportFacts(
     ? { en: "Other dietary support", vi: "Hỗ trợ ăn uống khác" }
     : { en: "Other accessibility support", vi: "Hỗ trợ tiếp cận khác" };
   return Object.entries(support).map(([key, status]) => {
-    const label = SUPPORT_LABELS[key]?.[locale] ?? fallbackLabel[locale];
+    const label = SUPPORT_LABELS[key]?.[locale]
+      ?? `${fallbackLabel[locale]} (${humanizeUnknownIdentifier(key)})`;
     return `${label}: ${SUPPORT_STATUS_LABELS[status][locale]}`;
   });
 }
 
 function localizeAllergens(allergens: readonly string[], locale: Locale): string {
   if (allergens.length === 0) return locale === "vi" ? "Chưa ghi nhận dị ứng" : "No allergens listed";
-  return allergens.map((allergen) => ALLERGEN_LABELS[allergen]?.[locale] ?? (locale === "vi" ? "Dị ứng khác" : "Other allergen")).join(", ");
+  return allergens.map((allergen) => ALLERGEN_LABELS[allergen]?.[locale]
+    ?? `${locale === "vi" ? "Dị ứng khác" : "Other allergen"} (${humanizeUnknownIdentifier(allergen)})`).join(", ");
 }
 
 function localizeFoodActivity(activity: string, locale: Locale): string {

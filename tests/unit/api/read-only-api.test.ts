@@ -49,8 +49,8 @@ describe("read-only API application boundary", () => {
       priceVndMin: 30_000,
       priceVndMax: 40_000,
       portionDescription: "One portion",
-      dietarySupport: { vegetarian: "supported" as const },
-      allergens: ["peanut"],
+      dietarySupport: { vegetarian: "supported" as const, kosher: "unknown" as const },
+      allergens: ["peanut", "sesame"],
       available: true,
       status: "sellable" as const,
       verifiedAt: "2026-08-30",
@@ -65,7 +65,7 @@ describe("read-only API application boundary", () => {
       serviceType: "stall" as const,
       capacityNote: "Small group",
       dietarySupport: { vegetarian: "supported" as const },
-      mobilitySupport: { "step-free": "unknown" as const },
+      mobilitySupport: { "step-free": "unknown" as const, ramp: "unsupported" as const },
       openingHours: Array.from({ length: 7 }, (_, weekday) => ({ weekday: weekday as 0 | 1 | 2 | 3 | 4 | 5 | 6, opensAt: "06:00", closesAt: "22:00" })),
       openingExceptions: [],
       status: "sellable" as const,
@@ -128,11 +128,19 @@ describe("read-only API application boundary", () => {
     if (viFood === null || enFood === null || viFood === undefined || enFood === undefined) return;
     expect(viFood.activity).toBe("Thưởng thức và trao đổi về món đã chọn.");
     expect(viFood.dietaryAllergenCaveat).toContain("Ăn chay: được hỗ trợ");
+    expect(viFood.dietaryAllergenCaveat).toContain("Hỗ trợ ăn uống khác (Kosher): chưa xác minh");
     expect(viFood.dietaryAllergenCaveat).toContain("Đậu phộng");
+    expect(viFood.dietaryAllergenCaveat).toContain("Dị ứng khác (Sesame)");
     expect(viFood.accessibilityVendorWarning).toContain("Lối đi không bậc: chưa xác minh");
+    expect(viFood.accessibilityVendorWarning).toContain("Hỗ trợ tiếp cận khác (Ramp): không hỗ trợ");
     expect(viFood.dietaryAllergenCaveat).not.toContain("vegetarian:supported");
+    expect(viFood.dietaryAllergenCaveat).not.toContain("kosher:unknown");
     expect(viFood.accessibilityVendorWarning).not.toContain("step-free:unknown");
+    expect(viFood.accessibilityVendorWarning).not.toContain("ramp:unsupported");
     expect(enFood.activity).toBe("Taste and discuss the selected dish");
+    expect(enFood.dietaryAllergenCaveat).toContain("Other dietary support (Kosher): not verified");
+    expect(enFood.dietaryAllergenCaveat).toContain("Other allergen (Sesame)");
+    expect(enFood.accessibilityVendorWarning).toContain("Other accessibility support (Ramp): not supported");
     expect(enFood.vendorTitle).toBe("Aunt Ba's stall");
     expect(enFood.menuTitle).toBe("Banh mi");
     expect(enFood.priceVndMin).toBe(30_000);
