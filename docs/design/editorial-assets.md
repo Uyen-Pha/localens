@@ -18,11 +18,16 @@ The generated source IDs below identify the original ImageGen outputs. The `*-so
 ### Hero artisan scene
 
 - Original generated source: `source-assets/saigon-artisan-hero-source.png` (1448 x 1086), ImageGen output `01a05119-259a-7901-96b2-97a92faec860/exec-3f10b4b9-416f-4745-8da7-373264eb5573.png`.
-- Native replacement attempt: `source-assets/saigon-artisan-hero-source-native-attempt.png` (1448 x 1086), ImageGen edit/upscale output `01a05119-259a-7901-96b2-97a92faec860/exec-1cf65e14-f7ad-44e1-8043-0af54b3cbd02.png`; it was inspected and rejected because both decoded dimensions do not meet the native `1600 x 1200` minimum. It was not used for production output.
+- High-resolution replacement attempt 1: `source-assets/saigon-artisan-hero-source-native-attempt.png` (1448 x 1086), ImageGen edit/upscale output `01a05119-259a-7901-96b2-97a92faec860/exec-1cf65e14-f7ad-44e1-8043-0af54b3cbd02.png`; inspection confirmed the service's native 4:3 ceiling and it was not used.
+- Accepted generator-native source: `source-assets/saigon-artisan-hero-source-native-v2.png` (1448 x 1086, RGB, SHA-256 `23DCCF9A4F29BF43B84F63F05B98345A3D1FAECA3F7A60DCC84187CD2CC9B5C8`), ImageGen high-resolution replacement attempt 2 output `01a05140-d96d-7982-83ec-69de05271c65/exec-70a96d18-5461-468e-b0f4-65f911730046.png`. The amended contract accepts this verified generator-native ceiling; it is passed directly to the committed processor with no intermediate upscale.
 - Prompt: “Create an original documentary editorial travel photograph for a Vietnamese city travel guide: a Saigon artisan at a quiet traditional craft workshop, warm ivory and vermilion atmosphere, natural afternoon light, calm local detail, horizontal 4:3 composition, artisan and key texture placed toward the right third, generous uncluttered safe edges for overlay text, no words, no logos, no watermark, no UI mockup. This is a scratch source image that will be saved and processed later.”
 - Intended focal crop: horizontal documentary crop with the artisan and red lacquer vessel held toward the right third; the quiet wall and floor at left are intentionally text-safe.
-- Production status: the prior Task 1 WebP remains unchanged in this fix round because ImageGen did not provide an accepted native source. Its earlier ad-hoc upscale intermediate is not an accepted source-size solution and is intentionally not documented as compliant provenance; replacing this output remains the I1 blocker.
-- Prior output: `1600 x 1200`, `111,502` bytes, SHA-256 `7C7333849604BBA6D6406A660833125588EF4168D999A55CCDDC5D486A286A18`.
+- Exact processing command:
+
+  `node scripts/process-editorial-assets.mjs photo .superpowers/sdd/2026-08-30-localens-editorial-design-restoration/source-assets/saigon-artisan-hero-source-native-v2.png public/images/editorial/saigon-artisan-hero.webp --width 1600 --height 1200`
+
+- Production status: regenerated from the accepted v2 generator-native source directly; no ad-hoc Sharp upscale or intermediate source was used.
+- Output: `1600 x 1200`, `224,308` bytes, SHA-256 `84720D251401A2983373A49989BC9D594831844714E55BF12124CC4E29015FB2`.
 - Alt text: meaningful image, localized concise copy — EN “Artisan shaping a red lacquer vessel in Saigon”; VI “Nghệ nhân tạo hình bình sơn mài đỏ ở Sài Gòn”.
 
 ### Architecture inset
