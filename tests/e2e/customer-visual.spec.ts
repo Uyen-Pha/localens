@@ -210,6 +210,29 @@ async function clearFocus(page: Page): Promise<void> {
   });
 }
 
+async function assertDesktopHomeComposition(page: Page): Promise<void> {
+  const composition = await page.evaluate(() => {
+    const buttons = Array.from(document.querySelectorAll<HTMLElement>(".customer-hero__actions .button"));
+    const categoryHeadings = Array.from(document.querySelectorAll<HTMLElement>(".experience-card h3"));
+    const categoryRules = Array.from(document.querySelectorAll<HTMLElement>(".experience-card .editorial-rule"));
+    const withinViewport = (element: HTMLElement) => {
+      const rect = element.getBoundingClientRect();
+      return rect.top >= 0 && rect.bottom <= window.innerHeight;
+    };
+
+    return {
+      ctaTopPositions: buttons.map((button) => Math.round(button.getBoundingClientRect().top)),
+      categoryHeadingVisibility: categoryHeadings.map(withinViewport),
+      categoryRuleVisibility: categoryRules.map(withinViewport),
+    };
+  });
+
+  expect.soft(composition.ctaTopPositions).toHaveLength(2);
+  expect.soft(composition.ctaTopPositions[0]).toBe(composition.ctaTopPositions[1]);
+  expect.soft(composition.categoryHeadingVisibility).toEqual([true, true, true, true]);
+  expect.soft(composition.categoryRuleVisibility).toEqual([true, true, true, true]);
+}
+
 async function assertRouteCtas(page: Page, routeName: (typeof routes)[number]["name"]): Promise<void> {
   if (routeName === "home-en") {
     await expect(page.getByRole("link", { name: /Discover Saigon tours/ })).toHaveAttribute("href", "/en/tours/");
@@ -269,6 +292,9 @@ for (const viewport of viewports) {
       await expect(page.getByRole("heading", { level: 1, name: "The city is more than its landmarks" })).toBeVisible();
       await assertRouteCtas(page, "home-en");
       await assertAccessibilitySmoke(page);
+      if (viewport.name === "desktop") {
+        await assertDesktopHomeComposition(page);
+      }
       await clearFocus(page);
 
       const outputName = viewport.name === "desktop"

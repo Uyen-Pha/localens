@@ -1,10 +1,11 @@
-/* editorial-css-sha256: 0ee9f92399409d935b0985b0dafef713e1d4e222596a032be1fae1b1722b0e77 */
+/* editorial-css-sha256: 6902766e53b0f4dc57121560524c69106a9d84b2dfa16243f28fdfd90e2eba40 */
 .customer-home.customer-home--landing {
   --customer-ink: var(--color-ink);
   --customer-ink-soft: var(--color-muted);
   --customer-paper: var(--color-surface);
   --customer-line: var(--color-rule);
   --customer-orange: var(--color-vermilion);
+  --customer-ochre-accessible: #9a5b00;
   overflow: hidden;
   margin-inline: 0;
   margin-top: calc(-1 * var(--space-6));
@@ -42,7 +43,7 @@
 
 .customer-home--landing .customer-hero__content {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   max-width: 34rem;
   flex-direction: column;
@@ -234,6 +235,17 @@
   padding-block: clamp(2rem, 3vw, 3rem);
 }
 
+@media (min-width: 1101px) {
+  .customer-home--landing .customer-hero__actions {
+    flex-wrap: nowrap;
+    width: max-content;
+  }
+
+  .customer-home--landing .customer-section--discovery {
+    padding-block: clamp(1rem, 1.5vw, 1.5rem);
+  }
+}
+
 .customer-home--landing .experience-grid {
   display: grid;
   width: min(100% - 2rem, var(--content-width));
@@ -284,6 +296,13 @@
   text-align: center;
 }
 
+@media (min-width: 1101px) {
+  .customer-home--landing .experience-card {
+    justify-content: flex-start;
+    padding-top: 0;
+  }
+}
+
 .customer-home--landing .experience-card__image {
   width: clamp(5.5rem, 8vw, 8rem);
   height: auto;
@@ -322,7 +341,7 @@
 
 .customer-home--landing .experience-card--traditional_craft h3,
 .customer-home--landing .experience-card--traditional_craft .editorial-rule {
-  color: var(--color-ochre);
+  color: var(--customer-ochre-accessible);
 }
 
 .customer-home--landing .experience-card--history h3,
