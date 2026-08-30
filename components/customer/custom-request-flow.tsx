@@ -82,6 +82,9 @@ export function CustomRequestFlow({
   }, []);
 
   const issue = loadStatus !== "pending" && loadStatus !== "ok" ? statusMessage(loadStatus, copy) : null;
+  const budgetExceeded = draft !== null
+    && draft.revisionSnapshot.budgetVnd !== null
+    && draft.revisionSnapshot.totals.groupCostMaxVnd > draft.revisionSnapshot.budgetVnd;
 
   return (
     <section className="customer-section custom-request-flow" aria-labelledby="custom-request-heading">
@@ -120,8 +123,13 @@ export function CustomRequestFlow({
               <div><dt>{copy.payAtVendorLabel}</dt><dd>{draft.revisionSnapshot.totals.payAtVendorMinVnd === 0 && draft.revisionSnapshot.totals.payAtVendorMaxVnd === 0
                 ? formatVnd(0, locale)
                 : formatVndRange(draft.revisionSnapshot.totals.payAtVendorMinVnd, draft.revisionSnapshot.totals.payAtVendorMaxVnd, locale)}</dd></div>
-              <div><dt>{copy.totalCostLabel}</dt><dd>{formatVnd(draft.revisionSnapshot.totals.costVnd, locale)}</dd></div>
+              <div><dt>{copy.totalCostLabel}</dt><dd>{formatVnd(draft.revisionSnapshot.totals.groupCostMaxVnd, locale)}</dd></div>
             </dl>
+            {budgetExceeded ? (
+              <p className="custom-request-flow__budget-warning" role="note" aria-label={copy.budgetWarningLabel}>
+                {copy.budgetWarningMessage}
+              </p>
+            ) : null}
             <ol className="custom-request-flow__food-list">
               {draft.revisionSnapshot.items.map((item) => (
                 <li key={item.id}>
@@ -162,10 +170,14 @@ export function CustomRequestFlow({
           ) : null}
 
           {phase === "request" ? (
-            <form className="custom-request-flow__card" onSubmit={(event) => { event.preventDefault(); setPhase("admin-review"); }}>
+            <form className="custom-request-flow__card" onSubmit={(event) => {
+              event.preventDefault();
+              if (budgetExceeded) return;
+              setPhase("admin-review");
+            }}>
               <h2>{copy.requestHeading}</h2>
               <p>{copy.requestIntro}</p>
-              <button className="button button--primary" type="submit">{copy.submitRequestLabel}</button>
+              <button className="button button--primary" type="submit" disabled={budgetExceeded}>{copy.submitRequestLabel}</button>
             </form>
           ) : null}
 
@@ -185,7 +197,7 @@ export function CustomRequestFlow({
               <p>{copy.quoteMessage}</p>
               <dl className="custom-request-flow__facts">
                 <div><dt>{copy.quoteExpiresLabel}</dt><dd>48 hours (mock)</dd></div>
-                <div><dt>{copy.quoteTotalLabel}</dt><dd>{formatVnd(draft.revisionSnapshot.totals.costVnd, locale)}</dd></div>
+                <div><dt>{copy.quoteTotalLabel}</dt><dd>{formatVnd(draft.revisionSnapshot.totals.customerPayableVnd, locale)}</dd></div>
               </dl>
               <button className="button button--primary" type="button" onClick={() => setPhase("accepted")}>
                 {copy.acceptQuoteLabel}

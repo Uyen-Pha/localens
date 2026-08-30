@@ -47,6 +47,8 @@ export type DemoPlannerTotals = Readonly<{
 
 export type DemoPlannerRevision = Readonly<{
   revision: number;
+  /** Server-normalized budget in VND for this immutable revision snapshot. */
+  budgetVnd: number | null;
   items: readonly DemoPlannerItem[];
   totals: DemoPlannerTotals;
   warnings: readonly string[];
@@ -274,10 +276,10 @@ function mapPreviewItem(item: ItineraryPreviewItemDto, lockedStopIds: readonly s
 function generatedItems(
   preferences: PersonalizationRequest,
   locale: Locale,
-): { items: DemoPlannerItem[]; warning: string | null } {
+): { items: DemoPlannerItem[]; warning: string | null; budgetVnd: number | null } {
   const result = readOnlyApi.previewItinerary(toItineraryRequest(preferences));
   if (!result.ok || result.value.items.length === 0) {
-    return { items: [], warning: PLANNER_COPY[locale].noProposal };
+    return { items: [], warning: PLANNER_COPY[locale].noProposal, budgetVnd: null };
   }
 
   const items = result.value.items.map((item) => mapPreviewItem(item, preferences.lockedStopIds, locale));
@@ -286,9 +288,9 @@ function generatedItems(
     totals.durationMinutes > preferences.durationMinutes ||
     totals.groupCostMaxVnd > result.value.budgetVnd
   ) {
-    return { items: [], warning: PLANNER_COPY[locale].noProposal };
+    return { items: [], warning: PLANNER_COPY[locale].noProposal, budgetVnd: result.value.budgetVnd };
   }
-  return { items, warning: null };
+  return { items, warning: null, budgetVnd: result.value.budgetVnd };
 }
 
 function shiftedItems(
@@ -324,9 +326,9 @@ function initialState(locale: Locale = "en", preferences?: PersonalizationReques
     })), null)
     : [];
   const generated = preferences === undefined
-    ? { items: fixtureItems, warning: null }
+    ? { items: fixtureItems, warning: null, budgetVnd: null }
     : preferences === null
-      ? { items: [], warning: PLANNER_COPY[locale].noProposal }
+      ? { items: [], warning: PLANNER_COPY[locale].noProposal, budgetVnd: null }
       : generatedItems(preferences, locale);
   const warnings = [LOCALE_COPY[locale].warning];
   if (generated.warning !== null) warnings.push(PLANNER_COPY[locale].noProposal);
@@ -336,6 +338,7 @@ function initialState(locale: Locale = "en", preferences?: PersonalizationReques
     preferences: preferences ?? null,
     current: {
       revision: 1,
+      budgetVnd: generated.budgetVnd,
       items: generated.items,
       totals: totalsFor(generated.items),
       warnings,
@@ -410,6 +413,7 @@ export function createDemoPlannerAdapter(): PlannerAdapter {
 
       const nextRevision: DemoPlannerRevision = {
         revision: state.current.revision + 1,
+        budgetVnd: state.current.budgetVnd,
         items,
         totals: totalsFor(items),
         warnings: [LOCALE_COPY[state.locale].warning, LOCALE_COPY[state.locale].revisionWarning],

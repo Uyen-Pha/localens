@@ -105,6 +105,7 @@ export function PlannerFlow({
   const [isRefining, setIsRefining] = useState(false);
   const resultRef = useRef<HTMLElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
+  const budgetExceeded = state.current.budgetVnd !== null && state.current.totals.groupCostMaxVnd > state.current.budgetVnd;
 
   useEffect(() => {
     const handoff = readPersonalizationState();
@@ -312,7 +313,7 @@ export function PlannerFlow({
         <p className="planner-flow__no-proposal" role="status">{copy.noProposalLabel}</p>
       ) : null}
 
-      {handoffStatus === "ok" && state.preferences && state.current.items.length > 0 ? (
+      {handoffStatus === "ok" && state.preferences && state.current.items.length > 0 && !budgetExceeded ? (
         <div className="planner-flow__request-quote">
           <Link
             className="button button--primary"
@@ -351,10 +352,10 @@ export function PlannerFlow({
             <div><dt>{copy.payAtVendorLabel}</dt><dd>{state.current.totals.payAtVendorMinVnd === 0 && state.current.totals.payAtVendorMaxVnd === 0
               ? formatVnd(0, locale)
               : formatVndRange(state.current.totals.payAtVendorMinVnd, state.current.totals.payAtVendorMaxVnd, locale)}</dd></div>
-            <div><dt>{copy.totalCostLabel}</dt><dd>{formatVnd(state.current.totals.costVnd, locale)}</dd></div>
+            <div><dt>{copy.totalCostLabel}</dt><dd>{formatVnd(state.current.totals.groupCostMaxVnd, locale)}</dd></div>
           </dl>
         </div>
-        {state.preferences && state.preferences.budget.currency === "VND" && state.current.totals.groupCostMaxVnd > state.preferences.budget.amountMinor ? (
+        {budgetExceeded ? (
           <p className="planner-flow__budget-warning" role="note" aria-label={copy.budgetWarningLabel}>{copy.budgetWarningMessage}</p>
         ) : null}
       </article>

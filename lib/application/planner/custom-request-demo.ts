@@ -104,6 +104,7 @@ function canonicalDraftMaterial(draft: CustomRequestDraftInput): string {
     },
     revisionSnapshot: {
       revision: draft.revisionSnapshot.revision,
+      budgetVnd: draft.revisionSnapshot.budgetVnd,
       items: draft.revisionSnapshot.items.map((item) => ({
         id: item.id,
         placeId: item.placeId,
@@ -214,6 +215,7 @@ function isDemoPlannerRevision(value: unknown): value is DemoPlannerRevision {
     value.totals.customerPayableVnd === costVnd &&
     value.totals.groupCostMinVnd === groupCostMinVnd &&
     value.totals.groupCostMaxVnd === groupCostMaxVnd &&
+    (value.budgetVnd === null || isSafeNonNegativeNumber(value.budgetVnd)) &&
     Array.isArray(value.warnings) && value.warnings.every((warning) => typeof warning === "string") &&
     typeof value.feedback === "string"
   );

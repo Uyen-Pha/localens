@@ -7,7 +7,7 @@ import {
   type Locale,
   type ItineraryResult,
 } from "@/lib/domain/itinerary/contracts";
-import type { ServingUnit } from "@/lib/domain/food/contracts";
+import type { ServingUnit, SupportStatus } from "@/lib/domain/food/contracts";
 import {
   API_ERROR_CODES,
   API_MESSAGE_CATALOG,
@@ -432,6 +432,51 @@ function mapTour(tour: DemoTourRecord): PublicTourDto {
   };
 }
 
+const SUPPORT_LABELS: Record<string, Readonly<Record<Locale, string>>> = {
+  halal: { en: "Halal", vi: "Halal" },
+  vegetarian: { en: "Vegetarian", vi: "Ăn chay" },
+  "step-free": { en: "Step-free access", vi: "Lối đi không bậc" },
+  "wheelchair-ramp": { en: "Wheelchair ramp", vi: "Đường dốc xe lăn" },
+};
+
+const SUPPORT_STATUS_LABELS: Record<SupportStatus, Readonly<Record<Locale, string>>> = {
+  supported: { en: "supported", vi: "được hỗ trợ" },
+  unsupported: { en: "not supported", vi: "không hỗ trợ" },
+  unknown: { en: "not verified", vi: "chưa xác minh" },
+};
+
+const ALLERGEN_LABELS: Record<string, Readonly<Record<Locale, string>>> = {
+  peanut: { en: "Peanuts", vi: "Đậu phộng" },
+  shellfish: { en: "Shellfish", vi: "Hải sản có vỏ" },
+  dairy: { en: "Dairy", vi: "Sữa" },
+  egg: { en: "Eggs", vi: "Trứng" },
+  gluten: { en: "Gluten", vi: "Gluten" },
+};
+
+function localizeSupportFacts(
+  support: Readonly<Record<string, SupportStatus>>,
+  locale: Locale,
+  category: "dietary" | "mobility",
+): string[] {
+  const fallbackLabel = category === "dietary"
+    ? { en: "Other dietary support", vi: "Hỗ trợ ăn uống khác" }
+    : { en: "Other accessibility support", vi: "Hỗ trợ tiếp cận khác" };
+  return Object.entries(support).map(([key, status]) => {
+    const label = SUPPORT_LABELS[key]?.[locale] ?? fallbackLabel[locale];
+    return `${label}: ${SUPPORT_STATUS_LABELS[status][locale]}`;
+  });
+}
+
+function localizeAllergens(allergens: readonly string[], locale: Locale): string {
+  if (allergens.length === 0) return locale === "vi" ? "Chưa ghi nhận dị ứng" : "No allergens listed";
+  return allergens.map((allergen) => ALLERGEN_LABELS[allergen]?.[locale] ?? (locale === "vi" ? "Dị ứng khác" : "Other allergen")).join(", ");
+}
+
+function localizeFoodActivity(activity: string, locale: Locale): string {
+  if (activity !== "Taste and discuss the selected dish" || locale === "en") return activity;
+  return "Thưởng thức và trao đổi về món đã chọn.";
+}
+
 function mapPreview(
   result: ItineraryResult,
   repository: InternalDemoCatalogRepository,
@@ -447,12 +492,12 @@ function mapPreview(
     if (place === undefined || vendor === undefined || menuItem === undefined) return null;
 
     const dietaryFacts = [
-      ...Object.entries(vendor.dietarySupport).map(([key, value]) => `${key}: ${value}`),
-      ...Object.entries(menuItem.dietarySupport).map(([key, value]) => `${key}: ${value}`),
-      `allergens: ${menuItem.allergens.length > 0 ? menuItem.allergens.join(", ") : "none listed"}`,
+      ...localizeSupportFacts(vendor.dietarySupport, locale, "dietary"),
+      ...localizeSupportFacts(menuItem.dietarySupport, locale, "dietary"),
+      locale === "vi" ? `Dị ứng: ${localizeAllergens(menuItem.allergens, locale)}` : `Allergens: ${localizeAllergens(menuItem.allergens, locale)}`,
     ];
     const accessibilityFacts = [
-      ...Object.entries(vendor.mobilitySupport).map(([key, value]) => `${key}: ${value}`),
+      ...localizeSupportFacts(vendor.mobilitySupport, locale, "mobility"),
       vendor.capacityNote,
     ].filter((value) => value.length > 0);
     return {
@@ -464,7 +509,7 @@ function mapPreview(
       quantity: selection.quantity,
       priceVndMin: selection.priceVndMin,
       priceVndMax: selection.priceVndMax,
-      activity: selection.activity,
+      activity: localizeFoodActivity(selection.activity, locale),
       dietaryAllergenCaveat: dietaryFacts.join("; "),
       accessibilityVendorWarning: accessibilityFacts.join("; "),
       paymentMode: "pay_at_vendor",

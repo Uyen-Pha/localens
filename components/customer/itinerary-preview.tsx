@@ -241,7 +241,7 @@ export function ItineraryPreview({
               </div>
               <div>
                 <dt>{copy.totalCostLabel}</dt>
-                <dd>{formatVnd(preview.totals.groupCostVnd, locale)}</dd>
+                <dd>{formatVnd(preview.totals.groupCostMaxVnd, locale)}</dd>
               </div>
             </dl>
           </div>

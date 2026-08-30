@@ -10,6 +10,8 @@ import {
   type ApiError,
 } from "@/lib/application/api/read-only-api";
 import { demoCatalogRepository } from "@/lib/infrastructure/mock/hcmc-catalog";
+import type { InternalDemoCatalogRepository } from "@/lib/infrastructure/mock/hcmc-catalog";
+import type { EngineInput, PlaceCandidate } from "@/lib/domain/itinerary/contracts";
 
 const validRequest = {
   startAt: "2026-09-05T01:00:00Z",
@@ -36,6 +38,108 @@ function errorOf(result: { ok: boolean; error?: ApiError }): ApiError {
 }
 
 describe("read-only API application boundary", () => {
+  it("localizes selected-food activity and support facts without exposing canonical keys or statuses", () => {
+    const menuItem = {
+      id: "menu-banh-mi",
+      vendorId: "vendor-street-food",
+      slug: "banh-mi",
+      title: { en: "Banh mi", vi: "Bánh mì" },
+      description: { en: "Demo", vi: "Demo" },
+      servingUnit: "portion" as const,
+      priceVndMin: 30_000,
+      priceVndMax: 40_000,
+      portionDescription: "One portion",
+      dietarySupport: { vegetarian: "supported" as const },
+      allergens: ["peanut"],
+      available: true,
+      status: "sellable" as const,
+      verifiedAt: "2026-08-30",
+    };
+    const vendor = {
+      id: "vendor-street-food",
+      placeId: "demo-hcmc-street-food",
+      slug: "street-food-stall",
+      title: { en: "Aunt Ba's stall", vi: "Quầy cô Ba" },
+      description: { en: "Demo", vi: "Demo" },
+      locationNote: "Aisle 4",
+      serviceType: "stall" as const,
+      capacityNote: "Small group",
+      dietarySupport: { vegetarian: "supported" as const },
+      mobilitySupport: { "step-free": "unknown" as const },
+      openingHours: Array.from({ length: 7 }, (_, weekday) => ({ weekday: weekday as 0 | 1 | 2 | 3 | 4 | 5 | 6, opensAt: "06:00", closesAt: "22:00" })),
+      openingExceptions: [],
+      status: "sellable" as const,
+      menuItems: [menuItem],
+    };
+    const baseInput = demoCatalogRepository.getEngineInput({
+      ...validRequest,
+      priorityWeights: { ...validRequest.priorityWeights, street_food: 5 },
+      lockedStopIds: [],
+    });
+    const catalog: EngineInput["catalog"] = {
+      ...baseInput.catalog,
+      places: baseInput.catalog.places.map((place): PlaceCandidate => place.id === "demo-hcmc-street-food"
+        ? { ...place, foodVendors: [vendor] }
+        : place),
+    };
+    const repository: InternalDemoCatalogRepository = {
+      environment: demoCatalogRepository.environment,
+      city: demoCatalogRepository.city,
+      listTours: (locale) => demoCatalogRepository.listTours(locale),
+      listAreaIds: () => demoCatalogRepository.listAreaIds(),
+      hasArea: (areaId) => demoCatalogRepository.hasArea(areaId),
+      hasPlace: (placeId) => demoCatalogRepository.hasPlace(placeId),
+      getPlaceTitle: (placeId, locale) => demoCatalogRepository.getPlaceTitle(placeId, locale),
+      getEngineInput: (request) => ({
+        ...baseInput,
+        request: {
+          ...request,
+          areas: [...request.areas],
+          budget: { ...request.budget },
+          priorityWeights: { ...request.priorityWeights },
+          dietaryRequirements: [...request.dietaryRequirements],
+          mobilityRequirements: [...request.mobilityRequirements],
+          lockedStopIds: [...request.lockedStopIds],
+        },
+        catalog,
+      }),
+    };
+
+    const viResult = createReadOnlyApi({ repository }).previewItinerary({
+      ...validRequest,
+      priorityWeights: { ...validRequest.priorityWeights, street_food: 5 },
+      lockedStopIds: [],
+      guideLanguage: "vi",
+    });
+    const enResult = createReadOnlyApi({ repository }).previewItinerary({
+      ...validRequest,
+      priorityWeights: { ...validRequest.priorityWeights, street_food: 5 },
+      lockedStopIds: [],
+      guideLanguage: "en",
+    });
+
+    expect(viResult.ok).toBe(true);
+    expect(enResult.ok).toBe(true);
+    if (!viResult.ok || !enResult.ok) return;
+    const viFood = viResult.value.items.find((item) => item.foodSelection !== null)?.foodSelection;
+    const enFood = enResult.value.items.find((item) => item.foodSelection !== null)?.foodSelection;
+    expect(viFood).not.toBeNull();
+    expect(enFood).not.toBeNull();
+    if (viFood === null || enFood === null || viFood === undefined || enFood === undefined) return;
+    expect(viFood.activity).toBe("Thưởng thức và trao đổi về món đã chọn.");
+    expect(viFood.dietaryAllergenCaveat).toContain("Ăn chay: được hỗ trợ");
+    expect(viFood.dietaryAllergenCaveat).toContain("Đậu phộng");
+    expect(viFood.accessibilityVendorWarning).toContain("Lối đi không bậc: chưa xác minh");
+    expect(viFood.dietaryAllergenCaveat).not.toContain("vegetarian:supported");
+    expect(viFood.accessibilityVendorWarning).not.toContain("step-free:unknown");
+    expect(enFood.activity).toBe("Taste and discuss the selected dish");
+    expect(enFood.vendorTitle).toBe("Aunt Ba's stall");
+    expect(enFood.menuTitle).toBe("Banh mi");
+    expect(enFood.priceVndMin).toBe(30_000);
+    expect(enFood.priceVndMax).toBe(40_000);
+    expect(enFood.quantity).toBe(2);
+    expect(enFood.paymentMode).toBe("pay_at_vendor");
+  });
   it("returns a localized fixed-tour catalog from the internal demo HCMC repository", () => {
     const result = createReadOnlyApi().listTours("en");
 

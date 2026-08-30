@@ -6,6 +6,7 @@ import {
   createDemoPlannerAdapter,
   type PlannerAdapter,
 } from "@/lib/application/planner/demo-planner";
+import type { ItineraryPreviewFoodSelectionDto } from "@/lib/application/api/read-only-api";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import {
   clearPersonalizationRequest,
@@ -135,6 +136,84 @@ describe("PlannerFlow", () => {
     expect(within(preferences).getByText("Lối đi không bậc")).toBeInTheDocument();
     expect(within(preferences).getByText(/UTC\+07:00/)).toBeInTheDocument();
     expect(screen.getAllByText(/UTC\+07:00/).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("uses the normalized revision budget for an over-budget warning even when the request currency is USD", () => {
+    const copy = getDictionary("en").planner;
+    const base = createDemoPlannerAdapter().createInitial("en");
+    const selectedFood: ItineraryPreviewFoodSelectionDto = {
+      venueTitle: "Ben Thanh Market",
+      vendorTitle: "Aunt Ba's stall",
+      locationNote: "Aisle 4",
+      menuTitle: "Banh mi",
+      servingUnit: "portion",
+      quantity: 2,
+      priceVndMin: 45_000,
+      priceVndMax: 60_000,
+      activity: "Taste and discuss the selected dish",
+      dietaryAllergenCaveat: "Vegetarian: supported",
+      accessibilityVendorWarning: "Step-free access: not verified",
+      paymentMode: "pay_at_vendor",
+    };
+    const selectedItem = {
+      ...base.current.items[0]!,
+      placeCostVnd: 0,
+      foodSelection: selectedFood,
+      foodCostMinVnd: 90_000,
+      foodCostMaxVnd: 120_000,
+      payAtVendorMinVnd: 90_000,
+      payAtVendorMaxVnd: 120_000,
+      customerPayableVnd: 25_000,
+    };
+    const usdRequest = {
+      startAt: "2026-09-05T10:30:00+07:00",
+      durationMinutes: 240,
+      areas: ["demo-hcmc-district-1"],
+      budget: { currency: "USD" as const, amountMinor: 1 },
+      partySize: 3,
+      guideLanguage: "en" as const,
+      priorityWeights: { street_food: 0 as const, history: 3 as const, traditional_craft: 0 as const, traditional_market: 1 as const },
+      pace: "active" as const,
+      dietaryRequirements: [],
+      mobilityRequirements: [],
+      lockedStopIds: [],
+      specialNeeds: "",
+    };
+    const overBudgetState = {
+      ...base,
+      preferences: usdRequest,
+      current: {
+        ...base.current,
+        budgetVnd: 1,
+        items: [selectedItem],
+        totals: {
+          ...base.current.totals,
+          durationMinutes: 60,
+          costVnd: 25_000,
+          admissionCostVnd: 0,
+          foodCostMinVnd: 90_000,
+          foodCostMaxVnd: 120_000,
+          travelCostVnd: 0,
+          payAtVendorMinVnd: 90_000,
+          payAtVendorMaxVnd: 120_000,
+          customerPayableVnd: 25_000,
+          groupCostMinVnd: 90_000,
+          groupCostMaxVnd: 120_000,
+        },
+      },
+    };
+    const adapter: PlannerAdapter = {
+      createInitial: () => overBudgetState,
+      getLatest: (state) => state,
+      refine: () => ({ ok: false, error: { code: "INVALID_FEEDBACK" } }),
+    };
+
+    render(<PlannerFlow locale="en" copy={copy} adapter={adapter} />);
+
+    expect(screen.getByRole("note", { name: copy.budgetWarningLabel })).toHaveTextContent(copy.budgetWarningMessage);
+    expect(screen.getByText("Aunt Ba's stall")).toBeInTheDocument();
+    expect(screen.getByText(copy.totalCostLabel).nextElementSibling).toHaveTextContent("₫120,000");
+    expect(screen.getByText(copy.localLensPayableLabel).nextElementSibling).toHaveTextContent("₫25,000");
   });
 
   it("offers an explicit quote request CTA for the selected personalized revision", () => {

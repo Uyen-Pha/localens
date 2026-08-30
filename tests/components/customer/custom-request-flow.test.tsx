@@ -85,6 +85,32 @@ describe("CustomRequestFlow", () => {
     expect(screen.getByText(copy.noPaymentNetworkDisclosure)).toBeInTheDocument();
   });
 
+  it("shows a normalized-budget warning and blocks an over-budget revision before request submission", () => {
+    const state = createDemoPlannerAdapter().createInitial("en", request);
+    const usdRequest = { ...request, budget: { currency: "USD" as const, amountMinor: 10_000 } };
+    savePersonalizationRequest(usdRequest);
+    const overBudgetRevision = {
+      ...state.current,
+      budgetVnd: 1,
+    } as typeof state.current;
+    expect(saveCustomRequestDraft({
+      planId: state.planId,
+      revision: overBudgetRevision.revision,
+      preferences: usdRequest,
+      revisionSnapshot: overBudgetRevision,
+    })).toBe(true);
+    const copy = getDictionary("vi").customRequest;
+
+    render(<CustomRequestFlow locale="vi" copy={copy} />);
+
+    expect(screen.getByRole("note", { name: copy.budgetWarningLabel })).toHaveTextContent(copy.budgetWarningMessage);
+    fireEvent.click(screen.getByRole("button", { name: copy.continueLocalDemoLabel }));
+    const submit = screen.getByRole("button", { name: copy.submitRequestLabel });
+    expect(submit).toBeDisabled();
+    fireEvent.click(submit);
+    expect(screen.queryByRole("status", { name: copy.adminReviewPendingMessage })).not.toBeInTheDocument();
+  });
+
   it("fails closed with a recovery link when the selected planner revision is missing", () => {
     savePersonalizationRequest(request);
     const copy = getDictionary("vi").customRequest;

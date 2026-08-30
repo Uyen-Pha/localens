@@ -158,6 +158,13 @@ describe("ItineraryPreview", () => {
     expect(screen.getByText("Step-free access not confirmed.")).toBeInTheDocument();
     expect(screen.getByText(copy.payAtVendorValue)).toBeInTheDocument();
     expect(screen.getByRole("note", { name: copy.budgetWarningLabel })).toHaveTextContent(copy.budgetWarningMessage);
+
+    const totals = screen.getByText(copy.totalsHeading).parentElement;
+    expect(totals).not.toBeNull();
+    if (totals) {
+      expect(screen.getByText(copy.totalCostLabel).nextElementSibling).toHaveTextContent("₫145,000");
+      expect(screen.getByText(copy.localLensPayableLabel).nextElementSibling).toHaveTextContent("₫25,000");
+    }
   });
 
   it("distinguishes unavailable food cost from an explicit no-food stop", () => {
