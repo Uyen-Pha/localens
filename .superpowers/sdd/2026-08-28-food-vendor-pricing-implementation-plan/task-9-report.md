@@ -112,3 +112,57 @@ SUPABASE_CLI_NOT_FOUND: project-local Supabase CLI is required; install the pinn
 ### Self-review and concerns
 
 The migration remains additive and keeps the existing SECURITY DEFINER owners, empty `search_path`, RLS/grants, append-only guards, snapshot binding, stale-revision CAS, idempotency, checkout payable/currency authority, and legacy museum quote behavior. No client-supplied commercial facts are accepted as quote authority. Generated security artifacts were not changed because this round adds no policy, grant, table, or function surface. The sole remaining concern is the unavailable pinned Supabase CLI/local container runtime; production readiness must wait for that gate.
+
+## Fix round 2/5 — exact pgTAP plan accounting
+
+### Status
+
+`DONE_WITH_CONCERNS`: the trip-plan pgTAP plan/checker mismatch is fixed. The quote fixture remains exactly balanced at `164/164`. PostgreSQL/pgTAP execution is still blocked by the runtime gate recorded above.
+
+### TDD evidence
+
+RED was captured after adding `lives_ok` to the focused assertion counter but before updating the SQL plan:
+
+```text
+pnpm test:run tests/unit/infrastructure/plan-revision-adapter.test.ts -t "executable food revision fixture"
+Test Files  1 failed (1)
+Tests  1 failed | 19 skipped (20)
+AssertionError: expected 116 to be 112
+```
+
+GREEN after updating `trip_plan_revisions_test.sql` to `SELECT plan(116);`:
+
+```text
+pnpm test:run tests/unit/infrastructure/plan-revision-adapter.test.ts -t "executable food revision fixture"
+Test Files  1 passed (1)
+Tests  1 passed | 19 skipped (20)
+```
+
+The checker remains anchored to executable `SELECT` assertion lines, so comments/helper definitions are not counted, and now includes `ok`, `is`, `isnt`, `like`, `unlike`, `throws_ok`, `lives_ok`, `has_table_privilege`, and `has_function_privilege`.
+
+### Exact count evidence
+
+- `trip_plan_revisions_test.sql`: `SELECT plan(116);`; `is=44`, `lives_ok=4`, `ok=32`, `throws_ok=36`, total `116`.
+- `requests_quotes_test.sql`: `SELECT plan(164);`, total `164`; no quote plan change.
+- The exact-count checker hard-codes the corrected trip expectation `116` and verifies the mechanically counted total.
+
+### Fix-round verification
+
+- `pnpm test:run tests/unit/infrastructure/plan-revision-adapter.test.ts tests/unit/infrastructure/request-quote-adapter.test.ts` — focused adapter/static suite passed.
+- `pnpm test:run` — full unit suite passed with `60` files and `690` tests.
+- `pnpm db:static` — `17` migration files checked successfully.
+- `pnpm typecheck` — passed (`tsc --noEmit`).
+- `pnpm lint` — passed (`eslint . --max-warnings=0`).
+- `git diff --check` — passed; only existing LF-to-CRLF warnings were emitted.
+
+### Files and commit
+
+- `supabase/tests/database/trip_plan_revisions_test.sql`
+- `tests/unit/infrastructure/plan-revision-adapter.test.ts`
+- `tests/unit/infrastructure/request-quote-adapter.test.ts`
+- This report
+- Fix commit: to be recorded after the final diff audit.
+
+### Self-review and concerns
+
+The change is test-gate only: it does not alter production migration behavior, adapter UUID/quantity behavior, auth/RLS, or quote controls. The exact counter is intentionally anchored and explicit about supported forms. The remaining concern is unchanged: the pinned Supabase CLI/local container runtime is unavailable, so pgTAP execution and PostgreSQL behavior are not claimed.

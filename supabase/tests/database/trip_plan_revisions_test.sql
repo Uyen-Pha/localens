@@ -2,7 +2,7 @@
 -- workstation; this suite is intentionally ready for the Task 16 runtime gate.
 BEGIN;
 
-SELECT plan(112);
+SELECT plan(116);
 
 CREATE TEMP TABLE task6_revision_fixture ON COMMIT DROP AS
 WITH fixture AS (

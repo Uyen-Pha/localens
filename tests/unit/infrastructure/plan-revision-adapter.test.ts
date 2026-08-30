@@ -387,10 +387,10 @@ describe("trip-plan revision migration contract", () => {
   });
 
   it("keeps the executable food revision fixture plan exact", () => {
-    const assertions = databaseFixture.match(/^SELECT (?:ok|is|isnt|like|unlike|throws_ok|has_table_privilege|has_function_privilege)\(/gim) ?? [];
+    const assertions = databaseFixture.match(/^SELECT (?:ok|is|isnt|like|unlike|throws_ok|lives_ok|has_table_privilege|has_function_privilege)\(/gim) ?? [];
     const planned = Number(databaseFixture.match(/SELECT plan\((\d+)\);/)?.[1]);
     expect(assertions.length).toBe(planned);
-    expect(planned).toBe(112);
+    expect(planned).toBe(116);
     expect(databaseFixture).toMatch(/available, allergens/);
     expect(databaseFixture).toMatch(/unavailable food items are rejected before persistence/);
     expect(databaseFixture).toMatch(/missing food minimum total is rejected/);

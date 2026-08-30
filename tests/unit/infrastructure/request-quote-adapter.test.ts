@@ -394,7 +394,7 @@ describe("Task 8 SQL contract", () => {
   it("contains the executable pgTAP contract with a mechanically exact plan", () => {
     expect(pgTap).toMatch(/BEGIN;/);
     expect(pgTap).toMatch(/SELECT plan\(\d+\);/);
-    const assertions = pgTap.match(/^SELECT (?:ok|is|isnt|like|unlike|throws_ok|has_table_privilege|has_function_privilege)\(/gim) ?? [];
+    const assertions = pgTap.match(/^SELECT (?:ok|is|isnt|like|unlike|throws_ok|lives_ok|has_table_privilege|has_function_privilege)\(/gim) ?? [];
     const planned = Number(pgTap.match(/SELECT plan\((\d+)\);/)?.[1]);
     expect(assertions.length).toBe(planned);
     expect(pgTap).toMatch(/SET LOCAL ROLE authenticated/);
