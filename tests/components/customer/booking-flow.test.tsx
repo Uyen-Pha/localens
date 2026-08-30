@@ -73,6 +73,20 @@ const copy: BookingCopy = {
 const validDeparture = "demo-departure-markets-and-street-food-2026-09-05";
 
 describe("BookingFlow", () => {
+  it("exposes an editorial review layout around the booking facts and summary", async () => {
+    window.history.replaceState({}, "", `/en/booking?departure=${validDeparture}&partySize=2`);
+    render(<BookingFlow locale="en" copy={copy} />);
+
+    const heading = await screen.findByRole("heading", { name: copy.tourTitles["demo-markets-and-street-food"] });
+    const flow = heading.closest(".booking-flow");
+
+    expect(flow).toHaveClass("booking-flow--editorial");
+    expect(flow?.querySelector(".booking-flow__layout")).not.toBeNull();
+    expect(flow?.querySelector(".booking-flow__review")).not.toBeNull();
+    expect(flow?.querySelector(".booking-flow__summary")).not.toBeNull();
+    expect(flow?.querySelector(".booking-flow__actions")).toHaveClass("booking-flow__actions--primary");
+  });
+
   it("rejects an unknown departure from the URL without showing a price or payment action", async () => {
     window.history.replaceState({}, "", "/en/booking?departure=outside-db&partySize=2");
     render(<BookingFlow locale="en" copy={copy} />);
@@ -97,6 +111,7 @@ describe("BookingFlow", () => {
     expect(screen.getByText(copy.paymentBanner)).toHaveAttribute("role", "note");
     expect(screen.getByText((_content, element) => element?.textContent === "VND 960,000")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: copy.payLabel })).toBeInTheDocument();
+    expect(screen.queryByText(/pay at vendor/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: copy.payLabel }));
     expect(screen.getByRole("status")).toHaveTextContent(copy.payingLabel);

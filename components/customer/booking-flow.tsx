@@ -162,7 +162,7 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
 
   if (queryError !== null) {
     return (
-      <section className="customer-section booking-flow" aria-labelledby="booking-heading">
+      <section className="customer-section booking-flow booking-flow--editorial" aria-labelledby="booking-heading">
         <p className="eyebrow">LocalLens</p>
         <h1 id="booking-heading">{queryError === "invalidPartySize" ? copy.invalidPartySizeTitle : copy.invalidDepartureTitle}</h1>
         <p ref={queryErrorRef} className="booking-flow__error" role="alert" tabIndex={-1}>{errorText(copy, queryError)}</p>
@@ -173,7 +173,7 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
 
   if (request === null) {
     return (
-      <section className="customer-section booking-flow" aria-labelledby="booking-heading">
+      <section className="customer-section booking-flow booking-flow--editorial" aria-labelledby="booking-heading">
         <p className="eyebrow">LocalLens</p>
         <h1 id="booking-heading">{copy.heading}</h1>
         <p role="status" aria-live="polite">{copy.loadingLabel}</p>
@@ -247,8 +247,8 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
   }
 
   return (
-    <section className="customer-section booking-flow" aria-labelledby="booking-heading">
-      <div className="section-heading section-heading--compact">
+    <section className="customer-section booking-flow booking-flow--editorial" aria-labelledby="booking-heading">
+      <div className="section-heading section-heading--compact booking-flow__heading">
         <p className="eyebrow">LocalLens</p>
         <h1 ref={headingRef} id="booking-heading" tabIndex={-1}>{booking === null ? copy.heading : paymentPhase === "success" ? copy.successHeading : copy.paymentHeading}</h1>
         <p>{booking === null ? copy.intro : paymentPhase === "success" ? copy.successMessage : copy.paymentIntro}</p>
@@ -257,76 +257,82 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
       <p className="demo-disclosure" role="note">{copy.demoDisclosure}</p>
       {notice !== null ? <p ref={setStatusRef} className="booking-flow__pending" role="status" tabIndex={-1}>{notice}</p> : null}
 
-      {booking === null ? (
-        <form className="booking-flow__card" onSubmit={submitBooking} noValidate>
-          <h2>{tourTitle}</h2>
-          <dl className="booking-flow__facts">
-            <div><dt>{copy.dateLabel}</dt><dd>{formatDate(departure.date, locale)}</dd></div>
-            <div><dt>{copy.startLabel}</dt><dd>{departure.startsAt}</dd></div>
-            <div><dt>{copy.timezoneLabel}</dt><dd>{departure.timezone}</dd></div>
-            <div><dt>{copy.meetingPointLabel}</dt><dd>{departure.meetingPoint}</dd></div>
-            <div><dt>{copy.availabilityLabel}</dt><dd>{departure.remainingCapacity}</dd></div>
-            <div><dt>{copy.sourceLabel}</dt><dd>{copy.sourceValue}</dd></div>
-          </dl>
+      <div className="booking-flow__layout">
+        {booking === null ? (
+          <form className="booking-flow__card booking-flow__review" onSubmit={submitBooking} noValidate>
+            <div className="booking-flow__review-main">
+              <h2>{tourTitle}</h2>
+              <dl className="booking-flow__facts">
+                <div><dt>{copy.dateLabel}</dt><dd>{formatDate(departure.date, locale)}</dd></div>
+                <div><dt>{copy.startLabel}</dt><dd>{departure.startsAt}</dd></div>
+                <div><dt>{copy.timezoneLabel}</dt><dd>{departure.timezone}</dd></div>
+                <div><dt>{copy.meetingPointLabel}</dt><dd>{departure.meetingPoint}</dd></div>
+                <div><dt>{copy.availabilityLabel}</dt><dd>{departure.remainingCapacity}</dd></div>
+                <div><dt>{copy.sourceLabel}</dt><dd>{copy.sourceValue}</dd></div>
+              </dl>
 
-          <label className="field booking-flow__party-field">
-            <span>{copy.partySizeLabel}</span>
-            <input
-              ref={partySizeRef}
-              type="number"
-              min={1}
-              max={20}
-              step={1}
-              value={partySize}
-              onChange={(event) => setPartySize(Number(event.target.value))}
-              aria-label={copy.partySizeLabel}
-              aria-invalid={bookingError === "invalidPartySize"}
-              aria-describedby="booking-party-hint"
-            />
-            <small id="booking-party-hint">{copy.partySizeHint}</small>
-          </label>
+              <label className="field booking-flow__party-field">
+                <span>{copy.partySizeLabel}</span>
+                <input
+                  ref={partySizeRef}
+                  type="number"
+                  min={1}
+                  max={20}
+                  step={1}
+                  value={partySize}
+                  onChange={(event) => setPartySize(Number(event.target.value))}
+                  aria-label={copy.partySizeLabel}
+                  aria-invalid={bookingError === "invalidPartySize"}
+                  aria-describedby="booking-party-hint"
+                />
+                <small id="booking-party-hint">{copy.partySizeHint}</small>
+              </label>
+            </div>
 
-          <dl className="booking-flow__price-summary">
-            <div><dt>{copy.unitPriceLabel}</dt><dd>{formatMoney(departure.unitPriceMinor, locale)}</dd></div>
-            <div><dt>{copy.totalLabel}</dt><dd>{formatMoney(departure.unitPriceMinor * (Number.isSafeInteger(partySize) ? partySize : 0), locale)}</dd></div>
-          </dl>
-          <p>{copy.inclusionsLabel}: {copy.inclusionsValue}</p>
-          {bookingError !== null ? <p ref={setStatusRef} className="booking-flow__error" role="alert" tabIndex={-1}>{errorText(copy, bookingError)}</p> : null}
-          <div className="booking-flow__actions">
-            <button className="button" type="submit">{copy.continueLabel}</button>
+            <aside className="booking-flow__summary" aria-label={copy.totalLabel}>
+              <dl className="booking-flow__price-summary">
+                <div><dt>{copy.unitPriceLabel}</dt><dd>{formatMoney(departure.unitPriceMinor, locale)}</dd></div>
+                <div><dt>{copy.totalLabel}</dt><dd>{formatMoney(departure.unitPriceMinor * (Number.isSafeInteger(partySize) ? partySize : 0), locale)}</dd></div>
+              </dl>
+              <p>{copy.inclusionsLabel}: {copy.inclusionsValue}</p>
+              {bookingError !== null ? <p ref={setStatusRef} className="booking-flow__error" role="alert" tabIndex={-1}>{errorText(copy, bookingError)}</p> : null}
+              <div className="booking-flow__actions booking-flow__actions--primary">
+                <button className="button" type="submit">{copy.continueLabel}</button>
+                <Link className="button button--secondary" href={`/${locale}/tours`}>{copy.backToToursLabel}</Link>
+              </div>
+            </aside>
+          </form>
+        ) : paymentPhase === "success" ? (
+          <div ref={setStatusRef} className="booking-flow__card booking-flow__success-card" aria-live="polite" tabIndex={-1}>
+            <p className="booking-flow__success">{copy.paymentBanner}</p>
+            <dl className="booking-flow__facts">
+              <div><dt>{copy.successReferenceLabel}</dt><dd><code>{booking.bookingId}</code></dd></div>
+              <div><dt>{copy.successStatusLabel}</dt><dd>{copy.paidStatus}</dd></div>
+              <div><dt>{copy.totalLabel}</dt><dd>{formatMoney(booking.quote.totalMinor, locale)}</dd></div>
+            </dl>
+            <p><strong>{copy.nextStepsLabel}:</strong> {copy.nextStepsValue}</p>
             <Link className="button button--secondary" href={`/${locale}/tours`}>{copy.backToToursLabel}</Link>
           </div>
-        </form>
-      ) : paymentPhase === "success" ? (
-        <div ref={setStatusRef} className="booking-flow__card" aria-live="polite" tabIndex={-1}>
-          <p className="booking-flow__success">{copy.paymentBanner}</p>
-          <dl className="booking-flow__facts">
-            <div><dt>{copy.successReferenceLabel}</dt><dd><code>{booking.bookingId}</code></dd></div>
-            <div><dt>{copy.successStatusLabel}</dt><dd>{copy.paidStatus}</dd></div>
-            <div><dt>{copy.totalLabel}</dt><dd>{formatMoney(booking.quote.totalMinor, locale)}</dd></div>
-          </dl>
-          <p><strong>{copy.nextStepsLabel}:</strong> {copy.nextStepsValue}</p>
-          <Link className="button button--secondary" href={`/${locale}/tours`}>{copy.backToToursLabel}</Link>
-        </div>
-      ) : (
-        <div className="booking-flow__card">
-          <p className="booking-flow__payment-banner" role="note">{copy.paymentBanner}</p>
-          <dl className="booking-flow__facts">
-            <div><dt>{copy.totalLabel}</dt><dd>{formatMoney(booking.quote.totalMinor, locale)}</dd></div>
-            <div><dt>{copy.holdLabel}</dt><dd><span>{copy.holdDurationLabel}</span> · {new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { timeStyle: "short", timeZone: departure.timezone }).format(new Date(booking.holdExpiresAt))}</dd></div>
-            <div><dt>{copy.testSessionLabel}</dt><dd>{copy.testSessionDurationLabel}</dd></div>
-            <div><dt>{copy.paymentStatusLabel}</dt><dd>{copy.unpaidStatus}</dd></div>
-          </dl>
-          {paymentError !== null ? <p ref={setStatusRef} className="booking-flow__error" role="alert" tabIndex={-1}>{errorText(copy, paymentError)}</p> : null}
-          {paymentPhase === "processing" ? <p ref={setStatusRef} className="booking-flow__pending" role="status" aria-live="polite" tabIndex={-1}>{copy.payingLabel}</p> : null}
-          <div className="booking-flow__actions">
-            <button className="button" type="button" disabled={paymentPhase === "processing"} onClick={handlePaymentAction}>
-              {paymentPhase === "processing" ? copy.payingLabel : paymentError !== null ? copy.retryLabel : copy.payLabel}
-            </button>
-            <button className="button button--secondary" type="button" onClick={cancelCheckout}>{copy.cancelLabel}</button>
+        ) : (
+          <div className="booking-flow__card booking-flow__payment">
+            <p className="booking-flow__payment-banner" role="note">{copy.paymentBanner}</p>
+            <dl className="booking-flow__facts">
+              <div><dt>{copy.totalLabel}</dt><dd>{formatMoney(booking.quote.totalMinor, locale)}</dd></div>
+              <div><dt>{copy.holdLabel}</dt><dd><span>{copy.holdDurationLabel}</span> · {new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { timeStyle: "short", timeZone: departure.timezone }).format(new Date(booking.holdExpiresAt))}</dd></div>
+              <div><dt>{copy.testSessionLabel}</dt><dd>{copy.testSessionDurationLabel}</dd></div>
+              <div><dt>{copy.paymentStatusLabel}</dt><dd>{copy.unpaidStatus}</dd></div>
+            </dl>
+            {paymentError !== null ? <p ref={setStatusRef} className="booking-flow__error" role="alert" tabIndex={-1}>{errorText(copy, paymentError)}</p> : null}
+            {paymentPhase === "processing" ? <p ref={setStatusRef} className="booking-flow__pending" role="status" aria-live="polite" tabIndex={-1}>{copy.payingLabel}</p> : null}
+            <div className="booking-flow__actions booking-flow__actions--payment">
+              <button className="button" type="button" disabled={paymentPhase === "processing"} onClick={handlePaymentAction}>
+                {paymentPhase === "processing" ? copy.payingLabel : paymentError !== null ? copy.retryLabel : copy.payLabel}
+              </button>
+              <button className="button button--secondary" type="button" onClick={cancelCheckout}>{copy.cancelLabel}</button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </section>
   );
 }

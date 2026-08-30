@@ -33,5 +33,9 @@ export default async function BookingPage({
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
 
-  return <BookingFlow locale={locale} copy={getDictionary(locale).booking} />;
+  return (
+    <div className="booking-page">
+      <BookingFlow locale={locale} copy={getDictionary(locale).booking} />
+    </div>
+  );
 }

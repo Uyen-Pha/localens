@@ -1,21 +1,292 @@
-/* editorial-css-sha256: 90d146763309c2394c0567890a377d284d724ee3fec10d14efe410c41a6464ee */
-.booking-flow { max-width: 60rem; }
-.booking-flow__card { display: grid; gap: var(--space-4); margin-top: var(--space-5); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--customer-line); border-radius: var(--radius-media); background: var(--customer-paper); box-shadow: var(--shadow-panel); }
-.booking-flow__card h2 { margin: 0; color: var(--customer-ink); font-size: clamp(1.35rem, 2vw, 1.8rem); }
-.booking-flow__facts, .booking-flow__price-summary { display: grid; gap: var(--space-2); margin: 0; }
-.booking-flow__facts div, .booking-flow__price-summary div { display: grid; grid-template-columns: minmax(9rem, 0.75fr) 1.25fr; gap: var(--space-3); border-bottom: 1px solid var(--customer-line); padding-bottom: 0.45rem; }
-.booking-flow__facts dt, .booking-flow__price-summary dt { color: var(--customer-ink-soft); font-size: 0.85rem; }
-.booking-flow__facts dd, .booking-flow__price-summary dd { min-width: 0; margin: 0; color: var(--customer-ink); font-weight: 700; overflow-wrap: anywhere; }
-.booking-flow__party-field { max-width: 24rem; }
-.booking-flow__price-summary { padding-top: var(--space-3); border-top: 2px solid var(--customer-line); }
-.booking-flow__price-summary div:last-child dd { color: var(--customer-orange); font-size: 1.15rem; }
-.booking-flow__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
-.booking-flow__error, .booking-flow__pending, .booking-flow__success, .booking-flow__payment-banner { margin: 0; padding: var(--space-3) var(--space-4); border-left: 3px solid var(--customer-orange); background: rgba(209, 122, 0, 0.08); color: var(--customer-ink); line-height: 1.5; }
-.booking-flow__error { border-left-color: var(--color-cta-vermilion); background: rgba(190, 58, 36, 0.08); color: var(--color-cta-vermilion-dark); font-weight: 700; }
-.booking-flow__payment-banner, .booking-flow__success { border-left-color: var(--color-brand-forest); background: var(--color-brand-forest-soft); font-size: 1rem; font-weight: 700; }
-.booking-flow__pending { margin-top: var(--space-4); }
+/* editorial-css-sha256: 6728d2f7c687db7244e16774f4cd25329c1ff6ee2e97c6b5c860057d1d2e20e7 */
+
+/* Booking keeps the shared paper-and-ink system while giving review and payment
+   their own clear reading order. */
+.booking-page,
+.booking-flow--editorial {
+  --customer-ink: var(--color-ink);
+  --customer-ink-soft: var(--color-muted);
+  --customer-paper: var(--color-surface);
+  --customer-line: var(--color-rule);
+  --customer-orange: var(--color-vermilion);
+}
+
+.booking-page {
+  width: 100%;
+  background: linear-gradient(180deg, var(--color-paper) 0, var(--color-paper) 78%, var(--color-surface) 100%);
+}
+
+.booking-flow__card {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid var(--customer-line);
+  border-radius: var(--radius-media);
+  background: var(--customer-paper);
+  box-shadow: var(--shadow-panel);
+}
+
+.booking-flow--editorial {
+  max-width: 68rem;
+}
+
+.booking-flow--editorial .booking-flow__heading {
+  max-width: 60rem;
+  padding-bottom: var(--space-6);
+  border-bottom: var(--border-hairline);
+}
+
+.booking-flow--editorial .booking-flow__heading h1 {
+  max-width: 14ch;
+  margin: 0;
+  color: var(--customer-ink);
+  font-size: clamp(2.8rem, 6vw, 5.25rem);
+  letter-spacing: -0.055em;
+  line-height: 0.95;
+}
+
+.booking-flow--editorial .booking-flow__heading > p:last-child {
+  max-width: 38rem;
+  margin-top: var(--space-5);
+  color: var(--customer-ink-soft);
+}
+
+.booking-flow--editorial .demo-disclosure {
+  max-width: 46rem;
+  margin-top: var(--space-5);
+}
+
+.booking-flow--editorial .booking-flow__layout {
+  margin-top: clamp(2.5rem, 5vw, 4rem);
+}
+
+.booking-flow--editorial .booking-flow__card {
+  margin-top: 0;
+  border: 0;
+  border-top: 3px solid var(--customer-ink);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.booking-flow--editorial .booking-flow__review {
+  grid-template-columns: minmax(0, 1.35fr) minmax(15rem, 0.65fr);
+  align-items: start;
+  gap: clamp(var(--space-6), 6vw, var(--space-8));
+  padding: clamp(var(--space-4), 3vw, var(--space-6)) 0 0;
+}
+
+.booking-flow__review-main {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-5);
+}
+
+.booking-flow--editorial .booking-flow__card h2 {
+  max-width: 18ch;
+  margin: 0;
+  color: var(--customer-ink);
+  font-size: clamp(1.8rem, 3.5vw, 3rem);
+  letter-spacing: -0.04em;
+  line-height: 0.98;
+  overflow-wrap: anywhere;
+}
+
+.booking-flow--editorial .booking-flow__facts,
+.booking-flow--editorial .booking-flow__price-summary {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.booking-flow--editorial .booking-flow__facts div,
+.booking-flow--editorial .booking-flow__price-summary div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.72fr) minmax(0, 1.28fr);
+  gap: var(--space-3);
+  border-bottom: var(--border-hairline);
+  padding-block: var(--space-3);
+}
+
+.booking-flow--editorial .booking-flow__facts div:first-child,
+.booking-flow--editorial .booking-flow__price-summary div:first-child {
+  padding-top: 0;
+}
+
+.booking-flow--editorial .booking-flow__facts dt,
+.booking-flow--editorial .booking-flow__price-summary dt {
+  color: var(--customer-ink-soft);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.booking-flow--editorial .booking-flow__facts dd,
+.booking-flow--editorial .booking-flow__price-summary dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--customer-ink);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.booking-flow--editorial .booking-flow__party-field {
+  max-width: 26rem;
+}
+
+.booking-flow--editorial .booking-flow__party-field input {
+  max-width: 12rem;
+}
+
+.booking-flow--editorial .booking-flow__summary {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--space-4);
+  padding: clamp(var(--space-4), 3vw, var(--space-5));
+  border-left: 3px solid var(--customer-orange);
+  background: color-mix(in srgb, var(--color-vermilion) 7%, var(--color-surface));
+}
+
+.booking-flow--editorial .booking-flow__summary .booking-flow__price-summary {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.booking-flow--editorial .booking-flow__summary .booking-flow__price-summary div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.booking-flow--editorial .booking-flow__price-summary div:last-child dd {
+  color: var(--customer-orange);
+  font-size: clamp(1.2rem, 2.4vw, 1.6rem);
+  letter-spacing: -0.02em;
+}
+
+.booking-flow--editorial .booking-flow__summary > p {
+  margin: 0;
+  color: var(--customer-ink-soft);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.booking-flow--editorial .booking-flow__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.booking-flow--editorial .booking-flow__actions .button {
+  min-width: min(100%, 12rem);
+}
+
+.booking-flow--editorial .booking-flow__payment,
+.booking-flow--editorial .booking-flow__success-card {
+  max-width: 52rem;
+  gap: var(--space-5);
+  padding: clamp(var(--space-4), 3vw, var(--space-6)) 0 0;
+}
+
+.booking-flow--editorial .booking-flow__payment .booking-flow__facts,
+.booking-flow--editorial .booking-flow__success-card .booking-flow__facts {
+  max-width: 48rem;
+}
+
+.booking-flow--editorial .booking-flow__payment-banner,
+.booking-flow--editorial .booking-flow__success,
+.booking-flow--editorial .booking-flow__error,
+.booking-flow--editorial .booking-flow__pending {
+  max-width: 48rem;
+  overflow-wrap: anywhere;
+}
+
+.booking-flow--editorial .booking-flow__success-card > p:not(.booking-flow__success) {
+  max-width: 48rem;
+  margin: 0;
+  color: var(--customer-ink-soft);
+  line-height: 1.5;
+}
+
+.booking-flow--editorial .booking-flow__error,
+.booking-flow--editorial .booking-flow__pending,
+.booking-flow--editorial .booking-flow__success,
+.booking-flow--editorial .booking-flow__payment-banner {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--customer-orange);
+  background: color-mix(in srgb, var(--customer-orange) 8%, var(--color-surface));
+  color: var(--customer-ink);
+  line-height: 1.5;
+}
+
+.booking-flow--editorial .booking-flow__error {
+  border-left-color: var(--color-cta-vermilion);
+  background: color-mix(in srgb, var(--color-cta-vermilion) 9%, var(--color-surface));
+  color: var(--color-cta-vermilion-dark);
+  font-weight: 700;
+}
+
+.booking-flow--editorial .booking-flow__payment-banner,
+.booking-flow--editorial .booking-flow__success {
+  border-left-color: var(--color-brand-forest);
+  background: var(--color-brand-forest-soft);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.booking-flow--editorial .booking-flow__pending {
+  margin-top: 0;
+}
+
+.booking-flow--editorial > .booking-flow__pending {
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 860px) {
+  .booking-flow--editorial .booking-flow__review {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-flow--editorial .booking-flow__summary {
+    border-top: var(--border-hairline);
+    border-left: 0;
+  }
+}
 
 @media (max-width: 720px) {
-  .booking-flow__facts div, .booking-flow__price-summary div { grid-template-columns: 1fr; gap: 0.15rem; }
-  .booking-flow__actions > * { width: 100%; justify-content: center; }
+  .booking-flow--editorial .booking-flow__heading {
+    max-width: none;
+  }
+
+  .booking-flow--editorial .booking-flow__heading h1 {
+    max-width: 11ch;
+  }
+
+  .booking-flow--editorial .booking-flow__facts div,
+  .booking-flow--editorial .booking-flow__price-summary div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .booking-flow--editorial .booking-flow__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .booking-flow--editorial .booking-flow__actions > * {
+    width: 100%;
+  }
+
+  .booking-flow--editorial .booking-flow__actions .button {
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking-flow--editorial .booking-flow__card {
+    transition: none;
+  }
 }
