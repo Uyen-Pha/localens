@@ -15,16 +15,19 @@
 - The Task 10 completion commit and following docs-only handoff commit are hard prerequisites. Never implement from the dirty Task 10 working tree.
 - Do not edit `supabase/**`, payment logic, itinerary/pricing domain code, API contracts, form field names, storage keys, or route paths.
 - Preserve current component behavior and Task 10 food/totals rendering; presentation-only changes are the default.
-- Keep each task reviewable and commit only its listed files.
+- Read the nearest `AGENTS.md`/`CLAUDE.md` and the task-relevant repository-installed Next.js 16 guide before changing code; never rely on remembered Next.js APIs.
+- Keep each task reviewable and commit only its listed files. A task may contain its implementation commit plus separately reviewed fix-round commits; do not squash away review boundaries during execution.
 - Use test-driven development: add or tighten a failing assertion, observe the expected failure, implement the smallest change, and rerun the focused suite.
-- Use the selected reference at exactly `1488 x 1059`; validate tablet at `768 x 1024` and mobile at `390 x 844`.
+- Use the selected reference at its verified decoded size `1487 x 1058`; validate tablet at `768 x 1024` and mobile at `390 x 844`.
 - Do not start food-plan Task 11 or Task 12 until this plan is integrated.
+- Do not start live AI, runtime installation, GitHub, or deployment work from this plan; those require separate approved release-readiness specs/plans.
 
 ---
 
 ### Task 0: Establish the clean handoff and isolated branch
 
 **Files:**
+- Read: `AGENTS.md` and `CLAUDE.md` when present
 - Read: `docs/superpowers/plans/2026-08-28-food-vendor-pricing-implementation-plan.md`
 - Read: `docs/superpowers/specs/2026-08-30-localens-editorial-design-restoration.md`
 - Create in the new worktree: `.superpowers/sdd/2026-08-30-localens-editorial-design-restoration/progress.md`
@@ -32,7 +35,7 @@
 - [ ] **Step 1: Receive both handoff SHAs.** Verify the reported Task 10 commit, verify the later docs-handoff commit contains only the three approved plan/spec files, and confirm `git status --short` has no tracked Task 10 changes.
 - [ ] **Step 2: Stop if the gate is not clean.** Do not stash, reset, discard, or absorb another task’s changes. Ask the Task 10 owner to finish the handoff.
 - [ ] **Step 3: Invoke `superpowers:using-git-worktrees`.** From the LocalLens repository, create isolated worktree/branch `codex/localens-design-restore` at the verified docs-handoff SHA. Record the earlier Task 10 SHA as `TASK10_SHA` for behavior/scope comparison.
-- [ ] **Step 4: Establish the baseline.** Run `pnpm install --frozen-lockfile`, then `pnpm test:run tests/components/customer tests/components/layout tests/unit/i18n/dictionaries.test.ts tests/unit/seo/metadata.test.ts`, `pnpm typecheck`, and `pnpm build`. Record exact results and any pre-existing failure in the progress ledger.
+- [ ] **Step 4: Establish the baseline and framework authority.** Run `pnpm install --frozen-lockfile`; then read `node_modules/next/dist/docs/01-app/01-getting-started/13-fonts.md`, `node_modules/next/dist/docs/01-app/03-api-reference/02-components/font.md`, and `node_modules/next/dist/docs/01-app/01-getting-started/11-css.md`. Run `pnpm test:run tests/components/customer tests/components/layout tests/unit/i18n/dictionaries.test.ts tests/unit/seo/metadata.test.ts`, `pnpm typecheck`, and `pnpm build`. Record the instruction files read, exact results, and any pre-existing failure in the progress ledger.
 - [ ] **Step 5: Commit only the progress ledger** with `git add .superpowers/sdd/2026-08-30-localens-editorial-design-restoration/progress.md && git commit -m "chore: record editorial restoration baseline"`.
 
 ### Task 1: Freeze the visual reference and asset contract
@@ -40,18 +43,23 @@
 **Files:**
 - Create: `docs/design/references/localens-editorial-home-selected.png`
 - Create: `docs/design/editorial-assets.md`
+- Create: `scripts/process-editorial-assets.mjs`
 - Create: `public/images/editorial/saigon-artisan-hero.webp`
 - Create: `public/images/editorial/saigon-post-office-inset.webp`
 - Create: `public/images/editorial/category-street-food.webp`
 - Create: `public/images/editorial/category-history.webp`
 - Create: `public/images/editorial/category-craft.webp`
 - Create: `public/images/editorial/category-market.webp`
+- Modify: `package.json`
+- Modify: `pnpm-lock.yaml`
+- Test: `tests/unit/scripts/process-editorial-assets.test.ts`
 
-- [ ] **Step 1: Copy the reference unchanged** from `C:\Users\Admin\.codex\generated_images\01a024a9-db76-7981-82da-d2abc4e6f409\exec-8e7be86b-a264-4054-8b0a-9992eb684e24.png` and verify its dimensions are `1488 x 1059`.
-- [ ] **Step 2: Generate production image assets** to the dimensions and art direction in the spec. Do not crop UI from the reference and do not use unrelated web images.
-- [ ] **Step 3: Document each asset** with source/generation prompt, crop intent, localized alt-text decision, and license/provenance in `docs/design/editorial-assets.md`.
-- [ ] **Step 4: Verify asset behavior** by checking dimensions, transparency for category marks, WebP decoding, and total payload. Keep the two above-the-fold images reasonably compressed without visible artifacts.
-- [ ] **Step 5: Commit** with `git add docs/design public/images/editorial && git commit -m "chore: add LocalLens editorial visual references"`.
+- [ ] **Step 1: Copy the reference unchanged** from `C:\Users\Admin\.codex\generated_images\01a024a9-db76-7981-82da-d2abc4e6f409\exec-8e7be86b-a264-4054-8b0a-9992eb684e24.png`; verify decoded dimensions `1487 x 1058` and SHA-256 `BAE040B763524C6232632A12D96855A0B5590154F6CEB9C72D2D2EB743C98BF2`; fail rather than silently resizing or recompressing the source of truth.
+- [ ] **Step 2: Add the reproducible processor dependency and failing tests.** Run `pnpm add --save-dev --save-exact sharp@0.35.4`. Test photo crop/dimensions/metadata stripping, luminance-to-alpha antialiasing, transparent/opaque alpha bounds, size-limit rejection, malformed-input rejection, and same-size comparison output. Run `pnpm test:run tests/unit/scripts/process-editorial-assets.test.ts` and confirm failure because the processor is absent.
+- [ ] **Step 3: Implement `scripts/process-editorial-assets.mjs`.** Provide `photo`, `mark`, `check`, and `compare` commands with the exact algorithms, dimensions, quality, limits, and exit-on-error behavior from the spec. Re-run the focused test and require PASS.
+- [ ] **Step 4: Generate and process production assets.** Generate original scratch PNG sources into `.superpowers/sdd/2026-08-30-localens-editorial-design-restoration/source-assets/`; do not crop the UI reference or use unrelated web images. Process them only through the committed script to the six final WebP paths.
+- [ ] **Step 5: Document and verify.** Record every prompt, scratch source name, focal crop, exact processing command, tool version, localized alt-text decision, and provenance in `docs/design/editorial-assets.md`. Run the script's `check` command over all six outputs and require exact dimensions, valid decoding, category alpha bounds, and per-file size limits.
+- [ ] **Step 6: Commit** with `git add package.json pnpm-lock.yaml scripts/process-editorial-assets.mjs tests/unit/scripts/process-editorial-assets.test.ts docs/design public/images/editorial && git commit -m "chore: add LocalLens editorial visual references"`.
 
 ### Task 2: Add font and design-token foundations
 
@@ -61,19 +69,25 @@
 - Create: `public/fonts/manrope-600.woff2`
 - Create: `public/fonts/OFL-Cormorant-Garamond.txt`
 - Create: `public/fonts/OFL-Manrope.txt`
+- Create: `scripts/copy-editorial-fonts.mjs`
 - Create: `app/styles/tokens.css`
 - Create: `app/styles/customer-editorial.css`
 - Modify: `app/[locale]/layout.tsx`
 - Modify: `app/globals.css`
+- Modify: `package.json`
+- Modify: `pnpm-lock.yaml`
 - Test: `tests/components/layout/site-header.test.tsx`
 - Test: `tests/unit/seo/metadata.test.ts`
+- Test: `tests/unit/scripts/copy-editorial-fonts.test.ts`
 
 - [ ] **Step 1: Add failing tests** that expect the locale layout to expose stable display/body font variables and preserve the localized document language, skip link, header, main content, and footer.
 - [ ] **Step 2: Run** `pnpm test:run tests/components/layout/site-header.test.tsx tests/unit/seo/metadata.test.ts` and confirm the new font-variable assertion fails for the expected reason.
-- [ ] **Step 3: Add licensed self-hosted fonts** with `next/font/local`, preload, `font-display: swap`, and system fallbacks. Put palette, typography, spacing, border, shadow, content-width, and interaction tokens in `tokens.css`.
-- [ ] **Step 4: Split presentation CSS safely.** Keep resets/focus/shared behavior in `globals.css`; import Tailwind, tokens, then customer editorial styles in deterministic order. Preserve existing class names and avoid broad global element overrides.
-- [ ] **Step 5: Run** the focused tests, `pnpm lint`, `pnpm typecheck`, and `pnpm build`; inspect build output for missing font or asset paths.
-- [ ] **Step 6: Commit** with `git add app/[locale]/layout.tsx app/globals.css app/styles public/fonts tests/components/layout/site-header.test.tsx tests/unit/seo/metadata.test.ts && git commit -m "feat: add LocalLens editorial design foundations"`.
+- [ ] **Step 3: Add pinned font provenance and a failing copy test.** Run `pnpm add --save-dev --save-exact @fontsource/manrope@5.3.0 @fontsource/cormorant-garamond@5.3.0`. Add `tests/unit/scripts/copy-editorial-fonts.test.ts` to require the exact package versions, source filenames, three WOFF2 destinations, two renamed `LICENSE` destinations, and refusal to copy an unexpected version. Run the focused script test and confirm failure because the copy script is absent.
+- [ ] **Step 4: Implement and run the font copy.** `scripts/copy-editorial-fonts.mjs` must copy `cormorant-garamond-latin-600-normal.woff2`, `manrope-latin-400-normal.woff2`, `manrope-latin-600-normal.woff2`, and each package's `LICENSE` from the pinned packages; fail if package versions differ from `5.3.0`. Run the script, then run its focused test and require PASS.
+- [ ] **Step 5: Add licensed self-hosted fonts** with `next/font/local`, preload, `font-display: swap`, and system fallbacks. Put palette, typography, spacing, border, shadow, content-width, and interaction tokens in `tokens.css`.
+- [ ] **Step 6: Split presentation CSS safely.** Keep resets/focus/shared behavior in `globals.css`; import Tailwind, tokens, then customer editorial styles in deterministic order. Preserve existing class names and avoid broad global element overrides.
+- [ ] **Step 7: Run** `pnpm test:run tests/unit/scripts/copy-editorial-fonts.test.ts tests/components/layout/site-header.test.tsx tests/unit/seo/metadata.test.ts`, `pnpm lint`, `pnpm typecheck`, and `pnpm build`; inspect build output for missing font or asset paths.
+- [ ] **Step 8: Commit** with `git add package.json pnpm-lock.yaml scripts/copy-editorial-fonts.mjs app/[locale]/layout.tsx app/globals.css app/styles public/fonts tests/unit/scripts/copy-editorial-fonts.test.ts tests/components/layout/site-header.test.tsx tests/unit/seo/metadata.test.ts && git commit -m "feat: add LocalLens editorial design foundations"`.
 
 ### Task 3: Restore the shared customer shell
 
@@ -107,7 +121,7 @@
 - [ ] **Step 1: Add failing tests** for the retained headline idea in EN/VI, both CTA destinations, the four supported experience categories, semantic section headings, and meaningful hero alt text.
 - [ ] **Step 2: Run** `pnpm test:run tests/components/customer/customer-home.test.tsx tests/unit/i18n/dictionaries.test.ts` and observe the expected content/structure failures.
 - [ ] **Step 3: Implement the editorial hero** with asymmetric copy/image composition, architectural inset, coordinate detail, and two real route CTAs. Implement “Four ways into the city” with the four supported preference groups; keep local-life catalog content without inventing a fifth preference value.
-- [ ] **Step 4: Match the desktop reference** at `1488 x 1059`, then implement explicit tablet/mobile reflow. Do not use screenshot fragments, absolute positioning that overlaps localized copy, or decorative images as interactive controls.
+- [ ] **Step 4: Match the desktop reference** at `1487 x 1058`, then implement explicit tablet/mobile reflow. Do not use screenshot fragments, absolute positioning that overlaps localized copy, or decorative images as interactive controls.
 - [ ] **Step 5: Run** focused unit/component tests and `pnpm test:e2e -- tests/e2e/static-shell.spec.ts`, then `pnpm lint` and `pnpm typecheck`.
 - [ ] **Step 6: Commit** with `git add components/customer/customer-home.tsx app/[locale]/page.tsx lib/i18n/dictionaries.ts app/styles/customer-editorial.css tests/components/customer/customer-home.test.tsx tests/unit/i18n/dictionaries.test.ts tests/e2e/static-shell.spec.ts && git commit -m "feat: restore LocalLens editorial home"`.
 
@@ -169,24 +183,30 @@
 
 **Files:**
 - Create: `tests/e2e/customer-visual.spec.ts`
+- Create: `design-qa.md`
+- Create: `docs/design/qa/home-desktop-implementation.png`
+- Create: `docs/design/qa/home-desktop-comparison.png`
+- Create: `docs/design/qa/home-tablet.png`
+- Create: `docs/design/qa/home-mobile.png`
 - Modify: `playwright.config.ts`
 - Modify: `README.md`
 - Modify: `.superpowers/sdd/2026-08-30-localens-editorial-design-restoration/progress.md`
 
 - [ ] **Step 1: Add Playwright coverage** for `/en`, `/vi`, `/en/tours`, `/en/planner`, `/en/custom-request`, and `/en/booking`. Use stable local data, disable animation for captures, wait for fonts/images, and mask only genuinely nondeterministic content.
-- [ ] **Step 2: Add viewport-specific assertions** for `1488 x 1059`, `768 x 1024`, and `390 x 844`, including no horizontal overflow, visible focus, route-correct CTAs, and full-page screenshots.
-- [ ] **Step 3: Run** `pnpm test:e2e -- tests/e2e/customer-visual.spec.ts` and inspect each screenshot. Create a side-by-side or overlay comparison of the desktop home render with `docs/design/references/localens-editorial-home-selected.png`; a passing snapshot alone is not visual approval.
-- [ ] **Step 4: Perform accessibility smoke checks** for heading order, landmarks, labels, keyboard-only flow, focus visibility, meaningful/empty alt text, reduced motion, and text/background contrast.
-- [ ] **Step 5: Run the complete gate:** `pnpm check`, followed by `pnpm test:e2e`. Record exact outputs. Keep database runtime verification status separate; this presentation plan does not convert static database checks into runtime proof.
-- [ ] **Step 6: Review scope** with `git diff <TASK10_SHA>...HEAD --stat` and `git diff <TASK10_SHA>...HEAD -- supabase lib/domain`. The second command must show no business/domain/database edits; investigate any output before completion.
-- [ ] **Step 7: Commit** with `git add tests/e2e/customer-visual.spec.ts playwright.config.ts README.md .superpowers/sdd/2026-08-30-localens-editorial-design-restoration/progress.md && git commit -m "test: verify LocalLens editorial customer experience"`.
+- [ ] **Step 2: Add viewport-specific assertions** for `1487 x 1058`, `768 x 1024`, and `390 x 844`, including no horizontal overflow, visible focus, route-correct CTAs, and full-page screenshots.
+- [ ] **Step 3: Capture deterministic evidence.** Run `pnpm test:e2e -- tests/e2e/customer-visual.spec.ts`; save the accepted desktop, tablet, and mobile home captures to the listed `docs/design/qa/` paths. Reject loading, cropped, wrong-state, or wrong-viewport images. Use `node scripts/process-editorial-assets.mjs compare` to combine the `1487 x 1058` reference and implementation into `home-desktop-comparison.png`; a passing snapshot alone is not visual approval.
+- [ ] **Step 4: Perform accessibility smoke checks** for heading order, landmarks, labels, keyboard-only flow, focus visibility, meaningful/empty alt text, reduced motion, text/background contrast, text zoom, and practical mobile targets. Do not claim full WCAG compliance from screenshots alone.
+- [ ] **Step 5: Write the blocking Product Design report.** `design-qa.md` must name the source and implementation paths, viewport/state/density, full-view comparison, focused regions or why none are needed, and explicit verdicts for fonts/typography, spacing/layout, colors/tokens, image quality, copy/content, responsiveness, interactions, and accessibility. Record each P0/P1/P2 finding, fix, and same-state post-fix comparison; finish with exactly `final result: passed` only when no actionable P0/P1/P2 remains, otherwise `final result: blocked`.
+- [ ] **Step 6: Run the complete gate:** `pnpm check`, followed by `pnpm test:e2e`. Record exact outputs. Keep database runtime verification status separate; this presentation plan does not convert static database checks into runtime proof.
+- [ ] **Step 7: Review scope** with `git diff <TASK10_SHA>...HEAD --stat` and `git diff <TASK10_SHA>...HEAD -- supabase lib/domain`. The second command must show no business/domain/database edits; investigate any output before completion.
+- [ ] **Step 8: Commit** with `git add tests/e2e/customer-visual.spec.ts playwright.config.ts README.md design-qa.md docs/design/qa .superpowers/sdd/2026-08-30-localens-editorial-design-restoration/progress.md && git commit -m "test: verify LocalLens editorial customer experience"`.
 
 ### Task 9: Review, integrate, and release the paused food tasks
 
 **Files:**
 - Modify only if needed for verified documentation: `.superpowers/sdd/2026-08-30-localens-editorial-design-restoration/progress.md`
 
-- [ ] **Step 1: Invoke `superpowers:requesting-code-review`.** Review the full diff against this spec, with special attention to route/data/price/food compatibility and responsive visual evidence.
+- [ ] **Step 1: Invoke `superpowers:requesting-code-review`.** Dispatch an independent reviewer rather than letting the controller self-approve. Review the full diff against this spec, with special attention to route/data/price/food compatibility, `design-qa.md`, and responsive visual evidence.
 - [ ] **Step 2: Resolve findings using `superpowers:receiving-code-review`** and rerun every affected focused test plus the full gate.
 - [ ] **Step 3: Invoke `superpowers:verification-before-completion`.** Do not claim success from earlier or partial output; capture fresh `pnpm check` and `pnpm test:e2e` results.
 - [ ] **Step 4: Invoke `superpowers:finishing-a-development-branch`** and present the reviewed integration options. Do not merge, rebase, delete a worktree, or resume another task without the user’s chosen option.
