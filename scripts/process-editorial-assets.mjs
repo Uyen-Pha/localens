@@ -1,6 +1,12 @@
 import { mkdir, stat } from "node:fs/promises";
-import { dirname, basename, join, resolve } from "node:path";
+import { dirname, basename } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import sharp from "sharp";
+
+export const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+export const PRODUCTION_ASSET_ROOT = resolve(REPOSITORY_ROOT, "public", "images", "editorial");
+export const QA_EVIDENCE_ROOT = resolve(REPOSITORY_ROOT, "docs", "design", "qa");
 
 export const EDITORIAL_ASSETS = Object.freeze({
   "saigon-artisan-hero.webp": Object.freeze({ width: 1600, height: 1200, maxBytes: 900 * 1024, kind: "photo" }),
@@ -47,6 +53,68 @@ function expectedAsset(filePath) {
     fail(`unknown editorial asset name: ${name}`);
   }
   return config;
+}
+
+function hasTraversalSegment(filePath) {
+  return /(^|[\\/])\.\.($|[\\/])/.test(filePath);
+}
+
+function resolveRepositoryInput(inputPath) {
+  return resolve(REPOSITORY_ROOT, inputPath);
+}
+
+function resolveProductionOutput(outputPath, kind) {
+  if (isAbsolute(outputPath)) {
+    fail("output path must be relative to the repository root");
+  }
+  if (hasTraversalSegment(outputPath)) {
+    fail("output path must not contain traversal segments");
+  }
+  const resolvedOutput = resolve(REPOSITORY_ROOT, outputPath);
+  const productionRelative = relative(PRODUCTION_ASSET_ROOT, resolvedOutput);
+  if (!productionRelative || productionRelative.startsWith(`..${sep}`) || isAbsolute(productionRelative) || productionRelative.includes(sep)) {
+    fail("output path must be a direct file in the production editorial asset allowlist");
+  }
+  const config = EDITORIAL_ASSETS[basename(resolvedOutput)];
+  if (!config || (kind && config.kind !== kind)) {
+    fail(`output path is not an allowlisted ${kind ?? "editorial"} production asset`);
+  }
+  return resolvedOutput;
+}
+
+function resolveQaOutput(outputPath) {
+  if (isAbsolute(outputPath)) {
+    fail("comparison output path must be relative to the repository root");
+  }
+  if (hasTraversalSegment(outputPath)) {
+    fail("comparison output path must not contain traversal segments");
+  }
+  const resolvedOutput = resolve(REPOSITORY_ROOT, outputPath);
+  const qaRelative = relative(QA_EVIDENCE_ROOT, resolvedOutput);
+  if (!qaRelative || qaRelative.startsWith(`..${sep}`) || isAbsolute(qaRelative)) {
+    fail("comparison output path must stay inside docs/design/qa");
+  }
+  if (!resolvedOutput.toLowerCase().endsWith(".png")) {
+    fail("comparison output path must be a PNG evidence file");
+  }
+  return resolvedOutput;
+}
+
+function assertDistinctOutput(outputPath, ...inputPaths) {
+  const normalizedOutput = process.platform === "win32" ? outputPath.toLowerCase() : outputPath;
+  for (const inputPath of inputPaths) {
+    const normalizedInput = process.platform === "win32" ? inputPath.toLowerCase() : inputPath;
+    if (normalizedOutput === normalizedInput) {
+      fail("output path must differ from every input path; refusing to overwrite input");
+    }
+  }
+}
+
+function assertKnownOptions(options, allowed, command) {
+  const unknown = Object.keys(options).filter((name) => !allowed.includes(name));
+  if (unknown.length > 0) {
+    fail(`unknown option for ${command}: --${unknown[0]}`);
+  }
 }
 
 /** Process a documentary image into an exact-size, metadata-free WebP. */
@@ -199,17 +267,25 @@ async function main(args) {
   if (!command) fail(usage());
   if (command === "photo") {
     if (positional.length !== 2) fail(usage());
-    await photo(positional[0], positional[1], { width: options.width, height: options.height });
+    assertKnownOptions(options, ["width", "height"], command);
+    const inputPath = resolveRepositoryInput(positional[0]);
+    const outputPath = resolveProductionOutput(positional[1], "photo");
+    assertDistinctOutput(outputPath, inputPath);
+    await photo(inputPath, outputPath, { width: options.width, height: options.height });
     return;
   }
   if (command === "mark") {
     if (positional.length !== 2) fail(usage());
-    await mark(positional[0], positional[1], { color: options.color });
+    assertKnownOptions(options, ["color"], command);
+    const inputPath = resolveRepositoryInput(positional[0]);
+    const outputPath = resolveProductionOutput(positional[1], "mark");
+    assertDistinctOutput(outputPath, inputPath);
+    await mark(inputPath, outputPath, { color: options.color });
     return;
   }
   if (command === "check") {
-    const root = options.root ? resolve(options.root) : undefined;
-    const paths = positional.map((path) => (root && !resolve(path).startsWith(root) ? join(root, path) : path));
+    assertKnownOptions(options, [], command);
+    const paths = positional.map((path) => resolveProductionOutput(path));
     const results = await check(paths);
     for (const result of results) {
       const alpha = result.alphaBounds ? ` alpha=transparent:${result.alphaBounds.hasTransparent},opaque:${result.alphaBounds.hasOpaque}` : "";
@@ -219,7 +295,12 @@ async function main(args) {
   }
   if (command === "compare") {
     if (positional.length !== 3) fail(usage());
-    await compare(positional[0], positional[1], positional[2]);
+    assertKnownOptions(options, [], command);
+    const leftPath = resolveRepositoryInput(positional[0]);
+    const rightPath = resolveRepositoryInput(positional[1]);
+    const outputPath = resolveQaOutput(positional[2]);
+    assertDistinctOutput(outputPath, leftPath, rightPath);
+    await compare(leftPath, rightPath, outputPath);
     return;
   }
   fail(`unknown command: ${command}\n${usage()}`);
