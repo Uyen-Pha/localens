@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -80,6 +83,28 @@ const preview: ItineraryPreviewDto = {
 };
 
 describe("ItineraryPreview", () => {
+  it("resets the editorial timeline list and restores its vermilion markers", () => {
+    const stylesheet = readFileSync(
+      path.resolve(process.cwd(), "app/styles/editorial-journey.css"),
+      "utf8",
+    );
+    const timelineRule = stylesheet.match(
+      /\.itinerary-preview--editorial \.itinerary-timeline \{[\s\S]*?\n\}/,
+    )?.[0] ?? "";
+    const itemRule = stylesheet.match(
+      /\.itinerary-preview--editorial \.itinerary-timeline__item \{[\s\S]*?\n\}/,
+    )?.[0] ?? "";
+    const markerRule = stylesheet.match(
+      /\.itinerary-preview--editorial \.itinerary-timeline__item::before \{[\s\S]*?\n\}/,
+    )?.[0] ?? "";
+
+    expect(timelineRule).toContain("padding: 0;");
+    expect(timelineRule).toContain("list-style: none;");
+    expect(itemRule).toContain("position: relative;");
+    expect(markerRule).toContain('content: "";');
+    expect(markerRule).toContain("position: absolute;");
+  });
+
   it("renders localized timeline details, costs, totals, and proposal disclosures", () => {
     const copy = getDictionary("en").home.personalizationForm.preview;
 

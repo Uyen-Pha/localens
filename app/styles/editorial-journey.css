@@ -1,4 +1,4 @@
-/* editorial-css-sha256: f986559854d7c98a8ab3f5c24a981430d14942d48dc464b8f403d52ed46ab1c7 */
+/* editorial-css-sha256: 920bcefe4dcf27c8ab4039c73f1318089c88085011bd8d48d8f7224296e147f9 */
 
 /* Journey pages keep the same quiet, paper-led rhythm as the home and catalog
    while giving long-form planning data enough room to breathe. */
@@ -271,20 +271,25 @@
   display: grid;
   gap: var(--space-5);
   margin-top: var(--space-6);
+  padding: 0;
+  list-style: none;
 }
 
 .itinerary-preview--editorial .itinerary-timeline__item {
+  position: relative;
   padding-left: var(--space-6);
   border-left: 1px solid var(--customer-ink);
 }
 
 .itinerary-preview--editorial .itinerary-timeline__item::before {
+  position: absolute;
   top: var(--space-5);
   left: -0.43rem;
   width: 0.75rem;
   height: 0.75rem;
   border: 3px solid var(--color-paper);
   background: var(--customer-orange);
+  content: "";
 }
 
 .itinerary-preview--editorial .itinerary-timeline__item > article {
@@ -541,6 +546,8 @@
   display: grid;
   gap: var(--space-5);
   margin-top: var(--space-6);
+  padding: 0;
+  list-style: none;
 }
 
 .planner-flow--editorial .planner-timeline__item {
@@ -550,12 +557,14 @@
 }
 
 .planner-flow--editorial .planner-timeline__item::before {
+  position: absolute;
   top: var(--space-5);
   left: -0.43rem;
   width: 0.75rem;
   height: 0.75rem;
   border: 3px solid var(--color-surface);
   background: var(--customer-orange);
+  content: "";
 }
 
 .planner-flow--editorial .planner-timeline__item > article {
@@ -653,6 +662,11 @@
   margin-top: var(--space-4);
   color: var(--customer-ink-soft);
   line-height: 1.55;
+}
+
+.planner-flow--editorial .planner-flow__checks li + li,
+.planner-flow--editorial .planner-flow__history li + li {
+  margin-top: var(--space-2);
 }
 
 .planner-flow--editorial .planner-flow__history p {

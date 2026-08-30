@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -21,6 +24,32 @@ afterEach(() => {
 });
 
 describe("PlannerFlow", () => {
+  it("keeps editorial timeline markers and scan spacing scoped to the planner", () => {
+    const stylesheet = readFileSync(
+      path.resolve(process.cwd(), "app/styles/editorial-journey.css"),
+      "utf8",
+    );
+    const timelineRule = stylesheet.match(
+      /\.planner-flow--editorial \.planner-timeline \{[\s\S]*?\n\}/,
+    )?.[0] ?? "";
+    const itemRule = stylesheet.match(
+      /\.planner-flow--editorial \.planner-timeline__item \{[\s\S]*?\n\}/,
+    )?.[0] ?? "";
+    const markerRule = stylesheet.match(
+      /\.planner-flow--editorial \.planner-timeline__item::before \{[\s\S]*?\n\}/,
+    )?.[0] ?? "";
+    const spacingRule = stylesheet.match(
+      /\.planner-flow--editorial \.planner-flow__checks li \+ li,[\s\S]*?\n\}/,
+    )?.[0] ?? "";
+
+    expect(timelineRule).toContain("padding: 0;");
+    expect(timelineRule).toContain("list-style: none;");
+    expect(itemRule).toContain("position: relative;");
+    expect(markerRule).toContain('content: "";');
+    expect(markerRule).toContain("position: absolute;");
+    expect(spacingRule).toContain("margin-top: var(--space-2);");
+  });
+
   it("renders a bilingual-safe proposal with activities, totals, warnings, and no booking action", () => {
     const copy = getDictionary("en").planner;
 
