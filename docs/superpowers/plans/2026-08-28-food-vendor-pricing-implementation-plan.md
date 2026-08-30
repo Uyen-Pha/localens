@@ -233,6 +233,19 @@ Create or modify only these focused boundaries:
 - [ ] **Step 4: Run focused component tests, `pnpm lint`, and `pnpm typecheck`**; confirm keyboard focus/error behavior still works after adding food fields and the demo never presents a generic market as a meal.
 - [ ] **Step 5: Commit** with `git add components/customer lib/i18n/dictionaries.ts tests/components/customer tests/unit/i18n/dictionaries.test.ts && git commit -m "feat: show concrete food stops to customers"`.
 
+### Required handoff gate after Task 10: Editorial design restoration
+
+Task 10 and the following editorial restoration both touch shared customer components. To prevent overlapping edits, this gate overrides the normal immediate transition to Task 11:
+
+- [ ] Finish and commit **Task 10 only**; do not include the new design spec/plan in the Task 10 commit.
+- [ ] Confirm there are no remaining tracked Task 10 changes and report the exact Task 10 commit SHA.
+- [ ] Stop before Task 11 and read `docs/superpowers/specs/2026-08-30-localens-editorial-design-restoration.md` plus `docs/superpowers/plans/2026-08-30-localens-editorial-design-restoration.md`.
+- [ ] After the Task 10 commit, create a separate docs-only handoff commit containing exactly this updated plan and the two `2026-08-30-localens-editorial-design-restoration` spec/plan files; report both SHAs.
+- [ ] Keep Tasks 11 and 12 paused while the design plan runs from the docs-handoff SHA in isolated branch/worktree `codex/localens-design-restore`; the Task 10 SHA remains the behavior baseline.
+- [ ] Resume Tasks 11 and 12 only after the reviewed design branch is integrated, using the new integrated HEAD rather than the stale pre-design checkout.
+
+This handoff changes sequencing only. It does not reduce or replace any Task 10 food-detail, totals, warning, test, or accessibility requirement.
+
 ### Task 11: Add authenticated admin review for vendor/menu evidence
 
 **Files:**
