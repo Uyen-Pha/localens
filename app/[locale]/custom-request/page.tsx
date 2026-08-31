@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { CustomRequestFlow } from "@/components/customer/custom-request-flow";
+import { DemoCustomRequestEntry } from "@/components/customer/demo-custom-request-entry";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
@@ -33,7 +33,7 @@ export default async function CustomRequestPage({
   if (!isLocale(locale)) notFound();
   return (
     <div className="journey-page journey-page--custom-request">
-      <CustomRequestFlow locale={locale} copy={getDictionary(locale).customRequest} />
+      <DemoCustomRequestEntry locale={locale} copy={getDictionary(locale).customRequest} />
     </div>
   );
 }

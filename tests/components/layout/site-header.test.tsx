@@ -89,6 +89,32 @@ describe("SiteHeader", () => {
     }
   });
 
+  it("exposes the production-aligned destinations as real links", () => {
+    render(
+      <SiteHeader
+        locale="en"
+        labels={{
+          brand: "LocalLens",
+          navigation: {
+            primary: "Primary navigation",
+            tours: "Tours",
+            personalizedTrip: "Personalized trip",
+            howItWorks: "How it works",
+            signIn: "Sign in",
+          },
+          language: labels.language,
+        }}
+        pathname="/en/"
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Tours" })).toHaveAttribute("href", "/en/tours");
+    expect(screen.getByRole("link", { name: "Personalized trip" })).toHaveAttribute("href", "/en/planner");
+    expect(screen.getByRole("link", { name: "How it works" })).toHaveAttribute("href", "/en#how-it-works");
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/en/sign-in");
+    expect(screen.queryByText("Sign in", { selector: "span" })).not.toBeInTheDocument();
+  });
+
   it("keeps the opaque path and query contract on the locale switch link", () => {
     const search = "?plan=opaque%2F%2B&filter=a+b&filter=%E2%9C%93";
 

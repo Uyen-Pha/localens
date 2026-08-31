@@ -11,6 +11,7 @@ import {
   readPersonalizationState,
 } from "@/lib/application/planner/personalization-session";
 import type { ItineraryPreviewFoodSelectionDto } from "@/lib/application/api/read-only-api";
+import type { DemoPortalComposition } from "@/lib/application/portal/composition";
 import type { Locale } from "@/lib/i18n/config";
 import type { CustomRequestCopy } from "@/lib/i18n/dictionaries";
 
@@ -54,13 +55,19 @@ function statusMessage(status: Exclude<LoadStatus, "pending" | "ok">, copy: Cust
 export function CustomRequestFlow({
   locale,
   copy,
+  demoPortal,
 }: {
   locale: Locale;
   copy: CustomRequestCopy;
+  /** Explicit browser-demo handoff; omitted for the standalone local flow. */
+  demoPortal?: Pick<DemoPortalComposition, "demoIntegration" | "session" | "initialized" | "customer">;
 }) {
   const [loadStatus, setLoadStatus] = useState<LoadStatus>("pending");
   const [draft, setDraft] = useState<CustomRequestDraft | null>(null);
-  const [phase, setPhase] = useState<DemoPhase>("sign-in");
+  const [phase, setPhase] = useState<DemoPhase>(demoPortal === undefined ? "sign-in" : "request");
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const personalization = readPersonalizationState();
@@ -86,6 +93,84 @@ export function CustomRequestFlow({
     && draft.revisionSnapshot.budgetVnd !== null
     && draft.revisionSnapshot.totals.groupCostMaxVnd > draft.revisionSnapshot.budgetVnd;
 
+  async function requireDemoCustomer(): Promise<void> {
+    if (demoPortal === undefined) return;
+    await demoPortal.initialized;
+    const session = await demoPortal.session.getSession();
+    if (session === null || session.role !== "customer") {
+      throw new Error("Demo customer sign-in is required before submitting a request.");
+    }
+  }
+
+  async function submitRequest(): Promise<void> {
+    if (draft === null || budgetExceeded) return;
+    setActionMessage(null);
+    if (demoPortal === undefined) {
+      setPhase("admin-review");
+      return;
+    }
+    try {
+      await requireDemoCustomer();
+      const nextRequestId = `demo-request-${draft.planId}-${draft.revision}`;
+      const submission = await demoPortal.demoIntegration.submitPersonalizedRequest({
+        requestId: nextRequestId,
+        planId: draft.planId,
+        revisionNo: draft.revision,
+        locale,
+        partySize: draft.preferences.partySize,
+        totalVndMinor: draft.revisionSnapshot.totals.customerPayableVnd,
+        specialNeeds: draft.preferences.specialNeeds,
+        createdAt: new Date().toISOString(),
+      });
+      setRequestId(submission.request.id);
+      setBookingId(submission.booking.id);
+      setPhase("admin-review");
+    } catch {
+      setActionMessage(copy.storageErrorMessage);
+    }
+  }
+
+  async function continueToQuote(): Promise<void> {
+    setActionMessage(null);
+    if (demoPortal !== undefined) {
+      if (requestId === null) {
+        setActionMessage(copy.adminReviewPendingMessage);
+        return;
+      }
+      try {
+        await requireDemoCustomer();
+        const requests = await demoPortal.customer.account.listCustomRequests();
+        const request = requests.find((entry) => entry.id === requestId);
+        if (request?.status !== "approved") {
+          setActionMessage(copy.adminReviewPendingMessage);
+          return;
+        }
+      } catch {
+        setActionMessage(copy.storageErrorMessage);
+        return;
+      }
+    }
+    setPhase("quote");
+  }
+
+  async function openCheckout(): Promise<void> {
+    setActionMessage(null);
+    if (demoPortal !== undefined) {
+      if (bookingId === null) {
+        setActionMessage(copy.storageErrorMessage);
+        return;
+      }
+      try {
+        await requireDemoCustomer();
+        await demoPortal.demoIntegration.completePersonalizedCheckout({ bookingId });
+      } catch {
+        setActionMessage(copy.storageErrorMessage);
+        return;
+      }
+    }
+    setPhase("stripe-mock");
+  }
+
   return (
     <section className="customer-section custom-request-flow custom-request-flow--editorial" aria-labelledby="custom-request-heading">
       <div className="section-heading section-heading--compact">
@@ -95,6 +180,7 @@ export function CustomRequestFlow({
       </div>
 
       <p className="demo-disclosure" role="note">{copy.demoDisclosure}</p>
+      {actionMessage !== null ? <p className="custom-request-flow__pending" role="status">{actionMessage}</p> : null}
 
       {issue ? (
         <div className="custom-request-flow__error" role="alert">
@@ -172,8 +258,7 @@ export function CustomRequestFlow({
           {phase === "request" ? (
             <form className="custom-request-flow__card" onSubmit={(event) => {
               event.preventDefault();
-              if (budgetExceeded) return;
-              setPhase("admin-review");
+              void submitRequest();
             }}>
               <h2>{copy.requestHeading}</h2>
               <p>{copy.requestIntro}</p>
@@ -185,7 +270,7 @@ export function CustomRequestFlow({
             <section className="custom-request-flow__card" aria-labelledby="custom-request-review-heading">
               <h2 id="custom-request-review-heading">{copy.adminReviewHeading}</h2>
               <p role="status">{copy.adminReviewPendingMessage}</p>
-              <button className="button button--primary" type="button" onClick={() => setPhase("quote")}>
+              <button className="button button--primary" type="button" onClick={() => void continueToQuote()}>
                 {copy.simulateQuoteLabel}
               </button>
             </section>
@@ -209,7 +294,7 @@ export function CustomRequestFlow({
             <section className="custom-request-flow__card" aria-labelledby="custom-request-accepted-heading">
               <h2 id="custom-request-accepted-heading">{copy.quoteHeading}</h2>
               <p role="status">{copy.quoteAcceptedMessage}</p>
-              <button className="button button--primary" type="button" onClick={() => setPhase("stripe-mock")}>
+              <button className="button button--primary" type="button" onClick={() => void openCheckout()}>
                 {copy.openStripeMockLabel}
               </button>
             </section>

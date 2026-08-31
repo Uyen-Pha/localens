@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { CustomRequestFlow } from "@/components/customer/custom-request-flow";
+import { createPortalComposition } from "@/lib/application/portal/composition";
 import { createDemoPlannerAdapter } from "@/lib/application/planner/demo-planner";
 import {
   clearCustomRequestDraft,
@@ -13,6 +14,7 @@ import {
   type PersonalizationRequest,
 } from "@/lib/application/planner/personalization-session";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { createMemorySessionStorage } from "@/lib/infrastructure/demo/portal-repository";
 
 const request: PersonalizationRequest = {
   startAt: "2026-09-05T10:30:00+07:00",
@@ -121,5 +123,44 @@ describe("CustomRequestFlow", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(copy.missingPlanMessage);
     expect(screen.getByRole("link", { name: copy.backToPlannerLabel })).toHaveAttribute("href", "/vi/planner");
     expect(screen.queryByRole("button", { name: copy.continueLocalDemoLabel })).not.toBeInTheDocument();
+  });
+
+  it("submits the selected revision to the demo portal and completes checkout only after admin approval", async () => {
+    saveDraft();
+    const copy = getDictionary("en").customRequest;
+    const portal = createPortalComposition({
+      mode: "demo",
+      storage: createMemorySessionStorage(),
+      now: () => "2026-08-31T12:00:00.000Z",
+    });
+    await portal.initialized;
+    await portal.session.selectDemoIdentity("demo-user-customer");
+    render(<CustomRequestFlow locale="en" copy={copy} demoPortal={portal} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: copy.submitRequestLabel }));
+    expect(await screen.findByRole("status")).toHaveTextContent(copy.adminReviewPendingMessage);
+
+    await portal.session.selectDemoIdentity("demo-user-admin");
+    const pending = (await portal.admin.personalizedRequests.listPersonalizedRequests())
+      .find((request) => request.planId === "demo-plan-hcmc-cultural-day" && request.status === "pending_review");
+    if (pending === undefined) throw new Error("expected submitted personalized request");
+    await portal.admin.personalizedRequests.reviewPersonalizedRequest({
+      requestId: pending.id,
+      decision: "approved",
+      note: null,
+    });
+    await portal.session.selectDemoIdentity("demo-user-customer");
+
+    fireEvent.click(screen.getByRole("button", { name: copy.simulateQuoteLabel }));
+    expect(await screen.findByRole("heading", { name: copy.quoteHeading })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: copy.acceptQuoteLabel }));
+    fireEvent.click(screen.getByRole("button", { name: copy.openStripeMockLabel }));
+    expect(await screen.findByRole("heading", { name: copy.stripeMockHeading })).toBeInTheDocument();
+    await portal.session.selectDemoIdentity("demo-user-admin");
+    await expect(portal.admin.bookings.listAdminBookings()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceKind: "quote", status: "confirmed", paymentStatus: "paid" }),
+      ]),
+    );
   });
 });

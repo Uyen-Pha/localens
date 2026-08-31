@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { BookingFlow, type BookingCopy } from "@/components/customer/booking-flow";
 import { createLocalBooking, createTestPayment } from "@/lib/application/booking/mock-booking";
+import { createPortalComposition } from "@/lib/application/portal/composition";
+import { createMemorySessionStorage } from "@/lib/infrastructure/demo/portal-repository";
 
 afterEach(() => {
   cleanup();
@@ -224,5 +226,33 @@ describe("BookingFlow", () => {
     expect(await screen.findByText(copy.cancelledMessage)).toBeInTheDocument();
     await new Promise((resolve) => window.setTimeout(resolve, 1_100));
     expect(screen.queryByRole("heading", { name: copy.successHeading })).not.toBeInTheDocument();
+  });
+
+  it("hands the authoritative local hold to the signed-in demo customer portal", async () => {
+    const portal = createPortalComposition({
+      mode: "demo",
+      storage: createMemorySessionStorage(),
+      now: () => "2026-08-31T12:00:00.000Z",
+    });
+    await portal.initialized;
+    await portal.session.selectDemoIdentity("demo-user-customer");
+    window.history.replaceState({}, "", `/en/booking?departure=${validDeparture}&partySize=2`);
+    render(<BookingFlow locale="en" copy={copy} demoPortal={portal} />);
+
+    await screen.findByRole("heading", { name: copy.tourTitles["demo-markets-and-street-food"] });
+    fireEvent.click(screen.getByRole("button", { name: copy.continueLabel }));
+    await screen.findByRole("heading", { name: copy.paymentHeading });
+
+    await portal.session.selectDemoIdentity("demo-user-admin");
+    await expect(portal.admin.bookings.listAdminBookings()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: `demo-booking-${validDeparture}-2`,
+          status: "pending_payment",
+          paymentStatus: "pending",
+          totalVndMinor: "960000",
+        }),
+      ]),
+    );
   });
 });

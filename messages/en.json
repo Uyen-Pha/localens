@@ -31,7 +31,7 @@
   "booking": {
     "heading": "Book a fixed tour",
     "intro": "Review the internal demo departure before continuing.",
-    "demoDisclosure": "Local demo only. This is not a production booking.",
+    "demoDisclosure": "Local demo only: the hold and simulated payment sync to browser demo portals after customer sign-in. This is not a production booking or payment.",
     "loadingLabel": "Loading departure…",
     "invalidDepartureTitle": "Departure unavailable",
     "invalidPartySizeTitle": "Party size unavailable",

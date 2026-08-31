@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import type { Locale } from "@/lib/i18n/config";
+import type { DemoPortalComposition } from "@/lib/application/portal/composition";
 import {
   createLocalBooking,
   createTestPayment,
@@ -108,7 +109,18 @@ function errorText(copy: BookingCopy, key: BookingErrorKey): string {
   }
 }
 
-export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCopy }) {
+type DemoBookingPortal = Pick<DemoPortalComposition, "demoIntegration" | "session" | "initialized">;
+
+export function BookingFlow({
+  locale,
+  copy,
+  demoPortal,
+}: {
+  locale: Locale;
+  copy: BookingCopy;
+  /** Explicit browser-demo handoff; omitted for isolated flow tests and production bindings. */
+  demoPortal?: DemoBookingPortal;
+}) {
   const [request, setRequest] = useState<BookingRequest | null>(null);
   const [queryError, setQueryError] = useState<BookingErrorKey | null>(null);
   const [partySize, setPartySize] = useState(1);
@@ -186,7 +198,34 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
   const selectedDeparture = departure;
   const tourTitle = copy.tourTitles[departure.tourSlug] ?? departure.tourSlug;
 
-  function submitBooking(event: FormEvent<HTMLFormElement>) {
+  async function syncPortalBooking(nextBooking: LocalDemoBooking): Promise<void> {
+    if (demoPortal === undefined) return;
+    await demoPortal.initialized;
+    const session = await demoPortal.session.getSession();
+    if (session === null || session.role !== "customer") {
+      throw new Error("Demo customer sign-in is required before booking.");
+    }
+    const departureForSync = getDemoDeparture(nextBooking.departureId);
+    if (departureForSync === undefined) throw new Error("Unknown demo departure");
+    await demoPortal.demoIntegration.syncFixedBooking({
+      bookingId: nextBooking.bookingId,
+      departureId: nextBooking.departureId,
+      tourSlug: departureForSync.tourSlug,
+      date: departureForSync.date,
+      startsAt: departureForSync.startsAt,
+      meetingPoint: departureForSync.meetingPoint,
+      partySize: nextBooking.partySize,
+      locale,
+      unitPriceMinor: nextBooking.quote.unitPriceMinor,
+      totalMinor: nextBooking.quote.totalMinor,
+      holdExpiresAt: nextBooking.holdExpiresAt,
+      createdAt: nextBooking.createdAt,
+      status: nextBooking.status,
+      paymentStatus: nextBooking.paymentStatus,
+    });
+  }
+
+  async function submitBooking(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!Number.isSafeInteger(partySize) || partySize < 1 || partySize > 20) {
       setBookingError("invalidPartySize");
@@ -195,6 +234,7 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
     }
     try {
       const nextBooking = createLocalBooking({ departureId: selectedDeparture.departureId, partySize });
+      await syncPortalBooking(nextBooking);
       setRequest({ departureId: selectedDeparture.departureId, partySize });
       setBooking(nextBooking);
       setNotice(null);
@@ -212,14 +252,17 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
     setPaymentPhase("processing");
     paymentTimerRef.current = window.setTimeout(() => {
       paymentTimerRef.current = null;
-      try {
-        const paidBooking = createTestPayment({ bookingId: booking.bookingId });
-        setBooking(paidBooking);
-        setPaymentPhase("success");
-      } catch (error) {
-        setPaymentError(errorKeyForMessage(error instanceof Error ? error.message : ""));
-        setPaymentPhase("error");
-      }
+      void (async () => {
+        try {
+          const paidBooking = createTestPayment({ bookingId: booking.bookingId });
+          await syncPortalBooking(paidBooking);
+          setBooking(paidBooking);
+          setPaymentPhase("success");
+        } catch (error) {
+          setPaymentError(errorKeyForMessage(error instanceof Error ? error.message : ""));
+          setPaymentPhase("error");
+        }
+      })();
     }, 1_000);
   }
 
@@ -259,7 +302,7 @@ export function BookingFlow({ locale, copy }: { locale: Locale; copy: BookingCop
 
       <div className="booking-flow__layout">
         {booking === null ? (
-          <form className="booking-flow__card booking-flow__review" onSubmit={submitBooking} noValidate>
+          <form className="booking-flow__card booking-flow__review" onSubmit={(event) => void submitBooking(event)} noValidate>
             <div className="booking-flow__review-main">
               <h2>{tourTitle}</h2>
               <dl className="booking-flow__facts">

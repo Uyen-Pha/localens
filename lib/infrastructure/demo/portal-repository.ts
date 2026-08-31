@@ -16,6 +16,7 @@ import {
   type RequestStatus,
   type Role,
 } from "@/lib/domain/data/contracts";
+import { getDemoDeparture } from "@/lib/application/booking/mock-booking";
 import {
   PortalError,
   validateCancellationDecisionInput,
@@ -49,6 +50,13 @@ import {
   type AdminPortalPorts,
   type TourReview,
 } from "@/lib/application/portal/contracts";
+import type {
+  DemoFixedBookingInput,
+  DemoPersonalizedCheckoutInput,
+  DemoPersonalizedRequestInput,
+  DemoPortalIntegration,
+  DemoPersonalizedRequestSubmission,
+} from "@/lib/application/portal/demo-integration";
 
 export { PortalError };
 
@@ -128,6 +136,7 @@ export interface DemoPortalRepository {
   readonly customer: CustomerPortalPorts;
   readonly guide: GuidePortalPorts;
   readonly admin: AdminPortalPorts;
+  readonly demoIntegration: DemoPortalIntegration;
   reset(): Promise<void>;
 }
 
@@ -147,6 +156,48 @@ const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})$/;
 const CONTROL_PATTERN = /[\u0000-\u001F\u007F-\u009F]/;
 const CANCELLABLE_BOOKING_STATUSES = ["pending_payment", "payment_processing", "payment_review", "confirmed"] as const;
+
+const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
+  id: string;
+  versionId: string;
+  slug: string;
+  titleEn: string;
+  titleVi: string;
+  cancellationPolicy: string;
+}>>> = Object.freeze({
+  "demo-markets-and-street-food": Object.freeze({
+    id: "demo-tour-markets",
+    versionId: "demo-tour-version-markets",
+    slug: "markets-and-street-food",
+    titleEn: "Markets and Street Food",
+    titleVi: "Chợ địa phương và ẩm thực đường phố",
+    cancellationPolicy: "Demo booking: changes are free before confirmation.",
+  }),
+  "demo-history-and-memory": Object.freeze({
+    id: "demo-tour-history",
+    versionId: "demo-tour-version-history",
+    slug: "history-and-memory",
+    titleEn: "History and Memory",
+    titleVi: "Lịch sử và ký ức",
+    cancellationPolicy: "Demo booking: changes are free before confirmation.",
+  }),
+  "demo-cho-lon-craft": Object.freeze({
+    id: "demo-tour-cho-lon-craft",
+    versionId: "demo-tour-version-cho-lon-craft",
+    slug: "cho-lon-craft",
+    titleEn: "Cho Lon Craft Traditions",
+    titleVi: "Nghề thủ công Chợ Lớn",
+    cancellationPolicy: "Demo booking: changes are free before confirmation.",
+  }),
+  "demo-city-life-mix": Object.freeze({
+    id: "demo-tour-city-life-mix",
+    versionId: "demo-tour-version-city-life-mix",
+    slug: "city-life-mix",
+    titleEn: "City Life, From Market to Craft",
+    titleVi: "Nhịp sống thành phố: từ chợ đến nghề thủ công",
+    cancellationPolicy: "Demo booking: changes are free before confirmation.",
+  }),
+});
 
 const ENVELOPE_FIELDS = [
   "version",
@@ -1165,6 +1216,7 @@ function toGuideAssignment(
     dietaryFlags: [],
     assignmentStatus: assignment.assignmentStatus,
     specialNeeds: assignment.specialNeeds,
+    cancellationStatus: envelope.cancellations.find((request) => request.bookingId === booking.id)?.status ?? null,
   };
 }
 
@@ -1235,6 +1287,149 @@ function readPersonalizedReviewInput(input: unknown): {
   return { requestId, decision: row.decision as (typeof decisions)[number], note };
 }
 
+function inputInteger(value: unknown, fieldPath: string, minimum: number, maximum: number): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    invalidInput(`Invalid ${fieldPath}.`);
+  }
+  return value;
+}
+
+function inputMoney(value: unknown, fieldPath: string): number {
+  return inputInteger(value, fieldPath, 1, Number.MAX_SAFE_INTEGER);
+}
+
+function inputTimestamp(value: unknown, fieldPath: string): string {
+  if (typeof value !== "string" || value.trim() !== value || CONTROL_PATTERN.test(value) ||
+    !TIMESTAMP_PATTERN.test(value) || !Number.isFinite(Date.parse(value))) {
+    invalidInput(`Invalid ${fieldPath}.`);
+  }
+  return value;
+}
+
+function inputDate(value: unknown, fieldPath: string): string {
+  if (typeof value !== "string" || !DATE_PATTERN.test(value)) invalidInput(`Invalid ${fieldPath}.`);
+  return value;
+}
+
+function inputClockTime(value: unknown, fieldPath: string): string {
+  if (typeof value !== "string" || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+    invalidInput(`Invalid ${fieldPath}.`);
+  }
+  return value;
+}
+
+function inputOptionalText(value: unknown, fieldPath: string, maximum: number): string {
+  if (typeof value !== "string" || value.length > maximum || CONTROL_PATTERN.test(value)) {
+    invalidInput(`Invalid ${fieldPath}.`);
+  }
+  return value;
+}
+
+function readFixedBookingInput(input: unknown): DemoFixedBookingInput {
+  const row = exactInput(input, [
+    "bookingId",
+    "departureId",
+    "tourSlug",
+    "date",
+    "startsAt",
+    "meetingPoint",
+    "partySize",
+    "locale",
+    "unitPriceMinor",
+    "totalMinor",
+    "holdExpiresAt",
+    "createdAt",
+    "status",
+    "paymentStatus",
+  ], "syncFixedBooking");
+  const bookingId = inputId(row.bookingId, "bookingId");
+  const departureId = inputId(row.departureId, "departureId");
+  const tourSlug = inputId(row.tourSlug, "tourSlug");
+  const departure = getDemoDeparture(departureId);
+  if (departure === undefined || departure.tourSlug !== tourSlug) {
+    invalidInput("The fixed booking must reference an allowlisted demo departure.");
+  }
+  const date = inputDate(row.date, "date");
+  const startsAt = inputClockTime(row.startsAt, "startsAt");
+  const meetingPoint = inputOptionalText(row.meetingPoint, "meetingPoint", 240);
+  const partySize = inputInteger(row.partySize, "partySize", 1, 20);
+  const unitPriceMinor = inputMoney(row.unitPriceMinor, "unitPriceMinor");
+  const totalMinor = inputMoney(row.totalMinor, "totalMinor");
+  if (
+    date !== departure.date ||
+    startsAt !== departure.startsAt ||
+    meetingPoint !== departure.meetingPoint ||
+    unitPriceMinor !== departure.unitPriceMinor ||
+    totalMinor !== departure.unitPriceMinor * partySize ||
+    partySize > departure.remainingCapacity ||
+    bookingId !== `demo-booking-${departure.departureId}-${partySize}`
+  ) {
+    invalidInput("The fixed booking result does not match the allowlisted departure facts.");
+  }
+  const locale = row.locale;
+  if (typeof locale !== "string" || !(LOCALE_VALUES as readonly string[]).includes(locale)) {
+    invalidInput("Invalid locale.");
+  }
+  const status = row.status;
+  const paymentStatus = row.paymentStatus;
+  if (status !== "held" && status !== "paid") invalidInput("Invalid booking status.");
+  if (paymentStatus !== "unpaid" && paymentStatus !== "succeeded") invalidInput("Invalid payment status.");
+  if ((status === "held" && paymentStatus !== "unpaid") || (status === "paid" && paymentStatus !== "succeeded")) {
+    invalidInput("Booking and payment status must agree.");
+  }
+  return {
+    bookingId,
+    departureId,
+    tourSlug,
+    date,
+    startsAt,
+    meetingPoint,
+    partySize,
+    locale: locale as DemoFixedBookingInput["locale"],
+    unitPriceMinor,
+    totalMinor,
+    holdExpiresAt: inputTimestamp(row.holdExpiresAt, "holdExpiresAt"),
+    createdAt: inputTimestamp(row.createdAt, "createdAt"),
+    status,
+    paymentStatus,
+  };
+}
+
+function readPersonalizedRequestInput(input: unknown): DemoPersonalizedRequestInput {
+  const row = exactInput(input, [
+    "requestId",
+    "planId",
+    "revisionNo",
+    "locale",
+    "partySize",
+    "totalVndMinor",
+    "specialNeeds",
+    "createdAt",
+  ], "submitPersonalizedRequest");
+  const requestId = inputId(row.requestId, "requestId");
+  const planId = inputId(row.planId, "planId");
+  const revisionNo = inputInteger(row.revisionNo, "revisionNo", 1, 100);
+  const locale = row.locale;
+  if (typeof locale !== "string" || !(LOCALE_VALUES as readonly string[]).includes(locale)) invalidInput("Invalid locale.");
+  const partySize = inputInteger(row.partySize, "partySize", 1, 20);
+  const totalVndMinor = inputMoney(row.totalVndMinor, "totalVndMinor");
+  return {
+    requestId,
+    planId,
+    revisionNo,
+    locale: locale as DemoPersonalizedRequestInput["locale"],
+    partySize,
+    totalVndMinor,
+    specialNeeds: inputOptionalText(row.specialNeeds, "specialNeeds", 1_000),
+    createdAt: inputTimestamp(row.createdAt, "createdAt"),
+  };
+}
+
+function readPersonalizedCheckoutInput(input: unknown): DemoPersonalizedCheckoutInput {
+  const row = exactInput(input, ["bookingId"], "completePersonalizedCheckout");
+  return { bookingId: inputId(row.bookingId, "bookingId") };
+}
+
 export function createMemorySessionStorage(initial: Record<string, string> = {}): PortalSessionStorage {
   const values = new Map(Object.entries(initial));
   return {
@@ -1248,6 +1443,51 @@ export function createMemorySessionStorage(initial: Record<string, string> = {})
       values.delete(key);
     },
   };
+}
+
+function ensureFixedHandoffRecords(
+  envelope: DemoEnvelope,
+  input: DemoFixedBookingInput,
+): DemoDepartureRecord {
+  const tour = DEMO_HANDOFF_TOURS[input.tourSlug];
+  if (tour === undefined) invalidInput("The fixed booking must reference a known demo tour.");
+
+  const existingTour = envelope.fixedTours.find((entry) => entry.versionId === tour.versionId);
+  if (existingTour === undefined) {
+    envelope.fixedTours.push({
+      id: tour.id,
+      versionId: tour.versionId,
+      slug: tour.slug,
+      locale: "en",
+      title: tour.titleEn,
+      status: "published",
+    });
+  }
+
+  const existingDeparture = envelope.departures.find((entry) => entry.id === input.departureId);
+  if (existingDeparture !== undefined) {
+    if (existingDeparture.tourVersionId !== tour.versionId || existingDeparture.date !== input.date) {
+      conflict("The demo departure reference does not match the catalog fixture.");
+    }
+    return existingDeparture;
+  }
+
+  const departure: DemoDepartureRecord = {
+    id: input.departureId,
+    tourVersionId: tour.versionId,
+    date: input.date,
+    status: "scheduled",
+  };
+  envelope.departures.push(departure);
+  return departure;
+}
+
+function addHours(timestamp: string, hours: number): string {
+  const milliseconds = Date.parse(timestamp);
+  if (!Number.isFinite(milliseconds)) invalidInput("The demo timestamp is invalid.");
+  const next = new Date(milliseconds + hours * 60 * 60 * 1_000).toISOString();
+  if (!TIMESTAMP_PATTERN.test(next)) invalidInput("The demo timestamp is invalid.");
+  return next;
 }
 
 export function createDemoPortalRepository(options: DemoPortalRepositoryOptions): DemoPortalRepository {
@@ -1333,6 +1573,186 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
 
     async signOut(): Promise<void> {
       sessionUserId = null;
+    },
+
+    async syncFixedBooking(input: DemoFixedBookingInput): Promise<CustomerBookingView> {
+      const bookingInput = readFixedBookingInput(input);
+      const envelope = readEnvelope();
+      const actor = actorWithRole(envelope, "customer", "syncFixedBooking");
+      const tour = DEMO_HANDOFF_TOURS[bookingInput.tourSlug];
+      if (tour === undefined) invalidInput("The fixed booking must reference a known demo tour.");
+      ensureFixedHandoffRecords(envelope, bookingInput);
+
+      const nextStatus = bookingInput.status === "paid" ? "confirmed" as const : "pending_payment" as const;
+      const nextPaymentStatus = bookingInput.paymentStatus === "succeeded" ? "paid" as const : "pending" as const;
+      const existing = envelope.bookings.find((booking) => booking.id === bookingInput.bookingId);
+      if (existing !== undefined) {
+        if (existing.ownerUserId !== actor.userId) forbidden("customer", "syncFixedBooking for another customer");
+        if (existing.sourceKind !== "departure" || existing.sourceId !== bookingInput.departureId) {
+          conflict("The demo booking source cannot be changed.");
+        }
+        if (existing.totalVndMinor !== String(bookingInput.totalMinor) || existing.partySize !== bookingInput.partySize) {
+          conflict("The demo booking commercial facts cannot be changed.");
+        }
+        if (existing.status === "cancelled") conflict("A cancelled demo booking cannot be reopened.");
+        if (existing.status === "confirmed" && nextStatus === "pending_payment") {
+          return clone(toCustomerBookingView(envelope, existing));
+        }
+        existing.status = nextStatus;
+        existing.paymentStatus = nextPaymentStatus;
+        existing.holdExpiresAt = bookingInput.holdExpiresAt;
+        validateCrossReferences(envelope);
+        writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
+        return clone(toCustomerBookingView(envelope, existing));
+      }
+
+      const booking: DemoBookingRecord = {
+        id: bookingInput.bookingId,
+        status: nextStatus,
+        sourceKind: "departure",
+        sourceId: bookingInput.departureId,
+        tourVersionId: tour.versionId,
+        quoteId: null,
+        titleEn: tour.titleEn,
+        titleVi: tour.titleVi,
+        cancellationPolicy: tour.cancellationPolicy,
+        catalogSnapshotId: DEMO_CATALOG_SNAPSHOT_ID,
+        travelSnapshotId: DEMO_TRAVEL_SNAPSHOT_ID,
+        fxSnapshotId: DEMO_FX_SNAPSHOT_ID,
+        fxVndPerUsd: "25000.00000000",
+        perPersonVndMinor: String(bookingInput.unitPriceMinor),
+        totalVndMinor: String(bookingInput.totalMinor),
+        checkoutCurrency: "vnd",
+        checkoutAmountMinor: String(bookingInput.totalMinor),
+        partySize: bookingInput.partySize,
+        language: bookingInput.locale,
+        meetingPoint: bookingInput.meetingPoint,
+        holdExpiresAt: bookingInput.holdExpiresAt,
+        createdAt: bookingInput.createdAt,
+        ownerUserId: actor.userId,
+        paymentStatus: nextPaymentStatus,
+        assignedGuideUserId: null,
+        cancellationRequestId: null,
+        specialNeeds: null,
+        personalizedRequest: null,
+      };
+      envelope.bookings.push(booking);
+      validateCrossReferences(envelope);
+      writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
+      return clone(toCustomerBookingView(envelope, booking));
+    },
+
+    async submitPersonalizedRequest(input: DemoPersonalizedRequestInput): Promise<DemoPersonalizedRequestSubmission> {
+      const requestInput = readPersonalizedRequestInput(input);
+      const envelope = readEnvelope();
+      const actor = actorWithRole(envelope, "customer", "submitPersonalizedRequest");
+      const bookingId = `demo-booking-${requestInput.requestId}`;
+      const quoteId = `demo-quote-${requestInput.requestId}`;
+      if (bookingId.length > 120 || quoteId.length > 120) invalidInput("The personalized request identifier is too long.");
+
+      const existing = envelope.bookings.find((booking) => booking.id === bookingId);
+      if (existing !== undefined) {
+        if (existing.ownerUserId !== actor.userId) forbidden("customer", "submitPersonalizedRequest for another customer");
+        if (existing.sourceKind !== "quote" || existing.quoteId !== quoteId || existing.personalizedRequest?.id !== requestInput.requestId) {
+          conflict("The personalized request source cannot be changed.");
+        }
+        const request = existing.personalizedRequest;
+        if (request === null || request.planId !== requestInput.planId || request.revisionNo !== requestInput.revisionNo ||
+          existing.totalVndMinor !== String(requestInput.totalVndMinor) || existing.partySize !== requestInput.partySize) {
+          conflict("The personalized request commercial facts cannot be changed.");
+        }
+        const customerRequest = {
+          id: request.id,
+          planId: request.planId,
+          revisionNo: request.revisionNo,
+          status: request.status,
+          submittedAt: request.submittedAt,
+          updatedAt: request.updatedAt,
+        };
+        return {
+          request: clone(customerRequest),
+          booking: clone(toCustomerBookingView(envelope, existing)),
+        };
+      }
+
+      const request: DemoRequestRecord = {
+        id: requestInput.requestId,
+        planId: requestInput.planId,
+        revisionNo: requestInput.revisionNo,
+        status: "pending_review",
+        submittedAt: requestInput.createdAt,
+        updatedAt: requestInput.createdAt,
+        ownerUserId: actor.userId,
+        latestDecisionAt: null,
+      };
+      const booking: DemoBookingRecord = {
+        id: bookingId,
+        status: "pending_payment",
+        sourceKind: "quote",
+        sourceId: quoteId,
+        tourVersionId: null,
+        quoteId,
+        titleEn: "A Personal Saigon Day",
+        titleVi: "Một ngày Sài Gòn theo sở thích",
+        cancellationPolicy: "Demo quote: request changes through the administrator.",
+        catalogSnapshotId: DEMO_CATALOG_SNAPSHOT_ID,
+        travelSnapshotId: DEMO_TRAVEL_SNAPSHOT_ID,
+        fxSnapshotId: DEMO_FX_SNAPSHOT_ID,
+        fxVndPerUsd: "25000.00000000",
+        perPersonVndMinor: null,
+        totalVndMinor: String(requestInput.totalVndMinor),
+        checkoutCurrency: "vnd",
+        checkoutAmountMinor: String(requestInput.totalVndMinor),
+        partySize: requestInput.partySize,
+        language: requestInput.locale,
+        meetingPoint: "To be confirmed",
+        holdExpiresAt: addHours(requestInput.createdAt, 48),
+        createdAt: requestInput.createdAt,
+        ownerUserId: actor.userId,
+        paymentStatus: null,
+        assignedGuideUserId: null,
+        cancellationRequestId: null,
+        specialNeeds: requestInput.specialNeeds.length === 0 ? null : requestInput.specialNeeds,
+        personalizedRequest: request,
+      };
+      envelope.bookings.push(booking);
+      validateCrossReferences(envelope);
+      writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
+      const customerRequest = {
+        id: request.id,
+        planId: request.planId,
+        revisionNo: request.revisionNo,
+        status: request.status,
+        submittedAt: request.submittedAt,
+        updatedAt: request.updatedAt,
+      };
+      return {
+        request: clone(customerRequest),
+        booking: clone(toCustomerBookingView(envelope, booking)),
+      };
+    },
+
+    async completePersonalizedCheckout(input: DemoPersonalizedCheckoutInput): Promise<CustomerBookingView> {
+      const checkoutInput = readPersonalizedCheckoutInput(input);
+      const envelope = readEnvelope();
+      const actor = actorWithRole(envelope, "customer", "completePersonalizedCheckout");
+      const booking = findBooking(envelope, checkoutInput.bookingId);
+      if (booking.ownerUserId !== actor.userId) forbidden("customer", "completePersonalizedCheckout for another customer");
+      if (booking.sourceKind !== "quote" || booking.personalizedRequest === null) {
+        conflict("Only a personalized quote can use this demo checkout.");
+      }
+      if (booking.status === "confirmed" && booking.paymentStatus === "paid") {
+        return clone(toCustomerBookingView(envelope, booking));
+      }
+      if (booking.personalizedRequest.status !== "approved") {
+        conflict("The administrator must approve the personalized request before checkout.");
+      }
+      if (booking.status !== "pending_payment") conflict("The personalized quote is not ready for demo checkout.");
+      booking.status = "confirmed";
+      booking.paymentStatus = "paid";
+      validateCrossReferences(envelope);
+      writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
+      return clone(toCustomerBookingView(envelope, booking));
     },
 
     async getAccount(): Promise<CustomerAccount> {
@@ -1694,11 +2114,17 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
     profile: guideProfile,
     assignments: guideAssignments,
   };
+  const demoIntegration: DemoPortalIntegration = {
+    syncFixedBooking: engine.syncFixedBooking,
+    submitPersonalizedRequest: engine.submitPersonalizedRequest,
+    completePersonalizedCheckout: engine.completePersonalizedCheckout,
+  };
   return {
     reset: engine.reset,
     session,
     customer,
     guide,
     admin,
+    demoIntegration,
   };
 }

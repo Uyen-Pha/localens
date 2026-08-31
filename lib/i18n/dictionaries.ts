@@ -415,9 +415,12 @@ export type Dictionary = {
   customRequest: CustomRequestCopy;
   navigation: {
     primary: string;
-    experiences: string;
-    privateJourneys: string;
-    ourCity: string;
+    experiences?: string;
+    privateJourneys?: string;
+    ourCity?: string;
+    tours?: string;
+    personalizedTrip?: string;
+    howItWorks?: string;
     signIn: string;
     skipToContent: string;
   };
@@ -560,7 +563,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     ],
     fixedToursCta: "See all fixed tours",
     demoDisclosure:
-      "Demo catalog: these fixed tours use internal sample places and do not accept bookings or payments yet.",
+      "Demo catalog: fixed tours use internal sample places. Booking links open a browser-only test flow; no production booking or charge is made.",
     tourCatalog: {
       catalogHeading: "Fixed tours in Ho Chi Minh City",
       catalogIntro: "Browse the internal demo catalog and inspect the facts behind each fixed route.",
@@ -864,7 +867,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     ],
     fixedToursCta: "Xem tất cả tour cố định",
     demoDisclosure:
-      "Danh mục demo: các tour cố định này dùng địa điểm mẫu nội bộ và chưa nhận đặt tour hay thanh toán.",
+      "Danh mục demo: các tour cố định dùng địa điểm mẫu nội bộ. Liên kết đặt tour mở quy trình thử nghiệm trong trình duyệt; không có booking production hay giao dịch thật.",
     tourCatalog: {
       catalogHeading: "Tour cố định tại Thành phố Hồ Chí Minh",
       catalogIntro: "Xem danh mục demo nội bộ và kiểm tra thông tin của từng tuyến cố định.",
@@ -1215,7 +1218,7 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
   en: {
     heading: "Request a review and quote",
     intro: "Send this selected itinerary revision to the next local-demo step for review.",
-    demoDisclosure: "Local prototype only: no backend, authentication, admin workspace, AI service, Stripe network, booking, or payment is connected.",
+    demoDisclosure: "Local demo only: the selected revision is synchronized to browser demo portals after customer sign-in. No production backend, authentication, AI service, Stripe network, card details, or real charge is connected.",
     noBackendAuthDisclosure: "Production would require sign-in before submitting a custom request. This prototype has no auth service and will only continue when you explicitly choose the local demo.",
     missingPlanMessage: "No selected planner revision was found in this browser tab. Nothing was submitted.",
     expiredPlanMessage: "The selected planner revision expired. Nothing was submitted.",
@@ -1254,10 +1257,10 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
     dietaryAllergenLabel: "Dietary/allergen caveat",
     accessibilityWarningLabel: "Accessibility/vendor warning",
     requestHeading: "Submit for local admin review",
-    requestIntro: "This action only changes local screen state; it does not contact an admin or create a booking.",
+    requestIntro: "This submits the selected revision to the browser demo portal for an administrator review; it does not call a production backend or create a real booking.",
     submitRequestLabel: "Submit local demo request",
     adminReviewHeading: "Admin review pending (simulated)",
-    adminReviewPendingMessage: "Your local demo request is marked pending review. No admin received it.",
+    adminReviewPendingMessage: "Your browser demo request is pending administrator review. The seeded demo admin can now review it.",
     simulateQuoteLabel: "Simulate a 48-hour quote",
     quoteHeading: "Mock quote",
     quoteMessage: "This amount is derived from the selected revision snapshot and is immutable in this local flow.",
@@ -1267,14 +1270,14 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
     quoteAcceptedMessage: "You explicitly accepted the mock quote. Payment has not started.",
     openStripeMockLabel: "Open Stripe Test/Mock action",
     stripeMockHeading: "Stripe Test/Mock boundary",
-    stripeMockMessage: "A real product would now open Stripe Checkout. This prototype only records that you chose the mock action.",
-    noPaymentNetworkDisclosure: "No Stripe network request, card charge, webhook, or booking confirmation was made.",
+    stripeMockMessage: "A real product would now open Stripe Checkout. This prototype completes a simulated checkout in the browser demo portal only.",
+    noPaymentNetworkDisclosure: "No Stripe network request, card detail, real charge, or webhook was made; this checkout only updates browser demo state.",
     backHomeLabel: "Back to LocalLens home",
   },
   vi: {
     heading: "Yêu cầu xem xét và báo giá",
     intro: "Gửi phiên bản lịch trình đã chọn sang bước demo tiếp theo để xem xét.",
-    demoDisclosure: "Chỉ là prototype cục bộ: chưa kết nối backend, xác thực, không gian admin, dịch vụ AI, mạng Stripe, đặt tour hay thanh toán.",
+    demoDisclosure: "Chỉ là demo cục bộ: sau khi khách hàng đăng nhập demo, phiên bản đã chọn được đồng bộ sang cổng demo trong trình duyệt. Chưa kết nối backend production, xác thực, dịch vụ AI, mạng Stripe, thông tin thẻ hay giao dịch thật.",
     noBackendAuthDisclosure: "Sản phẩm thật sẽ yêu cầu đăng nhập trước khi gửi yêu cầu cá nhân hóa cho admin. Prototype này không có dịch vụ xác thực và chỉ tiếp tục khi bạn chủ động chọn demo cục bộ.",
     missingPlanMessage: "Không tìm thấy phiên bản lịch trình đã chọn trong tab trình duyệt này. Chưa gửi gì cả.",
     expiredPlanMessage: "Phiên bản lịch trình đã chọn đã hết hạn. Chưa gửi gì cả.",
@@ -1313,10 +1316,10 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
     dietaryAllergenLabel: "Lưu ý chế độ ăn/dị ứng",
     accessibilityWarningLabel: "Cảnh báo tiếp cận/điểm bán",
     requestHeading: "Gửi để admin demo xem xét",
-    requestIntro: "Thao tác này chỉ đổi trạng thái trên màn hình cục bộ; không liên hệ admin và không tạo đặt tour.",
+    requestIntro: "Thao tác này gửi phiên bản đã chọn vào cổng demo trong trình duyệt để quản trị viên xem xét; không gọi backend production và không tạo booking thật.",
     submitRequestLabel: "Gửi yêu cầu demo cục bộ",
     adminReviewHeading: "Đang chờ admin xem xét (mô phỏng)",
-    adminReviewPendingMessage: "Yêu cầu demo cục bộ đã được đánh dấu chờ xem xét. Chưa có admin nào nhận được yêu cầu.",
+    adminReviewPendingMessage: "Yêu cầu demo trong trình duyệt đang chờ quản trị viên xem xét. Quản trị viên demo đã nhận được yêu cầu.",
     simulateQuoteLabel: "Mô phỏng báo giá 48 giờ",
     quoteHeading: "Báo giá mô phỏng",
     quoteMessage: "Số tiền này lấy từ bản chụp phiên bản đã chọn và không đổi trong flow cục bộ này.",
@@ -1326,8 +1329,8 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
     quoteAcceptedMessage: "Bạn đã chủ động chấp nhận báo giá mô phỏng. Chưa bắt đầu thanh toán.",
     openStripeMockLabel: "Mở thao tác Stripe Test/Mock",
     stripeMockHeading: "Biên giới Stripe Test/Mock",
-    stripeMockMessage: "Sản phẩm thật sẽ mở Stripe Checkout ở đây. Prototype này chỉ ghi nhận bạn đã chọn thao tác mô phỏng.",
-    noPaymentNetworkDisclosure: "Không có request mạng Stripe, trừ tiền, webhook hay xác nhận đặt tour nào được thực hiện.",
+    stripeMockMessage: "Sản phẩm thật sẽ mở Stripe Checkout. Prototype này chỉ hoàn tất thanh toán mô phỏng trong cổng demo trên trình duyệt.",
+    noPaymentNetworkDisclosure: "Không có request mạng Stripe, thông tin thẻ, giao dịch thật hay webhook; thao tác này chỉ cập nhật trạng thái demo trong trình duyệt.",
     backHomeLabel: "Quay lại trang chủ LocalLens",
   },
 };
@@ -1340,6 +1343,9 @@ const dictionaries = {
     customRequest: customRequestCopy.en,
     navigation: {
       primary: english.navigation.primary,
+      tours: "Tours",
+      personalizedTrip: "Personalized trip",
+      howItWorks: "How it works",
       experiences: "Experiences",
       privateJourneys: "Private journeys",
       ourCity: "Our city",
@@ -1354,6 +1360,9 @@ const dictionaries = {
     customRequest: customRequestCopy.vi,
     navigation: {
       primary: vietnamese.navigation.primary,
+      tours: "Tour",
+      personalizedTrip: "Hành trình cá nhân hóa",
+      howItWorks: "Cách hoạt động",
       experiences: "Trải nghiệm",
       privateJourneys: "Hành trình riêng",
       ourCity: "Thành phố của chúng ta",

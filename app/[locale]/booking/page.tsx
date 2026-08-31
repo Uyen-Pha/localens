@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { BookingFlow } from "@/components/customer/booking-flow";
+import { DemoBookingEntry } from "@/components/customer/demo-booking-entry";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
@@ -35,7 +35,7 @@ export default async function BookingPage({
 
   return (
     <div className="booking-page">
-      <BookingFlow locale={locale} copy={getDictionary(locale).booking} />
+      <DemoBookingEntry locale={locale} copy={getDictionary(locale).booking} />
     </div>
   );
 }

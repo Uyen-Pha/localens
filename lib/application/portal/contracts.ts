@@ -448,6 +448,8 @@ export interface GuideProfileUpdate {
 /** Extends the existing assignment projection with guide/admin-only special needs. */
 export type GuideAssignedTour = GuideAssignedBooking & {
   specialNeeds: string | null;
+  /** Cancellation state is projected only for this guide's own assignment. */
+  cancellationStatus: CancellationStatus | null;
 };
 
 export interface GuideProfilePort {

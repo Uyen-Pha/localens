@@ -159,6 +159,51 @@ describe("PortalSurface", () => {
     expect(screen.getByRole("textbox", { name: /short bio/i })).toBeInTheDocument();
   });
 
+  it("shows a cancellation status only on the guide's own assigned booking", async () => {
+    const composition = await createComposition();
+    const fixedBooking = {
+      bookingId: "demo-booking-demo-departure-markets-and-street-food-2026-09-05-2",
+      departureId: "demo-departure-markets-and-street-food-2026-09-05",
+      tourSlug: "demo-markets-and-street-food",
+      date: "2026-09-05",
+      startsAt: "09:00",
+      meetingPoint: "Ben Thanh Market north gate",
+      partySize: 2,
+      locale: "en" as const,
+      unitPriceMinor: 480_000,
+      totalMinor: 960_000,
+      holdExpiresAt: "2026-09-05T12:35:00.000Z",
+      createdAt: "2026-09-05T12:00:00.000Z",
+      status: "paid" as const,
+      paymentStatus: "succeeded" as const,
+    };
+    await signIn(composition, "demo-user-customer");
+    await composition.demoIntegration.syncFixedBooking(fixedBooking);
+    await signIn(composition, "demo-user-admin");
+    await composition.admin.assignments.assignGuideToFixedDeparture({
+      bookingId: fixedBooking.bookingId,
+      guideUserId: "demo-user-guide",
+    });
+    await signIn(composition, "demo-user-customer");
+    const cancellation = await composition.customer.cancellations.requestCancellation({
+      bookingId: fixedBooking.bookingId,
+      reason: "Plans changed.",
+    });
+    await signIn(composition, "demo-user-admin");
+    await composition.admin.cancellations.decideCancellation({
+      requestId: cancellation.id,
+      decision: "approved",
+      note: null,
+    });
+    await signIn(composition, "demo-user-guide");
+
+    render(<TestSurface locale="en" expectedRole="guide" composition={composition} />);
+    const departure = await screen.findByText(fixedBooking.departureId);
+    const assignment = departure.closest("article");
+    expect(assignment).not.toBeNull();
+    expect(within(assignment as HTMLElement).getByRole("status")).toHaveTextContent(/cancellation status: approved/i);
+  });
+
   it("renders Vietnamese portal copy and demo disclosure", async () => {
     const composition = await createComposition();
 

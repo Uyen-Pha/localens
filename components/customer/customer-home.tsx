@@ -146,7 +146,7 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
         </p>
       </section>
 
-      <section className="customer-section customer-section--trust" aria-labelledby="trust-title">
+      <section id="how-it-works" className="customer-section customer-section--trust" aria-labelledby="trust-title">
         <div className="section-heading section-heading--compact">
           <p className="eyebrow">{copy.trustEyebrow}</p>
           <h2 id="trust-title">{copy.trustTitle}</h2>

@@ -228,6 +228,11 @@ export function GuidePortal({
                         <div><dt>{copy.tourLanguage}</dt><dd>{assignment.language === "vi" ? copy.vietnamese : copy.english}</dd></div>
                         <div><dt>{copy.accessibilityNeeds}</dt><dd>{assignment.specialNeeds ?? copy.noneRecorded}</dd></div>
                       </dl>
+                      {assignment.cancellationStatus ? (
+                        <p className={styles.notice} role="status">
+                          {copy.cancellationNotice}: {copy.cancellationStatusLabels[assignment.cancellationStatus]}
+                        </p>
+                      ) : null}
                     </article>
                   ))}
                 </div>

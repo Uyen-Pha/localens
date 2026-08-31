@@ -31,7 +31,7 @@
   "booking": {
     "heading": "Đặt tour cố định",
     "intro": "Kiểm tra chuyến demo nội bộ trước khi tiếp tục.",
-    "demoDisclosure": "Chỉ là demo cục bộ. Đây chưa phải hệ thống đặt tour thực tế.",
+    "demoDisclosure": "Chỉ là demo cục bộ: giữ chỗ và thanh toán mô phỏng được đồng bộ sang cổng demo trong trình duyệt sau khi khách hàng đăng nhập. Đây chưa phải đặt tour hay thanh toán production.",
     "loadingLabel": "Đang tải chuyến khởi hành…",
     "invalidDepartureTitle": "Không tìm thấy chuyến khởi hành",
     "invalidPartySizeTitle": "Số người không hợp lệ",
