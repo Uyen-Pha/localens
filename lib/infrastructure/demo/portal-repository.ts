@@ -534,6 +534,25 @@ function bodyForIntegrity(envelope: DemoEnvelope): DemoEnvelopeBody {
   };
 }
 
+function requestSnapshotsMatch(
+  authoritative: DemoRequestRecord,
+  bookingSnapshot: DemoRequestRecord,
+): boolean {
+  // `submittedAt` is the request's immutable creation timestamp in this demo schema.
+  return authoritative.id === bookingSnapshot.id
+    && authoritative.ownerUserId === bookingSnapshot.ownerUserId
+    && authoritative.planId === bookingSnapshot.planId
+    && authoritative.revisionNo === bookingSnapshot.revisionNo
+    && authoritative.locale === bookingSnapshot.locale
+    && authoritative.partySize === bookingSnapshot.partySize
+    && authoritative.totalVndMinor === bookingSnapshot.totalVndMinor
+    && authoritative.specialNeeds === bookingSnapshot.specialNeeds
+    && authoritative.submittedAt === bookingSnapshot.submittedAt
+    && authoritative.updatedAt === bookingSnapshot.updatedAt
+    && authoritative.status === bookingSnapshot.status
+    && authoritative.latestDecisionAt === bookingSnapshot.latestDecisionAt;
+}
+
 function digestBody(body: DemoEnvelopeBody): string {
   return fnv1a32(canonical(body));
 }
@@ -758,8 +777,8 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
         invalidStorage(`bookings.${booking.id}.personalizedRequest.ownerUserId`, "Request owner mismatch");
       }
       const authoritativeRequest = requests.get(booking.personalizedRequest.id);
-      if (!authoritativeRequest || authoritativeRequest.ownerUserId !== booking.ownerUserId) {
-        invalidStorage(`bookings.${booking.id}.personalizedRequest.id`, "Quote booking requires its independent request");
+      if (!authoritativeRequest || !requestSnapshotsMatch(authoritativeRequest, booking.personalizedRequest)) {
+        invalidStorage(`bookings.${booking.id}.personalizedRequest`, "Quote booking request snapshot diverges from its independent request");
       }
       if (booking.personalizedRequest.status === "pending_review" && booking.personalizedRequest.latestDecisionAt !== null) {
         invalidStorage(`bookings.${booking.id}.personalizedRequest.latestDecisionAt`, "Pending request cannot have a decision timestamp");

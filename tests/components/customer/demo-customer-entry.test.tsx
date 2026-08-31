@@ -100,4 +100,60 @@ describe("default customer route entry", () => {
       expect.arrayContaining([expect.objectContaining({ planId: state.planId, status: "pending_review" })]),
     );
   });
+
+  it("keeps the singleton route state across customer leave, admin approval, and paid re-entry", async () => {
+    const composition = getDemoPortalComposition();
+    const copy = getDictionary("en").customRequest;
+    await composition.session.selectDemoIdentity("demo-user-customer");
+    savePersonalizationRequest(request);
+    const state = createDemoPlannerAdapter().createInitial("en", request);
+    saveCustomRequestDraft({
+      planId: state.planId,
+      revision: state.current.revision,
+      preferences: request,
+      revisionSnapshot: state.current,
+    });
+
+    const requestEntry = render(<DemoCustomRequestEntry locale="en" copy={copy} />);
+    fireEvent.click(await screen.findByRole("button", { name: copy.submitRequestLabel }));
+    expect(await screen.findByRole("status")).toHaveTextContent(copy.adminReviewPendingMessage);
+    requestEntry.unmount();
+
+    await composition.session.selectDemoIdentity("demo-user-admin");
+    const pending = (await composition.admin.personalizedRequests.listPersonalizedRequests())
+      .find((entry) => entry.planId === state.planId && entry.status === "pending_review");
+    if (pending === undefined) throw new Error("Expected the submitted personalized request.");
+    expect((await composition.admin.bookings.listAdminBookings()).some((booking) => booking.id === `demo-booking-${pending.id}`)).toBe(false);
+    await composition.admin.personalizedRequests.reviewPersonalizedRequest({
+      requestId: pending.id,
+      decision: "approved",
+      note: null,
+    });
+    await composition.demoQuotes.issueDemoQuote({
+      requestId: pending.id,
+      amountVndMinor: Number(pending.requestedTotalVndMinor),
+    });
+
+    await composition.session.selectDemoIdentity("demo-user-customer");
+    const quoteEntry = render(<DemoCustomRequestEntry locale="en" copy={copy} />);
+    expect(await screen.findByRole("heading", { name: copy.quoteHeading })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: copy.acceptQuoteLabel }));
+    fireEvent.click(await screen.findByRole("button", { name: copy.openStripeMockLabel }));
+    expect(await screen.findByRole("heading", { name: copy.stripeMockHeading })).toBeInTheDocument();
+    quoteEntry.unmount();
+
+    render(<DemoCustomRequestEntry locale="en" copy={copy} />);
+    expect(await screen.findByRole("heading", { name: copy.stripeMockHeading })).toBeInTheDocument();
+
+    await composition.session.selectDemoIdentity("demo-user-admin");
+    await expect(composition.admin.bookings.listAdminBookings()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: `demo-booking-${pending.id}`,
+          status: "confirmed",
+          paymentStatus: "paid",
+        }),
+      ]),
+    );
+  });
 });

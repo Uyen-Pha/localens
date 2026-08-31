@@ -50,6 +50,24 @@ function tamperWithValidIntegrity(
   storage.setItem(DEMO_PORTAL_STORAGE_KEY, JSON.stringify(envelope));
 }
 
+const REQUEST_SNAPSHOT_TAMPERS: Array<{
+  label: string;
+  mutate: (request: Record<string, unknown>) => void;
+}> = [
+  { label: "id", mutate: (request) => { request.id = "demo-request-divergent"; } },
+  { label: "owner", mutate: (request) => { request.ownerUserId = "demo-user-secondary-customer"; } },
+  { label: "plan", mutate: (request) => { request.planId = "demo-plan-divergent"; } },
+  { label: "revision", mutate: (request) => { request.revisionNo = 2; } },
+  { label: "locale", mutate: (request) => { request.locale = "vi"; } },
+  { label: "party size", mutate: (request) => { request.partySize = 2; } },
+  { label: "amount", mutate: (request) => { request.totalVndMinor = "900000"; } },
+  { label: "special needs", mutate: (request) => { request.specialNeeds = "Wheelchair access."; } },
+  { label: "submitted timestamp", mutate: (request) => { request.submittedAt = "2026-08-24T00:00:00.000Z"; } },
+  { label: "updated timestamp", mutate: (request) => { request.updatedAt = "2026-08-30T12:00:00.000Z"; } },
+  { label: "status", mutate: (request) => { request.status = "changes_requested"; } },
+  { label: "decision timestamp", mutate: (request) => { request.latestDecisionAt = "2026-08-30T12:00:00.000Z"; } },
+];
+
 describe("demo portal repository", () => {
   it("keeps session, customer, guide, and admin facades distinct and actor-scoped", async () => {
     const { repo } = repository();
@@ -207,6 +225,33 @@ describe("demo portal repository", () => {
     });
 
     await expect(repo.admin.cancellations.listCancellationRequests()).rejects.toMatchObject({ code: "INVALID_STORAGE" });
+  });
+
+  it.each(REQUEST_SNAPSHOT_TAMPERS)("rejects a recomputed-integrity quote when the independent request $label diverges from its booking snapshot", async ({ mutate }) => {
+    const { storage, repo } = repository();
+    await repo.reset();
+    await repo.session.selectDemoIdentity("demo-user-admin");
+    const pending = (await repo.admin.personalizedRequests.listPersonalizedRequests())
+      .find((request) => request.id === "demo-request-personalized");
+    if (pending === undefined) throw new Error("Expected the seeded personalized request.");
+    await repo.admin.personalizedRequests.reviewPersonalizedRequest({
+      requestId: pending.id,
+      decision: "approved",
+      note: null,
+    });
+    await repo.demoQuotes.issueDemoQuote({
+      requestId: pending.id,
+      amountVndMinor: Number(pending.requestedTotalVndMinor),
+    });
+
+    tamperWithValidIntegrity(storage, (envelope) => {
+      const requests = envelope.requests as Array<Record<string, unknown>>;
+      const request = requests.find((entry) => entry.id === pending.id);
+      if (request === undefined) throw new Error("Expected the independent request.");
+      mutate(request);
+    });
+
+    await expect(repo.admin.bookings.listAdminBookings()).rejects.toMatchObject({ code: "INVALID_STORAGE" });
   });
 
   it("resets a deterministic fixture into one exact envelope and preserves unrelated session keys", async () => {
