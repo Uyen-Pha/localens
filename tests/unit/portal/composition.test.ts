@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   createPortalComposition,
@@ -12,6 +12,7 @@ import {
 } from "@/lib/application/portal/contracts";
 import {
   PORTAL_DEMO_STORAGE_KEY,
+  createDemoPortalRepository,
   createMemorySessionStorage,
 } from "@/lib/infrastructure/demo/portal-repository";
 
@@ -180,7 +181,6 @@ describe("portal composition", () => {
     expect(composition.session).not.toHaveProperty("selectDemoIdentity");
     expect(composition).not.toHaveProperty("demo");
     expect(composition).not.toHaveProperty("demoSession");
-    expectTypeOf(composition.session).not.toHaveProperty("selectDemoIdentity");
     expect(composition.customer).toBe(ports.customer);
     expect(composition.customer.account).toBe(ports.customer.account);
     expect(composition.customer.cancellations).toBe(ports.customer.cancellations);
@@ -196,5 +196,18 @@ describe("portal composition", () => {
     expect(composition.admin.cancellations).toBe(ports.admin.cancellations);
     expect(composition.admin.assignments).toBe(ports.admin.assignments);
     expect(composition.admin.reporting).toBe(ports.admin.reporting);
+  });
+
+  it("rejects a demo session injected into otherwise-complete production bindings", () => {
+    const demoRepository = createDemoPortalRepository({ storage: createMemorySessionStorage() });
+    const ports = productionBindings();
+
+    expectProductionConfigurationFailure({
+      mode: "production",
+      ports: {
+        ...ports,
+        session: demoRepository.session,
+      },
+    });
   });
 });

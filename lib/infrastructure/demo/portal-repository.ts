@@ -1324,11 +1324,11 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       return clone(toDemoIdentity(user));
     },
 
-    async getSession(): Promise<PortalIdentity | null> {
+    async getSession(): Promise<DemoPortalIdentity | null> {
       const envelope = readEnvelope();
       if (sessionUserId === null) return null;
       const user = currentActor(envelope);
-      return clone(toIdentity(user));
+      return clone(toDemoIdentity(user));
     },
 
     async signOut(): Promise<void> {

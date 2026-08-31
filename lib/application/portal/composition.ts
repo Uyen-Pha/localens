@@ -73,6 +73,9 @@ function requirePort(
 function assertCompleteProductionBindings(value: unknown): asserts value is PortalPortBindings {
   if (!isRecord(value)) productionConfiguration("are required");
 
+  if (isRecord(value.session) && "selectDemoIdentity" in value.session) {
+    productionConfiguration("must be production-neutral at session.selectDemoIdentity");
+  }
   requirePort(value.session, "session", ["getSession", "signOut"]);
 
   if (!isRecord(value.customer)) productionConfiguration("are incomplete at customer");
@@ -138,12 +141,16 @@ function withCompositionMetadata<TMode extends PortalMode>(
 }
 
 function withDemoCompositionMetadata(
-  ports: PortalPortBindings & { readonly session: DemoSessionPort },
+  ports: Omit<PortalPortBindings, "session"> & { readonly session: DemoSessionPort },
   initialized: Promise<void>,
 ): DemoPortalComposition {
   return {
-    ...withCompositionMetadata("demo", ports),
+    mode: "demo",
+    productionGap: PORTAL_PRODUCTION_GAP,
     session: ports.session,
+    customer: ports.customer,
+    guide: ports.guide,
+    admin: ports.admin,
     initialized,
   };
 }
@@ -156,8 +163,8 @@ export function createPortalComposition(
 ): ProductionPortalComposition;
 export function createPortalComposition(
   options: CreatePortalCompositionOptions,
-): PortalComposition;
-export function createPortalComposition(options: CreatePortalCompositionOptions): PortalComposition {
+): DemoPortalComposition | ProductionPortalComposition;
+export function createPortalComposition(options: CreatePortalCompositionOptions): DemoPortalComposition | ProductionPortalComposition {
   if (!isRecord(options) || (options.mode !== "demo" && options.mode !== "production")) invalidMode();
 
   if (options.mode === "production") {

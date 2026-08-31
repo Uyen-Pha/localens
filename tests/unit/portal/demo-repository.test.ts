@@ -267,7 +267,11 @@ describe("demo portal repository", () => {
       role: "customer",
       demo: true,
     });
-    await expect(repo.session.getSession()).resolves.toMatchObject({ userId: "demo-user-customer", role: "customer" });
+    await expect(repo.session.getSession()).resolves.toMatchObject({
+      userId: "demo-user-customer",
+      role: "customer",
+      demo: true,
+    });
     await repo.session.signOut();
     await expect(repo.session.getSession()).resolves.toBeNull();
     await expect(repo.customer.account.getAccount()).rejects.toMatchObject({ code: "UNAUTHENTICATED" });

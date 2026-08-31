@@ -313,7 +313,7 @@ export function canViewGuideAssignment(input: unknown): input is GuideAssignment
 
 export const canGuideViewAssignedTour = canViewGuideAssignment;
 
-export interface PortalIdentity {
+export interface PortalIdentityCore {
   userId: string;
   role: Role;
   locale: Locale;
@@ -321,16 +321,27 @@ export interface PortalIdentity {
   email: string;
 }
 
-export interface DemoPortalIdentity extends PortalIdentity {
+export interface PortalIdentity extends PortalIdentityCore {
+  /** Production sessions can never carry the deterministic demo marker. */
+  demo?: never;
+}
+
+export interface DemoPortalIdentity extends PortalIdentityCore {
   demo: true;
 }
 
-export interface PortalSessionPort {
-  getSession(): Promise<PortalIdentity | null>;
+export interface PortalSessionCore {
   signOut(): Promise<void>;
 }
 
-export interface DemoSessionPort extends PortalSessionPort {
+export interface PortalSessionPort extends PortalSessionCore {
+  getSession(): Promise<PortalIdentity | null>;
+  /** Production composition must reject any session exposing the demo selector. */
+  selectDemoIdentity?: never;
+}
+
+export interface DemoSessionPort extends PortalSessionCore {
+  getSession(): Promise<DemoPortalIdentity | null>;
   selectDemoIdentity(userId: string): Promise<DemoPortalIdentity>;
 }
 export type SessionPort = PortalSessionPort;

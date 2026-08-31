@@ -98,12 +98,14 @@ describe("portal contracts", () => {
       signOut: async () => undefined,
     };
     const session: DemoSessionPort = {
-      ...productionSession,
+      getSession: async () => demoIdentity,
+      signOut: async () => undefined,
       selectDemoIdentity: async () => demoIdentity,
     };
 
     await expect(productionSession.getSession()).resolves.toEqual(identity);
     await expect(session.selectDemoIdentity("demo-user-customer")).resolves.toEqual(demoIdentity);
+    await expect(session.getSession()).resolves.toEqual(demoIdentity);
     expect(productionSession).not.toHaveProperty("selectDemoIdentity");
     expect(session).not.toHaveProperty("setRole");
 
@@ -111,10 +113,21 @@ describe("portal contracts", () => {
     type ProductionSession = PortalPortBindings["session"];
     const productionBinding: ProductionSession = productionSession;
     expect(productionBinding).toBe(productionSession);
-    expectTypeOf<PortalSessionPort>().not.toHaveProperty("selectDemoIdentity");
-    expectTypeOf<PortalIdentity>().not.toHaveProperty("demo");
-    expectTypeOf<DemoSessionPort>().toHaveProperty("selectDemoIdentity");
-    expectTypeOf<DemoPortalIdentity>().toHaveProperty("demo");
+    type ProductionSessionRejectsDemoSelector = PortalSessionPort extends { selectDemoIdentity?: never } ? true : false;
+    type ProductionIdentityRejectsDemoMarker = PortalIdentity extends { demo?: never } ? true : false;
+    type DemoSessionIsNotProduction = DemoSessionPort extends PortalSessionPort ? false : true;
+    type DemoIdentityIsNotProduction = DemoPortalIdentity extends PortalIdentity ? false : true;
+    const typeBoundaryChecks: [
+      ProductionSessionRejectsDemoSelector,
+      ProductionIdentityRejectsDemoMarker,
+      DemoSessionIsNotProduction,
+      DemoIdentityIsNotProduction,
+    ] = [true, true, true, true];
+    expect(typeBoundaryChecks).toEqual([true, true, true, true]);
+    expectTypeOf<DemoSessionPort>().not.toMatchTypeOf<PortalSessionPort>();
+    expectTypeOf<DemoPortalIdentity>().not.toMatchTypeOf<PortalIdentity>();
+    expectTypeOf(null as unknown as DemoSessionPort).toHaveProperty("selectDemoIdentity");
+    expectTypeOf(null as unknown as DemoPortalIdentity).toHaveProperty("demo");
   });
 
   it("validates allowlisted profile fields and rejects unknown/control/oversized values", () => {
