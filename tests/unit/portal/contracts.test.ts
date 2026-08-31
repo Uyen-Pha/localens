@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
   PORTAL_PRODUCTION_GAP,
@@ -15,9 +15,15 @@ import {
   validateGuideProfileUpdate,
   validateTourReviewInput,
   type CustomerBookingView,
+  type CustomerAccountPort,
   type CustomerAccountUpdate,
+  type AdminBookingProjection,
+  type AdminBookingsPort,
+  type DemoPortalIdentity,
   type DemoSessionPort,
+  type PortalPortBindings,
   type PortalIdentity,
+  type PortalSessionPort,
 } from "@/lib/application/portal/contracts";
 import type {
   AssignmentStatus,
@@ -78,28 +84,44 @@ describe("portal contracts", () => {
     expect(PORTAL_PRODUCTION_GAP.personalizedTourGuideAssignment).toMatch(/not supported.*current production RPC/i);
   });
 
-  it("exposes small asynchronous session ports rather than a role-changing storage API", async () => {
+  it("keeps production sessions neutral and demo identity selection demo-only", async () => {
     const identity: PortalIdentity = {
       userId: "demo-user-customer",
       role: "customer",
       locale: "en",
       displayName: "Demo Traveler",
       email: "traveler@example.invalid",
-      demo: true,
     };
-    const session: DemoSessionPort = {
-      selectDemoIdentity: async () => identity,
+    const demoIdentity: DemoPortalIdentity = { ...identity, demo: true };
+    const productionSession: PortalSessionPort = {
       getSession: async () => identity,
       signOut: async () => undefined,
     };
+    const session: DemoSessionPort = {
+      ...productionSession,
+      selectDemoIdentity: async () => demoIdentity,
+    };
 
-    await expect(session.getSession()).resolves.toEqual(identity);
+    await expect(productionSession.getSession()).resolves.toEqual(identity);
+    await expect(session.selectDemoIdentity("demo-user-customer")).resolves.toEqual(demoIdentity);
+    expect(productionSession).not.toHaveProperty("selectDemoIdentity");
     expect(session).not.toHaveProperty("setRole");
+
+    // The production composition binding must not expose a demo identity selector.
+    type ProductionSession = PortalPortBindings["session"];
+    const productionBinding: ProductionSession = productionSession;
+    expect(productionBinding).toBe(productionSession);
+    expectTypeOf<PortalSessionPort>().not.toHaveProperty("selectDemoIdentity");
+    expectTypeOf<PortalIdentity>().not.toHaveProperty("demo");
+    expectTypeOf<DemoSessionPort>().toHaveProperty("selectDemoIdentity");
+    expectTypeOf<DemoPortalIdentity>().toHaveProperty("demo");
   });
 
   it("validates allowlisted profile fields and rejects unknown/control/oversized values", () => {
     const validCustomer: CustomerAccountUpdate = {
-      displayName: "A local traveler",
+      displayName: "Nguyễn An",
+      nationality: "Vietnamese",
+      email: "traveler@example.invalid",
       phone: null,
       language: "en",
     };
@@ -111,6 +133,22 @@ describe("portal contracts", () => {
     expect(validateCustomerAccountUpdate({ displayName: "bad\nname" })).toMatchObject({
       ok: false,
       error: { fieldPath: "input.displayName" },
+    });
+    expect(validateCustomerAccountUpdate({ email: "not-an-email" })).toMatchObject({
+      ok: false,
+      error: { fieldPath: "input.email" },
+    });
+    expect(validateCustomerAccountUpdate({ email: `${"a".repeat(250)}@x.io` })).toMatchObject({
+      ok: false,
+      error: { fieldPath: "input.email" },
+    });
+    expect(validateCustomerAccountUpdate({ nationality: "Vietnamese\u0000" })).toMatchObject({
+      ok: false,
+      error: { fieldPath: "input.nationality" },
+    });
+    expect(validateCustomerAccountUpdate({ nationality: "123" })).toMatchObject({
+      ok: false,
+      error: { fieldPath: "input.nationality" },
     });
     expect(validateGuideProfileUpdate({ bio: "x".repeat(1001) })).toMatchObject({
       ok: false,
@@ -130,8 +168,25 @@ describe("portal contracts", () => {
     expect(validateCancellationRequestInput({ bookingId: "demo-booking", reason: "Plans changed." })).toMatchObject({ ok: true });
     expect(validateCancellationRequestInput({ bookingId: "demo-booking", reason: "bad\u0000reason" })).toMatchObject({ ok: false });
     expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "approved", note: null })).toMatchObject({ ok: true });
-    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "rejected", note: null })).toMatchObject({ ok: false });
-    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "approved", note: "unexpected" })).toMatchObject({ ok: false });
+    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "approved", note: "Approved with a record." })).toMatchObject({ ok: true });
+    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "rejected", note: null })).toMatchObject({ ok: true });
+    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "rejected", note: "Policy keeps this booking." })).toMatchObject({ ok: true });
+    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "approved", note: "bad\u0000note" })).toMatchObject({ ok: false });
+    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "rejected", note: "x".repeat(1001) })).toMatchObject({ ok: false });
+  });
+
+  it("keeps customer and admin booking projections on distinct actor-safe methods", () => {
+    const customerPort: Pick<CustomerAccountPort, "listCustomerBookings"> = {
+      listCustomerBookings: async () => [] as CustomerBookingView[],
+    };
+    const adminPort: AdminBookingsPort = {
+      listAdminBookings: async () => [] as AdminBookingProjection[],
+    };
+
+    expect(customerPort).toHaveProperty("listCustomerBookings");
+    expect(customerPort).not.toHaveProperty("listAdminBookings");
+    expect(adminPort).toHaveProperty("listAdminBookings");
+    expect(adminPort).not.toHaveProperty("listCustomerBookings");
   });
 
   it("centralizes actor capability, ownership/completion/review, cancellation, and guide visibility policy", () => {

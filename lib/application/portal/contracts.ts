@@ -72,6 +72,8 @@ export interface CancellationDecisionInput {
 
 const PROFILE_TEXT_CONTROL = /[\u0000-\u001F\u007F-\u009F]/;
 const PORTAL_ID = /^[a-z0-9][a-z0-9-]{0,119}$/;
+const PORTAL_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PORTAL_NATIONALITY = /^\p{L}(?:[\p{L} .'-]*\p{L})?$/u;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -109,6 +111,20 @@ function safeLocale(value: unknown, fieldPath: string): PortalValidationResult<L
     : invalidInput(fieldPath, "portal.input.locale");
 }
 
+function safeEmail(value: unknown, fieldPath: string): PortalValidationResult<string> {
+  return typeof value === "string" && value.length >= 3 && value.length <= 254 &&
+    value === value.trim() && !PROFILE_TEXT_CONTROL.test(value) && PORTAL_EMAIL.test(value)
+    ? { ok: true, value }
+    : invalidInput(fieldPath, "portal.input.email");
+}
+
+function safeNationality(value: unknown, fieldPath: string): PortalValidationResult<string> {
+  return typeof value === "string" && value.length >= 1 && value.length <= 80 &&
+    value === value.trim() && !PROFILE_TEXT_CONTROL.test(value) && PORTAL_NATIONALITY.test(value)
+    ? { ok: true, value }
+    : invalidInput(fieldPath, "portal.input.nationality");
+}
+
 function validateProfileUpdate(
   input: unknown,
   fields: readonly string[],
@@ -141,7 +157,35 @@ function validateProfileUpdate(
 }
 
 export function validateCustomerAccountUpdate(input: unknown): PortalValidationResult<CustomerAccountUpdate> {
-  return validateProfileUpdate(input, ["displayName", "phone", "language"], false) as PortalValidationResult<CustomerAccountUpdate>;
+  const exact = exactInput(input, ["displayName", "nationality", "email", "phone", "language"]);
+  if (!exact.ok) return exact;
+  const result: CustomerAccountUpdate = {};
+  if (Object.prototype.hasOwnProperty.call(exact.value, "displayName")) {
+    const displayName = safeText(exact.value.displayName, "input.displayName", 80);
+    if (!displayName.ok || displayName.value === null) return displayName as PortalValidationResult<never>;
+    result.displayName = displayName.value;
+  }
+  if (Object.prototype.hasOwnProperty.call(exact.value, "nationality")) {
+    const nationality = safeNationality(exact.value.nationality, "input.nationality");
+    if (!nationality.ok) return nationality;
+    result.nationality = nationality.value;
+  }
+  if (Object.prototype.hasOwnProperty.call(exact.value, "email")) {
+    const email = safeEmail(exact.value.email, "input.email");
+    if (!email.ok) return email;
+    result.email = email.value;
+  }
+  if (Object.prototype.hasOwnProperty.call(exact.value, "phone")) {
+    const phone = safeText(exact.value.phone, "input.phone", 32, true);
+    if (!phone.ok) return phone;
+    result.phone = phone.value;
+  }
+  if (Object.prototype.hasOwnProperty.call(exact.value, "language")) {
+    const language = safeLocale(exact.value.language, "input.language");
+    if (!language.ok) return language;
+    result.language = language.value;
+  }
+  return { ok: true, value: result };
 }
 
 export function validateGuideProfileUpdate(input: unknown): PortalValidationResult<GuideProfileUpdate> {
@@ -181,8 +225,6 @@ export function validateCancellationDecisionInput(input: unknown): PortalValidat
   }
   const note = safeText(exact.value.note, "input.note", 1000, true);
   if (!note.ok) return note as PortalValidationResult<never>;
-  if (exact.value.decision === "rejected" && note.value === null) return invalidInput("input.note", "portal.cancellation.note_required");
-  if (exact.value.decision === "approved" && note.value !== null) return invalidInput("input.note", "portal.cancellation.note_forbidden");
   return { ok: true, value: { requestId: requestId.value, decision: exact.value.decision, note: note.value } };
 }
 
@@ -277,20 +319,28 @@ export interface PortalIdentity {
   locale: Locale;
   displayName: string;
   email: string;
+}
+
+export interface DemoPortalIdentity extends PortalIdentity {
   demo: true;
 }
 
-export interface DemoSessionPort {
-  selectDemoIdentity(userId: string): Promise<PortalIdentity>;
+export interface PortalSessionPort {
   getSession(): Promise<PortalIdentity | null>;
   signOut(): Promise<void>;
 }
-export type SessionPort = DemoSessionPort;
+
+export interface DemoSessionPort extends PortalSessionPort {
+  selectDemoIdentity(userId: string): Promise<DemoPortalIdentity>;
+}
+export type SessionPort = PortalSessionPort;
 
 export interface CustomerAccount {
   userId: string;
   role: "customer";
+  /** The customer's full name; retained as displayName for the existing domain vocabulary. */
   displayName: string;
+  nationality: string;
   email: string;
   phone: string | null;
   language: Locale;
@@ -298,6 +348,8 @@ export interface CustomerAccount {
 
 export interface CustomerAccountUpdate {
   displayName?: string;
+  nationality?: string;
+  email?: string;
   phone?: string | null;
   language?: Locale;
 }
@@ -329,10 +381,15 @@ export interface CustomerBookingView extends CustomerBooking {
   review: TourReview | null;
 }
 
-export interface CustomerAccountPort {
+export interface CustomerBookingPort {
+  listCustomerBookings(): Promise<CustomerBookingView[]>;
+}
+
+export type CustomerBookingsPort = CustomerBookingPort;
+
+export interface CustomerAccountPort extends CustomerBookingPort {
   getAccount(): Promise<CustomerAccount>;
   updateAccount(input: CustomerAccountUpdate): Promise<CustomerAccount>;
-  listBookings(): Promise<CustomerBookingView[]>;
   listCustomRequests(): Promise<CustomerCustomRequest[]>;
 }
 
@@ -462,7 +519,7 @@ export interface AdminBookingProjection extends CustomerBooking {
 }
 
 export interface AdminBookingsPort {
-  listBookings(): Promise<AdminBookingProjection[]>;
+  listAdminBookings(): Promise<AdminBookingProjection[]>;
 }
 export type AdminBookingPort = AdminBookingsPort;
 
@@ -511,7 +568,7 @@ export interface AdminPortalPorts {
 }
 
 export interface PortalPortBindings {
-  session: DemoSessionPort;
+  session: PortalSessionPort;
   customer: CustomerPortalPorts;
   guide: GuidePortalPorts;
   admin: AdminPortalPorts;
