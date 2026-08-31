@@ -33,11 +33,20 @@ import {
   type AdminUserProjection,
   type CancellationRequest,
   type CustomerAccount,
+  type CustomerAccountPort,
   type CustomerBookingView,
+  type CustomerCancellationPort,
+  type CustomerPortalPorts,
+  type CustomerTourReviewPort,
+  type DemoPortalIdentity,
+  type DemoSessionPort,
   type GuideAssignedTour,
+  type GuideAssignmentPort,
   type GuideProfile,
+  type GuideProfilePort,
+  type GuidePortalPorts,
   type PortalIdentity,
-  type PortalPortBindings,
+  type AdminPortalPorts,
   type TourReview,
 } from "@/lib/application/portal/contracts";
 
@@ -65,7 +74,7 @@ export interface DemoPortalRepositoryOptions {
   now?: () => string;
 }
 
-type DemoUserRecord = AdminUserProjection & { bio: string | null };
+type DemoUserRecord = AdminUserProjection & { bio: string | null; nationality: string };
 
 type DemoRequestRecord = CustomerCustomRequest & {
   ownerUserId: string;
@@ -114,28 +123,13 @@ type DemoEnvelope = DemoEnvelopeBody & {
   };
 };
 
-export type DemoPortalRepository =
-  & PortalPortBindings["session"]
-  & PortalPortBindings["customer"]["account"]
-  & PortalPortBindings["customer"]["cancellations"]
-  & PortalPortBindings["customer"]["reviews"]
-  & PortalPortBindings["guide"]["profile"]
-  & PortalPortBindings["guide"]["assignments"]
-  & PortalPortBindings["admin"]["users"]
-  & PortalPortBindings["admin"]["catalog"]
-  & PortalPortBindings["admin"]["personalizedRequests"]
-  & PortalPortBindings["admin"]["bookings"]
-  & PortalPortBindings["admin"]["cancellations"]
-  & PortalPortBindings["admin"]["assignments"]
-  & PortalPortBindings["admin"]["reporting"]
-  & {
-    reset(): Promise<void>;
-    updateCustomerAccount(input: unknown): Promise<CustomerAccount>;
-    listAdminBookings(): Promise<AdminBookingProjection[]>;
-    listBookingsForAdmin(): Promise<AdminBookingProjection[]>;
-  };
-
-type CombinedBookingProjection = CustomerBookingView & AdminBookingProjection;
+export interface DemoPortalRepository {
+  readonly session: DemoSessionPort;
+  readonly customer: CustomerPortalPorts;
+  readonly guide: GuidePortalPorts;
+  readonly admin: AdminPortalPorts;
+  reset(): Promise<void>;
+}
 
 const FIXTURE_DATE = "2026-09-05";
 const REPORT_TIMESTAMP = "2026-08-31T00:00:00.000Z";
@@ -148,9 +142,11 @@ const PORTAL_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,119}$/;
 const MONEY_PATTERN = /^(?:0|[1-9]\d*)$/;
 const FX_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d{1,8})?$/;
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const NATIONALITY_PATTERN = /^\p{L}(?:[\p{L} .'-]*\p{L})?$/u;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})$/;
 const CONTROL_PATTERN = /[\u0000-\u001F\u007F-\u009F]/;
+const CANCELLABLE_BOOKING_STATUSES = ["pending_payment", "payment_processing", "payment_review", "confirmed"] as const;
 
 const ENVELOPE_FIELDS = [
   "version",
@@ -165,7 +161,7 @@ const ENVELOPE_FIELDS = [
   "integrity",
 ] as const;
 const INTEGRITY_FIELDS = ["algorithm", "digest"] as const;
-const USER_FIELDS = ["userId", "role", "displayName", "email", "phone", "bio", "language", "active"] as const;
+const USER_FIELDS = ["userId", "role", "displayName", "nationality", "email", "phone", "bio", "language", "active"] as const;
 const REQUEST_FIELDS = [
   "id",
   "planId",
@@ -387,6 +383,18 @@ function safeEmail(value: unknown, path: string): string {
   return value;
 }
 
+function safeNationality(value: unknown, path: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > 80 ||
+    value.trim() !== value ||
+    CONTROL_PATTERN.test(value) ||
+    !NATIONALITY_PATTERN.test(value)
+  ) invalidStorage(path, "Invalid nationality");
+  return value;
+}
+
 function safeInteger(value: unknown, path: string, minimum: number, maximum: number): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum || value > maximum) {
     invalidStorage(path, "Invalid integer");
@@ -404,6 +412,10 @@ function safeNullableTimestamp(value: unknown, path: string): string | null {
 
 function safeNullableMoney(value: unknown, path: string): string | null {
   return value === null ? null : safeMoney(value, path);
+}
+
+function isCancellableBookingStatus(value: string): boolean {
+  return (CANCELLABLE_BOOKING_STATUSES as readonly string[]).includes(value);
 }
 
 function clone<T>(value: T): T {
@@ -460,6 +472,7 @@ function parseUser(value: unknown, path: string): DemoUserRecord {
     userId: safeId(row.userId, `${path}.userId`),
     role: safeRole(row.role, `${path}.role`),
     displayName: safeText(row.displayName, `${path}.displayName`, 80),
+    nationality: safeNationality(row.nationality, `${path}.nationality`),
     email: safeEmail(row.email, `${path}.email`),
     phone: nullableStorageText(row.phone, `${path}.phone`, 32),
     bio: nullableStorageText(row.bio, `${path}.bio`, 1000),
@@ -668,6 +681,11 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
         invalidStorage(`bookings.${booking.id}.cancellationRequestId`, "Cancellation reference mismatch");
       }
     }
+    const linkedCancellations = envelope.cancellations.filter((request) => request.bookingId === booking.id);
+    const hasApprovedCancellation = linkedCancellations.some((request) => request.status === "approved");
+    if (hasApprovedCancellation !== (booking.status === "cancelled")) {
+      invalidStorage(`bookings.${booking.id}.status`, "Approved cancellation and booking status must agree");
+    }
     if (booking.status === "cancelled") {
       const cancellation = booking.cancellationRequestId === null ? null : cancellations.get(booking.cancellationRequestId);
       if (!cancellation || cancellation.status !== "approved") invalidStorage(`bookings.${booking.id}.status`, "Cancelled booking requires an approved cancellation");
@@ -685,12 +703,15 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
     }
     if (cancellation.status === "pending") {
       if (cancellation.decidedAt !== null || cancellation.decisionNote !== null) invalidStorage(`cancellations.${cancellation.id}`, "Pending cancellation cannot have a decision");
+      if (!isCancellableBookingStatus(booking.status)) {
+        invalidStorage(`cancellations.${cancellation.id}`, "Pending cancellation requires a cancellable booking");
+      }
     } else if (cancellation.decidedAt === null) {
       invalidStorage(`cancellations.${cancellation.id}.decidedAt`, "Decided cancellation requires a timestamp");
-    } else if (cancellation.status === "approved" && cancellation.decisionNote !== null) {
-      invalidStorage(`cancellations.${cancellation.id}.decisionNote`, "Approved cancellation cannot have a decision note");
-    } else if (cancellation.status === "rejected" && cancellation.decisionNote === null) {
-      invalidStorage(`cancellations.${cancellation.id}.decisionNote`, "Rejected cancellation requires a decision note");
+    } else if (cancellation.status === "approved" && booking.status !== "cancelled") {
+      invalidStorage(`cancellations.${cancellation.id}`, "Approved cancellation requires a cancelled booking");
+    } else if (cancellation.status === "rejected" && booking.status === "cancelled") {
+      invalidStorage(`cancellations.${cancellation.id}`, "Rejected cancellation cannot leave a booking cancelled");
     }
   }
 
@@ -766,6 +787,7 @@ function createFixtureBody(): DemoEnvelopeBody {
       userId: "demo-user-customer",
       role: "customer",
       displayName: "Demo Traveler",
+      nationality: "Vietnamese",
       email: "traveler@example.invalid",
       phone: null,
       bio: null,
@@ -776,6 +798,7 @@ function createFixtureBody(): DemoEnvelopeBody {
       userId: "demo-user-guide",
       role: "guide",
       displayName: "Demo Guide",
+      nationality: "Vietnamese",
       email: "guide@example.invalid",
       phone: "+84000000001",
       bio: "A careful local guide.",
@@ -786,6 +809,7 @@ function createFixtureBody(): DemoEnvelopeBody {
       userId: "demo-user-guide-secondary",
       role: "guide",
       displayName: "Second Demo Guide",
+      nationality: "Vietnamese",
       email: "guide-secondary@example.invalid",
       phone: "+84000000002",
       bio: "A second local guide.",
@@ -796,6 +820,7 @@ function createFixtureBody(): DemoEnvelopeBody {
       userId: "demo-user-admin",
       role: "admin",
       displayName: "Demo Administrator",
+      nationality: "Vietnamese",
       email: "admin@example.invalid",
       phone: null,
       bio: null,
@@ -806,6 +831,7 @@ function createFixtureBody(): DemoEnvelopeBody {
       userId: "demo-user-secondary-customer",
       role: "customer",
       displayName: "Second Demo Traveler",
+      nationality: "Vietnamese",
       email: "traveler-secondary@example.invalid",
       phone: null,
       bio: null,
@@ -1007,8 +1033,11 @@ function toIdentity(user: DemoUserRecord): PortalIdentity {
     locale: user.language,
     displayName: user.displayName,
     email: user.email,
-    demo: true,
   };
+}
+
+function toDemoIdentity(user: DemoUserRecord): DemoPortalIdentity {
+  return { ...toIdentity(user), demo: true };
 }
 
 function toCustomerAccount(user: DemoUserRecord): CustomerAccount {
@@ -1016,6 +1045,7 @@ function toCustomerAccount(user: DemoUserRecord): CustomerAccount {
     userId: user.userId,
     role: "customer",
     displayName: user.displayName,
+    nationality: user.nationality,
     email: user.email,
     phone: user.phone,
     language: user.language,
@@ -1273,7 +1303,7 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
     return booking;
   }
 
-  const repository: DemoPortalRepository = {
+  const engine = {
     async reset(): Promise<void> {
       const envelope = makeEnvelope(createFixtureBody());
       // Validate the generated fixture through the same fail-closed path used for reads.
@@ -1285,13 +1315,13 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       sessionUserId = null;
     },
 
-    async selectDemoIdentity(userId: string): Promise<PortalIdentity> {
+    async selectDemoIdentity(userId: string): Promise<DemoPortalIdentity> {
       const id = inputId(userId, "userId");
       const envelope = readEnvelope();
       const user = envelope.users.find((entry) => entry.userId === id);
       if (!user) notFound("Demo identity", id);
       sessionUserId = user.userId;
-      return clone(toIdentity(user));
+      return clone(toDemoIdentity(user));
     },
 
     async getSession(): Promise<PortalIdentity | null> {
@@ -1311,34 +1341,26 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
     },
 
     async updateAccount(input: unknown): Promise<CustomerAccount> {
-      return repository.updateCustomerAccount(input as never);
-    },
-
-    async updateCustomerAccount(input: unknown): Promise<CustomerAccount> {
       const update = readValidatedCustomerAccountUpdate(input);
       const envelope = readEnvelope();
-      const actor = actorWithRole(envelope, "customer", "updateCustomerAccount");
+      const actor = actorWithRole(envelope, "customer", "updateAccount");
       const user = envelope.users.find((entry) => entry.userId === actor.userId);
       if (!user) invalidStorage("users", "Current user disappeared from the fixture");
       if (update.displayName !== undefined) user.displayName = update.displayName;
+      if (update.nationality !== undefined) user.nationality = update.nationality;
+      if (update.email !== undefined) user.email = update.email;
       if (update.phone !== undefined) user.phone = update.phone;
       if (update.language !== undefined) user.language = update.language;
       writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
       return clone(toCustomerAccount(user));
     },
 
-    async listBookings(): Promise<CombinedBookingProjection[]> {
+    async listCustomerBookings(): Promise<CustomerBookingView[]> {
       const envelope = readEnvelope();
-      const actor = currentActor(envelope);
-      if (actor.role === "customer") {
-        return clone(envelope.bookings
-          .filter((booking) => booking.ownerUserId === actor.userId)
-          .map((booking) => toCustomerBookingView(envelope, booking) as CombinedBookingProjection));
-      }
-      if (actor.role === "admin") {
-        return clone(envelope.bookings.map((booking) => toAdminBooking(envelope, booking) as CombinedBookingProjection));
-      }
-      forbidden(actor.role, "listBookings");
+      const actor = actorWithRole(envelope, "customer", "listCustomerBookings");
+      return clone(envelope.bookings
+        .filter((booking) => booking.ownerUserId === actor.userId)
+        .map((booking) => toCustomerBookingView(envelope, booking)));
     },
 
     async listCustomRequests(): Promise<CustomerCustomRequest[]> {
@@ -1367,7 +1389,7 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       if (booking.ownerUserId !== actor.userId) forbidden("customer", "requestCancellation for another customer");
       const hasPendingRequest = envelope.cancellations.some((request) => request.bookingId === booking.id && request.status === "pending");
       if (hasPendingRequest) conflict("A pending cancellation request already exists for this booking.");
-      if (!( ["pending_payment", "payment_processing", "payment_review", "confirmed"] as readonly string[]).includes(booking.status)) {
+      if (!isCancellableBookingStatus(booking.status)) {
         conflict("This booking cannot request cancellation in its current state.");
       }
       const request: DemoCancellationRecord = {
@@ -1551,12 +1573,8 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
 
     async listAdminBookings(): Promise<AdminBookingProjection[]> {
       const envelope = readEnvelope();
-      actorWithRole(envelope, "admin", "listBookings");
+      actorWithRole(envelope, "admin", "listAdminBookings");
       return clone(envelope.bookings.map((booking) => toAdminBooking(envelope, booking)));
-    },
-
-    async listBookingsForAdmin(): Promise<AdminBookingProjection[]> {
-      return repository.listAdminBookings();
     },
 
     async assignGuideToFixedDeparture(input: unknown): Promise<GuideAssignedTour> {
@@ -1612,5 +1630,75 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
     },
   };
 
-  return repository;
+  const session: DemoSessionPort = {
+    selectDemoIdentity: engine.selectDemoIdentity,
+    getSession: engine.getSession,
+    signOut: engine.signOut,
+  };
+  const customerAccount: CustomerAccountPort = {
+    getAccount: engine.getAccount,
+    updateAccount: engine.updateAccount,
+    listCustomerBookings: engine.listCustomerBookings,
+    listCustomRequests: engine.listCustomRequests,
+  };
+  const customerCancellations: CustomerCancellationPort = {
+    requestCancellation: engine.requestCancellation,
+    listOwnCancellationRequests: engine.listOwnCancellationRequests,
+  };
+  const customerReviews: CustomerTourReviewPort = {
+    submitTourReview: engine.submitTourReview,
+    listOwnReviews: engine.listOwnReviews,
+  };
+  const guideProfile: GuideProfilePort = {
+    getGuideProfile: engine.getGuideProfile,
+    updateGuideProfile: engine.updateGuideProfile,
+  };
+  const guideAssignments: GuideAssignmentPort = {
+    listAssignedTours: engine.listAssignedTours,
+    getAssignedTour: engine.getAssignedTour,
+  };
+  const admin: AdminPortalPorts = {
+    users: {
+      listUsers: engine.listUsers,
+      updateUserRole: engine.updateUserRole,
+    },
+    catalog: {
+      listLocations: engine.listLocations,
+      listFixedTours: engine.listFixedTours,
+      listDepartures: engine.listDepartures,
+    },
+    personalizedRequests: {
+      listPersonalizedRequests: engine.listPersonalizedRequests,
+      reviewPersonalizedRequest: engine.reviewPersonalizedRequest,
+    },
+    bookings: {
+      listAdminBookings: engine.listAdminBookings,
+    },
+    cancellations: {
+      listCancellationRequests: engine.listCancellationRequests,
+      decideCancellation: engine.decideCancellation,
+    },
+    assignments: {
+      assignGuideToFixedDeparture: engine.assignGuideToFixedDeparture,
+    },
+    reporting: {
+      getReport: engine.getReport,
+    },
+  };
+  const customer: CustomerPortalPorts = {
+    account: customerAccount,
+    cancellations: customerCancellations,
+    reviews: customerReviews,
+  };
+  const guide: GuidePortalPorts = {
+    profile: guideProfile,
+    assignments: guideAssignments,
+  };
+  return {
+    reset: engine.reset,
+    session,
+    customer,
+    guide,
+    admin,
+  };
 }
