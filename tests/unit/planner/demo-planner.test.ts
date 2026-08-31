@@ -219,6 +219,27 @@ describe("demo planner adapter", () => {
     expect(result.state.current.totals.payAtVendorMaxVnd).toBe(0);
   });
 
+  it.each([
+    ["positive English", "Remove the food stop.", false],
+    ["positive Vietnamese", "Bỏ món ăn khỏi lịch trình.", false],
+    ["negated English", "Do not remove food; keep this stop.", true],
+    ["negated English contraction", "Don't remove food.", true],
+    ["unrelated food allergy note", "No food allergies.", true],
+  ])("interprets %s feedback as %s", (_label, feedback, shouldKeepFood) => {
+    const adapter = createDemoPlannerAdapter();
+    const initial = stateWithFoodSelection();
+
+    const result = adapter.refine(initial, {
+      baseRevision: initial.current.revision,
+      feedback,
+      lockedItemIds: [],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.current.items[0]?.foodSelection === null).toBe(!shouldKeepFood);
+  });
+
   it("rejects a stale base revision without changing the current state", () => {
     const adapter = createDemoPlannerAdapter();
     const initial = adapter.createInitial();

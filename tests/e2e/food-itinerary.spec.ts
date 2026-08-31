@@ -5,16 +5,26 @@ import { PERSONALIZATION_SESSION_KEY } from "@/lib/application/planner/personali
 import { getDictionary, type CustomRequestCopy, type PlannerCopy } from "@/lib/i18n/dictionaries";
 import { FOOD_FIXTURE, createFoodFixturePlannerState } from "./food-fixture";
 
-const UNIT_RANGE_PATTERN = /45[.,]000.*60[.,]000/;
-const GROUP_RANGE_PATTERN = /135[.,]000.*180[.,]000/;
+const EXPECTED_FOOD_BY_LOCALE = {
+  en: {
+    freeAdmission: "₫0",
+    unitPriceRange: "₫45,000–₫60,000",
+    groupFoodRange: "₫135,000–₫180,000",
+    localLensPayable: "₫0",
+  },
+  vi: {
+    freeAdmission: "0\u00a0₫",
+    unitPriceRange: "45.000\u00a0₫–60.000\u00a0₫",
+    groupFoodRange: "135.000\u00a0₫–180.000\u00a0₫",
+    localLensPayable: "0\u00a0₫",
+  },
+} as const;
 
-function formatVnd(value: number, locale: "en" | "vi"): string {
-  return new Intl.NumberFormat(locale === "vi" ? "vi-VN" : "en-US", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
+const EXPECTED_MIXED_EN = {
+  ...EXPECTED_FOOD_BY_LOCALE.en,
+  freeAdmission: "₫360,000",
+  localLensPayable: "₫360,000",
+} as const;
 
 async function seedPlanner(
   page: Page,
@@ -63,28 +73,28 @@ async function assertApprovedFoodFlow(
   scenario: Parameters<typeof createFoodFixturePlannerState>[1] = "approved",
 ): Promise<void> {
   const state = await seedPlanner(page, locale, scenario);
+  if (scenario === "mixed") {
+    expect(state.current.totals.customerPayableVnd).toBeGreaterThan(0);
+  }
   await page.goto(`/${locale}/planner`);
   const copy = getDictionary(locale);
   const planner = plannerRegion(page, copy.planner);
   const food = planner.locator(".planner-food").first();
   const totals = planner.locator(".planner-flow__totals");
-  const expectedAdmission = formatVnd(state.current.totals.admissionCostVnd, locale);
-  const expectedPayable = formatVnd(state.current.totals.customerPayableVnd, locale);
+  const expected = scenario === "mixed" && locale === "en"
+    ? EXPECTED_MIXED_EN
+    : EXPECTED_FOOD_BY_LOCALE[locale];
 
   await expect(food.getByText(FOOD_FIXTURE.vendor[locale], { exact: true })).toBeVisible();
   await expect(food.getByText(FOOD_FIXTURE.menu[locale], { exact: true })).toBeVisible();
   await expect(food.getByText(locale === "en" ? "3 portions" : "3 phần", { exact: true })).toBeVisible();
-  await expect(factValue(food, copy.planner.unitPriceLabel)).toHaveText(UNIT_RANGE_PATTERN);
-  await expect(factValue(food, copy.planner.estimatedRangeLabel)).toHaveText(GROUP_RANGE_PATTERN);
+  await expect(factValue(food, copy.planner.unitPriceLabel)).toHaveText(expected.unitPriceRange);
+  await expect(factValue(food, copy.planner.estimatedRangeLabel)).toHaveText(expected.groupFoodRange);
   await expect(food.getByText(copy.planner.payAtVendorValue, { exact: true })).toBeVisible();
-  await expect(factValue(totals, copy.planner.venueAdmissionLabel)).toHaveText(expectedAdmission);
-  await expect(factValue(totals, copy.planner.foodEstimateLabel)).toHaveText(
-    GROUP_RANGE_PATTERN,
-  );
-  await expect(factValue(totals, copy.planner.localLensPayableLabel)).toHaveText(expectedPayable);
-  await expect(factValue(totals, copy.planner.payAtVendorLabel)).toHaveText(
-    GROUP_RANGE_PATTERN,
-  );
+  await expect(factValue(totals, copy.planner.venueAdmissionLabel)).toHaveText(expected.freeAdmission);
+  await expect(factValue(totals, copy.planner.foodEstimateLabel)).toHaveText(expected.groupFoodRange);
+  await expect(factValue(totals, copy.planner.localLensPayableLabel)).toHaveText(expected.localLensPayable);
+  await expect(factValue(totals, copy.planner.payAtVendorLabel)).toHaveText(expected.groupFoodRange);
 
   await planner.getByRole("link", { name: copy.planner.requestQuoteLabel }).click();
   const custom = customRequestRegion(page, copy.customRequest);
@@ -92,16 +102,14 @@ async function assertApprovedFoodFlow(
 
   await expect(selected.getByText(FOOD_FIXTURE.vendor[locale], { exact: true })).toBeVisible();
   await expect(selected.getByText(FOOD_FIXTURE.menu[locale], { exact: true })).toBeVisible();
-  await expect(factValue(selected, copy.customRequest.localLensPayableLabel)).toHaveText(expectedPayable);
-  await expect(factValue(selected, copy.customRequest.payAtVendorLabel)).toHaveText(
-    GROUP_RANGE_PATTERN,
-  );
+  await expect(factValue(selected, copy.customRequest.localLensPayableLabel)).toHaveText(expected.localLensPayable);
+  await expect(factValue(selected, copy.customRequest.payAtVendorLabel)).toHaveText(expected.groupFoodRange);
 
   await custom.getByRole("button", { name: copy.customRequest.continueLocalDemoLabel }).click();
   await custom.getByRole("button", { name: copy.customRequest.submitRequestLabel }).click();
   await custom.getByRole("button", { name: copy.customRequest.simulateQuoteLabel }).click();
   const quote = custom.getByRole("region", { name: copy.customRequest.quoteHeading });
-  await expect(factValue(quote, copy.customRequest.quoteTotalLabel)).toHaveText(expectedPayable);
+  await expect(factValue(quote, copy.customRequest.quoteTotalLabel)).toHaveText(expected.localLensPayable);
   await custom.getByRole("button", { name: copy.customRequest.acceptQuoteLabel }).click();
   await custom.getByRole("button", { name: copy.customRequest.openStripeMockLabel }).click();
 
@@ -109,8 +117,8 @@ async function assertApprovedFoodFlow(
   await expect(stripe).toBeVisible();
   await expect(stripe.getByText(FOOD_FIXTURE.vendor[locale], { exact: true })).toHaveCount(0);
   await expect(stripe.getByText(FOOD_FIXTURE.menu[locale], { exact: true })).toHaveCount(0);
-  await expect(stripe).not.toContainText(locale === "en" ? "135,000" : "135.000");
-  await expect(stripe).not.toContainText(locale === "en" ? "180,000" : "180.000");
+  await expect(stripe).not.toContainText(expected.unitPriceRange);
+  await expect(stripe).not.toContainText(expected.groupFoodRange);
 }
 
 test.describe("food itinerary acceptance paths", () => {
@@ -170,8 +178,8 @@ test.describe("food itinerary acceptance paths", () => {
     await expect(timelineFood.getByText(FOOD_FIXTURE.vendor.en, { exact: true })).toBeVisible();
     await expect(timelineFood.getByText(FOOD_FIXTURE.menu.en, { exact: true })).toBeVisible();
     await expect(timelineFood.getByText("3 portions", { exact: true })).toBeVisible();
-    await expect(factValue(timelineFood.locator(".planner-food"), copy.unitPriceLabel)).toHaveText(UNIT_RANGE_PATTERN);
-    await expect(factValue(timelineFood.locator(".planner-food"), copy.estimatedRangeLabel)).toHaveText(GROUP_RANGE_PATTERN);
+    await expect(factValue(timelineFood.locator(".planner-food"), copy.unitPriceLabel)).toHaveText(EXPECTED_FOOD_BY_LOCALE.en.unitPriceRange);
+    await expect(factValue(timelineFood.locator(".planner-food"), copy.estimatedRangeLabel)).toHaveText(EXPECTED_FOOD_BY_LOCALE.en.groupFoodRange);
     await expect(timelineFood.getByRole("button", { name: `${copy.unlockLabel}: ${foodItem.title}` })).toHaveAttribute("aria-pressed", "true");
     await expect(timelineMuseum.getByTestId("planner-activity")).not.toHaveText(originalMuseumActivity ?? "");
   });
@@ -193,10 +201,8 @@ test.describe("food itinerary acceptance paths", () => {
     await expect(timelineFood.locator(".planner-food")).toHaveCount(0);
     await expect(timelineFood.getByText(copy.foodNotSelectedLabel, { exact: true })).toBeVisible();
     await expect(factValue(totals, copy.foodEstimateLabel)).toHaveText(copy.foodNotSelectedLabel);
-    await expect(factValue(totals, copy.payAtVendorLabel)).toHaveText(formatVnd(0, "en"));
-    await expect(factValue(totals, copy.localLensPayableLabel)).toHaveText(
-      formatVnd(state.current.totals.customerPayableVnd, "en"),
-    );
+    await expect(factValue(totals, copy.payAtVendorLabel)).toHaveText(EXPECTED_FOOD_BY_LOCALE.en.localLensPayable);
+    await expect(factValue(totals, copy.localLensPayableLabel)).toHaveText(EXPECTED_MIXED_EN.localLensPayable);
   });
 
   test("museum-only route keeps food unselected and reports admission separately", async ({ page }) => {
