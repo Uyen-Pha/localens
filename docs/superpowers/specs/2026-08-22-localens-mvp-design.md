@@ -18,7 +18,7 @@ Vietnamese, and never processes real payments.
   assignment after confirmation.
 - Responsive UI, WCAG 2.2 AA, and static SEO pages in English and Vietnamese.
 - No live navigation, real charges or refunds, guide marketplace, chat,
-  loyalty, reviews, multi-city support, or production SLA.
+  loyalty, non-tour reviews, multi-city support, or production SLA.
 
 ## Repository boundary
 
@@ -273,6 +273,33 @@ published release remains active and can be rebuilt.
 - Axe reports no critical or serious findings on primary flows; keyboard-only
   use completes those flows.
 - Every payment screen states `Demo/Test payment — no real charge`.
+
+## 2026-08-31 thesis/demo scope and evidence lock
+
+The current thesis/demo clarification is recorded in
+`docs/superpowers/specs/2026-08-31-localens-green-production-aligned-demo.md`.
+For this specification, the following deltas are authoritative:
+
+| Concern | Thesis/demo decision |
+| --- | --- |
+| Tour review | Included for a completed booking, with at most one review per completed booking. |
+| Cancellation | The customer submits a cancellation request; an administrator makes the decision. |
+| Guide UI | The guide UI does not expose accept or complete actions. |
+| Anonymous access and authentication | Anonymous browsing is allowed; authentication is required before request submission or booking. |
+| Payment | Payment is simulated in the thesis demo; no real charge, card number, CVV, or real token is collected. |
+
+The engineering boundary remains replaceable and must not be described as a
+live production integration merely because a demo adapter, mock, static check,
+or test-mode flow works. Evidence must use the labels `demo-wired`,
+`contract-implemented`, `runtime-verified`, and `production-deployed` with the
+definitions in the dated scope lock.
+
+The selected customer visual source is the byte-identical
+`docs/design/references/localens-green-home-selected.png` reference
+(SHA-256
+`4CE3DA5E08635D2B7F2F2BF3417B34878A029B0D8547964D5E7518082D75447D`,
+`1487 x 1058`). It supersedes the old editorial reference for customer UI;
+the old reference files and history remain until the new design passes QA.
 
 ## Agent and delivery policy
 

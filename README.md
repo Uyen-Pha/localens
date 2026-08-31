@@ -10,7 +10,7 @@ Production repository for the LocalLens full-stack MVP.
 The canonical product specification and implementation plans live under
 `docs/superpowers/`.
 
-## Editorial customer QA
+## Customer visual QA
 
 The deterministic customer-route visual and accessibility smoke suite covers
 `/en/`, `/vi/`, `/en/tours/`, `/en/planner/`, `/en/custom-request/`, and a
@@ -25,13 +25,30 @@ Run the focused suite with:
 pnpm exec playwright test tests/e2e/customer-visual.spec.ts
 ```
 
-Accepted home viewport evidence is stored under `docs/design/qa/`. The native
-selected reference remains byte-identical at
-`docs/design/references/localens-editorial-home-selected.png`; the desktop
-comparison uses documented QA-only 1488×1059 derivatives with a deterministic
-one-pixel right/bottom canvas extension. A screenshot or passing snapshot is
-not, by itself, visual approval; see `design-qa.md` for the current verdict and
-open findings. Database runtime verification remains a separate gate.
+Accepted home viewport evidence is stored under `docs/design/qa/`. The
+selected green-white customer reference is the byte-identical
+`docs/design/references/localens-green-home-selected.png` source, with
+SHA-256
+`4CE3DA5E08635D2B7F2F2BF3417B34878A029B0D8547964D5E7518082D75447D` and
+dimensions `1487 x 1058`. The former
+`docs/design/references/localens-editorial-home-selected.png` reference is
+superseded for customer UI but remains, with its specification and QA history,
+until the green design passes QA. The desktop comparison uses documented
+QA-only 1488×1059 derivatives with a deterministic one-pixel right/bottom
+canvas extension. A screenshot or passing snapshot is not, by itself, visual
+approval; see `design-qa.md` for the current verdict and open findings.
+Database runtime verification remains a separate gate.
+
+Evidence labels are scoped to the evidence actually recorded:
+
+- `demo-wired` — connected to the local demo UI/adapter or fixture; not proof
+  of production persistence or authorization.
+- `contract-implemented` — typed boundary and validation/tests exist; not proof
+  of a live runtime or provider.
+- `runtime-verified` — exercised against the configured local runtime with
+  recorded command/test evidence.
+- `production-deployed` — released to the intended production environment with
+  deployment and production-verification evidence.
 
 ## Food itinerary acceptance
 
