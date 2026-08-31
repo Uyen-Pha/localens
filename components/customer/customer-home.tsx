@@ -78,7 +78,14 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
             </div>
           </div>
           <p className="customer-hero__coordinates">{copy.heroCoordinates}</p>
-          <aside className="customer-hero__summary customer-hero__route-card" aria-label={copy.heroRoute.ariaLabel}>
+          <aside
+            className="customer-hero__summary customer-hero__route-card"
+            aria-label={copy.heroRoute.ariaLabel}
+            aria-describedby={`customer-hero-summary-disclosure-${locale}`}
+          >
+            <p className="customer-hero__summary-disclosure" id={`customer-hero-summary-disclosure-${locale}`}>
+              {copy.heroRoute.disclosure}
+            </p>
             <div className="customer-hero__summary-topline">
               <p><strong>~6.5 h</strong><span>{copy.heroRoute.totalTimeLabel}</span></p>
               <p><strong>~58 USD</strong><span>{copy.heroRoute.perPersonLabel}</span></p>
@@ -86,7 +93,11 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
             <p className="customer-hero__summary-mode"><strong>{copy.heroRoute.modeValue}</strong><span>{copy.heroRoute.modeLabel}</span></p>
             <p className="customer-hero__summary-date"><strong>{copy.heroRoute.dateValue}</strong><span>{copy.heroRoute.paceValue}</span></p>
           </aside>
-          <ol className="customer-hero__stops" aria-label={copy.heroRoute.stopsLabel}>
+          <ol
+            className="customer-hero__stops"
+            aria-label={copy.heroRoute.stopsLabel}
+            aria-describedby={`customer-hero-summary-disclosure-${locale}`}
+          >
             {greenHeroStops.map((stop) => (
               <li key={stop.id}>
                 <p className="customer-hero__stop-time">{stop.time}</p>

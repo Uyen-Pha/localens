@@ -185,6 +185,7 @@ export type Dictionary = {
       paceValue: string;
       dateValue: string;
       stopsLabel: string;
+      disclosure: string;
     };
     heroStops: Array<{
       id: string;
@@ -450,7 +451,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     heroSecondaryCta: "Browse ready-made tours",
     heroActionsLabel: "Choose your way into Saigon",
     heroNote: "Adjust places and timing until it feels perfect.",
-    heroTrust: "Local experts. Curated experiences. Trusted by travelers worldwide. 4.9/5 average rating from 1,200+ travelers.",
+    heroTrust: "Start with a clear plan, then review and refine it.",
     heroRoute: {
       ariaLabel: "Suggested Saigon day summary",
       totalTimeLabel: "Total time",
@@ -460,6 +461,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       paceValue: "Flexible start",
       dateValue: "Thu, 27 Aug 2026",
       stopsLabel: "Suggested Saigon day stops",
+      disclosure: "Illustrative demo itinerary — not a quote, availability, or booking offer.",
     },
     heroStops: [
       {
@@ -753,7 +755,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     heroSecondaryCta: "Xem các tour có sẵn",
     heroActionsLabel: "Chọn cách khám phá Sài Gòn",
     heroNote: "Điều chỉnh điểm đến và thời gian đến khi lịch trình vừa ý.",
-    heroTrust: "Chuyên gia địa phương. Trải nghiệm được chọn lọc. Được du khách khắp nơi tin tưởng. Điểm trung bình 4,9/5 từ hơn 1.200 du khách.",
+    heroTrust: "Bắt đầu với lịch trình rõ ràng, rồi xem lại và điều chỉnh theo ý bạn.",
     heroRoute: {
       ariaLabel: "Tóm tắt ngày khám phá Sài Gòn gợi ý",
       totalTimeLabel: "Tổng thời gian",
@@ -763,6 +765,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       paceValue: "Giờ bắt đầu linh hoạt",
       dateValue: "Thứ Năm, 27/08/2026",
       stopsLabel: "Các điểm dừng gợi ý trong ngày",
+      disclosure: "Lịch trình minh họa — không phải báo giá, thông tin còn chỗ hay đề nghị đặt tour.",
     },
     heroStops: [
       {

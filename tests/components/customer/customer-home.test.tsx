@@ -162,4 +162,27 @@ describe("CustomerHome", () => {
       /\.customer-home--green \.customer-hero__content \{[\s\S]*?background:\s*var\(--color-paper\)/,
     );
   });
+
+  it("labels route-card numbers as an illustrative demo and makes no unsupported trust claim", () => {
+    for (const locale of ["en", "vi"] as const) {
+      const dictionary = getDictionary(locale);
+      render(<CustomerHome locale={locale} dictionary={dictionary} />);
+
+      expect(dictionary.home.heroTrust).not.toMatch(/4[,.]9|1[,.]200|1\.200/);
+      expect(document.body.textContent).not.toMatch(/4[,.]9\s*\/\s*5|1[,.]200|1\.200/);
+
+      const disclosure = locale === "en"
+        ? "Illustrative demo itinerary — not a quote, availability, or booking offer."
+        : "Lịch trình minh họa — không phải báo giá, thông tin còn chỗ hay đề nghị đặt tour.";
+      const summary = screen.getByRole("complementary", { name: dictionary.home.heroRoute.ariaLabel });
+      expect(summary).toHaveAttribute("aria-describedby", `customer-hero-summary-disclosure-${locale}`);
+      expect(summary).toHaveTextContent(disclosure);
+      expect(screen.getByRole("list", { name: dictionary.home.heroRoute.stopsLabel })).toHaveAttribute(
+        "aria-describedby",
+        `customer-hero-summary-disclosure-${locale}`,
+      );
+
+      cleanup();
+    }
+  });
 });
