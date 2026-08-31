@@ -224,6 +224,7 @@ describe("demo planner adapter", () => {
     ["positive Vietnamese", "Bỏ món ăn khỏi lịch trình.", false],
     ["negated English", "Do not remove food; keep this stop.", true],
     ["negated English contraction", "Don't remove food.", true],
+    ["negated Vietnamese", "Đừng bỏ món ăn.", true],
     ["unrelated food allergy note", "No food allergies.", true],
   ])("interprets %s feedback as %s", (_label, feedback, shouldKeepFood) => {
     const adapter = createDemoPlannerAdapter();

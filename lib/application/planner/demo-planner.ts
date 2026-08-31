@@ -364,9 +364,9 @@ function adjustedActivity(feedback: string, locale: Locale): string {
 function feedbackRequestsFoodRemoval(feedback: string): boolean {
   const normalized = feedback.toLocaleLowerCase("en-US");
   if (/(?:\b(?:do not|don't|dont|not)\s+(?:remove|skip|drop|omit)\s+(?:the\s+)?food\b|\bno\s+food\s+allerg(?:y|ies)\b)/u.test(normalized)
-    || /\b(?:không|đừng)\s+(?:bỏ|xoá|xóa)\s+(?:món|ẩm thực)\b/u.test(normalized)) return false;
+    || /(?:^|\s)(?:không|đừng)\s+(?:bỏ|xoá|xóa)\s+(?:món|ẩm thực)(?=\s|[.!?,;:]|$)/u.test(normalized)) return false;
   return /\b(?:remove|skip|drop|omit)\s+(?:the\s+)?food(?:\s+stop)?\b/u.test(normalized)
-    || /\b(?:bỏ|xoá|xóa)\s+(?:món|ẩm thực)\b/u.test(normalized);
+    || /(?:^|\s)(?:bỏ|xoá|xóa)\s+(?:món|ẩm thực)(?=\s|[.!?,;:]|$)/u.test(normalized);
 }
 
 function withoutFoodSelection(item: DemoPlannerItem): DemoPlannerItem {

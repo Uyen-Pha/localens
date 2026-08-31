@@ -8,13 +8,21 @@ import { FOOD_FIXTURE, createFoodFixturePlannerState } from "./food-fixture";
 const EXPECTED_FOOD_BY_LOCALE = {
   en: {
     freeAdmission: "₫0",
+    unitPriceMin: "₫45,000",
+    unitPriceMax: "₫60,000",
     unitPriceRange: "₫45,000–₫60,000",
+    groupFoodMin: "₫135,000",
+    groupFoodMax: "₫180,000",
     groupFoodRange: "₫135,000–₫180,000",
     localLensPayable: "₫0",
   },
   vi: {
     freeAdmission: "0\u00a0₫",
+    unitPriceMin: "45.000\u00a0₫",
+    unitPriceMax: "60.000\u00a0₫",
     unitPriceRange: "45.000\u00a0₫–60.000\u00a0₫",
+    groupFoodMin: "135.000\u00a0₫",
+    groupFoodMax: "180.000\u00a0₫",
     groupFoodRange: "135.000\u00a0₫–180.000\u00a0₫",
     localLensPayable: "0\u00a0₫",
   },
@@ -117,8 +125,10 @@ async function assertApprovedFoodFlow(
   await expect(stripe).toBeVisible();
   await expect(stripe.getByText(FOOD_FIXTURE.vendor[locale], { exact: true })).toHaveCount(0);
   await expect(stripe.getByText(FOOD_FIXTURE.menu[locale], { exact: true })).toHaveCount(0);
-  await expect(stripe).not.toContainText(expected.unitPriceRange);
-  await expect(stripe).not.toContainText(expected.groupFoodRange);
+  await expect(stripe).not.toContainText(expected.unitPriceMin);
+  await expect(stripe).not.toContainText(expected.unitPriceMax);
+  await expect(stripe).not.toContainText(expected.groupFoodMin);
+  await expect(stripe).not.toContainText(expected.groupFoodMax);
 }
 
 test.describe("food itinerary acceptance paths", () => {
