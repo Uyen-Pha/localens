@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
   createPortalComposition,
@@ -22,7 +22,6 @@ async function sentinel(): Promise<never> {
 function productionBindings(): PortalPortBindings {
   return {
     session: {
-      selectDemoIdentity: sentinel,
       getSession: sentinel,
       signOut: sentinel,
     },
@@ -30,7 +29,7 @@ function productionBindings(): PortalPortBindings {
       account: {
         getAccount: sentinel,
         updateAccount: sentinel,
-        listBookings: sentinel,
+        listCustomerBookings: sentinel,
         listCustomRequests: sentinel,
       },
       cancellations: {
@@ -67,7 +66,7 @@ function productionBindings(): PortalPortBindings {
         reviewPersonalizedRequest: sentinel,
       },
       bookings: {
-        listBookings: sentinel,
+        listAdminBookings: sentinel,
       },
       cancellations: {
         listCancellationRequests: sentinel,
@@ -140,18 +139,29 @@ describe("portal composition", () => {
     expect(firstStorage.getItem("unrelated")).toBe("preserve");
     expect(first.productionGap).toBe(PORTAL_PRODUCTION_GAP);
     expect(Object.isFrozen(first.productionGap)).toBe(true);
-    expect(first.customer.account).toBe(first.session);
-    expect(first.customer.cancellations).toBe(first.session);
-    expect(first.customer.reviews).toBe(first.session);
-    expect(first.guide.profile).toBe(first.session);
-    expect(first.guide.assignments).toBe(first.session);
-    expect(first.admin.users).toBe(first.session);
-    expect(first.admin.catalog).toBe(first.session);
-    expect(first.admin.personalizedRequests).toBe(first.session);
-    expect(first.admin.bookings).toBe(first.session);
-    expect(first.admin.cancellations).toBe(first.session);
-    expect(first.admin.assignments).toBe(first.session);
-    expect(first.admin.reporting).toBe(first.session);
+    expect(first.session).not.toBe(first.customer);
+    expect(first.session).not.toBe(first.guide);
+    expect(first.session).not.toBe(first.admin);
+    expect(first.customer).not.toBe(first.guide);
+    expect(first.customer).not.toBe(first.admin);
+    expect(first.guide).not.toBe(first.admin);
+    expect(first.customer.account).not.toBe(first.session);
+    expect(first.customer.cancellations).not.toBe(first.session);
+    expect(first.customer.reviews).not.toBe(first.session);
+    expect(first.guide.profile).not.toBe(first.session);
+    expect(first.guide.assignments).not.toBe(first.session);
+    expect(first.admin.users).not.toBe(first.session);
+    expect(first.admin.catalog).not.toBe(first.session);
+    expect(first.admin.personalizedRequests).not.toBe(first.session);
+    expect(first.admin.bookings).not.toBe(first.session);
+    expect(first.admin.cancellations).not.toBe(first.session);
+    expect(first.admin.assignments).not.toBe(first.session);
+    expect(first.admin.reporting).not.toBe(first.session);
+    expect(first.customer.account).toHaveProperty("listCustomerBookings");
+    expect(first.customer.account).not.toHaveProperty("listAdminBookings");
+    expect(first.customer.account).not.toHaveProperty("selectDemoIdentity");
+    expect(first.admin.bookings).toHaveProperty("listAdminBookings");
+    expect(first.admin.bookings).not.toHaveProperty("listCustomerBookings");
     await expect(first.session.selectDemoIdentity("demo-user-customer")).resolves.toMatchObject({
       role: "customer",
       demo: true,
@@ -161,12 +171,16 @@ describe("portal composition", () => {
   it("returns the exact injected production bindings without a demo fallback", () => {
     const ports = productionBindings();
     const storage = createMemorySessionStorage();
-    const composition = createPortalComposition({ mode: "production", ports, storage } as never);
+    const composition = createPortalComposition({ mode: "production", ports });
 
     expect(composition.mode).toBe("production");
     expect(composition.productionGap).toBe(PORTAL_PRODUCTION_GAP);
     expect(storage.getItem(PORTAL_DEMO_STORAGE_KEY)).toBeNull();
     expect(composition.session).toBe(ports.session);
+    expect(composition.session).not.toHaveProperty("selectDemoIdentity");
+    expect(composition).not.toHaveProperty("demo");
+    expect(composition).not.toHaveProperty("demoSession");
+    expectTypeOf(composition.session).not.toHaveProperty("selectDemoIdentity");
     expect(composition.customer).toBe(ports.customer);
     expect(composition.customer.account).toBe(ports.customer.account);
     expect(composition.customer.cancellations).toBe(ports.customer.cancellations);

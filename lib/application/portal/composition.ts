@@ -3,6 +3,7 @@ import {
   PortalError,
   type PortalMode,
   type PortalPortBindings,
+  type DemoSessionPort,
 } from "@/lib/application/portal/contracts";
 import {
   createDemoPortalRepository,
@@ -16,8 +17,9 @@ export interface PortalComposition extends PortalPortBindings {
   readonly productionGap: typeof PORTAL_PRODUCTION_GAP;
 }
 
-export type DemoPortalComposition = PortalComposition & {
+export type DemoPortalComposition = Omit<PortalComposition, "session"> & {
   readonly mode: "demo";
+  readonly session: DemoSessionPort;
   /** Resolves once the composition's deterministic demo fixture initialization has completed. */
   readonly initialized: Promise<void>;
 };
@@ -71,13 +73,13 @@ function requirePort(
 function assertCompleteProductionBindings(value: unknown): asserts value is PortalPortBindings {
   if (!isRecord(value)) productionConfiguration("are required");
 
-  requirePort(value.session, "session", ["selectDemoIdentity", "getSession", "signOut"]);
+  requirePort(value.session, "session", ["getSession", "signOut"]);
 
   if (!isRecord(value.customer)) productionConfiguration("are incomplete at customer");
   requirePort(value.customer.account, "customer.account", [
     "getAccount",
     "updateAccount",
-    "listBookings",
+    "listCustomerBookings",
     "listCustomRequests",
   ]);
   requirePort(value.customer.cancellations, "customer.cancellations", [
@@ -100,7 +102,7 @@ function assertCompleteProductionBindings(value: unknown): asserts value is Port
     "listPersonalizedRequests",
     "reviewPersonalizedRequest",
   ]);
-  requirePort(value.admin.bookings, "admin.bookings", ["listBookings"]);
+  requirePort(value.admin.bookings, "admin.bookings", ["listAdminBookings"]);
   requirePort(value.admin.cancellations, "admin.cancellations", [
     "listCancellationRequests",
     "decideCancellation",
@@ -136,11 +138,12 @@ function withCompositionMetadata<TMode extends PortalMode>(
 }
 
 function withDemoCompositionMetadata(
-  ports: PortalPortBindings,
+  ports: PortalPortBindings & { readonly session: DemoSessionPort },
   initialized: Promise<void>,
 ): DemoPortalComposition {
   return {
     ...withCompositionMetadata("demo", ports),
+    session: ports.session,
     initialized,
   };
 }
@@ -167,24 +170,9 @@ export function createPortalComposition(options: CreatePortalCompositionOptions)
   // Reset through the repository boundary during composition creation; callers can await this promise explicitly.
   const initialized = repository.reset();
   return withDemoCompositionMetadata({
-    session: repository,
-    customer: {
-      account: repository,
-      cancellations: repository,
-      reviews: repository,
-    },
-    guide: {
-      profile: repository,
-      assignments: repository,
-    },
-    admin: {
-      users: repository,
-      catalog: repository,
-      personalizedRequests: repository,
-      bookings: repository,
-      cancellations: repository,
-      assignments: repository,
-      reporting: repository,
-    },
+    session: repository.session,
+    customer: repository.customer,
+    guide: repository.guide,
+    admin: repository.admin,
   }, initialized);
 }
