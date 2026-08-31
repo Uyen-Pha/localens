@@ -437,7 +437,7 @@ SELECT
   ), '[]'::jsonb) AS audit_history
 FROM public.food_items AS item
 JOIN public.food_vendors AS vendor ON vendor.id = item.food_vendor_id
-WHERE item.status = 'draft'::public.place_status
+WHERE item.status IN ('draft'::public.place_status, 'published'::public.place_status)
   AND vendor.status IN ('draft'::public.place_status, 'published'::public.place_status)
   AND EXISTS (
     SELECT 1 FROM private.user_roles AS roles
@@ -447,28 +447,6 @@ WHERE item.status = 'draft'::public.place_status
 ALTER VIEW public.admin_food_catalog_review_v OWNER TO localens_admin_rpc_owner;
 REVOKE ALL ON public.admin_food_catalog_review_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.admin_food_catalog_review_v TO localens_admin_rpc_owner, authenticated;
-
-CREATE OR REPLACE VIEW public.admin_food_catalog_audit_v
-WITH (security_invoker = false, security_barrier = true)
-AS
-SELECT
-  events.id AS event_id,
-  events.target_id,
-  CASE WHEN events.event_type = 'request_approved'::public.audit_event_type THEN 'approved' ELSE 'rejected' END AS decision,
-  events.rejection_note,
-  events.actor_user_id,
-  events.created_at::text AS reviewed_at
-FROM private.audit_events AS events
-WHERE events.target_type = 'catalog_snapshot'::public.audit_target_type
-  AND events.event_type IN ('request_approved'::public.audit_event_type, 'request_rejected'::public.audit_event_type)
-  AND EXISTS (
-    SELECT 1 FROM private.user_roles AS roles
-    WHERE roles.user_id = (SELECT auth.uid())
-      AND roles.role = 'admin'::public.app_role
-  );
-ALTER VIEW public.admin_food_catalog_audit_v OWNER TO localens_admin_rpc_owner;
-REVOKE ALL ON public.admin_food_catalog_audit_v FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON public.admin_food_catalog_audit_v TO localens_admin_rpc_owner, authenticated;
 
 -- Read access is also guarded by the database role check. The browser can
 -- request a bounded page, while ordinary authenticated users receive 42501
@@ -492,6 +470,7 @@ BEGIN
   RETURN QUERY
   SELECT queue.*
   FROM public.admin_food_catalog_review_v AS queue
+  WHERE queue.item ->> 'status' = 'draft'
   ORDER BY queue.item_id
   LIMIT p_limit OFFSET p_offset;
 END;
@@ -507,15 +486,7 @@ CREATE OR REPLACE FUNCTION public.review_food_catalog_item(
   p_checklist jsonb,
   p_rejection_note text
 )
-RETURNS TABLE (
-  item_id uuid,
-  vendor_id uuid,
-  decision text,
-  item_status public.place_status,
-  vendor_status public.place_status,
-  audit_event_id uuid,
-  rejection_note text
-)
+RETURNS SETOF public.admin_food_catalog_review_v
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
@@ -525,7 +496,6 @@ DECLARE
   actor uuid;
   item_row public.food_items%ROWTYPE;
   vendor_row public.food_vendors%ROWTYPE;
-  audit_id uuid;
   vendor_was_draft boolean;
   target_vendor_id uuid;
   checklist_key text;
@@ -620,7 +590,7 @@ BEGIN
     'decision'::public.audit_metadata_key,
     CASE WHEN p_decision = 'sellable' THEN 'approved' ELSE 'rejected' END,
     p_rejection_note, pg_catalog.clock_timestamp()
-  ) RETURNING id INTO audit_id;
+  );
 
   IF p_decision = 'sellable' AND vendor_was_draft THEN
     INSERT INTO private.audit_events (
@@ -633,14 +603,11 @@ BEGIN
     );
   END IF;
 
-  item_id := item_row.id;
-  vendor_id := item_row.food_vendor_id;
-  decision := p_decision;
-  item_status := CASE WHEN p_decision = 'sellable' THEN 'published'::public.place_status ELSE 'draft'::public.place_status END;
-  vendor_status := CASE WHEN p_decision = 'sellable' THEN 'published'::public.place_status ELSE vendor_row.status END;
-  audit_event_id := audit_id;
-  rejection_note := p_rejection_note;
-  RETURN NEXT;
+  RETURN QUERY
+  SELECT queue.*
+  FROM public.admin_food_catalog_review_v AS queue
+  WHERE queue.item_id = item_row.id
+    AND queue.vendor_id = item_row.food_vendor_id;
 END;
 $function$;
 ALTER FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) OWNER TO localens_admin_rpc_owner;

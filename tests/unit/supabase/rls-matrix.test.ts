@@ -64,6 +64,8 @@ describe("Task 13 RLS/RPC access matrix", () => {
     expect(migration).toMatch(/closed\s+IS\s+FALSE[\s\S]*?food_vendor_opening_exception_windows/i);
     expect(migration).toMatch(/unnest\(item_row\.allergens\)/i);
     expect(migration).toMatch(/support\.requirement\s*=\s*listed\.allergen_name/i);
+    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.review_food_catalog_item\([\s\S]*?RETURNS SETOF public\.admin_food_catalog_review_v/i);
+    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.get_admin_food_catalog_review_queue\([\s\S]*?WHERE queue\.item ->> 'status' = 'draft'/i);
   });
 
   it("accepts CRLF generated Markdown without masking content drift", () => {
@@ -95,7 +97,7 @@ describe("Task 13 RLS/RPC access matrix", () => {
       internalFunctions: string[];
     };
     expect(matrix.tables).toHaveLength(79);
-    expect(matrix.views).toHaveLength(16);
+    expect(matrix.views).toHaveLength(15);
     expect(matrix.rpcs).toHaveLength(19);
     expect(matrix.internalFunctions.every((signature) => signature.includes("("))).toBe(true);
     expect(matrix.rpcs.every((rpc) => rpc.signature.startsWith(`${rpc.name}(`))).toBe(true);
@@ -106,6 +108,13 @@ describe("Task 13 RLS/RPC access matrix", () => {
     ].includes(view.name))).toHaveLength(2);
     expect(matrix.tables.every((table) => table.policies.length > 0)).toBe(true);
     expect(matrix.tables.every((table) => table.forceRls === true)).toBe(true);
+  });
+
+  it("does not expose an unused unbounded direct audit view", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260831100000_food_catalog_review.sql"), "utf8");
+    const matrix = JSON.parse(readFileSync(matrixPath, "utf8")) as { views: Array<{ name: string }> };
+    expect(migration).not.toContain("admin_food_catalog_audit_v");
+    expect(matrix.views.some((view) => view.name === "public.admin_food_catalog_audit_v")).toBe(false);
   });
 
   it("records the invoker-view exception and all Edge boundary controls", () => {

@@ -165,6 +165,65 @@ describe("catalog review adapter", () => {
     }));
   });
 
+  it.each([
+    ["null", null],
+    ["empty", []],
+    ["multiple", [projectionRow(), projectionRow()]],
+    ["sparse", new Array(1)],
+    ["malformed", [{}]],
+    ["id mismatch", [projectionRow({ item_id: ids.place })]],
+    ["vendor id mismatch", [projectionRow({ vendor_id: ids.place })]],
+    ["status mismatch", [projectionRow({ item: { ...projectionRow().item as Record<string, unknown>, status: "sellable" } })]],
+  ])("rejects %s review RPC data instead of reporting success", async (_label, data) => {
+    const client = { rpc: vi.fn().mockResolvedValue({ data, error: null }) };
+    const result = await submitFoodCatalogReview(client, {
+      itemId: ids.item,
+      vendorId: ids.vendor,
+      decision: "research_only",
+      checklist,
+      rejectionNote: "Evidence still needs review.",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result).toMatchObject({ error: { messageKey: expect.stringMatching(/^data\.(review\.rpc_failed|adapter\.)/) } });
+  });
+
+  it("maps exactly one validated review RPC row and checks its requested identity and decision", async () => {
+    const client = { rpc: vi.fn().mockResolvedValue({ data: [projectionRow()], error: null }) };
+    const result = await submitFoodCatalogReview(client, {
+      itemId: ids.item,
+      vendorId: ids.vendor,
+      decision: "research_only",
+      checklist,
+      rejectionNote: "Evidence still needs review.",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { itemId: ids.item, vendorId: ids.vendor, item: { status: "research_only" } },
+    });
+  });
+
+  it("accepts a validated sellable projection for a sellable decision", async () => {
+    const rowAfterApproval = projectionRow({
+      vendor: { ...projectionRow().vendor as Record<string, unknown>, status: "published" },
+      item: { ...projectionRow().item as Record<string, unknown>, status: "published" },
+    });
+    const client = { rpc: vi.fn().mockResolvedValue({ data: [rowAfterApproval], error: null }) };
+    const result = await submitFoodCatalogReview(client, {
+      itemId: ids.item,
+      vendorId: ids.vendor,
+      decision: "sellable",
+      checklist,
+      rejectionNote: null,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { itemId: ids.item, vendorId: ids.vendor, item: { status: "sellable" } },
+    });
+  });
+
   it("maps the exact admin projection and preserves missing evidence as null", () => {
     const result = mapAdminFoodReviewRow(projectionRow({
       vendor: { ...projectionRow().vendor as Record<string, unknown>, source_url: null, attribution: null },

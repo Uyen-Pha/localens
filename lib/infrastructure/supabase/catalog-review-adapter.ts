@@ -727,7 +727,7 @@ export async function loadAdminFoodReviewQueue(
 export async function submitFoodCatalogReview(
   client: AdminReviewRpcClient,
   input: unknown,
-): Promise<Result<unknown, DataAdapterError>> {
+): Promise<Result<AdminFoodReviewRow, DataAdapterError>> {
   const validation = reviewFoodCatalogItem(input);
   if (!validation.ok) return validation;
   let response: unknown;
@@ -745,5 +745,18 @@ export async function submitFoodCatalogReview(
   const envelope = rpcEnvelope(response, "review_food_catalog_item");
   if (!envelope.ok) return envelope;
   if (envelope.value.error !== null) return rpcFailure("review_food_catalog_item.error");
-  return { ok: true, value: envelope.value.data };
+  const rows = denseArray(envelope.value.data, "review_food_catalog_item.data");
+  if (!rows.ok) return rows;
+  if (rows.value.length !== 1) return rpcFailure("review_food_catalog_item.data");
+  const mapped = mapAdminFoodReviewRow(rows.value[0]);
+  if (!mapped.ok) return mapped;
+  const expectedStatus = validation.value.decision === "sellable" ? "sellable" : "research_only";
+  if (
+    mapped.value.itemId !== validation.value.itemId
+    || mapped.value.vendorId !== validation.value.vendorId
+    || mapped.value.item.status !== expectedStatus
+  ) {
+    return rpcFailure("review_food_catalog_item.data");
+  }
+  return mapped;
 }

@@ -452,7 +452,11 @@ SELECT lives_ok($$SELECT * FROM public.review_food_catalog_item(
 )$$, 'rejected evidence stays research-only and records a note');
 SELECT is((SELECT status::text FROM public.food_items WHERE id = '00000000-0000-0000-0000-000000000406'::uuid), 'draft', 'rejected item remains research-only');
 SELECT is((SELECT rejection_note FROM private.audit_events WHERE target_id = '00000000-0000-0000-0000-000000000406'::uuid ORDER BY created_at DESC LIMIT 1), 'Price evidence is not verified.', 'rejection note is append-only audit data');
-SELECT is((SELECT count(*)::integer FROM public.admin_food_catalog_audit_v WHERE target_id = '00000000-0000-0000-0000-000000000406'::uuid), 1, 'admin audit projection exposes review history');
+SELECT is((
+  SELECT jsonb_array_length(audit_history)
+  FROM public.admin_food_catalog_review_v
+  WHERE item_id = '00000000-0000-0000-0000-000000000406'::uuid
+), 1, 'admin review projection exposes bounded review history');
 RESET ROLE;
 
 SET LOCAL ROLE authenticated;

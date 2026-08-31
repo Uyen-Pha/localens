@@ -1,11 +1,16 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/lib/env/public", () => ({ parsePublicEnv: vi.fn((value: unknown) => value) }));
+vi.mock("@/lib/supabase/client", () => ({ createBrowserSupabaseClient: vi.fn() }));
+
 import {
+  CatalogReviewLiveQueue,
   CatalogReviewQueue,
   type CatalogReviewQueueProps,
 } from "@/components/admin/catalog-review-queue";
 import type { AdminFoodReviewRow } from "@/lib/infrastructure/supabase/catalog-review-adapter";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 afterEach(cleanup);
 
@@ -268,6 +273,18 @@ describe("admin catalog review queue", () => {
     expect(within(card).queryByText("Review decision recorded.")).toBeNull();
   });
 
+  it("treats a resolved RPC envelope with an error field, including null, as a failure", async () => {
+    const onReview = vi.fn().mockResolvedValue({ error: null });
+    renderQueue({ onReview });
+
+    const card = screen.getByRole("article", { name: "Synthetic dish" });
+    const note = within(card).getByRole("textbox", { name: /rejection note/i });
+    fireEvent.change(note, { target: { value: "Still needs verification." } });
+    fireEvent.click(within(card).getByRole("button", { name: /keep research-only/i }));
+
+    await waitFor(() => expect(within(card).getByRole("status")).toHaveTextContent("could not be recorded"));
+  });
+
   it("resets checklist confirmations when the same row key receives changed evidence", async () => {
     const complete = {
       ...row,
@@ -304,5 +321,76 @@ describe("admin catalog review queue", () => {
     }]} viewerRole="admin" />);
 
     await waitFor(() => expect(within(screen.getByRole("article", { name: "Synthetic dish" })).getAllByRole("checkbox")[0]).not.toBeChecked());
+  });
+
+  it("removes an approved row after the validated live RPC result and safely refreshes the queue", async () => {
+    const liveRow = {
+      item_id: row.itemId,
+      vendor_id: row.vendorId,
+      place_id: row.placeId,
+      vendor: {
+        slug: "synthetic-stall",
+        title: { en: "Synthetic stall", vi: "Sạp tổng hợp" },
+        description: { en: "Synthetic vendor", vi: "Nhà bán tổng hợp" },
+        location_note: "Aisle 2",
+        service_type: "stall",
+        capacity_note: "Small groups",
+        dietary_support: { vegetarian: "supported" },
+        mobility_support: { step_free: "supported" },
+        opening_hours: [{ weekday: 1, opens_at: "08:00:00", closes_at: "12:00:00" }],
+        opening_exceptions: [],
+        status: "draft",
+        source_url: "https://example.invalid/vendor",
+        verified_at: "2026-08-28",
+        attribution: "Synthetic fixture",
+      },
+      item: {
+        slug: "synthetic-dish",
+        title: { en: "Synthetic dish", vi: "Món tổng hợp" },
+        description: { en: "Synthetic dish", vi: "Món tổng hợp" },
+        serving_unit: "portion",
+        price_vnd_min: "40000",
+        price_vnd_max: "50000",
+        portion_description: "One portion",
+        dietary_support: { vegetarian: "supported" },
+        allergen_support: { peanut: "unsupported" },
+        allergens: ["peanut"],
+        available: true,
+        status: "draft",
+        source_url: "https://example.invalid/item",
+        verified_at: "2026-08-28",
+        attribution: "Synthetic fixture",
+      },
+      audit_history: [],
+    };
+    let queueCalls = 0;
+    const rpc = vi.fn().mockImplementation((functionName: string) => {
+      if (functionName === "get_admin_food_catalog_review_queue") {
+        queueCalls += 1;
+        return Promise.resolve({ data: queueCalls === 1 ? [liveRow] : [], error: null });
+      }
+      return Promise.resolve({
+        data: [{
+          ...liveRow,
+          vendor: { ...liveRow.vendor, status: "published" },
+          item: { ...liveRow.item, status: "published" },
+        }],
+        error: null,
+      });
+    });
+    const client = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: row.itemId } }, error: null }) },
+      rpc,
+    };
+    vi.mocked(createBrowserSupabaseClient).mockReturnValue(client as unknown as ReturnType<typeof createBrowserSupabaseClient>);
+
+    render(<CatalogReviewLiveQueue locale="en" />);
+    const card = await waitFor(() => screen.getByRole("article", { name: "Synthetic dish" }));
+    for (const checkbox of within(card).getAllByRole("checkbox")) fireEvent.click(checkbox);
+    fireEvent.click(within(card).getByRole("button", { name: /approve.*sellable/i }));
+
+    await waitFor(() => expect(screen.queryByRole("article", { name: "Synthetic dish" })).toBeNull());
+    expect(rpc).toHaveBeenCalledWith("review_food_catalog_item", expect.any(Object));
+    expect(queueCalls).toBe(2);
   });
 });

@@ -1687,20 +1687,6 @@
     },
     {
       "objectType": "table",
-      "objectName": "public.admin_food_catalog_audit_v",
-      "privilege": "select",
-      "columns": [],
-      "grantee": "authenticated"
-    },
-    {
-      "objectType": "table",
-      "objectName": "public.admin_food_catalog_audit_v",
-      "privilege": "select",
-      "columns": [],
-      "grantee": "localens_admin_rpc_owner"
-    },
-    {
-      "objectType": "table",
       "objectName": "public.admin_food_catalog_review_v",
       "privilege": "select",
       "columns": [],

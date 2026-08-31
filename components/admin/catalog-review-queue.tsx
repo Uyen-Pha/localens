@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import {
@@ -161,8 +161,7 @@ function defaultReview(): Promise<never> {
 
 function resolvedError(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
-  const error = (value as Record<string, unknown>).error;
-  return error !== null && error !== undefined;
+  return Object.prototype.hasOwnProperty.call(value, "error");
 }
 
 function ReviewCard({
@@ -415,6 +414,7 @@ export function CatalogReviewLiveQueue({ locale }: { locale: Locale }) {
   const [client, setClient] = useState<AdminReviewQueueClient | null>(null);
   const [state, setState] = useState<LiveQueueState>({ status: "loading", rows: [], page: 0, hasMore: false });
   const [loadingMore, setLoadingMore] = useState(false);
+  const loadVersion = useRef(0);
 
   useEffect(() => {
     try {
@@ -432,8 +432,12 @@ export function CatalogReviewLiveQueue({ locale }: { locale: Locale }) {
 
   const loadPage = useCallback(async (page: number, append: boolean) => {
     if (!client) return;
+    const version = loadVersion.current + 1;
+    loadVersion.current = version;
     if (append) setLoadingMore(true);
+    else setLoadingMore(false);
     const result = await loadAdminFoodReviewQueue(client, { page, pageSize: ADMIN_REVIEW_PAGE_SIZE });
+    if (version !== loadVersion.current) return;
     if (!result.ok) {
       setState((current) => ({ ...current, status: "error" }));
       setLoadingMore(false);
@@ -467,7 +471,27 @@ export function CatalogReviewLiveQueue({ locale }: { locale: Locale }) {
   }
 
   const onReview = client
-    ? (input: ReviewFoodCatalogItemInput) => submitFoodCatalogReview(client, input)
+    ? async (input: ReviewFoodCatalogItemInput) => {
+      const result = await submitFoodCatalogReview(client, input);
+      if (result.ok) {
+        const reviewedRow = result.value;
+        const isStillResearchOnly = reviewedRow.item.status === "research_only"
+          && reviewedRow.vendor.status !== "temporarily_closed";
+        setState((current) => ({
+          ...current,
+          rows: isStillResearchOnly
+            ? current.rows.map((row) => (
+              row.itemId === reviewedRow.itemId && row.vendorId === reviewedRow.vendorId ? reviewedRow : row
+            ))
+            : current.rows.filter((row) => row.itemId !== reviewedRow.itemId || row.vendorId !== reviewedRow.vendorId),
+        }));
+        // Removing a row changes the offset of later pages. Re-fetch page 0
+        // after the immediate local removal so a subsequent load-more cannot
+        // skip the row that moved into the current page.
+        if (!isStillResearchOnly) await loadPage(0, false);
+      }
+      return result;
+    }
     : undefined;
   const onLoadMore = client && state.hasMore && !loadingMore
     ? () => loadPage(state.page + 1, true)

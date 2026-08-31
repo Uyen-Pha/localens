@@ -1143,16 +1143,6 @@
   ],
   "views": [
     {
-      "name": "public.admin_food_catalog_audit_v",
-      "owner": "localens_admin_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "apiExposure": "admin-view",
-      "securityInvoker": false,
-      "securityBarrier": true
-    },
-    {
       "name": "public.admin_audit_events_v",
       "owner": "localens_content_admin_owner",
       "readerRoles": [
@@ -1619,7 +1609,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 563,
+  "grantCount": 561,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }
