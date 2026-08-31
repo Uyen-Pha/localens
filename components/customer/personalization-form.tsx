@@ -42,6 +42,20 @@ function numericValue(formData: FormData, name: string): number {
   return Number(formData.get(name) ?? 0);
 }
 
+function durationMinutesValue(formData: FormData): number {
+  const usesSplitDuration =
+    formData.has("durationHours") || formData.has("durationAdditionalMinutes");
+
+  if (!usesSplitDuration) {
+    return numericValue(formData, "durationMinutes");
+  }
+
+  return (
+    numericValue(formData, "durationHours") * 60 +
+    numericValue(formData, "durationAdditionalMinutes")
+  );
+}
+
 export function parseBudgetAmountMinor(
   currency: "VND" | "USD",
   rawValue: unknown,
@@ -78,7 +92,7 @@ export function buildPersonalizationRequest(formData: FormData): Personalization
 
   return {
     startAt: `${String(formData.get("startDate") ?? "")}T${String(formData.get("startTime") ?? "")}:00+07:00`,
-    durationMinutes: numericValue(formData, "durationMinutes"),
+    durationMinutes: durationMinutesValue(formData),
     areas: formData.getAll("areas").map(String),
     budget: {
       currency,
@@ -121,12 +135,26 @@ export function PersonalizationForm({
     const hasDate = String(formData.get("startDate") ?? "").length > 0;
     const hasTime = String(formData.get("startTime") ?? "").length > 0;
     const hasArea = formData.getAll("areas").length > 0;
-    const durationMinutes = numericValue(formData, "durationMinutes");
+    const durationHours = numericValue(formData, "durationHours");
+    const durationAdditionalMinutes = numericValue(
+      formData,
+      "durationAdditionalMinutes",
+    );
+    const durationMinutes = durationMinutesValue(formData);
     const partySize = numericValue(formData, "partySize");
     const currency = String(formData.get("budgetCurrency") ?? "VND");
     const amountMinor = parseBudgetAmountMinor(currency as "VND" | "USD", formData.get("budgetAmount"));
     const hasValidDuration =
-      Number.isInteger(durationMinutes) && durationMinutes >= 60 && durationMinutes <= 720;
+      Number.isInteger(durationHours) &&
+      durationHours >= 0 &&
+      durationHours <= 12 &&
+      Number.isInteger(durationAdditionalMinutes) &&
+      durationAdditionalMinutes >= 0 &&
+      durationAdditionalMinutes <= 45 &&
+      durationAdditionalMinutes % 15 === 0 &&
+      Number.isInteger(durationMinutes) &&
+      durationMinutes >= 60 &&
+      durationMinutes <= 720;
     const hasValidPartySize =
       Number.isSafeInteger(partySize) && partySize >= 1 && partySize <= 20;
     const hasValidBudget =
@@ -178,11 +206,20 @@ export function PersonalizationForm({
   return (
     <form className="personalization-form personalization-form--editorial" aria-label={copy.formLabel} onSubmit={handleSubmit}>
       <div className="personalization-form__grid">
-        <label className="field">
-          <span>{copy.durationLabel}</span>
-          <input name="durationMinutes" type="number" min={60} max={720} step={15} defaultValue={180} required aria-label={copy.durationLabel} aria-describedby="duration-hint" />
+        <fieldset className="duration-field" aria-describedby="duration-hint">
+          <legend>{copy.durationLabel}</legend>
+          <div className="duration-field__inputs">
+            <label className="field">
+              <span>{copy.durationHoursLabel}</span>
+              <input name="durationHours" type="number" min={0} max={12} step={1} defaultValue={3} required />
+            </label>
+            <label className="field">
+              <span>{copy.durationMinutesLabel}</span>
+              <input name="durationAdditionalMinutes" type="number" min={0} max={45} step={15} defaultValue={0} required />
+            </label>
+          </div>
           <small id="duration-hint">{copy.durationHint}</small>
-        </label>
+        </fieldset>
 
         <label className="field">
           <span>{copy.budgetLabel}</span>

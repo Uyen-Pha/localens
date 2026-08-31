@@ -22,6 +22,9 @@ describe("localized dictionaries", () => {
       "Arched facade of Saigon Central Post Office",
     );
     expect(dictionary.home.heroCoordinates).toBe("10.8231° N · 106.6297° E");
+    expect(dictionary.home.personalizationForm.durationLabel).toBe("How much time do you have?");
+    expect(dictionary.home.personalizationForm.durationHoursLabel).toBe("Hours");
+    expect(dictionary.home.personalizationForm.durationMinutesLabel).toBe("Minutes");
     expect(dictionary.home.experienceCategories.map(({ key }) => key)).toEqual([
       "street_food",
       "history",
@@ -51,6 +54,9 @@ describe("localized dictionaries", () => {
       "Mặt tiền mái vòm Bưu điện Trung tâm Sài Gòn",
     );
     expect(dictionary.home.heroCoordinates).toBe("10.8231° B · 106.6297° Đ");
+    expect(dictionary.home.personalizationForm.durationLabel).toBe("Bạn có bao nhiêu thời gian?");
+    expect(dictionary.home.personalizationForm.durationHoursLabel).toBe("Giờ");
+    expect(dictionary.home.personalizationForm.durationMinutesLabel).toBe("Phút");
     expect(dictionary.home.experienceCategories.map(({ key }) => key)).toEqual([
       "street_food",
       "history",

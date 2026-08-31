@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -32,12 +32,23 @@ describe("PersonalizationForm", () => {
     expect(screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel })).toHaveClass(
       "personalization-form--editorial",
     );
-    expect(screen.getByLabelText(dictionary.home.personalizationForm.durationLabel)).toHaveAttribute(
-      "name",
-      "durationMinutes",
+    const durationGroup = screen.getByRole("group", {
+      name: dictionary.home.personalizationForm.durationLabel,
+    });
+    const durationHours = within(durationGroup).getByLabelText(
+      dictionary.home.personalizationForm.durationHoursLabel,
     );
-    expect(screen.getByLabelText(dictionary.home.personalizationForm.durationLabel)).toHaveAttribute("min", "60");
-    expect(screen.getByLabelText(dictionary.home.personalizationForm.durationLabel)).toHaveAttribute("max", "720");
+    const durationMinutes = within(durationGroup).getByLabelText(
+      dictionary.home.personalizationForm.durationMinutesLabel,
+    );
+    expect(durationHours).toHaveAttribute("name", "durationHours");
+    expect(durationHours).toHaveAttribute("min", "0");
+    expect(durationHours).toHaveAttribute("max", "12");
+    expect(durationMinutes).toHaveAttribute("name", "durationAdditionalMinutes");
+    expect(durationMinutes).toHaveAttribute("min", "0");
+    expect(durationMinutes).toHaveAttribute("max", "45");
+    expect(durationMinutes).toHaveAttribute("step", "15");
+    expect(durationHours.compareDocumentPosition(durationMinutes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole("group", { name: dictionary.home.personalizationForm.areasLabel })).toBeInTheDocument();
     expect(screen.getByLabelText(dictionary.home.personalizationForm.budgetLabel)).toHaveAttribute(
       "name",
@@ -119,11 +130,44 @@ describe("PersonalizationForm", () => {
     expect(screen.queryByText(dictionary.home.personalizationForm.confirmationMessage)).not.toBeInTheDocument();
   });
 
+  it("rejects split duration totals outside the one-to-twelve-hour range", () => {
+    const dictionary = getDictionary("en");
+    const copy = dictionary.home.personalizationForm;
+
+    render(<PersonalizationForm copy={copy} />);
+    const form = screen.getByRole("form", { name: copy.formLabel });
+    fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
+      target: { value: "2026-09-05" },
+    });
+    fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
+    chooseDemoMarketPriority(copy);
+
+    fireEvent.change(screen.getByLabelText(copy.durationHoursLabel), {
+      target: { value: "0" },
+    });
+    fireEvent.change(screen.getByLabelText(copy.durationMinutesLabel), {
+      target: { value: "45" },
+    });
+    fireEvent.submit(form);
+    expect(screen.getByRole("alert")).toHaveTextContent(copy.validationMessage);
+
+    fireEvent.change(screen.getByLabelText(copy.durationHoursLabel), {
+      target: { value: "12" },
+    });
+    fireEvent.change(screen.getByLabelText(copy.durationMinutesLabel), {
+      target: { value: "15" },
+    });
+    fireEvent.submit(form);
+    expect(screen.getByRole("alert")).toHaveTextContent(copy.validationMessage);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("maps controls to the itinerary request contract with an explicit HCMC offset", () => {
     const formData = new FormData();
     formData.set("startDate", "2026-09-05");
     formData.set("startTime", "09:00");
-    formData.set("durationMinutes", "180");
+    formData.set("durationHours", "4");
+    formData.set("durationAdditionalMinutes", "15");
     formData.append("areas", "district-1");
     formData.set("budgetAmount", "123.45");
     formData.set("budgetCurrency", "USD");
@@ -137,7 +181,7 @@ describe("PersonalizationForm", () => {
 
     expect(buildPersonalizationRequest(formData)).toMatchObject({
       startAt: "2026-09-05T09:00:00+07:00",
-      durationMinutes: 180,
+      durationMinutes: 255,
       areas: ["district-1"],
       budget: { currency: "USD", amountMinor: 12345 },
       partySize: 2,
@@ -204,8 +248,11 @@ describe("PersonalizationForm", () => {
     fireEvent.change(screen.getByLabelText(copy.startTimeLabel), {
       target: { value: "10:30" },
     });
-    fireEvent.change(screen.getByLabelText(copy.durationLabel), {
-      target: { value: "240" },
+    fireEvent.change(screen.getByLabelText(copy.durationHoursLabel), {
+      target: { value: "4" },
+    });
+    fireEvent.change(screen.getByLabelText(copy.durationMinutesLabel), {
+      target: { value: "0" },
     });
     fireEvent.change(screen.getByLabelText(copy.partySizeLabel), {
       target: { value: "4" },
@@ -286,7 +333,8 @@ describe("PersonalizationForm", () => {
     const formData = new FormData();
     formData.set("startDate", "2026-09-05");
     formData.set("startTime", "09:00");
-    formData.set("durationMinutes", "180");
+    formData.set("durationHours", "3");
+    formData.set("durationAdditionalMinutes", "0");
     formData.set("areas", "demo-hcmc-district-1");
     formData.set("budgetCurrency", "USD");
     formData.set("budgetAmount", "1.01");

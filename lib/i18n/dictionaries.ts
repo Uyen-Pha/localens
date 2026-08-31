@@ -247,6 +247,8 @@ export type Dictionary = {
     personalizationForm: {
       formLabel: string;
       durationLabel: string;
+      durationHoursLabel: string;
+      durationMinutesLabel: string;
       durationHint: string;
       areasLabel: string;
       areasHint: string;
@@ -569,8 +571,10 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       "Start with a few practical details. This preview keeps your preferences on this page until the planning service is connected.",
     personalizationForm: {
       formLabel: "Personalized route preferences",
-      durationLabel: "How many minutes do you have?",
-      durationHint: "Choose between 60 and 720 minutes.",
+      durationLabel: "How much time do you have?",
+      durationHoursLabel: "Hours",
+      durationMinutesLabel: "Minutes",
+      durationHint: "Enter hours first, then minutes. Total duration must be between 1 and 12 hours.",
       areasLabel: "Which areas interest you?",
       areasHint: "Choose one or more areas.",
       areaOptions: [
@@ -831,8 +835,10 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       "Bắt đầu từ vài thông tin thực tế. Bản xem trước này giữ lựa chọn trên trang cho đến khi dịch vụ lập kế hoạch được kết nối.",
     personalizationForm: {
       formLabel: "Tùy chọn lịch trình riêng",
-      durationLabel: "Bạn có bao nhiêu phút?",
-      durationHint: "Chọn từ 60 đến 720 phút.",
+      durationLabel: "Bạn có bao nhiêu thời gian?",
+      durationHoursLabel: "Giờ",
+      durationMinutesLabel: "Phút",
+      durationHint: "Nhập giờ trước, rồi đến phút. Tổng thời lượng phải từ 1 đến 12 giờ.",
       areasLabel: "Bạn quan tâm khu vực nào?",
       areasHint: "Chọn một hoặc nhiều khu vực.",
       areaOptions: [
