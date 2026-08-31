@@ -499,6 +499,7 @@ DECLARE
   vendor_was_draft boolean;
   target_vendor_id uuid;
   checklist_key text;
+  returned_rows integer;
 BEGIN
   actor := private.assert_catalog_review_admin();
   IF p_item_id IS NULL OR p_decision IS NULL OR p_decision NOT IN ('research_only', 'sellable') THEN
@@ -566,6 +567,12 @@ BEGIN
   IF item_row.status <> 'draft'::public.place_status THEN
     RAISE EXCEPTION 'food catalog review target is not research-only' USING ERRCODE = '23514';
   END IF;
+  -- The projection intentionally excludes archived/temporarily-closed
+  -- vendors. Reject before any status transition or audit insert so a stale
+  -- parent cannot produce a successful write followed by an empty response.
+  IF vendor_row.status NOT IN ('draft'::public.place_status, 'published'::public.place_status) THEN
+    RAISE EXCEPTION 'food catalog review vendor is not reviewable' USING ERRCODE = '23514';
+  END IF;
   vendor_was_draft := vendor_row.status = 'draft'::public.place_status;
 
   IF p_decision = 'sellable' THEN
@@ -608,6 +615,10 @@ BEGIN
   FROM public.admin_food_catalog_review_v AS queue
   WHERE queue.item_id = item_row.id
     AND queue.vendor_id = item_row.food_vendor_id;
+  GET DIAGNOSTICS returned_rows = ROW_COUNT;
+  IF returned_rows <> 1 THEN
+    RAISE EXCEPTION 'food catalog review result is invalid' USING ERRCODE = 'P0001';
+  END IF;
 END;
 $function$;
 ALTER FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) OWNER TO localens_admin_rpc_owner;

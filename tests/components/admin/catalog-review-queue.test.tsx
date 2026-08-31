@@ -85,7 +85,7 @@ describe("admin catalog review queue", () => {
   });
 
   it("requires every confirmation before calling the guarded sellable action", async () => {
-    const onReview = vi.fn().mockResolvedValue({ ok: true });
+    const onReview = vi.fn().mockResolvedValue({ ok: true, value: row });
     const complete = {
       ...row,
       vendor: {
@@ -164,7 +164,7 @@ describe("admin catalog review queue", () => {
   });
 
   it("requires and submits a rejection note without changing the row to sellable", () => {
-    const onReview = vi.fn().mockResolvedValue({ ok: true });
+    const onReview = vi.fn().mockResolvedValue({ ok: true, value: row });
     renderQueue({ onReview });
 
     const card = screen.getByRole("article", { name: "Synthetic dish" });
@@ -285,6 +285,28 @@ describe("admin catalog review queue", () => {
     await waitFor(() => expect(within(card).getByRole("status")).toHaveTextContent("could not be recorded"));
   });
 
+  const malformedReviewResults: Array<[string, unknown]> = [
+    ["undefined", undefined],
+    ["null", null],
+    ["malformed object", { message: "not a Result" }],
+    ["false result without error", { ok: false }],
+    ["success without validated value", { ok: true }],
+    ["success with null value", { ok: true, value: null }],
+  ];
+
+  it.each(malformedReviewResults)("treats %s callback results as failed review actions", async (_label, result) => {
+    const onReview = vi.fn().mockReturnValue(result);
+    renderQueue({ onReview });
+
+    const card = screen.getByRole("article", { name: "Synthetic dish" });
+    const note = within(card).getByRole("textbox", { name: /rejection note/i });
+    fireEvent.change(note, { target: { value: "Still needs verification." } });
+    fireEvent.click(within(card).getByRole("button", { name: /keep research-only/i }));
+
+    await waitFor(() => expect(within(card).getByRole("status")).toHaveTextContent("could not be recorded"));
+    expect(within(card).queryByText("Review decision recorded.")).toBeNull();
+  });
+
   it("resets checklist confirmations when the same row key receives changed evidence", async () => {
     const complete = {
       ...row,
@@ -391,6 +413,91 @@ describe("admin catalog review queue", () => {
 
     await waitFor(() => expect(screen.queryByRole("article", { name: "Synthetic dish" })).toBeNull());
     expect(rpc).toHaveBeenCalledWith("review_food_catalog_item", expect.any(Object));
+    expect(queueCalls).toBe(2);
+  });
+
+  it("blocks load more while the post-review page zero refresh is pending", async () => {
+    const rawRows = Array.from({ length: 25 }, (_, index) => {
+      const itemId = `00000000-0000-0000-0000-${String(402 + index).padStart(12, "0")}`;
+      return {
+        item_id: itemId,
+        vendor_id: row.vendorId,
+        place_id: row.placeId,
+        vendor: {
+          slug: "synthetic-stall",
+          title: { en: "Synthetic stall", vi: "Sạp tổng hợp" },
+          description: { en: "Synthetic vendor", vi: "Nhà bán tổng hợp" },
+          location_note: "Aisle 2",
+          service_type: "stall",
+          capacity_note: "Small groups",
+          dietary_support: { vegetarian: "supported" },
+          mobility_support: { step_free: "supported" },
+          opening_hours: [{ weekday: 1, opens_at: "08:00:00", closes_at: "12:00:00" }],
+          opening_exceptions: [],
+          status: "draft",
+          source_url: "https://example.invalid/vendor",
+          verified_at: "2026-08-28",
+          attribution: "Synthetic fixture",
+        },
+        item: {
+          slug: `synthetic-dish-${index}`,
+          title: { en: index === 0 ? "Synthetic dish" : `Synthetic dish ${index}`, vi: "Món tổng hợp" },
+          description: { en: "Synthetic dish", vi: "Món tổng hợp" },
+          serving_unit: "portion",
+          price_vnd_min: "40000",
+          price_vnd_max: "50000",
+          portion_description: "One portion",
+          dietary_support: { vegetarian: "supported" },
+          allergen_support: { peanut: "unsupported" },
+          allergens: ["peanut"],
+          available: true,
+          status: "draft",
+          source_url: "https://example.invalid/item",
+          verified_at: "2026-08-28",
+          attribution: "Synthetic fixture",
+        },
+        audit_history: [],
+      };
+    });
+    let queueCalls = 0;
+    let resolveRefresh!: (value: { data: unknown[]; error: null }) => void;
+    const refresh = new Promise<{ data: unknown[]; error: null }>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    const rpc = vi.fn().mockImplementation((functionName: string) => {
+      if (functionName === "get_admin_food_catalog_review_queue") {
+        queueCalls += 1;
+        if (queueCalls === 1) return Promise.resolve({ data: rawRows, error: null });
+        if (queueCalls === 2) return refresh;
+        return Promise.resolve({ data: [], error: null });
+      }
+      return Promise.resolve({
+        data: [{
+          ...rawRows[0],
+          vendor: { ...rawRows[0].vendor, status: "published" },
+          item: { ...rawRows[0].item, status: "published" },
+        }],
+        error: null,
+      });
+    });
+    const client = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: row.itemId } }, error: null }) },
+      rpc,
+    };
+    vi.mocked(createBrowserSupabaseClient).mockReturnValue(client as unknown as ReturnType<typeof createBrowserSupabaseClient>);
+
+    render(<CatalogReviewLiveQueue locale="en" />);
+    const card = await waitFor(() => screen.getByRole("article", { name: "Synthetic dish" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /load more/i })).toBeInTheDocument());
+    for (const checkbox of within(card).getAllByRole("checkbox")) fireEvent.click(checkbox);
+    fireEvent.click(within(card).getByRole("button", { name: /approve.*sellable/i }));
+
+    await waitFor(() => expect(queueCalls).toBe(2));
+    expect(screen.queryByRole("button", { name: /load more/i })).toBeNull();
+    expect(rpc).not.toHaveBeenCalledWith("get_admin_food_catalog_review_queue", { p_limit: 25, p_offset: 25 });
+
+    resolveRefresh({ data: [], error: null });
+    await waitFor(() => expect(screen.queryByRole("article", { name: "Synthetic dish" })).toBeNull());
     expect(queueCalls).toBe(2);
   });
 });

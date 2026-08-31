@@ -56,6 +56,30 @@ describe("Task 13 RLS/RPC access matrix", () => {
     expect(itemLock).toBeGreaterThan(vendorLock);
   });
 
+  it("rejects a stale or archived vendor before any review write and enforces one return row", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260831100000_food_catalog_review.sql"), "utf8");
+    const start = migration.indexOf("CREATE OR REPLACE FUNCTION public.review_food_catalog_item");
+    const end = migration.indexOf("ALTER FUNCTION public.review_food_catalog_item", start);
+    const reviewRpc = migration.slice(start, end);
+    const vendorGuard = reviewRpc.indexOf("IF vendor_row.status NOT IN");
+    const firstWrite = Math.min(
+      reviewRpc.indexOf("UPDATE public.food_items"),
+      reviewRpc.indexOf("INSERT INTO private.audit_events"),
+    );
+
+    expect(vendorGuard).toBeGreaterThanOrEqual(0);
+    expect(firstWrite).toBeGreaterThan(vendorGuard);
+    expect(reviewRpc).toMatch(/vendor_row\.status NOT IN \('draft'::public\.place_status, 'published'::public\.place_status\)/i);
+    expect(reviewRpc).toMatch(/GET DIAGNOSTICS returned_rows = ROW_COUNT[\s\S]*?returned_rows <> 1/i);
+  });
+
+  it("covers the archived-vendor no-audit rejection in the rollback-only database fixture", () => {
+    const pgTap = readFileSync(join(repoRoot, "supabase", "tests", "database", "food_catalog_test.sql"), "utf8");
+    expect(pgTap).toMatch(/archived-review-stall/i);
+    expect(pgTap).toMatch(/food catalog review vendor is not reviewable/i);
+    expect(pgTap).toMatch(/archived vendor rejection writes no audit/i);
+  });
+
   it("keeps review updates narrow and revalidates exception windows and each allergen", () => {
     const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260831100000_food_catalog_review.sql"), "utf8");
     expect(migration).toMatch(/GRANT UPDATE \(status\) ON TABLE public\.food_vendors TO localens_admin_rpc_owner;/i);

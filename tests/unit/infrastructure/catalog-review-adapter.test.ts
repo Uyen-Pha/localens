@@ -224,6 +224,61 @@ describe("catalog review adapter", () => {
     });
   });
 
+  it.each([
+    ["sellable item with research-only vendor", {
+      vendor: { ...projectionRow().vendor as Record<string, unknown>, status: "draft" },
+      item: { ...projectionRow().item as Record<string, unknown>, status: "published" },
+    }],
+    ["research-only item with archived vendor", {
+      vendor: { ...projectionRow().vendor as Record<string, unknown>, status: "archived" },
+      item: { ...projectionRow().item as Record<string, unknown>, status: "draft" },
+    }],
+    ["research-only item with temporarily closed vendor", {
+      vendor: { ...projectionRow().vendor as Record<string, unknown>, status: "temporarily_closed" },
+      item: { ...projectionRow().item as Record<string, unknown>, status: "draft" },
+    }],
+  ])("rejects a %s response instead of widening the accepted status transition", async (_label, overrides) => {
+    const client = { rpc: vi.fn().mockResolvedValue({ data: [projectionRow(overrides)], error: null }) };
+    const decision = overrides.item && (overrides.item as Record<string, unknown>).status === "published"
+      ? "sellable"
+      : "research_only";
+    const result = await submitFoodCatalogReview(client, {
+      itemId: ids.item,
+      vendorId: ids.vendor,
+      decision,
+      checklist,
+      rejectionNote: decision === "research_only" ? "Vendor state is not reviewable." : null,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result).toMatchObject({ error: { messageKey: "data.review.rpc_failed" } });
+  });
+
+  it("accepts research-only output when a still-published vendor has other published items", async () => {
+    const rowAfterRejection = projectionRow({
+      vendor: { ...projectionRow().vendor as Record<string, unknown>, status: "published" },
+      item: { ...projectionRow().item as Record<string, unknown>, status: "draft" },
+    });
+    const client = { rpc: vi.fn().mockResolvedValue({ data: [rowAfterRejection], error: null }) };
+    const result = await submitFoodCatalogReview(client, {
+      itemId: ids.item,
+      vendorId: ids.vendor,
+      decision: "research_only",
+      checklist,
+      rejectionNote: "Price evidence is not verified.",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        itemId: ids.item,
+        vendorId: ids.vendor,
+        vendor: { status: "sellable" },
+        item: { status: "research_only" },
+      },
+    });
+  });
+
   it("maps the exact admin projection and preserves missing evidence as null", () => {
     const result = mapAdminFoodReviewRow(projectionRow({
       vendor: { ...projectionRow().vendor as Record<string, unknown>, source_url: null, attribution: null },

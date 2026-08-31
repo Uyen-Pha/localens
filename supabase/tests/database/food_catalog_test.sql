@@ -5,7 +5,7 @@
 -- intentionally rollback-only and contains no vendor/menu source facts.
 BEGIN;
 
-SELECT plan(147);
+SELECT plan(151);
 
 -- Every base relation is present.
 SELECT ok(to_regclass('public.food_vendors') IS NOT NULL, 'food vendors exists');
@@ -293,6 +293,26 @@ SELECT throws_ok($$INSERT INTO public.food_items (id, food_vendor_id, slug, stat
 
 INSERT INTO public.food_vendors (id, place_id, slug, status, service_type, location_note, capacity_note)
 VALUES ('00000000-0000-0000-0000-000000000405'::uuid, '00000000-0000-0000-0000-000000000201'::uuid, 'draft-target-stall', 'draft', 'stall', 'Draft target', 'Draft target');
+INSERT INTO public.food_vendors (
+  id, place_id, slug, status, service_type, location_note, capacity_note,
+  source_url, verified_at, attribution
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000409'::uuid,
+  '00000000-0000-0000-0000-000000000201'::uuid,
+  'archived-review-stall', 'archived', 'stall', 'Archived aisle', 'Archived group note',
+  'https://example.invalid/archived-vendor', DATE '2026-08-20', 'Synthetic fixture'
+);
+INSERT INTO public.food_items (
+  id, food_vendor_id, slug, status, serving_unit, portion_description, available, allergens,
+  source_url, verified_at, attribution
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000410'::uuid,
+  '00000000-0000-0000-0000-000000000409'::uuid,
+  'archived-review-dish', 'draft', 'portion', 'Archived review portion', false, '{}',
+  'https://example.invalid/archived-item', DATE '2026-08-20', 'Synthetic fixture'
+);
 SELECT throws_ok($$UPDATE public.food_items SET available = false WHERE id = '00000000-0000-0000-0000-000000000402'::uuid$$,
   '23514', NULL, 'published vendor cannot lose its sole available item');
 SELECT throws_ok($$UPDATE public.food_items SET status = 'draft' WHERE id = '00000000-0000-0000-0000-000000000402'::uuid$$,
@@ -412,6 +432,16 @@ VALUES (
 
 SET LOCAL ROLE localens_admin_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000905', true);
+SELECT is((SELECT count(*)::integer FROM private.audit_events WHERE target_id = '00000000-0000-0000-0000-000000000410'::uuid), 0, 'archived review target starts without an audit');
+SELECT throws_ok($$SELECT * FROM public.review_food_catalog_item(
+  '00000000-0000-0000-0000-000000000410'::uuid,
+  '00000000-0000-0000-0000-000000000409'::uuid,
+  'research_only',
+  '{"source_checked":true,"bilingual_name_checked":true,"location_checked":true,"hours_checked":true,"price_checked":false,"availability_checked":false,"dietary_allergen_checked":true,"mobility_checked":true}'::jsonb,
+  'Archived vendor is not reviewable.'
+)$$, '23514', 'food catalog review vendor is not reviewable', 'archived vendor is rejected before the review write');
+SELECT is((SELECT count(*)::integer FROM private.audit_events WHERE target_id = '00000000-0000-0000-0000-000000000410'::uuid), 0, 'archived vendor rejection writes no audit');
+SELECT is((SELECT status::text FROM public.food_items WHERE id = '00000000-0000-0000-0000-000000000410'::uuid), 'draft', 'archived vendor rejection leaves the item draft');
 SELECT throws_ok($$SELECT * FROM public.review_food_catalog_item(
   '00000000-0000-0000-0000-000000000406'::uuid,
   '00000000-0000-0000-0000-000000000401'::uuid,

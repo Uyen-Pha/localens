@@ -751,10 +751,14 @@ export async function submitFoodCatalogReview(
   const mapped = mapAdminFoodReviewRow(rows.value[0]);
   if (!mapped.ok) return mapped;
   const expectedStatus = validation.value.decision === "sellable" ? "sellable" : "research_only";
+  const vendorStatusMatches = validation.value.decision === "sellable"
+    ? mapped.value.vendor.status === "sellable"
+    : mapped.value.vendor.status === "sellable" || mapped.value.vendor.status === "research_only";
   if (
     mapped.value.itemId !== validation.value.itemId
     || mapped.value.vendorId !== validation.value.vendorId
     || mapped.value.item.status !== expectedStatus
+    || !vendorStatusMatches
   ) {
     return rpcFailure("review_food_catalog_item.data");
   }

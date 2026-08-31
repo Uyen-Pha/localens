@@ -10,9 +10,10 @@ import {
   submitFoodCatalogReview,
   type AdminReviewQueueClient,
   type AdminFoodReviewRow,
+  type FoodReviewStatus,
   type ReviewFoodCatalogItemInput,
 } from "@/lib/infrastructure/supabase/catalog-review-adapter";
-import type { Locale } from "@/lib/domain/data/contracts";
+import type { DataAdapterError, Locale, Result } from "@/lib/domain/data/contracts";
 import { parsePublicEnv } from "@/lib/env/public";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -22,7 +23,7 @@ export type CatalogReviewQueueProps = {
   locale: Locale;
   rows?: ReadonlyArray<AdminFoodReviewRow>;
   viewerRole?: CatalogReviewViewerRole;
-  onReview?: (input: ReviewFoodCatalogItemInput) => Promise<unknown> | unknown;
+  onReview?: CatalogReviewAction;
   hasMore?: boolean;
   onLoadMore?: () => Promise<unknown> | unknown;
   loading?: boolean;
@@ -30,6 +31,21 @@ export type CatalogReviewQueueProps = {
 
 type Checklist = ReviewFoodCatalogItemInput["checklist"];
 type EvidenceField = keyof Checklist;
+type CatalogReviewActionResult = Result<AdminFoodReviewRow, DataAdapterError>;
+type CatalogReviewAction = (input: ReviewFoodCatalogItemInput) => CatalogReviewActionResult | Promise<CatalogReviewActionResult>;
+const REVIEW_STATUS_VALUES: ReadonlyArray<FoodReviewStatus> = ["research_only", "sellable", "temporarily_closed"];
+const REVIEW_RESULT_FIELDS = ["ok", "value"] as const;
+const REVIEW_ROW_FIELDS = ["itemId", "vendorId", "placeId", "vendor", "item", "auditHistory"] as const;
+const REVIEW_VENDOR_FIELDS = [
+  "slug", "title", "description", "locationNote", "serviceType", "capacityNote",
+  "dietarySupport", "mobilitySupport", "openingHours", "openingExceptions", "status",
+  "sourceUrl", "verifiedAt", "attribution",
+] as const;
+const REVIEW_ITEM_FIELDS = [
+  "slug", "title", "description", "servingUnit", "priceVndMin", "priceVndMax",
+  "portionDescription", "dietarySupport", "allergenSupport", "allergens", "available", "status",
+  "sourceUrl", "verifiedAt", "attribution",
+] as const;
 
 const CHECKLIST_FIELDS: ReadonlyArray<{ key: EvidenceField; en: string; vi: string }> = [
   { key: "source", en: "Source and attribution", vi: "Nguồn và ghi công" },
@@ -159,9 +175,36 @@ function defaultReview(): Promise<never> {
   return Promise.reject(new Error("guarded review RPC is not configured"));
 }
 
-function resolvedError(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
-  return Object.prototype.hasOwnProperty.call(value, "error");
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasExactFields(value: Record<string, unknown>, fields: readonly string[]): boolean {
+  const keys = Object.keys(value);
+  return keys.length === fields.length && fields.every((field) => Object.prototype.hasOwnProperty.call(value, field));
+}
+
+function isValidatedReviewRow(value: unknown): value is AdminFoodReviewRow {
+  if (!isRecord(value)) return false;
+  if (!hasExactFields(value, REVIEW_ROW_FIELDS)) return false;
+  if (typeof value.itemId !== "string" || typeof value.vendorId !== "string" || typeof value.placeId !== "string") return false;
+  if (!isRecord(value.vendor) || !isRecord(value.item)) return false;
+  if (!hasExactFields(value.vendor, REVIEW_VENDOR_FIELDS) || !hasExactFields(value.item, REVIEW_ITEM_FIELDS)) return false;
+  if (!isRecord(value.vendor.title) || !isRecord(value.vendor.description)) return false;
+  if (!isRecord(value.item.title) || !isRecord(value.item.description)) return false;
+  if (!Array.isArray(value.vendor.openingHours) || !Array.isArray(value.vendor.openingExceptions)) return false;
+  if (!Array.isArray(value.item.allergens) || !Array.isArray(value.auditHistory)) return false;
+  if (!REVIEW_STATUS_VALUES.includes(value.vendor.status as FoodReviewStatus)) return false;
+  if (!REVIEW_STATUS_VALUES.includes(value.item.status as FoodReviewStatus)) return false;
+  return true;
+}
+
+function isSuccessfulReviewResult(value: unknown): value is { ok: true; value: AdminFoodReviewRow } {
+  return isRecord(value)
+    && hasExactFields(value, REVIEW_RESULT_FIELDS)
+    && value.ok === true
+    && Object.prototype.hasOwnProperty.call(value, "value")
+    && isValidatedReviewRow(value.value);
 }
 
 function ReviewCard({
@@ -171,7 +214,7 @@ function ReviewCard({
 }: {
   locale: Locale;
   row: AdminFoodReviewRow;
-  onReview: (input: ReviewFoodCatalogItemInput) => Promise<unknown> | unknown;
+  onReview: CatalogReviewAction;
 }) {
   const checks = useMemo(() => evidenceChecks(row), [row]);
   const rowContentKey = useMemo(() => JSON.stringify(row), [row]);
@@ -214,13 +257,13 @@ function ReviewCard({
       if (result && typeof (result as Promise<unknown>).then === "function") {
         void Promise.resolve(result)
           .then((resolved) => {
-            if (resolvedError(resolved)) throw new Error("review RPC returned an error");
+            if (!isSuccessfulReviewResult(resolved)) throw new Error("review RPC returned an invalid result");
             setMessage(locale === "vi" ? "Đã ghi nhận quyết định." : "Review decision recorded.");
           })
           .catch(() => setMessage(locale === "vi" ? "Không thể ghi nhận quyết định." : "The review could not be recorded."))
           .finally(() => setSubmitting(false));
       } else {
-        if (resolvedError(result)) throw new Error("review RPC returned an error");
+        if (!isSuccessfulReviewResult(result)) throw new Error("review RPC returned an invalid result");
         setMessage(locale === "vi" ? "Đã ghi nhận quyết định." : "Review decision recorded.");
         setSubmitting(false);
       }
@@ -414,6 +457,7 @@ export function CatalogReviewLiveQueue({ locale }: { locale: Locale }) {
   const [client, setClient] = useState<AdminReviewQueueClient | null>(null);
   const [state, setState] = useState<LiveQueueState>({ status: "loading", rows: [], page: 0, hasMore: false });
   const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const loadVersion = useRef(0);
 
   useEffect(() => {
@@ -434,13 +478,19 @@ export function CatalogReviewLiveQueue({ locale }: { locale: Locale }) {
     if (!client) return;
     const version = loadVersion.current + 1;
     loadVersion.current = version;
-    if (append) setLoadingMore(true);
-    else setLoadingMore(false);
+    if (append) {
+      setLoadingMore(true);
+      setRefreshing(false);
+    } else {
+      setLoadingMore(false);
+      setRefreshing(true);
+    }
     const result = await loadAdminFoodReviewQueue(client, { page, pageSize: ADMIN_REVIEW_PAGE_SIZE });
     if (version !== loadVersion.current) return;
     if (!result.ok) {
       setState((current) => ({ ...current, status: "error" }));
       setLoadingMore(false);
+      setRefreshing(false);
       return;
     }
     if (result.value.viewerRole === "admin") {
@@ -454,6 +504,7 @@ export function CatalogReviewLiveQueue({ locale }: { locale: Locale }) {
       setState({ status: "forbidden", rows: [], page: result.value.page, hasMore: false });
     }
     setLoadingMore(false);
+    setRefreshing(false);
   }, [client]);
 
   useEffect(() => {
@@ -493,7 +544,7 @@ export function CatalogReviewLiveQueue({ locale }: { locale: Locale }) {
       return result;
     }
     : undefined;
-  const onLoadMore = client && state.hasMore && !loadingMore
+  const onLoadMore = client && state.hasMore && !loadingMore && !refreshing
     ? () => loadPage(state.page + 1, true)
     : undefined;
 
@@ -506,7 +557,7 @@ export function CatalogReviewLiveQueue({ locale }: { locale: Locale }) {
         onReview={onReview}
         hasMore={state.hasMore}
         onLoadMore={onLoadMore}
-        loading={state.status === "loading" || loadingMore}
+        loading={state.status === "loading" || loadingMore || refreshing}
       />
     </>
   );
