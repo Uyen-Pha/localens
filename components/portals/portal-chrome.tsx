@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import type { DemoPortalIdentity } from "@/lib/application/portal/contracts";
 import type { Locale } from "@/lib/i18n/config";
 
@@ -29,18 +31,18 @@ export function PortalNav({
 
   return (
     <nav className={styles.localNav} aria-label={copy.brand}>
-      <a className={styles.localBrand} href={`/${locale}/`}>
+      <Link className={styles.localBrand} href={`/${locale}/`}>
         {copy.brand}
-      </a>
+      </Link>
       <div className={styles.localNavLinks}>
         {session?.role === "customer" ? (
-          <a href={`/${locale}/account/`}>{copy.accountNav}</a>
+          <Link href={`/${locale}/account/`}>{copy.accountNav}</Link>
         ) : null}
         {session?.role === "guide" ? (
-          <a href={`/${locale}/guide/`}>{copy.guideNav}</a>
+          <Link href={`/${locale}/guide/`}>{copy.guideNav}</Link>
         ) : null}
         {session?.role === "admin" ? (
-          <a href={`/${locale}/admin/`}>{copy.adminNav}</a>
+          <Link href={`/${locale}/admin/`}>{copy.adminNav}</Link>
         ) : null}
         {session ? (
           <button type="button" onClick={onSignOut}>

@@ -312,7 +312,7 @@ export function CustomerPortal({
                         </div>
                         <dl className={styles.facts}>
                           <div><dt>{copy.bookingStatus}</dt><dd>{copy.statusLabels[booking.status]}</dd></div>
-                          <div><dt>{copy.paymentStatus}</dt><dd>{booking.paymentStatus === "paid" ? copy.paid : booking.paymentStatus === null ? copy.paymentNotAvailable : copy.paymentPending}</dd></div>
+                          <div><dt>{copy.paymentStatus}</dt><dd>{booking.paymentStatus === null ? copy.paymentNotAvailable : copy.paymentStatusLabels[booking.paymentStatus]}</dd></div>
                           <div><dt>{copy.partySize}</dt><dd>{booking.partySize}</dd></div>
                           <div><dt>{copy.meetingPoint}</dt><dd>{booking.meetingPoint}</dd></div>
                           <div><dt>{copy.created}</dt><dd>{formatDate(booking.createdAt, locale)}</dd></div>

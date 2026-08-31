@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
@@ -189,9 +190,12 @@ export function AdminPortal({
     }
   }
 
-  async function saveAssignment(event: FormEvent<HTMLFormElement>, booking: AdminBookingProjection): Promise<void> {
+  async function saveAssignment(
+    event: FormEvent<HTMLFormElement>,
+    booking: AdminBookingProjection,
+    guideUserId: string,
+  ): Promise<void> {
     event.preventDefault();
-    const guideUserId = assignmentDrafts[booking.id];
     if (!guideUserId) return;
     setActionKey(`assignment:${booking.id}`);
     setActionMessage(null);
@@ -322,7 +326,7 @@ export function AdminPortal({
                     <li className={styles.requestCard} key={location.id}>
                       <div className={styles.cardTitleLine}>
                         <h3>{location.title}</h3>
-                        <span className={statusClass(location.status)}>{location.status}</span>
+                        <span className={statusClass(location.status)}>{copy.placeStatusLabels[location.status]}</span>
                       </div>
                       <p className={styles.hint}>{location.slug} · {location.locale.toUpperCase()}</p>
                     </li>
@@ -343,7 +347,7 @@ export function AdminPortal({
                   <li className={styles.requestCard} key={tour.id}>
                     <div className={styles.cardTitleLine}>
                       <h3>{titleForTour(tour)}</h3>
-                      <span className={statusClass(tour.status)}>{tour.status}</span>
+                      <span className={statusClass(tour.status)}>{copy.tourStatusLabels[tour.status]}</span>
                     </div>
                     <p className={styles.hint}>{tour.slug} · {tour.versionId}</p>
                   </li>
@@ -366,7 +370,7 @@ export function AdminPortal({
                         <tr key={departure.id}>
                           <td>{formatDate(departure.date, locale)}</td>
                           <td>{tourByVersionId.get(departure.tourVersionId)?.title ?? departure.tourVersionId}</td>
-                          <td><span className={statusClass(departure.status)}>{departure.status}</span></td>
+                          <td><span className={statusClass(departure.status)}>{copy.departureStatusLabels[departure.status]}</span></td>
                         </tr>
                       ))}
                     </tbody>
@@ -455,7 +459,7 @@ export function AdminPortal({
                         </div>
                         <dl className={styles.facts}>
                           <div><dt>{copy.bookingStatus}</dt><dd>{copy.statusLabels[booking.status]}</dd></div>
-                          <div><dt>{copy.paymentStatus}</dt><dd>{booking.paymentStatus ?? copy.paymentNotAvailable}</dd></div>
+                          <div><dt>{copy.paymentStatus}</dt><dd>{booking.paymentStatus === null ? copy.paymentNotAvailable : copy.paymentStatusLabels[booking.paymentStatus]}</dd></div>
                           <div><dt>{copy.partySize}</dt><dd>{booking.partySize}</dd></div>
                           <div><dt>{copy.role}</dt><dd>{booking.assignedGuideUserId ?? copy.noneRecorded}</dd></div>
                         </dl>
@@ -520,7 +524,7 @@ export function AdminPortal({
                           </div>
                           <span className={styles.status}>{copy.assignmentStatus}</span>
                         </div>
-                        <form className={styles.inlineForm} onSubmit={(event) => void saveAssignment(event, booking)}>
+                        <form className={styles.inlineForm} onSubmit={(event) => void saveAssignment(event, booking, selectedGuide)}>
                           <label>
                             <span>{copy.assignGuide}</span>
                             <select
@@ -571,9 +575,9 @@ export function AdminPortal({
               </dl>
               <p className={styles.notice} role="note">{copy.reportDisclosure}</p>
               <div className={styles.actions}>
-                <a className={styles.buttonSecondary + " " + styles.linkButton} href={`/${locale}/admin/catalog/`}>
+                <Link className={styles.buttonSecondary + " " + styles.linkButton} href={`/${locale}/admin/catalog/`}>
                   {copy.catalogLink}
-                </a>
+                </Link>
                 <span className={styles.hint}>{copy.catalogIntro}</span>
               </div>
             </section>

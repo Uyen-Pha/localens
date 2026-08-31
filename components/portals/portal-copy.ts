@@ -174,6 +174,28 @@ export const PORTAL_COPY = {
       cancelled: "Cancelled",
       completed: "Completed",
     },
+    placeStatusLabels: {
+      draft: "Draft",
+      published: "Published",
+      archived: "Archived",
+    },
+    tourStatusLabels: {
+      draft: "Draft",
+      published: "Published",
+      archived: "Archived",
+    },
+    departureStatusLabels: {
+      scheduled: "Scheduled",
+      sold_out: "Sold out",
+      cancelled: "Cancelled",
+      completed: "Completed",
+    },
+    paymentStatusLabels: {
+      pending: "Pending payment",
+      paid: "Paid",
+      failed: "Payment failed",
+      review: "Payment review",
+    },
     requestStatusLabels: {
       draft: "Draft",
       pending_review: "Pending review",
@@ -364,6 +386,28 @@ export const PORTAL_COPY = {
       confirmed: "Đã xác nhận",
       cancelled: "Đã hủy",
       completed: "Đã hoàn thành",
+    },
+    placeStatusLabels: {
+      draft: "Bản nháp",
+      published: "Đã xuất bản",
+      archived: "Đã lưu trữ",
+    },
+    tourStatusLabels: {
+      draft: "Bản nháp",
+      published: "Đã xuất bản",
+      archived: "Đã lưu trữ",
+    },
+    departureStatusLabels: {
+      scheduled: "Đã lên lịch",
+      sold_out: "Hết chỗ",
+      cancelled: "Đã hủy",
+      completed: "Đã hoàn thành",
+    },
+    paymentStatusLabels: {
+      pending: "Chờ thanh toán",
+      paid: "Đã thanh toán",
+      failed: "Thanh toán thất bại",
+      review: "Đang rà soát thanh toán",
     },
     requestStatusLabels: {
       draft: "Bản nháp",

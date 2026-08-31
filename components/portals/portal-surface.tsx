@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 import {
   type DemoPortalIdentity,
@@ -19,12 +21,15 @@ import { PortalNav, PortalNotice } from "@/components/portals/portal-chrome";
 import styles from "@/components/portals/portal.module.css";
 
 export type PortalRole = "customer" | "guide" | "admin";
+export type PortalNavigate = (path: string) => void;
 
 export interface PortalSurfaceProps {
   locale: Locale;
   expectedRole?: PortalRole;
   /** Injected by tests and by a future integration boundary; the route defaults to the browser singleton. */
   composition?: DemoPortalComposition;
+  /** Optional navigation seam for browser-composition tests; routes use Next soft navigation by default. */
+  navigate?: PortalNavigate;
 }
 
 type LoadState = "loading" | "ready" | "error";
@@ -108,7 +113,7 @@ function PortalLoadError({ locale, onRetry }: { locale: Locale; onRetry: () => v
   const copy = portalCopy(locale);
   return (
     <PortalFrame locale={locale} session={null} onSignOut={() => undefined}>
-      <div className={styles.centerState}>
+      <div className={styles.centerState} role="alert">
         <p className={styles.eyebrow}>{copy.demoOnly}</p>
         <h1>{copy.errorTitle}</h1>
         <p>{copy.errorMessage}</p>
@@ -126,23 +131,28 @@ export function SignInPortal({
   locale,
   composition,
   session,
+  navigate,
+  onSessionSelected,
 }: {
   locale: Locale;
   composition: DemoPortalComposition;
   session: DemoPortalIdentity | null;
+  navigate: PortalNavigate;
+  onSessionSelected: (session: DemoPortalIdentity) => void;
 }) {
   const copy = portalCopy(locale);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function selectIdentity(userId: string, role: PortalRole): Promise<void> {
+  async function selectIdentity(event: MouseEvent<HTMLAnchorElement>, userId: string, role: PortalRole): Promise<void> {
+    event.preventDefault();
+    if (selectedId !== null) return;
     setSelectedId(userId);
     setError(null);
     try {
-      await composition.session.selectDemoIdentity(userId);
-      if (typeof window !== "undefined") {
-        window.location.assign(rolePathFor({ role }, locale));
-      }
+      const nextSession = await composition.session.selectDemoIdentity(userId);
+      onSessionSelected(nextSession);
+      navigate(rolePathFor({ role }, locale));
     } catch {
       setSelectedId(null);
       setError(copy.errorMessage);
@@ -158,9 +168,9 @@ export function SignInPortal({
         <p>{copy.signInIntro}</p>
         <p className={styles.hint}>{copy.signInDisclosure}</p>
         <div className={styles.actions}>
-          <a className={`${styles.button} ${styles.buttonSecondary}`} href={`/${locale}/sign-in/`}>
+          <Link className={`${styles.button} ${styles.buttonSecondary}`} href={`/${locale}/sign-in/`}>
             {copy.chooseIdentity}
-          </a>
+          </Link>
         </div>
       </section>
 
@@ -176,14 +186,14 @@ export function SignInPortal({
             <p className={styles.eyebrow}>{roleRouteLabel(locale, identity.role)}</p>
             <h2>{identity.displayName}</h2>
             <p>{identity.email}</p>
-            <button
+            <Link
               className={styles.button}
-              type="button"
-              disabled={selectedId !== null}
-              onClick={() => void selectIdentity(identity.userId, identity.role)}
+              href={rolePathFor(identity, locale)}
+              aria-disabled={selectedId !== null}
+              onClick={(event) => void selectIdentity(event, identity.userId, identity.role)}
             >
               {selectedId === identity.userId ? copy.loading : `${copy.continueAs} ${roleRouteLabel(locale, identity.role)}`}
-            </button>
+            </Link>
           </article>
         ))}
       </div>
@@ -216,16 +226,21 @@ function AccessDeniedPortal({
         <p>{copy.accessDeniedMessage}</p>
         <p>{copy.signedInAsRole} {roleLabel(locale, session.role)}.</p>
         <div className={styles.actions}>
-          <a className={styles.button} href={rolePathFor(session, locale)}>
+          <Link className={styles.button} href={rolePathFor(session, locale)}>
             {copy.openYourPortal}
-          </a>
+          </Link>
         </div>
       </div>
     </PortalFrame>
   );
 }
 
-export function PortalSurface({ locale, expectedRole, composition: injectedComposition }: PortalSurfaceProps) {
+function PortalSurfaceContent({
+  locale,
+  expectedRole,
+  composition: injectedComposition,
+  navigate,
+}: PortalSurfaceProps & { navigate: PortalNavigate }) {
   const [composition, setComposition] = useState<DemoPortalComposition | null>(injectedComposition ?? null);
   const [session, setSession] = useState<DemoPortalIdentity | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -271,11 +286,11 @@ export function PortalSurface({ locale, expectedRole, composition: injectedCompo
   }
 
   if (expectedRole === undefined) {
-    return <SignInPortal locale={locale} composition={activeComposition} session={session} />;
+    return <SignInPortal locale={locale} composition={activeComposition} session={session} navigate={navigate} onSessionSelected={setSession} />;
   }
 
   if (session === null) {
-    return <SignInPortal locale={locale} composition={activeComposition} session={null} />;
+    return <SignInPortal locale={locale} composition={activeComposition} session={null} navigate={navigate} onSessionSelected={setSession} />;
   }
 
   if (session.role !== expectedRole) {
@@ -296,4 +311,16 @@ export function PortalSurface({ locale, expectedRole, composition: injectedCompo
     return <GuidePortal locale={locale} composition={activeComposition} session={session} onSignOut={signOut} />;
   }
   return <AdminPortal locale={locale} composition={activeComposition} session={session} onSignOut={signOut} />;
+}
+
+function RouterPortalSurface(props: PortalSurfaceProps) {
+  const router = useRouter();
+  return <PortalSurfaceContent {...props} navigate={(path) => router.push(path)} />;
+}
+
+export function PortalSurface(props: PortalSurfaceProps) {
+  if (props.navigate) {
+    return <PortalSurfaceContent {...props} navigate={props.navigate} />;
+  }
+  return <RouterPortalSurface {...props} />;
 }
