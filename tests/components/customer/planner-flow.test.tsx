@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlannerFlow } from "@/components/customer/planner-flow";
 import {
   createDemoPlannerAdapter,
+  E2E_PLANNER_STATE_SESSION_KEY,
+  type DemoPlannerState,
   type PlannerAdapter,
 } from "@/lib/application/planner/demo-planner";
 import type { ItineraryPreviewFoodSelectionDto } from "@/lib/application/api/read-only-api";
@@ -21,9 +23,51 @@ import { readCustomRequestDraftState } from "@/lib/application/planner/custom-re
 afterEach(() => {
   cleanup();
   clearPersonalizationRequest();
+  window.sessionStorage.removeItem(E2E_PLANNER_STATE_SESSION_KEY);
+  delete process.env.NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES;
 });
 
 describe("PlannerFlow", () => {
+  function injectedState(): DemoPlannerState {
+    const state = createDemoPlannerAdapter().createInitial("en");
+    return {
+      ...state,
+      current: {
+        ...state.current,
+        feedback: "Injected planner state",
+      },
+    };
+  }
+
+  it("ignores the planner fixture session when the E2E gate is off", () => {
+    window.sessionStorage.setItem(E2E_PLANNER_STATE_SESSION_KEY, JSON.stringify(injectedState()));
+
+    render(<PlannerFlow locale="en" copy={getDictionary("en").planner} />);
+
+    expect(screen.queryByText("Injected planner state")).not.toBeInTheDocument();
+  });
+
+  it("loads a strictly validated planner fixture only when the E2E gate is on", () => {
+    process.env.NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES = "1";
+    window.sessionStorage.setItem(E2E_PLANNER_STATE_SESSION_KEY, JSON.stringify(injectedState()));
+
+    render(<PlannerFlow locale="en" copy={getDictionary("en").planner} />);
+
+    expect(screen.getByText("Injected planner state")).toBeInTheDocument();
+  });
+
+  it("fails closed when an E2E planner fixture contains an unknown field", () => {
+    process.env.NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES = "1";
+    const state = injectedState() as DemoPlannerState & { unexpected?: string };
+    state.unexpected = "must be ignored";
+    window.sessionStorage.setItem(E2E_PLANNER_STATE_SESSION_KEY, JSON.stringify(state));
+
+    render(<PlannerFlow locale="en" copy={getDictionary("en").planner} />);
+
+    expect(screen.queryByText("Injected planner state")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("planner-activity")).toHaveLength(3);
+  });
+
   it("keeps editorial timeline markers and scan spacing scoped to the planner", () => {
     const stylesheet = readFileSync(
       path.resolve(process.cwd(), "app/styles/editorial-journey.css"),

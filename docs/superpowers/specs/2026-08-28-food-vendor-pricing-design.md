@@ -361,3 +361,23 @@ the venue evidence workflow:
   quantity, price range and evidence used at generation time.
 - No user-supplied vendor or price becomes `sellable` without human approval.
 
+## Task 12 implementation notes (verified 2026-08-31)
+
+- The real-route Playwright suite verifies approved EN/VI vendor and menu names,
+  whole-group quantity, unit and group price ranges, `pay_at_vendor` display,
+  research-only fail-closed behavior, locked-food refinement, and zero-food
+  museum admission.
+- A strictly validated planner snapshot seam is available only when
+  `NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES=1`; fixture catalog facts live only under
+  `tests/e2e/`. The normal route ignores the session key when the flag is off,
+  and malformed snapshots fail closed.
+- Pay-at-vendor food contributes to the displayed group estimate but not
+  `customerPayableVnd` or the Stripe Mock screen. The mock screen intentionally
+  has no charge amount. External/static servers must be built and started with
+  the fixture flag for this acceptance harness; normal production builds keep
+  it off.
+- PostgreSQL, RLS, locking, and concurrency runtime behavior remain unverified
+  when the Supabase CLI/runtime gate is unavailable. In this checkout,
+  `pnpm db:verify` reports `SUPABASE_CLI_NOT_FOUND`; static and unit evidence do
+  not replace that gate.
+

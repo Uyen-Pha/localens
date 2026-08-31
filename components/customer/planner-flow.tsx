@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import {
   demoPlannerAdapter,
+  readE2EPlannerState,
   type DemoPlannerState,
   type PlannerAdapter,
 } from "@/lib/application/planner/demo-planner";
@@ -108,6 +109,13 @@ export function PlannerFlow({
   const budgetExceeded = state.current.budgetVnd !== null && state.current.totals.groupCostMaxVnd > state.current.budgetVnd;
 
   useEffect(() => {
+    const fixture = readE2EPlannerState(locale);
+    if (fixture !== null) {
+      setHandoffStatus(fixture.preferences === null ? "missing" : "ok");
+      setState(fixture);
+      return;
+    }
+
     const handoff = readPersonalizationState();
     setHandoffStatus(handoff.status);
 

@@ -35,6 +35,9 @@ export default defineConfig({
             ? `node scripts/static-preview-server.mjs --port ${port}`
             : `pnpm dev --hostname 127.0.0.1 --port ${port}`,
           url: `${localBaseURL}/en/`,
+          env: {
+            NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES: "1",
+          },
           reuseExistingServer: false,
           timeout: 120_000,
         },
