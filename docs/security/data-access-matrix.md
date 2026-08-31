@@ -169,6 +169,7 @@ Migration owner for default privileges: postgres
 | public.create_custom_quote | localens_request_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin creates server-priced quote | browser-jwt |
 | public.fail_seo_publish | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | build marks failed | edge-internal-content-build |
 | public.finalize_seo_publish | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | build CAS finalizes release | edge-internal-content-build |
+| public.get_admin_food_catalog_review_queue | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin reads bounded food review queue | browser-jwt |
 | public.get_guide_assigned_bookings | localens_guide_projection_owner | authenticated (login=false, bypassrls=false, browser-jwt) | guide reads sanitized queue | browser-jwt |
 | public.get_live_departure_availability | localens_availability_rpc_owner | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | hold-aware published availability read | browser-anonymous-or-jwt |
 | public.publish_seo | localens_content_admin_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin creates one publishing release | browser-jwt |
@@ -280,7 +281,7 @@ Enumerated internal functions: 94. All are non-API and must use a named NOLOGIN/
 
 ## Explicit grants
 
-Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (562 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (563 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Dynamic policy semantics
 

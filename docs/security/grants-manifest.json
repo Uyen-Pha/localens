@@ -452,6 +452,13 @@
     },
     {
       "objectType": "function",
+      "objectName": "public.get_admin_food_catalog_review_queue(integer,integer)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
       "objectName": "public.get_guide_assigned_bookings()",
       "privilege": "execute",
       "columns": [],
@@ -501,7 +508,7 @@
     },
     {
       "objectType": "function",
-      "objectName": "public.review_food_catalog_item(uuid,text,jsonb,text)",
+      "objectName": "public.review_food_catalog_item(uuid,uuid,text,jsonb,text)",
       "privilege": "execute",
       "columns": [],
       "grantee": "authenticated"
@@ -2875,14 +2882,16 @@
       "objectName": "public.food_items",
       "privilege": "update",
       "columns": [],
-      "grantee": "localens_admin_rpc_owner"
+      "grantee": "localens_catalog_rpc_owner"
     },
     {
       "objectType": "table",
       "objectName": "public.food_items",
       "privilege": "update",
-      "columns": [],
-      "grantee": "localens_catalog_rpc_owner"
+      "columns": [
+        "status"
+      ],
+      "grantee": "localens_admin_rpc_owner"
     },
     {
       "objectType": "table",
@@ -3092,14 +3101,16 @@
       "objectName": "public.food_vendors",
       "privilege": "update",
       "columns": [],
-      "grantee": "localens_admin_rpc_owner"
+      "grantee": "localens_catalog_rpc_owner"
     },
     {
       "objectType": "table",
       "objectName": "public.food_vendors",
       "privilege": "update",
-      "columns": [],
-      "grantee": "localens_catalog_rpc_owner"
+      "columns": [
+        "status"
+      ],
+      "grantee": "localens_admin_rpc_owner"
     },
     {
       "objectType": "table",

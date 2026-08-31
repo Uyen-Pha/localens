@@ -95,6 +95,38 @@ export type ReviewFoodCatalogItemArgs = {
   rejectionNote: string | null;
 };
 
+/** The queue is deliberately paged so an admin response cannot grow without bound. */
+export const ADMIN_REVIEW_PAGE_SIZE = 25;
+export const MAX_ADMIN_REVIEW_PAGE_SIZE = 50;
+export const MAX_ADMIN_REVIEW_NESTED_ITEMS = 100;
+export const MAX_ADMIN_REVIEW_OFFSET = 2_147_483_000;
+
+export type AdminReviewRpcClient = {
+  rpc: (functionName: string, args: Record<string, unknown>) => Promise<unknown>;
+};
+
+export type AdminReviewQueueClient = AdminReviewRpcClient & {
+  auth: {
+    getUser: () => Promise<unknown>;
+  };
+};
+
+export type AdminFoodReviewQueue = {
+  viewerRole: "admin";
+  rows: AdminFoodReviewRow[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+};
+
+export type NonAdminFoodReviewQueue = {
+  viewerRole: "customer" | "unknown";
+  rows: [];
+  page: number;
+  pageSize: number;
+  hasMore: false;
+};
+
 type UnknownRecord = Record<string, unknown>;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -122,6 +154,31 @@ const HISTORY_FIELDS = ["event_id", "decision", "rejection_note", "actor_user_id
 const CHECKLIST_FIELDS = [
   "source", "bilingualName", "location", "hours", "price", "availability", "dietaryAllergen", "mobility",
 ] as const;
+
+type RpcEnvelope = { data: unknown; error: UnknownRecord | null };
+
+function rpcEnvelope(value: unknown, path: string): Result<RpcEnvelope, DataAdapterError> {
+  if (!isRecord(value)) return invalid("INVALID_SHAPE", "data.rpc.invalid_response", path);
+  if (!Object.prototype.hasOwnProperty.call(value, "data") || !Object.prototype.hasOwnProperty.call(value, "error")) {
+    return invalid("INVALID_SHAPE", "data.rpc.invalid_response", path);
+  }
+  if (value.error !== null && !isRecord(value.error)) return invalid("INVALID_SHAPE", "data.rpc.invalid_response", `${path}.error`);
+  return { ok: true, value: { data: value.data, error: value.error as UnknownRecord | null } };
+}
+
+function rpcErrorCode(error: UnknownRecord | null): string | null {
+  const code = error?.code;
+  return typeof code === "string" ? code : null;
+}
+
+function rpcErrorMessage(error: UnknownRecord | null): string | null {
+  const message = error?.message;
+  return typeof message === "string" ? message : null;
+}
+
+function rpcFailure(path: string): Result<never, DataAdapterError> {
+  return invalid("INVALID_SHAPE", "data.review.rpc_failed", path);
+}
 
 function invalid(
   code: DataAdapterError["code"],
@@ -251,6 +308,7 @@ function nullableBilingual(value: unknown, path: string): Result<NullableBilingu
 
 function supportRecord(value: unknown, path: string): Result<SupportRecord, DataAdapterError> {
   if (!isRecord(value)) return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
+  if (Object.keys(value).length > MAX_ADMIN_REVIEW_NESTED_ITEMS) return invalid("INVALID_SHAPE", "data.adapter.too_many_items", path);
   const result: SupportRecord = {};
   for (const [key, status] of Object.entries(value)) {
     if (
@@ -268,6 +326,7 @@ function supportRecord(value: unknown, path: string): Result<SupportRecord, Data
 
 function denseArray(value: unknown, path: string): Result<unknown[], DataAdapterError> {
   if (!Array.isArray(value)) return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", path);
+  if (value.length > MAX_ADMIN_REVIEW_NESTED_ITEMS) return invalid("INVALID_SHAPE", "data.adapter.too_many_items", path);
   for (let index = 0; index < value.length; index += 1) {
     if (!Object.prototype.hasOwnProperty.call(value, index)) return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `${path}[${index}]`);
   }
@@ -318,6 +377,7 @@ function openingExceptions(value: unknown, path: string): Result<OpeningExceptio
     const windows = denseArray(fields.value.windows, `${itemPath}.windows`);
     if (!windows.ok) return windows;
     if (fields.value.closed && windows.value.length > 0) return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `${itemPath}.windows`);
+    if (!fields.value.closed && windows.value.length === 0) return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `${itemPath}.windows`);
     const mappedWindows: Array<{ opensAt: string; closesAt: string }> = [];
     for (let windowIndex = 0; windowIndex < windows.value.length; windowIndex += 1) {
       const windowPath = `${itemPath}.windows[${windowIndex}]`;
@@ -451,6 +511,11 @@ function mapItem(value: unknown): Result<AdminFoodReviewRow["item"], DataAdapter
   if (!dietarySupport.ok) return dietarySupport;
   if (!allergenSupport.ok) return allergenSupport;
   if (!itemAllergens.ok) return itemAllergens;
+  for (const allergen of itemAllergens.value) {
+    if (!Object.prototype.hasOwnProperty.call(allergenSupport.value, allergen)) {
+      return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", `row.item.allergen_support.${allergen}`);
+    }
+  }
   if (fields.value.available !== null && typeof fields.value.available !== "boolean") return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "row.item.available");
   if (!status.ok) return status;
   if (!sourceUrl.ok) return sourceUrl;
@@ -563,4 +628,122 @@ export function reviewFoodCatalogItem(input: unknown): Result<ReviewFoodCatalogI
   if (decision === "research_only" && rejectionNote === null) return invalid("INVALID_SHAPE", "data.review.rejection_note_required", "input.rejectionNote");
   if (decision === "sellable" && rejectionNote !== null) return invalid("INVALID_SHAPE", "data.review.rejection_note_forbidden", "input.rejectionNote");
   return { ok: true, value: { itemId: itemId.value, vendorId: vendorId.value, decision, checklist: checklist.value, rejectionNote } };
+}
+
+function authenticatedUser(value: unknown): Result<boolean, DataAdapterError> {
+  if (!isRecord(value) || !Object.prototype.hasOwnProperty.call(value, "data") || !Object.prototype.hasOwnProperty.call(value, "error")) {
+    return invalid("INVALID_SHAPE", "data.rpc.invalid_response", "auth.getUser");
+  }
+  if (value.error !== null) return invalid("INVALID_SHAPE", "data.auth.failed", "auth.getUser.error");
+  if (!isRecord(value.data) || !Object.prototype.hasOwnProperty.call(value.data, "user")) {
+    return invalid("INVALID_SHAPE", "data.rpc.invalid_response", "auth.getUser.data");
+  }
+  if (value.data.user === null) return { ok: true, value: false };
+  if (!isRecord(value.data.user)) return invalid("INVALID_SHAPE", "data.rpc.invalid_response", "auth.getUser.data.user");
+  return { ok: true, value: true };
+}
+
+function pageOptions(options: { page?: number; pageSize?: number } | undefined): Result<{ page: number; pageSize: number }, DataAdapterError> {
+  const page = options?.page ?? 0;
+  const pageSize = options?.pageSize ?? ADMIN_REVIEW_PAGE_SIZE;
+  if (!Number.isSafeInteger(page) || page < 0) return invalid("INVALID_SHAPE", "data.pagination.invalid", "page");
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > MAX_ADMIN_REVIEW_PAGE_SIZE) {
+    return invalid("INVALID_SHAPE", "data.pagination.invalid", "pageSize");
+  }
+  if (page * pageSize > MAX_ADMIN_REVIEW_OFFSET) return invalid("INVALID_SHAPE", "data.pagination.invalid", "page");
+  return { ok: true, value: { page, pageSize } };
+}
+
+/**
+ * Load one bounded review page through the browser's authenticated Supabase
+ * session. The database RPC derives the admin role from private.user_roles;
+ * no JWT role or client-provided role is accepted here.
+ */
+export async function loadAdminFoodReviewQueue(
+  client: AdminReviewQueueClient,
+  options?: { page?: number; pageSize?: number },
+): Promise<Result<AdminFoodReviewQueue | NonAdminFoodReviewQueue, DataAdapterError>> {
+  const paging = pageOptions(options);
+  if (!paging.ok) return paging;
+  let authResponse: unknown;
+  try {
+    authResponse = await client.auth.getUser();
+  } catch {
+    return rpcFailure("auth.getUser");
+  }
+  const auth = authenticatedUser(authResponse);
+  if (!auth.ok) return auth;
+  if (!auth.value) {
+    return {
+      ok: true,
+      value: { viewerRole: "unknown", rows: [], page: paging.value.page, pageSize: paging.value.pageSize, hasMore: false },
+    };
+  }
+
+  let response: unknown;
+  try {
+    response = await client.rpc("get_admin_food_catalog_review_queue", {
+      p_limit: paging.value.pageSize,
+      p_offset: paging.value.page * paging.value.pageSize,
+    });
+  } catch {
+    return rpcFailure("get_admin_food_catalog_review_queue");
+  }
+  const envelope = rpcEnvelope(response, "get_admin_food_catalog_review_queue");
+  if (!envelope.ok) return envelope;
+  if (envelope.value.error !== null) {
+    const code = rpcErrorCode(envelope.value.error);
+    const message = rpcErrorMessage(envelope.value.error);
+    if (code === "42501" || message === "admin role required") {
+      return {
+        ok: true,
+        value: { viewerRole: "customer", rows: [], page: paging.value.page, pageSize: paging.value.pageSize, hasMore: false },
+      };
+    }
+    return rpcFailure("get_admin_food_catalog_review_queue.error");
+  }
+  if (!Array.isArray(envelope.value.data)) return invalid("INVALID_SHAPE", "data.rpc.invalid_response", "get_admin_food_catalog_review_queue.data");
+  if (envelope.value.data.length > paging.value.pageSize) return invalid("INVALID_SHAPE", "data.pagination.too_many_items", "get_admin_food_catalog_review_queue.data");
+
+  const rows: AdminFoodReviewRow[] = [];
+  for (let index = 0; index < envelope.value.data.length; index += 1) {
+    const mapped = mapAdminFoodReviewRow(envelope.value.data[index]);
+    if (!mapped.ok) return mapped;
+    rows.push(mapped.value);
+  }
+  return {
+    ok: true,
+    value: {
+      viewerRole: "admin",
+      rows,
+      page: paging.value.page,
+      pageSize: paging.value.pageSize,
+      hasMore: rows.length === paging.value.pageSize,
+    },
+  };
+}
+
+/** Validate a review and submit only the exact guarded RPC arguments. */
+export async function submitFoodCatalogReview(
+  client: AdminReviewRpcClient,
+  input: unknown,
+): Promise<Result<unknown, DataAdapterError>> {
+  const validation = reviewFoodCatalogItem(input);
+  if (!validation.ok) return validation;
+  let response: unknown;
+  try {
+    response = await client.rpc("review_food_catalog_item", {
+      p_item_id: validation.value.itemId,
+      p_vendor_id: validation.value.vendorId,
+      p_decision: validation.value.decision,
+      p_checklist: validation.value.checklist,
+      p_rejection_note: validation.value.rejectionNote,
+    });
+  } catch {
+    return rpcFailure("review_food_catalog_item");
+  }
+  const envelope = rpcEnvelope(response, "review_food_catalog_item");
+  if (!envelope.ok) return envelope;
+  if (envelope.value.error !== null) return rpcFailure("review_food_catalog_item.error");
+  return { ok: true, value: envelope.value.data };
 }

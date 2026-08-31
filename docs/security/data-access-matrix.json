@@ -1412,6 +1412,16 @@
       "credential": "edge-internal-content-build"
     },
     {
+      "name": "public.get_admin_food_catalog_review_queue",
+      "signature": "public.get_admin_food_catalog_review_queue(integer,integer)",
+      "owner": "localens_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "admin reads bounded food review queue",
+      "credential": "browser-jwt"
+    },
+    {
       "name": "public.get_guide_assigned_bookings",
       "signature": "public.get_guide_assigned_bookings()",
       "owner": "localens_guide_projection_owner",
@@ -1474,7 +1484,7 @@
     },
     {
       "name": "public.review_food_catalog_item",
-      "signature": "public.review_food_catalog_item(uuid,text,jsonb,text)",
+      "signature": "public.review_food_catalog_item(uuid,uuid,text,jsonb,text)",
       "owner": "localens_admin_rpc_owner",
       "readerRoles": [
         "authenticated"
@@ -1609,7 +1619,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 562,
+  "grantCount": 563,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }

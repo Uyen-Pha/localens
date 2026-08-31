@@ -5,7 +5,7 @@
 -- intentionally rollback-only and contains no vendor/menu source facts.
 BEGIN;
 
-SELECT plan(143);
+SELECT plan(147);
 
 -- Every base relation is present.
 SELECT ok(to_regclass('public.food_vendors') IS NOT NULL, 'food vendors exists');
@@ -66,6 +66,10 @@ SELECT ok((SELECT count(*) FROM pg_trigger WHERE tgname IN ('food_vendor_opening
 SELECT ok(NOT has_table_privilege('anon', 'public.food_vendors', 'SELECT') AND NOT has_table_privilege('authenticated', 'public.food_items', 'SELECT'), 'API roles cannot read food base rows');
 SELECT ok(NOT has_table_privilege('anon', 'public.food_vendors', 'INSERT') AND NOT has_table_privilege('authenticated', 'public.food_items', 'UPDATE'), 'API roles cannot write food base rows');
 SELECT ok(has_table_privilege('localens_catalog_rpc_owner', 'public.food_vendors', 'INSERT') AND has_table_privilege('localens_catalog_rpc_owner', 'public.food_items', 'UPDATE'), 'catalog owner can write food base rows');
+SELECT ok(has_column_privilege('localens_admin_rpc_owner', 'public.food_vendors', 'status', 'UPDATE')
+  AND has_column_privilege('localens_admin_rpc_owner', 'public.food_items', 'status', 'UPDATE')
+  AND NOT has_column_privilege('localens_admin_rpc_owner', 'public.food_vendors', 'slug', 'UPDATE')
+  AND NOT has_column_privilege('localens_admin_rpc_owner', 'public.food_items', 'price_vnd_min', 'UPDATE'), 'review owner can update only status columns');
 SELECT is((SELECT count(*)::integer FROM pg_policies WHERE schemaname = 'public' AND policyname = 'catalog_owner_all' AND tablename LIKE 'food_%'), 9, 'every food base table has a catalog-owner ALL policy');
 
 -- Task 3B immutable snapshot relations mirror every canonical food relation.
@@ -329,7 +333,8 @@ SELECT throws_ok($$TRUNCATE public.catalog_snapshot_food_items$$,
 -- This fixture uses only synthetic rows and rolls back with the rest of the
 -- test; it never promotes checked-in source JSON.
 SELECT ok(to_regclass('public.admin_food_catalog_review_v') IS NOT NULL, 'admin food review queue projection exists');
-SELECT ok(to_regprocedure('public.review_food_catalog_item(uuid,text,jsonb,text)') IS NOT NULL, 'guarded food review RPC exists');
+SELECT ok(to_regprocedure('public.get_admin_food_catalog_review_queue(integer,integer)') IS NOT NULL, 'bounded admin food review queue RPC exists');
+SELECT ok(to_regprocedure('public.review_food_catalog_item(uuid,uuid,text,jsonb,text)') IS NOT NULL, 'guarded food review RPC exists');
 
 INSERT INTO auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000906'::uuid, 'authenticated', 'authenticated', 'food-catalog-customer@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now())
@@ -338,10 +343,26 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000906
 SET LOCAL ROLE authenticated;
 SELECT throws_ok($$SELECT * FROM public.review_food_catalog_item(
   '00000000-0000-0000-0000-000000000406'::uuid,
+  '00000000-0000-0000-0000-000000000401'::uuid,
   'sellable',
   '{"source_checked":true,"bilingual_name_checked":true,"location_checked":true,"hours_checked":true,"price_checked":true,"availability_checked":true,"dietary_allergen_checked":true,"mobility_checked":true}'::jsonb,
   NULL
 )$$, '42501', 'admin role required', 'non-admin cannot review food evidence');
+RESET ROLE;
+
+-- A forged JWT role claim never substitutes for the server-side admin role row.
+SELECT set_config('request.jwt.claims', jsonb_build_object(
+  'sub', '00000000-0000-0000-0000-000000000906',
+  'role', 'admin'
+)::text, true);
+SET LOCAL ROLE authenticated;
+SELECT throws_ok($$SELECT * FROM public.review_food_catalog_item(
+  '00000000-0000-0000-0000-000000000406'::uuid,
+  '00000000-0000-0000-0000-000000000401'::uuid,
+  'sellable',
+  '{"source_checked":true,"bilingual_name_checked":true,"location_checked":true,"hours_checked":true,"price_checked":true,"availability_checked":true,"dietary_allergen_checked":true,"mobility_checked":true}'::jsonb,
+  NULL
+)$$, '42501', 'admin role required', 'forged JWT admin claim cannot review food evidence');
 RESET ROLE;
 
 -- The admin has a complete candidate below and an incomplete unknown-price
@@ -369,24 +390,62 @@ WHERE food_vendor_id = '00000000-0000-0000-0000-000000000401'::uuid
   AND support_kind = 'mobility'
   AND requirement = 'step_free';
 
+-- Reviewable item 408 is moved to the draft vendor so an open exception can
+-- be exercised before that vendor is published by the guarded RPC.
+INSERT INTO public.food_vendor_translations (food_vendor_id, locale, title, description) VALUES
+  ('00000000-0000-0000-0000-000000000405'::uuid, 'en', 'Draft review stall', 'Draft English stall'),
+  ('00000000-0000-0000-0000-000000000405'::uuid, 'vi', 'Sạp chờ duyệt', 'Sạp tiếng Việt chờ duyệt');
+INSERT INTO public.food_vendor_supports (food_vendor_id, support_kind, requirement, status) VALUES
+  ('00000000-0000-0000-0000-000000000405'::uuid, 'dietary', 'vegetarian', 'supported'),
+  ('00000000-0000-0000-0000-000000000405'::uuid, 'mobility', 'step_free', 'supported');
+INSERT INTO public.food_vendor_opening_hours (food_vendor_id, weekday, opens_at, closes_at)
+VALUES ('00000000-0000-0000-0000-000000000405'::uuid, 1, TIME '08:00', TIME '12:00');
+UPDATE public.food_items
+SET food_vendor_id = '00000000-0000-0000-0000-000000000405'::uuid
+WHERE id = '00000000-0000-0000-0000-000000000408'::uuid;
+INSERT INTO public.food_vendor_opening_exceptions (id, food_vendor_id, local_date, closed)
+VALUES (
+  '00000000-0000-0000-0000-000000000411'::uuid,
+  '00000000-0000-0000-0000-000000000405'::uuid,
+  DATE '2026-08-28', false
+);
+
 SET LOCAL ROLE localens_admin_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000905', true);
 SELECT throws_ok($$SELECT * FROM public.review_food_catalog_item(
   '00000000-0000-0000-0000-000000000406'::uuid,
+  '00000000-0000-0000-0000-000000000401'::uuid,
   'sellable',
   '{"source_checked":true,"bilingual_name_checked":true,"location_checked":true,"hours_checked":true,"price_checked":true,"availability_checked":true,"dietary_allergen_checked":true,"mobility_checked":true}'::jsonb,
   NULL
 )$$, '23514', 'food catalog evidence is incomplete', 'missing evidence cannot become sellable');
 SELECT is((SELECT status::text FROM public.food_items WHERE id = '00000000-0000-0000-0000-000000000406'::uuid), 'draft', 'incomplete item remains research-only');
-SELECT lives_ok($$SELECT * FROM public.review_food_catalog_item(
+SELECT throws_ok($$SELECT * FROM public.review_food_catalog_item(
   '00000000-0000-0000-0000-000000000408'::uuid,
+  '00000000-0000-0000-0000-000000000405'::uuid,
   'sellable',
   '{"source_checked":true,"bilingual_name_checked":true,"location_checked":true,"hours_checked":true,"price_checked":true,"availability_checked":true,"dietary_allergen_checked":true,"mobility_checked":true}'::jsonb,
   NULL
-)$$, 'complete evidence can move a research-only item to sellable');
+)$$, '23514', 'food catalog evidence is incomplete', 'open exception without windows cannot become sellable');
+INSERT INTO public.food_vendor_opening_exception_windows (
+  id, food_vendor_id, exception_id, opens_at, closes_at
+) VALUES (
+  '00000000-0000-0000-0000-000000000412'::uuid,
+  '00000000-0000-0000-0000-000000000405'::uuid,
+  '00000000-0000-0000-0000-000000000411'::uuid,
+  TIME '09:00', TIME '11:00'
+);
+SELECT lives_ok($$SELECT * FROM public.review_food_catalog_item(
+  '00000000-0000-0000-0000-000000000408'::uuid,
+  '00000000-0000-0000-0000-000000000405'::uuid,
+  'sellable',
+  '{"source_checked":true,"bilingual_name_checked":true,"location_checked":true,"hours_checked":true,"price_checked":true,"availability_checked":true,"dietary_allergen_checked":true,"mobility_checked":true}'::jsonb,
+  NULL
+)$$, 'complete evidence can move a research-only item to sellable after exception evidence is complete');
 SELECT is((SELECT status::text FROM public.food_items WHERE id = '00000000-0000-0000-0000-000000000408'::uuid), 'published', 'approved item becomes published in the catalog boundary');
 SELECT lives_ok($$SELECT * FROM public.review_food_catalog_item(
   '00000000-0000-0000-0000-000000000406'::uuid,
+  '00000000-0000-0000-0000-000000000401'::uuid,
   'research_only',
   '{"source_checked":true,"bilingual_name_checked":true,"location_checked":true,"hours_checked":true,"price_checked":false,"availability_checked":true,"dietary_allergen_checked":true,"mobility_checked":true}'::jsonb,
   'Price evidence is not verified.'

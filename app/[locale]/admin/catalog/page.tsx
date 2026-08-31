@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { CatalogReviewQueue } from "@/components/admin/catalog-review-queue";
+import { CatalogReviewLiveQueue } from "@/components/admin/catalog-review-queue";
 import { isLocale } from "@/lib/i18n/config";
 
 export const dynamicParams = false;
@@ -24,11 +24,6 @@ export async function generateMetadata({
   };
 }
 
-/**
- * The server boundary starts with no client-trusted role or rows. A signed-in
- * admin session can hydrate this queue through the guarded Supabase view; an
- * unknown role is deliberately fail-closed until that authority is derived.
- */
 export default async function CatalogReviewPage({
   params,
 }: {
@@ -39,7 +34,7 @@ export default async function CatalogReviewPage({
 
   return (
     <div className="admin-page admin-page--catalog-review">
-      <CatalogReviewQueue locale={locale} rows={[]} viewerRole="unknown" />
+      <CatalogReviewLiveQueue locale={locale} />
     </div>
   );
 }

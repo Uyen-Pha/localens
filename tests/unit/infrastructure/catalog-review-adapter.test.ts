@@ -1,10 +1,12 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  loadAdminFoodReviewQueue,
   mapAdminFoodReviewRow,
   reviewFoodCatalogItem,
+  submitFoodCatalogReview,
 } from "@/lib/infrastructure/supabase/catalog-review-adapter";
 
 const ids = {
@@ -68,6 +70,101 @@ const checklist = {
 };
 
 describe("catalog review adapter", () => {
+  it("loads a bounded admin page through the authenticated session and guarded queue RPC", async () => {
+    const getUser = vi.fn().mockResolvedValue({
+      data: { user: { id: ids.item } },
+      error: null,
+    });
+    const rpc = vi.fn().mockResolvedValue({ data: [projectionRow()], error: null });
+    const client = { auth: { getUser }, rpc };
+
+    const result = await loadAdminFoodReviewQueue(client, { page: 2, pageSize: 5 });
+
+    expect(getUser).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith("get_admin_food_catalog_review_queue", {
+      p_limit: 5,
+      p_offset: 10,
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      value: { viewerRole: "admin", page: 2, pageSize: 5, hasMore: false },
+    });
+  });
+
+  it("rejects an offset that cannot be represented by the guarded integer RPC", async () => {
+    const client = {
+      auth: { getUser: vi.fn() },
+      rpc: vi.fn(),
+    };
+
+    const result = await loadAdminFoodReviewQueue(client, { page: 100_000_000, pageSize: 50 });
+
+    expect(result).toMatchObject({ ok: false, error: { code: "INVALID_SHAPE", messageKey: "data.pagination.invalid" } });
+    expect(client.auth.getUser).not.toHaveBeenCalled();
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a queue response larger than the requested page", async () => {
+    const client = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: ids.item } }, error: null }) },
+      rpc: vi.fn().mockResolvedValue({ data: Array.from({ length: 6 }, () => projectionRow()), error: null }),
+    };
+
+    const result = await loadAdminFoodReviewQueue(client, { page: 0, pageSize: 5 });
+
+    expect(result).toMatchObject({ ok: false, error: { code: "INVALID_SHAPE", messageKey: "data.pagination.too_many_items" } });
+  });
+
+  it("keeps a forged or missing session fail-closed instead of treating a queue error as admin", async () => {
+    const client = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: ids.item } },
+          error: null,
+        }),
+      },
+      rpc: vi.fn().mockResolvedValue({
+        data: null,
+        error: { code: "42501", message: "admin role required" },
+      }),
+    };
+
+    const result = await loadAdminFoodReviewQueue(client, { page: 0, pageSize: 25 });
+
+    expect(result).toMatchObject({ ok: true, value: { viewerRole: "customer", rows: [] } });
+    expect(client.rpc).toHaveBeenCalledWith("get_admin_food_catalog_review_queue", {
+      p_limit: 25,
+      p_offset: 0,
+    });
+  });
+
+  it("surfaces a resolved RPC error as a failed review action", async () => {
+    const client = {
+      rpc: vi.fn().mockResolvedValue({
+        data: null,
+        error: { code: "42501", message: "admin role required" },
+      }),
+    };
+
+    const result = await submitFoodCatalogReview(client, {
+      itemId: ids.item,
+      vendorId: ids.vendor,
+      decision: "research_only",
+      checklist,
+      rejectionNote: "Evidence still needs review.",
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE", messageKey: "data.review.rpc_failed" },
+    });
+    expect(client.rpc).toHaveBeenCalledWith("review_food_catalog_item", expect.objectContaining({
+      p_item_id: ids.item,
+      p_vendor_id: ids.vendor,
+      p_decision: "research_only",
+    }));
+  });
+
   it("maps the exact admin projection and preserves missing evidence as null", () => {
     const result = mapAdminFoodReviewRow(projectionRow({
       vendor: { ...projectionRow().vendor as Record<string, unknown>, source_url: null, attribution: null },
@@ -120,6 +217,33 @@ describe("catalog review adapter", () => {
       ok: false,
       error: { code: "INVALID_TIMESTAMP" },
     });
+  });
+
+  it("rejects open exceptions without windows and bounds nested arrays", () => {
+    expect(mapAdminFoodReviewRow(projectionRow({
+      vendor: {
+        ...projectionRow().vendor as Record<string, unknown>,
+        opening_exceptions: [{ local_date: "2026-08-28", closed: false, windows: [] }],
+      },
+    })).ok).toBe(false);
+
+    const tooManyHours = Array.from({ length: 101 }, (_, weekday) => ({
+      weekday: weekday % 7,
+      opens_at: "08:00:00",
+      closes_at: "12:00:00",
+    }));
+    expect(mapAdminFoodReviewRow(projectionRow({
+      vendor: { ...projectionRow().vendor as Record<string, unknown>, opening_hours: tooManyHours },
+    })).ok).toBe(false);
+
+    const tooManyHistory = Array.from({ length: 101 }, (_, index) => ({
+      event_id: `00000000-0000-0000-0000-${String(index + 500).padStart(12, "0")}`,
+      decision: "rejected",
+      rejection_note: "Needs evidence.",
+      actor_user_id: "00000000-0000-0000-0000-000000000905",
+      reviewed_at: "2026-08-28T00:00:00Z",
+    }));
+    expect(mapAdminFoodReviewRow(projectionRow({ audit_history: tooManyHistory })).ok).toBe(false);
   });
 
   it("accepts only a fully confirmed research-only item for the sellable transition", () => {

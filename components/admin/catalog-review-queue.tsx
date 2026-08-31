@@ -1,22 +1,31 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import {
+  ADMIN_REVIEW_PAGE_SIZE,
+  loadAdminFoodReviewQueue,
   reviewFoodCatalogItem,
+  submitFoodCatalogReview,
+  type AdminReviewQueueClient,
   type AdminFoodReviewRow,
   type ReviewFoodCatalogItemInput,
 } from "@/lib/infrastructure/supabase/catalog-review-adapter";
 import type { Locale } from "@/lib/domain/data/contracts";
+import { parsePublicEnv } from "@/lib/env/public";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export type CatalogReviewViewerRole = "admin" | "customer" | "unknown";
 
 export type CatalogReviewQueueProps = {
   locale: Locale;
-  rows: ReadonlyArray<AdminFoodReviewRow>;
+  rows?: ReadonlyArray<AdminFoodReviewRow>;
   viewerRole?: CatalogReviewViewerRole;
   onReview?: (input: ReviewFoodCatalogItemInput) => Promise<unknown> | unknown;
+  hasMore?: boolean;
+  onLoadMore?: () => Promise<unknown> | unknown;
+  loading?: boolean;
 };
 
 type Checklist = ReviewFoodCatalogItemInput["checklist"];
@@ -73,6 +82,18 @@ function supportComplete(value: Record<string, string>): boolean {
   return statuses.length > 0 && statuses.every((status) => status === "supported" || status === "unsupported");
 }
 
+function exceptionEvidenceComplete(value: AdminFoodReviewRow["vendor"]["openingExceptions"]): boolean {
+  return value.every((entry) => entry.closed ? entry.windows.length === 0 : entry.windows.length > 0);
+}
+
+function allergenEvidenceComplete(row: AdminFoodReviewRow): boolean {
+  if (!supportComplete(row.item.allergenSupport)) return false;
+  return row.item.allergens.every((allergen) => {
+    const status = row.item.allergenSupport[allergen];
+    return status === "supported" || status === "unsupported";
+  });
+}
+
 function evidenceChecks(row: AdminFoodReviewRow): Checklist {
   return {
     source: provenanceComplete(row.vendor) && provenanceComplete(row.item),
@@ -80,13 +101,13 @@ function evidenceChecks(row: AdminFoodReviewRow): Checklist {
       hasText(row.vendor.title.en) && hasText(row.vendor.title.vi)
       && hasText(row.item.title.en) && hasText(row.item.title.vi),
     location: hasText(row.vendor.locationNote),
-    hours: row.vendor.openingHours.length > 0,
+    hours: row.vendor.openingHours.length > 0 && exceptionEvidenceComplete(row.vendor.openingExceptions),
     price: row.item.priceVndMin !== null && row.item.priceVndMax !== null && hasText(row.item.portionDescription),
     availability: row.item.available === true,
     dietaryAllergen:
       supportComplete(row.vendor.dietarySupport)
       && supportComplete(row.item.dietarySupport)
-      && supportComplete(row.item.allergenSupport),
+      && allergenEvidenceComplete(row),
     mobility: supportComplete(row.vendor.mobilitySupport),
   };
 }
@@ -138,6 +159,12 @@ function defaultReview(): Promise<never> {
   return Promise.reject(new Error("guarded review RPC is not configured"));
 }
 
+function resolvedError(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const error = (value as Record<string, unknown>).error;
+  return error !== null && error !== undefined;
+}
+
 function ReviewCard({
   locale,
   row,
@@ -148,12 +175,19 @@ function ReviewCard({
   onReview: (input: ReviewFoodCatalogItemInput) => Promise<unknown> | unknown;
 }) {
   const checks = useMemo(() => evidenceChecks(row), [row]);
+  const rowContentKey = useMemo(() => JSON.stringify(row), [row]);
   const [checklist, setChecklist] = useState<Checklist>(INITIAL_CHECKLIST);
   const [rejectionNote, setRejectionNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    setChecklist(INITIAL_CHECKLIST);
+    setRejectionNote("");
+    setMessage(null);
+  }, [rowContentKey]);
   const allConfirmed = Object.values(checklist).every(Boolean);
-  const canApprove = Object.values(checks).every(Boolean) && allConfirmed && !submitting;
+  const remainsResearchOnly = row.item.status === "research_only" && row.vendor.status !== "temporarily_closed";
+  const canApprove = remainsResearchOnly && Object.values(checks).every(Boolean) && allConfirmed && !submitting;
   const canReject = rejectionNote.trim().length > 0 && !submitting;
 
   function updateChecklist(key: EvidenceField, checked: boolean) {
@@ -180,10 +214,14 @@ function ReviewCard({
       const result = onReview(input);
       if (result && typeof (result as Promise<unknown>).then === "function") {
         void Promise.resolve(result)
-          .then(() => setMessage(locale === "vi" ? "Đã ghi nhận quyết định." : "Review decision recorded."))
+          .then((resolved) => {
+            if (resolvedError(resolved)) throw new Error("review RPC returned an error");
+            setMessage(locale === "vi" ? "Đã ghi nhận quyết định." : "Review decision recorded.");
+          })
           .catch(() => setMessage(locale === "vi" ? "Không thể ghi nhận quyết định." : "The review could not be recorded."))
           .finally(() => setSubmitting(false));
       } else {
+        if (resolvedError(result)) throw new Error("review RPC returned an error");
         setMessage(locale === "vi" ? "Đã ghi nhận quyết định." : "Review decision recorded.");
         setSubmitting(false);
       }
@@ -315,9 +353,12 @@ function ReviewCard({
 
 export function CatalogReviewQueue({
   locale,
-  rows,
+  rows = [],
   viewerRole = "unknown",
   onReview = defaultReview,
+  hasMore = false,
+  onLoadMore,
+  loading = false,
 }: CatalogReviewQueueProps) {
   const isAdmin = viewerRole === "admin";
   const copy = locale === "vi"
@@ -326,12 +367,20 @@ export function CatalogReviewQueue({
       intro: "Kiểm tra bằng chứng nhà cung cấp và món ăn trước khi cho phép hiển thị như dữ liệu có thể bán.",
       required: "Cần đăng nhập quản trị viên",
       empty: "Không có mục đang chờ duyệt.",
+      loading: "Đang tải hàng đợi duyệt…",
+      loadMore: "Tải thêm / Load more",
+      loadingMore: "Đang tải…",
+      loadFailed: "Không thể tải hàng đợi duyệt.",
     }
     : {
       heading: "Food catalog review",
       intro: "Check vendor and menu evidence before allowing a row to become sellable catalog data.",
       required: "Admin sign-in required",
       empty: "No catalog items are waiting for review.",
+      loading: "Loading review queue…",
+      loadMore: "Load more / Tải thêm",
+      loadingMore: "Loading…",
+      loadFailed: "The review queue could not be loaded.",
     };
 
   return (
@@ -341,9 +390,100 @@ export function CatalogReviewQueue({
         <h1 id="food-catalog-review-title">{copy.heading}</h1>
         <p>{copy.intro}</p>
       </div>
-      {!isAdmin ? <p role="alert">{copy.required}</p> : null}
-      {isAdmin && rows.length === 0 ? <p role="status">{copy.empty}</p> : null}
+      {loading ? <p role="status">{copy.loading}</p> : null}
+      {!loading && !isAdmin ? <p role="alert">{copy.required}</p> : null}
+      {!loading && isAdmin && rows.length === 0 ? <p role="status">{copy.empty}</p> : null}
       {isAdmin ? rows.map((row) => <ReviewCard key={row.itemId} locale={locale} row={row} onReview={onReview} />) : null}
+      {!loading && isAdmin && hasMore && onLoadMore ? (
+        <button type="button" className="button button--secondary" onClick={() => void onLoadMore()}>
+          {copy.loadMore}
+        </button>
+      ) : null}
     </section>
+  );
+}
+
+type LiveQueueState = {
+  status: "loading" | "ready" | "forbidden" | "error";
+  rows: AdminFoodReviewRow[];
+  page: number;
+  hasMore: boolean;
+};
+
+/** Client-connected route boundary: Supabase owns session, role, queue and writes. */
+export function CatalogReviewLiveQueue({ locale }: { locale: Locale }) {
+  const [client, setClient] = useState<AdminReviewQueueClient | null>(null);
+  const [state, setState] = useState<LiveQueueState>({ status: "loading", rows: [], page: 0, hasMore: false });
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  useEffect(() => {
+    try {
+      const env = parsePublicEnv({
+        NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+        NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+      });
+      setClient(createBrowserSupabaseClient(env) as unknown as AdminReviewQueueClient);
+    } catch {
+      setState((current) => ({ ...current, status: "error" }));
+    }
+  }, []);
+
+  const loadPage = useCallback(async (page: number, append: boolean) => {
+    if (!client) return;
+    if (append) setLoadingMore(true);
+    const result = await loadAdminFoodReviewQueue(client, { page, pageSize: ADMIN_REVIEW_PAGE_SIZE });
+    if (!result.ok) {
+      setState((current) => ({ ...current, status: "error" }));
+      setLoadingMore(false);
+      return;
+    }
+    if (result.value.viewerRole === "admin") {
+      setState((current) => ({
+        status: "ready",
+        rows: append ? [...current.rows, ...result.value.rows] : result.value.rows,
+        page: result.value.page,
+        hasMore: result.value.hasMore,
+      }));
+    } else {
+      setState({ status: "forbidden", rows: [], page: result.value.page, hasMore: false });
+    }
+    setLoadingMore(false);
+  }, [client]);
+
+  useEffect(() => {
+    if (client) void loadPage(0, false);
+  }, [client, loadPage]);
+
+  const copy = locale === "vi" ? "Không thể tải hàng đợi duyệt." : "The review queue could not be loaded.";
+  if (state.status === "error") {
+    return (
+      <>
+        <CatalogReviewQueue locale={locale} rows={[]} viewerRole="unknown" loading={false} />
+        <p role="alert">{copy}</p>
+      </>
+    );
+  }
+
+  const onReview = client
+    ? (input: ReviewFoodCatalogItemInput) => submitFoodCatalogReview(client, input)
+    : undefined;
+  const onLoadMore = client && state.hasMore && !loadingMore
+    ? () => loadPage(state.page + 1, true)
+    : undefined;
+
+  return (
+    <>
+      <CatalogReviewQueue
+        locale={locale}
+        rows={state.rows}
+        viewerRole={state.status === "ready" ? "admin" : state.status === "forbidden" ? "customer" : "unknown"}
+        onReview={onReview}
+        hasMore={state.hasMore}
+        onLoadMore={onLoadMore}
+        loading={state.status === "loading" || loadingMore}
+      />
+    </>
   );
 }

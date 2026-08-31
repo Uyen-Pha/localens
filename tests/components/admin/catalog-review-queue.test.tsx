@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -185,5 +185,124 @@ describe("admin catalog review queue", () => {
 
     expect(within(screen.getByRole("article", { name: "Synthetic dish" })).getAllByText("not verified").length).toBeGreaterThan(0);
     expect(screen.queryByText("approved")).toBeNull();
+  });
+
+  it("does not offer approval when an evidence row is no longer research-only", () => {
+    const complete = {
+      ...row,
+      vendor: {
+        ...row.vendor,
+        locationNote: "Aisle 2",
+        sourceUrl: "https://example.invalid/vendor",
+        verifiedAt: "2026-08-28",
+        attribution: "Synthetic fixture",
+        mobilitySupport: { step_free: "supported" as const },
+        openingHours: [{ weekday: 1 as const, opensAt: "08:00", closesAt: "12:00" }],
+      },
+      item: {
+        ...row.item,
+        available: true,
+        priceVndMin: "40000",
+        priceVndMax: "50000",
+        allergens: ["peanut"],
+        allergenSupport: { peanut: "unsupported" as const },
+        sourceUrl: "https://example.invalid/item",
+        verifiedAt: "2026-08-28",
+        attribution: "Synthetic fixture",
+        dietarySupport: { vegetarian: "supported" as const },
+        status: "sellable" as const,
+      },
+    };
+    renderQueue({ rows: [complete] });
+
+    const card = screen.getByRole("article", { name: "Synthetic dish" });
+    for (const checkbox of within(card).getAllByRole("checkbox")) fireEvent.click(checkbox);
+
+    expect(within(card).getByRole("button", { name: /approve.*sellable/i })).toBeDisabled();
+  });
+
+  it("requires evidence for every listed allergen and every open exception window", () => {
+    const incomplete = {
+      ...row,
+      vendor: {
+        ...row.vendor,
+        locationNote: "Aisle 2",
+        sourceUrl: "https://example.invalid/vendor",
+        verifiedAt: "2026-08-28",
+        attribution: "Synthetic fixture",
+        mobilitySupport: { step_free: "supported" as const },
+        openingHours: [{ weekday: 1 as const, opensAt: "08:00", closesAt: "12:00" }],
+        openingExceptions: [{ localDate: "2026-08-28", closed: false, windows: [] }],
+      },
+      item: {
+        ...row.item,
+        available: true,
+        priceVndMin: "40000",
+        priceVndMax: "50000",
+        allergens: ["peanut", "shellfish"],
+        allergenSupport: { peanut: "unsupported" as const },
+        sourceUrl: "https://example.invalid/item",
+        verifiedAt: "2026-08-28",
+        attribution: "Synthetic fixture",
+        dietarySupport: { vegetarian: "supported" as const },
+      },
+    };
+    renderQueue({ rows: [incomplete] });
+
+    const card = screen.getByRole("article", { name: "Synthetic dish" });
+    for (const checkbox of within(card).getAllByRole("checkbox")) fireEvent.click(checkbox);
+
+    expect(within(card).queryByRole("button", { name: /approve.*sellable/i })).toBeNull();
+  });
+
+  it("treats a resolved RPC error as a failed review rather than success", async () => {
+    const onReview = vi.fn().mockResolvedValue({ error: { code: "42501", message: "admin role required" } });
+    renderQueue({ onReview });
+
+    const card = screen.getByRole("article", { name: "Synthetic dish" });
+    const note = within(card).getByRole("textbox", { name: /rejection note/i });
+    fireEvent.change(note, { target: { value: "Still needs verification." } });
+    fireEvent.click(within(card).getByRole("button", { name: /keep research-only/i }));
+
+    await waitFor(() => expect(within(card).getByRole("status")).toHaveTextContent("could not be recorded"));
+    expect(within(card).queryByText("Review decision recorded.")).toBeNull();
+  });
+
+  it("resets checklist confirmations when the same row key receives changed evidence", async () => {
+    const complete = {
+      ...row,
+      vendor: {
+        ...row.vendor,
+        locationNote: "Aisle 2",
+        sourceUrl: "https://example.invalid/vendor",
+        verifiedAt: "2026-08-28",
+        attribution: "Synthetic fixture",
+        mobilitySupport: { step_free: "supported" as const },
+        openingHours: [{ weekday: 1 as const, opensAt: "08:00", closesAt: "12:00" }],
+      },
+      item: {
+        ...row.item,
+        available: true,
+        priceVndMin: "40000",
+        priceVndMax: "50000",
+        allergens: ["peanut"],
+        allergenSupport: { peanut: "unsupported" as const },
+        sourceUrl: "https://example.invalid/item",
+        verifiedAt: "2026-08-28",
+        attribution: "Synthetic fixture",
+        dietarySupport: { vegetarian: "supported" as const },
+      },
+    };
+    const rendered = renderQueue({ rows: [complete] });
+    const card = screen.getByRole("article", { name: "Synthetic dish" });
+    fireEvent.click(within(card).getAllByRole("checkbox")[0]);
+    expect(within(card).getAllByRole("checkbox")[0]).toBeChecked();
+
+    rendered.rerender(<CatalogReviewQueue locale="en" rows={[{
+      ...complete,
+      item: { ...complete.item, priceVndMax: "60000" },
+    }]} viewerRole="admin" />);
+
+    await waitFor(() => expect(within(screen.getByRole("article", { name: "Synthetic dish" })).getAllByRole("checkbox")[0]).not.toBeChecked());
   });
 });

@@ -64,7 +64,8 @@ GRANT SELECT ON TABLE
   public.food_vendor_opening_exception_windows, public.food_items,
   public.food_item_translations, public.food_item_supports
   TO localens_admin_rpc_owner;
-GRANT UPDATE ON TABLE public.food_vendors, public.food_items TO localens_admin_rpc_owner;
+GRANT UPDATE (status) ON TABLE public.food_vendors TO localens_admin_rpc_owner;
+GRANT UPDATE (status) ON TABLE public.food_items TO localens_admin_rpc_owner;
 
 CREATE POLICY audit_events_food_catalog_admin_insert ON private.audit_events
   FOR INSERT TO localens_admin_rpc_owner
@@ -141,11 +142,13 @@ BEGIN
     RAISE EXCEPTION 'food catalog evidence is incomplete' USING ERRCODE = '23514';
   END IF;
 
+  -- Match the writer namespace and lock parents before children. This keeps a
+  -- review serialized with catalog edits and avoids a lock-order cycle.
   PERFORM pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended('localens:food-review:vendor:' || vendor_row.id::text, 0::bigint)
+    pg_catalog.hashtextextended('localens:food-vendor:' || vendor_row.id::text, 0::bigint)
   );
   PERFORM pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended('localens:food-review:item:' || target_item_id::text, 0::bigint)
+    pg_catalog.hashtextextended('localens:food-item:' || target_item_id::text, 0::bigint)
   );
 
   -- Re-read after the locks so the remainder of the guard always evaluates
@@ -190,6 +193,27 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.food_vendor_opening_hours
     WHERE food_vendor_id = vendor_row.id
+  ) THEN
+    RAISE EXCEPTION 'food catalog evidence is incomplete' USING ERRCODE = '23514';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM public.food_vendor_opening_exceptions AS exceptions
+    WHERE exceptions.food_vendor_id = vendor_row.id
+      AND (
+        (exceptions.closed IS FALSE AND NOT EXISTS (
+          SELECT 1
+          FROM public.food_vendor_opening_exception_windows AS windows
+          WHERE windows.food_vendor_id = exceptions.food_vendor_id
+            AND windows.exception_id = exceptions.id
+        ))
+        OR (exceptions.closed IS TRUE AND EXISTS (
+          SELECT 1
+          FROM public.food_vendor_opening_exception_windows AS windows
+          WHERE windows.food_vendor_id = exceptions.food_vendor_id
+            AND windows.exception_id = exceptions.id
+        ))
+      )
   ) THEN
     RAISE EXCEPTION 'food catalog evidence is incomplete' USING ERRCODE = '23514';
   END IF;
@@ -242,6 +266,20 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'food catalog evidence is incomplete' USING ERRCODE = '23514';
   END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.unnest(item_row.allergens) AS listed(allergen_name)
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM public.food_item_supports AS support
+      WHERE support.food_item_id = item_row.id
+        AND support.support_kind = 'allergen'
+        AND support.requirement = listed.allergen_name
+        AND support.status IN ('supported', 'unsupported')
+    )
+  ) THEN
+    RAISE EXCEPTION 'food catalog evidence is incomplete' USING ERRCODE = '23514';
+  END IF;
 END;
 $function$;
 ALTER FUNCTION private.assert_food_catalog_review_complete(uuid) OWNER TO localens_catalog_guard_owner;
@@ -272,13 +310,23 @@ SELECT
     'capacity_note', vendor.capacity_note,
     'dietary_support', COALESCE((
       SELECT jsonb_object_agg(support.requirement, support.status ORDER BY support.requirement)
-      FROM public.food_vendor_supports AS support
-      WHERE support.food_vendor_id = vendor.id AND support.support_kind = 'dietary'
+      FROM LATERAL (
+        SELECT requirement, status
+        FROM public.food_vendor_supports
+        WHERE food_vendor_id = vendor.id AND support_kind = 'dietary'
+        ORDER BY requirement
+        LIMIT 100
+      ) AS support
     ), '{}'::jsonb),
     'mobility_support', COALESCE((
       SELECT jsonb_object_agg(support.requirement, support.status ORDER BY support.requirement)
-      FROM public.food_vendor_supports AS support
-      WHERE support.food_vendor_id = vendor.id AND support.support_kind = 'mobility'
+      FROM LATERAL (
+        SELECT requirement, status
+        FROM public.food_vendor_supports
+        WHERE food_vendor_id = vendor.id AND support_kind = 'mobility'
+        ORDER BY requirement
+        LIMIT 100
+      ) AS support
     ), '{}'::jsonb),
     'opening_hours', COALESCE((
       SELECT jsonb_agg(jsonb_build_object(
@@ -286,8 +334,13 @@ SELECT
         'opens_at', hours.opens_at::text,
         'closes_at', hours.closes_at::text
       ) ORDER BY hours.weekday, hours.opens_at, hours.closes_at, hours.id)
-      FROM public.food_vendor_opening_hours AS hours
-      WHERE hours.food_vendor_id = vendor.id
+      FROM LATERAL (
+        SELECT id, weekday, opens_at, closes_at
+        FROM public.food_vendor_opening_hours
+        WHERE food_vendor_id = vendor.id
+        ORDER BY weekday, opens_at, closes_at, id
+        LIMIT 100
+      ) AS hours
     ), '[]'::jsonb),
     'opening_exceptions', COALESCE((
       SELECT jsonb_agg(jsonb_build_object(
@@ -298,13 +351,23 @@ SELECT
             'opens_at', windows.opens_at::text,
             'closes_at', windows.closes_at::text
           ) ORDER BY windows.opens_at, windows.closes_at, windows.id)
-          FROM public.food_vendor_opening_exception_windows AS windows
-          WHERE windows.food_vendor_id = exceptions.food_vendor_id
-            AND windows.exception_id = exceptions.id
+          FROM LATERAL (
+            SELECT id, opens_at, closes_at
+            FROM public.food_vendor_opening_exception_windows
+            WHERE food_vendor_id = exceptions.food_vendor_id
+              AND exception_id = exceptions.id
+            ORDER BY opens_at, closes_at, id
+            LIMIT 100
+          ) AS windows
         ), '[]'::jsonb)
       ) ORDER BY exceptions.local_date, exceptions.id)
-      FROM public.food_vendor_opening_exceptions AS exceptions
-      WHERE exceptions.food_vendor_id = vendor.id
+      FROM LATERAL (
+        SELECT id, food_vendor_id, local_date, closed
+        FROM public.food_vendor_opening_exceptions
+        WHERE food_vendor_id = vendor.id
+        ORDER BY local_date, id
+        LIMIT 100
+      ) AS exceptions
     ), '[]'::jsonb),
     'status', vendor.status::text,
     'source_url', vendor.source_url,
@@ -329,15 +392,25 @@ SELECT
     'portion_description', item.portion_description,
     'dietary_support', COALESCE((
       SELECT jsonb_object_agg(support.requirement, support.status ORDER BY support.requirement)
-      FROM public.food_item_supports AS support
-      WHERE support.food_item_id = item.id AND support.support_kind = 'dietary'
+      FROM LATERAL (
+        SELECT requirement, status
+        FROM public.food_item_supports
+        WHERE food_item_id = item.id AND support_kind = 'dietary'
+        ORDER BY requirement
+        LIMIT 100
+      ) AS support
     ), '{}'::jsonb),
     'allergen_support', COALESCE((
       SELECT jsonb_object_agg(support.requirement, support.status ORDER BY support.requirement)
-      FROM public.food_item_supports AS support
-      WHERE support.food_item_id = item.id AND support.support_kind = 'allergen'
+      FROM LATERAL (
+        SELECT requirement, status
+        FROM public.food_item_supports
+        WHERE food_item_id = item.id AND support_kind = 'allergen'
+        ORDER BY requirement
+        LIMIT 100
+      ) AS support
     ), '{}'::jsonb),
-    'allergens', COALESCE(to_jsonb(item.allergens), '[]'::jsonb),
+    'allergens', CASE WHEN cardinality(item.allergens) <= 100 THEN COALESCE(to_jsonb(item.allergens), '[]'::jsonb) ELSE '[]'::jsonb END,
     'available', item.available,
     'status', item.status::text,
     'source_url', item.source_url,
@@ -352,10 +425,15 @@ SELECT
       'actor_user_id', events.actor_user_id,
       'reviewed_at', events.created_at::text
     ) ORDER BY events.created_at DESC, events.id)
-    FROM private.audit_events AS events
-    WHERE events.target_type = 'catalog_snapshot'::public.audit_target_type
-      AND events.target_id = item.id
-      AND events.event_type IN ('request_approved'::public.audit_event_type, 'request_rejected'::public.audit_event_type)
+    FROM LATERAL (
+      SELECT id, event_type, rejection_note, actor_user_id, created_at
+      FROM private.audit_events
+      WHERE target_type = 'catalog_snapshot'::public.audit_target_type
+        AND target_id = item.id
+        AND event_type IN ('request_approved'::public.audit_event_type, 'request_rejected'::public.audit_event_type)
+      ORDER BY created_at DESC, id
+      LIMIT 100
+    ) AS events
   ), '[]'::jsonb) AS audit_history
 FROM public.food_items AS item
 JOIN public.food_vendors AS vendor ON vendor.id = item.food_vendor_id
@@ -392,8 +470,39 @@ ALTER VIEW public.admin_food_catalog_audit_v OWNER TO localens_admin_rpc_owner;
 REVOKE ALL ON public.admin_food_catalog_audit_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.admin_food_catalog_audit_v TO localens_admin_rpc_owner, authenticated;
 
+-- Read access is also guarded by the database role check. The browser can
+-- request a bounded page, while ordinary authenticated users receive 42501
+-- rather than an empty result that could be mistaken for an admin queue.
+CREATE OR REPLACE FUNCTION public.get_admin_food_catalog_review_queue(
+  p_limit integer DEFAULT 25,
+  p_offset integer DEFAULT 0
+)
+RETURNS SETOF public.admin_food_catalog_review_v
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+SET statement_timeout = '5s'
+AS $function$
+BEGIN
+  PERFORM private.assert_catalog_review_admin();
+  IF p_limit IS NULL OR p_limit < 1 OR p_limit > 50
+     OR p_offset IS NULL OR p_offset < 0 OR p_offset > 2147483000 THEN
+    RAISE EXCEPTION 'invalid food catalog review pagination' USING ERRCODE = '22023';
+  END IF;
+  RETURN QUERY
+  SELECT queue.*
+  FROM public.admin_food_catalog_review_v AS queue
+  ORDER BY queue.item_id
+  LIMIT p_limit OFFSET p_offset;
+END;
+$function$;
+ALTER FUNCTION public.get_admin_food_catalog_review_queue(integer, integer) OWNER TO localens_admin_rpc_owner;
+REVOKE ALL ON FUNCTION public.get_admin_food_catalog_review_queue(integer, integer) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_admin_food_catalog_review_queue(integer, integer) TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.review_food_catalog_item(
   p_item_id uuid,
+  p_vendor_id uuid,
   p_decision text,
   p_checklist jsonb,
   p_rejection_note text
@@ -418,6 +527,7 @@ DECLARE
   vendor_row public.food_vendors%ROWTYPE;
   audit_id uuid;
   vendor_was_draft boolean;
+  target_vendor_id uuid;
   checklist_key text;
 BEGIN
   actor := private.assert_catalog_review_admin();
@@ -459,20 +569,32 @@ BEGIN
 
   SELECT item_row_source.* INTO item_row
   FROM public.food_items AS item_row_source
-  WHERE item_row_source.id = p_item_id
-  FOR UPDATE;
+  WHERE item_row_source.id = p_item_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'food catalog review target was not found' USING ERRCODE = 'P0002';
   END IF;
-  IF item_row.status <> 'draft'::public.place_status THEN
-    RAISE EXCEPTION 'food catalog review target is not research-only' USING ERRCODE = '23514';
+  IF p_vendor_id IS NULL OR item_row.food_vendor_id IS DISTINCT FROM p_vendor_id THEN
+    RAISE EXCEPTION 'food catalog review vendor does not match item' USING ERRCODE = '22023';
   END IF;
+  target_vendor_id := p_vendor_id;
+  -- Lock the parent before the child, matching every food writer advisory
+  -- lock path. Re-read the child after both locks for stale-parent safety.
   SELECT vendor_source.* INTO vendor_row
   FROM public.food_vendors AS vendor_source
-  WHERE vendor_source.id = item_row.food_vendor_id
+  WHERE vendor_source.id = target_vendor_id
   FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'food catalog review vendor was not found' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT item_row_source.* INTO item_row
+  FROM public.food_items AS item_row_source
+  WHERE item_row_source.id = p_item_id
+  FOR UPDATE;
+  IF NOT FOUND OR item_row.food_vendor_id IS DISTINCT FROM vendor_row.id THEN
+    RAISE EXCEPTION 'food catalog review vendor does not match item' USING ERRCODE = '22023';
+  END IF;
+  IF item_row.status <> 'draft'::public.place_status THEN
+    RAISE EXCEPTION 'food catalog review target is not research-only' USING ERRCODE = '23514';
   END IF;
   vendor_was_draft := vendor_row.status = 'draft'::public.place_status;
 
@@ -521,8 +643,8 @@ BEGIN
   RETURN NEXT;
 END;
 $function$;
-ALTER FUNCTION public.review_food_catalog_item(uuid, text, jsonb, text) OWNER TO localens_admin_rpc_owner;
-REVOKE ALL ON FUNCTION public.review_food_catalog_item(uuid, text, jsonb, text) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.review_food_catalog_item(uuid, text, jsonb, text) TO authenticated;
+ALTER FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) OWNER TO localens_admin_rpc_owner;
+REVOKE ALL ON FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) TO authenticated;
 
 COMMIT;

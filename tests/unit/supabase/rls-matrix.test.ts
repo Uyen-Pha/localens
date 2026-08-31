@@ -45,6 +45,27 @@ describe("Task 13 RLS/RPC access matrix", () => {
     expect(() => execFileSync(process.execPath, [join(repoRoot, "scripts", "check-supabase-artifacts.mjs"), "--root", repoRoot], { encoding: "utf8" })).not.toThrow();
   });
 
+  it("serializes review locks with the existing food writer namespace and order", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260831100000_food_catalog_review.sql"), "utf8");
+    expect(migration).not.toContain("localens:food-review:");
+    expect(migration).toMatch(/localens:food-vendor:/);
+    expect(migration).toMatch(/localens:food-item:/);
+    const vendorLock = migration.indexOf("localens:food-vendor:");
+    const itemLock = migration.indexOf("localens:food-item:");
+    expect(vendorLock).toBeGreaterThanOrEqual(0);
+    expect(itemLock).toBeGreaterThan(vendorLock);
+  });
+
+  it("keeps review updates narrow and revalidates exception windows and each allergen", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260831100000_food_catalog_review.sql"), "utf8");
+    expect(migration).toMatch(/GRANT UPDATE \(status\) ON TABLE public\.food_vendors TO localens_admin_rpc_owner;/i);
+    expect(migration).toMatch(/GRANT UPDATE \(status\) ON TABLE public\.food_items TO localens_admin_rpc_owner;/i);
+    expect(migration).not.toMatch(/GRANT UPDATE ON TABLE public\.food_vendors, public\.food_items/i);
+    expect(migration).toMatch(/closed\s+IS\s+FALSE[\s\S]*?food_vendor_opening_exception_windows/i);
+    expect(migration).toMatch(/unnest\(item_row\.allergens\)/i);
+    expect(migration).toMatch(/support\.requirement\s*=\s*listed\.allergen_name/i);
+  });
+
   it("accepts CRLF generated Markdown without masking content drift", () => {
     const crlfRoot = checkerFixture();
     const crlfMarkdownPath = join(crlfRoot, "docs", "security", "data-access-matrix.md");
@@ -75,7 +96,7 @@ describe("Task 13 RLS/RPC access matrix", () => {
     };
     expect(matrix.tables).toHaveLength(79);
     expect(matrix.views).toHaveLength(16);
-    expect(matrix.rpcs).toHaveLength(18);
+    expect(matrix.rpcs).toHaveLength(19);
     expect(matrix.internalFunctions.every((signature) => signature.includes("("))).toBe(true);
     expect(matrix.rpcs.every((rpc) => rpc.signature.startsWith(`${rpc.name}(`))).toBe(true);
     expect(matrix.views.every((view) => view.owner.startsWith("localens_") && view.securityBarrier)).toBe(true);
