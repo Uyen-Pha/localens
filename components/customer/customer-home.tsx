@@ -17,9 +17,9 @@ const categoryImages: Record<PersonalizationPriorityKey, string> = {
 };
 
 const greenHeroImages: Record<string, string> = {
-  market: "/images/green/ben-thanh-market.png",
-  palace: "/images/green/independence-palace.png",
-  food: "/images/green/street-food.png",
+  market: "/images/green/ben-thanh-market.webp",
+  palace: "/images/green/independence-palace.webp",
+  food: "/images/green/street-food.webp",
 };
 
 export type CustomerHomeProps = {
@@ -40,7 +40,7 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
         <div className="customer-hero__content">
           <Image
             className="customer-hero__skyline"
-            src="/images/green/saigon-skyline.png"
+            src="/images/green/saigon-skyline.webp"
             alt=""
             width={900}
             height={250}
@@ -52,11 +52,9 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
           <div className="customer-hero__actions" aria-label={copy.heroActionsLabel}>
             <Link className="button button--primary" href={`/${locale}/planner/`}>
               {copy.heroPrimaryCta}
-              <span aria-hidden="true"> →</span>
             </Link>
             <Link className="button button--secondary" href={`/${locale}/tours/`}>
               {copy.heroSecondaryCta}
-              <span aria-hidden="true"> →</span>
             </Link>
           </div>
           <p className="customer-hero__note">{copy.heroNote}</p>
@@ -66,7 +64,7 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
           <div className="customer-hero__image-frame">
             <Image
               className="customer-hero__map"
-              src="/images/green/saigon-map.png"
+              src="/images/green/saigon-map.webp"
               alt={copy.heroImageAlt}
               fill
               priority
@@ -78,14 +76,6 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
               <span className="customer-hero__map-label customer-hero__map-label--district">{copy.heroMapLabels.district}</span>
               <span className="customer-hero__map-label customer-hero__map-label--river">{copy.heroMapLabels.river}</span>
             </div>
-            <ol className="customer-hero__map-route" aria-label={copy.heroRoute.stopsLabel}>
-              {greenHeroStops.map((stop, index) => (
-                <li key={stop.id} className={`customer-hero__map-stop customer-hero__map-stop--${index + 1}`}>
-                  <span aria-hidden="true">{index + 1}</span>
-                  <span className="sr-only">{stop.title}</span>
-                </li>
-              ))}
-            </ol>
           </div>
           <p className="customer-hero__coordinates">{copy.heroCoordinates}</p>
           <aside className="customer-hero__summary customer-hero__route-card" aria-label={copy.heroRoute.ariaLabel}>
@@ -134,7 +124,6 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
               <h3>
                 <Link href={`/${locale}/tours/`}>
                   {category.title}
-                  <span aria-hidden="true"> ↗</span>
                 </Link>
               </h3>
               <span className="editorial-rule" aria-hidden="true" />

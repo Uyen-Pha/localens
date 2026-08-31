@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { cleanup, render, screen, within } from "@testing-library/react";
@@ -36,7 +36,7 @@ describe("CustomerHome", () => {
     expect(screen.getByRole("img", { name: dictionary.home.heroInsetAlt })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: dictionary.home.heroImageAlt })).toHaveAttribute(
       "src",
-      expect.stringContaining("saigon-map.png"),
+      expect.stringContaining("saigon-map.webp"),
     );
     expect(document.querySelector(".customer-hero__route-card")).not.toBeNull();
     expect(screen.getByRole("complementary", { name: dictionary.home.heroRoute.ariaLabel })).toHaveTextContent(
@@ -126,6 +126,40 @@ describe("CustomerHome", () => {
     expect(css).not.toContain("left: -1.5rem");
     expect(css).toMatch(
       /@media \(max-width: 1100px\) \{[\s\S]*?\.customer-home--landing \.customer-hero__mark \{[\s\S]*?left: 0;/,
+    );
+  });
+
+  it("keeps the green landing assets compressed and within the page budget", async () => {
+    const greenDirectory = resolve(process.cwd(), "public/images/green");
+    const directoryEntries = await readdir(greenDirectory);
+    const expectedAssets = [
+      "ben-thanh-market.webp",
+      "independence-palace.webp",
+      "saigon-map.webp",
+      "saigon-skyline.webp",
+      "street-food.webp",
+    ];
+    const sizes = await Promise.all(expectedAssets.map(async (asset) => {
+      const file = resolve(greenDirectory, asset);
+      const metadata = await stat(file);
+      return metadata.size;
+    }));
+
+    expect(directoryEntries.filter((asset) => asset.endsWith(".png"))).toEqual([]);
+    expect(sizes.every((size) => size > 0)).toBe(true);
+    expect(sizes.reduce((total, size) => total + size, 0)).toBeLessThan(512 * 1024);
+  });
+
+  it("keeps the landing composition free of CSS route art and text glyph icons", async () => {
+    const greenCss = await readFile(resolve(process.cwd(), "app/styles/editorial-home-green.css"), "utf8");
+    const homeSource = await readFile(resolve(process.cwd(), "components/customer/customer-home.tsx"), "utf8");
+    const fixedToursSource = await readFile(resolve(process.cwd(), "components/customer/fixed-tours-grid.tsx"), "utf8");
+
+    expect(greenCss).not.toMatch(/customer-hero__map-stop|border-top:\s*2px dashed/);
+    expect(homeSource).not.toMatch(/[→↗]/u);
+    expect(fixedToursSource).not.toMatch(/[→↗]/u);
+    expect(greenCss).toMatch(
+      /\.customer-home--green \.customer-hero__content \{[\s\S]*?background:\s*var\(--color-paper\)/,
     );
   });
 });

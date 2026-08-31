@@ -42,18 +42,18 @@
   justify-content: center;
   padding: clamp(4rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
   overflow: hidden;
-  background: var(--color-indigo);
-  color: #ffffff;
+  background: var(--color-paper);
+  color: var(--color-ink);
 }
 
 .customer-home--green .customer-hero__skyline {
   position: absolute;
   right: -2rem;
   bottom: -0.5rem;
-  z-index: -1;
+  z-index: 0;
   width: min(34rem, 80%);
   height: auto;
-  opacity: 0.62;
+  opacity: 0.72;
   object-fit: contain;
   pointer-events: none;
 }
@@ -63,7 +63,7 @@
   z-index: 1;
   max-width: 10ch;
   margin: 0;
-  color: #ffffff;
+  color: var(--color-ink);
   font-size: clamp(3.3rem, 5.8vw, 6rem);
   font-weight: 600;
   letter-spacing: -0.075em;
@@ -76,7 +76,7 @@
   z-index: 1;
   max-width: 30rem;
   margin: var(--space-6) 0 0;
-  color: #e6f0eb;
+  color: var(--color-muted);
   font-size: clamp(1rem, 1.4vw, 1.25rem);
   line-height: 1.55;
 }
@@ -96,24 +96,24 @@
 }
 
 .customer-home--green .customer-hero__actions .button--primary {
-  background: var(--color-vermilion);
+  background: var(--color-indigo);
   color: #ffffff;
 }
 
 .customer-home--green .customer-hero__actions .button--primary:hover {
-  background: var(--color-cta-vermilion-dark);
+  background: var(--color-ink);
 }
 
 .customer-home--green .customer-hero__actions .button--secondary {
-  border-color: #ffffff;
+  border-color: var(--color-indigo);
   background: transparent;
-  color: #ffffff;
+  color: var(--color-indigo);
 }
 
 .customer-home--green .customer-hero__actions .button--secondary:hover {
-  border-color: #ffffff;
-  background: #ffffff;
-  color: var(--color-indigo);
+  border-color: var(--color-indigo);
+  background: var(--color-sage);
+  color: var(--color-ink);
 }
 
 .customer-home--green .customer-hero__note,
@@ -122,7 +122,7 @@
   z-index: 1;
   max-width: 30rem;
   margin: var(--space-4) 0 0;
-  color: #c7ded4;
+  color: var(--color-muted);
   font-size: 0.82rem;
   line-height: 1.5;
 }
@@ -130,7 +130,7 @@
 .customer-home--green .customer-hero__trust {
   max-width: 32rem;
   margin-top: var(--space-6);
-  color: #ffffff;
+  color: var(--color-ink);
   font-size: 0.74rem;
   letter-spacing: 0.02em;
 }
@@ -171,7 +171,7 @@
 
 .customer-home--green .customer-hero__map-label {
   position: absolute;
-  color: rgba(9, 61, 50, 0.68);
+  color: var(--color-ink);
   font-size: clamp(0.55rem, 0.72vw, 0.7rem);
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -182,49 +182,7 @@
 .customer-home--green .customer-hero__map-label--north { top: 13%; left: 11%; }
 .customer-home--green .customer-hero__map-label--central { top: 34%; left: 46%; }
 .customer-home--green .customer-hero__map-label--district { top: 57%; left: 53%; }
-.customer-home--green .customer-hero__map-label--river { right: 9%; bottom: 19%; color: rgba(32, 108, 149, 0.76); }
-
-.customer-home--green .customer-hero__map-route {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  pointer-events: none;
-}
-
-.customer-home--green .customer-hero__map-stop {
-  position: absolute;
-  display: grid;
-  width: 2.15rem;
-  height: 2.15rem;
-  place-items: center;
-  border: 3px solid #ffffff;
-  border-radius: 50%;
-  background: var(--color-vermilion);
-  box-shadow: 0 4px 12px rgba(9, 61, 50, 0.2);
-  color: #ffffff;
-  font-size: 0.86rem;
-  font-weight: 700;
-}
-
-.customer-home--green .customer-hero__map-stop::after {
-  position: absolute;
-  top: 50%;
-  left: calc(100% + 0.45rem);
-  width: clamp(2rem, 5vw, 5rem);
-  border-top: 2px dashed rgba(240, 77, 50, 0.72);
-  content: "";
-  transform: rotate(17deg);
-  transform-origin: left center;
-}
-
-.customer-home--green .customer-hero__map-stop--1 { top: 56%; left: 30%; }
-.customer-home--green .customer-hero__map-stop--2 { top: 36%; left: 52%; }
-.customer-home--green .customer-hero__map-stop--3 { top: 65%; left: 70%; }
-.customer-home--green .customer-hero__map-stop--2::after { transform: rotate(25deg); }
-.customer-home--green .customer-hero__map-stop--3::after { display: none; }
+.customer-home--green .customer-hero__map-label--river { right: 9%; bottom: 19%; color: #1f5d7c; }
 
 .customer-home--green .customer-hero__coordinates {
   position: absolute;
@@ -464,6 +422,10 @@
 
 .customer-home--green .customer-section--trust .section-heading h2 {
   color: var(--color-ink);
+}
+
+.customer-home--green .customer-section--trust .eyebrow {
+  color: var(--color-vermilion);
 }
 
 .customer-home--green .customer-section--trust .section-heading > p:last-child {

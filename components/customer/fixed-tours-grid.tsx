@@ -31,7 +31,6 @@ export function FixedToursGrid({
           <Link href={hrefForTour(tour.id)}>
             <span className="sr-only">{tour.title}: </span>
             {copy.fixedToursCta}
-            <span aria-hidden="true"> ↗</span>
           </Link>
         </article>
       ))}
