@@ -3,17 +3,19 @@ import { expect, test } from "@playwright/test";
 const localizedShells = [
   {
     locale: "en",
-    heading: "The city is more than its landmarks",
+    heading: "Your Saigon, planned around you",
     navigation: "Primary navigation",
     skipLink: "Skip to content",
-    links: ["Experiences", "Private journeys", "Our city"],
+    links: ["Tours", "Personalized trip", "How it works"],
+    hrefs: ["/en/tours/", "/en/planner/", "/en/#how-it-works"],
   },
   {
     locale: "vi",
-    heading: "Thành phố không chỉ có những địa danh nổi tiếng",
+    heading: "Sài Gòn của bạn, được thiết kế quanh bạn",
     navigation: "Điều hướng chính",
     skipLink: "Bỏ qua đến nội dung chính",
-    links: ["Trải nghiệm", "Hành trình riêng", "Thành phố của chúng ta"],
+    links: ["Tour", "Hành trình cá nhân hóa", "Cách hoạt động"],
+    hrefs: ["/vi/tours/", "/vi/planner/", "/vi/#how-it-works"],
   },
 ] as const;
 
@@ -28,8 +30,8 @@ for (const shell of localizedShells) {
       name: shell.navigation,
     });
     await expect(primaryNavigation).toBeVisible();
-    for (const link of shell.links) {
-      await expect(primaryNavigation.getByRole("link", { name: link })).toBeVisible();
+    for (const [index, link] of shell.links.entries()) {
+      await expect(primaryNavigation.getByRole("link", { name: link })).toHaveAttribute("href", shell.hrefs[index]);
     }
 
     const skipLink = page.getByRole("link", { name: shell.skipLink });
