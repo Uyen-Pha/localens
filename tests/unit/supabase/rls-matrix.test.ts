@@ -74,8 +74,8 @@ describe("Task 13 RLS/RPC access matrix", () => {
       internalFunctions: string[];
     };
     expect(matrix.tables).toHaveLength(79);
-    expect(matrix.views).toHaveLength(14);
-    expect(matrix.rpcs).toHaveLength(17);
+    expect(matrix.views).toHaveLength(16);
+    expect(matrix.rpcs).toHaveLength(18);
     expect(matrix.internalFunctions.every((signature) => signature.includes("("))).toBe(true);
     expect(matrix.rpcs.every((rpc) => rpc.signature.startsWith(`${rpc.name}(`))).toBe(true);
     expect(matrix.views.every((view) => view.owner.startsWith("localens_") && view.securityBarrier)).toBe(true);

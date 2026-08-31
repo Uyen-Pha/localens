@@ -55,7 +55,7 @@ Migration owner for default privileges: postgres
 
 | Object | Owner | API exposure | Readers | Writer operation | RLS | Force RLS | Policies | Grants | Credential |
 | --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |
-| private.audit_events | postgres | none |  | internal audit helper only | true | true | audit_events_admin_summary_select, audit_events_content_admin_owner_insert, audit_events_content_admin_owner_select, audit_events_content_build_owner_insert, audit_events_content_owner_insert, audit_events_guide_assignment_owner_insert, audit_events_identity_rpc_insert |  | migration-owner-only |
+| private.audit_events | postgres | none |  | internal audit helper only | true | true | audit_events_admin_summary_select, audit_events_content_admin_owner_insert, audit_events_content_admin_owner_select, audit_events_content_build_owner_insert, audit_events_content_owner_insert, audit_events_food_catalog_admin_insert, audit_events_guide_assignment_owner_insert, audit_events_identity_rpc_insert |  | migration-owner-only |
 | private.capacity_holds | postgres | none |  | checkout/availability RPC only | true | true | capacity_holds_availability_owner_select, capacity_holds_owner_all, capacity_holds_payment_owner_all |  | migration-owner-only |
 | private.checkout_attempts | postgres | none |  | checkout RPC only | true | true | checkout_attempts_owner_all, checkout_attempts_payment_owner_all |  | migration-owner-only |
 | private.checkout_idempotency | postgres | none |  | checkout RPC only | true | true | checkout_idempotency_owner_all, checkout_idempotency_payment_owner_select |  | migration-owner-only |
@@ -100,15 +100,15 @@ Migration owner for default privileges: postgres
 | public.custom_quotes | postgres | none |  | quote RPC only | true | true | custom_quotes_admin_rpc_owner_all, custom_quotes_checkout_owner_select, custom_quotes_checkout_owner_update, custom_quotes_customer_rpc_owner_select, custom_quotes_customer_select, custom_quotes_guide_assignment_owner_select, custom_quotes_payment_owner_all |  | migration-owner-only |
 | public.custom_requests | postgres | none |  | request RPC only | true | true | custom_requests_admin_rpc_owner_all, custom_requests_checkout_owner_select, custom_requests_customer_rpc_owner_all, custom_requests_customer_select, custom_requests_guide_assignment_owner_select |  | migration-owner-only |
 | public.departures | postgres | none |  | departure lifecycle/checkout RPC only | true | true | departures_availability_owner_select, departures_checkout_owner_select, departures_guide_assignment_owner_select, departures_payment_owner_select, tour_guard_departures_select, tour_owner_all |  | migration-owner-only |
-| public.food_item_supports | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_item_supports_guard_select |  | migration-owner-only |
-| public.food_item_translations | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_item_translations_guard_select |  | migration-owner-only |
-| public.food_items | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_items_guard_select |  | migration-owner-only |
-| public.food_vendor_opening_exception_windows | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendor_opening_exception_windows_guard_select |  | migration-owner-only |
-| public.food_vendor_opening_exceptions | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendor_opening_exceptions_guard_select |  | migration-owner-only |
-| public.food_vendor_opening_hours | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendor_opening_hours_guard_select |  | migration-owner-only |
-| public.food_vendor_supports | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendor_supports_guard_select |  | migration-owner-only |
-| public.food_vendor_translations | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendor_translations_guard_select |  | migration-owner-only |
-| public.food_vendors | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendors_guard_select |  | migration-owner-only |
+| public.food_item_supports | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_item_supports_admin_review_select, food_item_supports_guard_select |  | migration-owner-only |
+| public.food_item_translations | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_item_translations_admin_review_select, food_item_translations_guard_select |  | migration-owner-only |
+| public.food_items | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_items_admin_review_select, food_items_admin_review_update, food_items_guard_select |  | migration-owner-only |
+| public.food_vendor_opening_exception_windows | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendor_exception_windows_admin_review_select, food_vendor_opening_exception_windows_guard_select |  | migration-owner-only |
+| public.food_vendor_opening_exceptions | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendor_opening_exceptions_admin_review_select, food_vendor_opening_exceptions_guard_select |  | migration-owner-only |
+| public.food_vendor_opening_hours | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendor_opening_hours_admin_review_select, food_vendor_opening_hours_guard_select |  | migration-owner-only |
+| public.food_vendor_supports | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendor_supports_admin_review_select, food_vendor_supports_guard_select |  | migration-owner-only |
+| public.food_vendor_translations | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendor_translations_admin_review_select, food_vendor_translations_guard_select |  | migration-owner-only |
+| public.food_vendors | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendors_admin_review_select, food_vendors_admin_review_update, food_vendors_guard_select |  | migration-owner-only |
 | public.fx_snapshots | postgres | none |  | FX snapshot RPC only | true | true | fx_snapshots_catalog_owner_all, fx_snapshots_checkout_owner_select, fx_snapshots_plan_rpc_select, fx_snapshots_request_admin_rpc_lock, fx_snapshots_request_admin_rpc_select |  | migration-owner-only |
 | public.guide_assignments | postgres | none |  | guide assignment RPC only | true | true | guide_assignments_projection_owner_select, guide_assignments_rpc_owner_all |  | migration-owner-only |
 | public.guide_profiles | postgres | none | authenticated (login=false, bypassrls=false, browser-jwt) | none | true | true | guide_profiles_admin_summary_select, guide_profiles_guide_assignment_owner_select, guide_profiles_guide_select | SELECT -> authenticated | migration-owner-only |
@@ -142,6 +142,8 @@ Migration owner for default privileges: postgres
 | public.admin_audit_events_v | localens_content_admin_owner | admin-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.admin_content_drafts_v | localens_content_admin_owner | admin-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.admin_custom_request_queue_v | localens_request_admin_rpc_owner | admin-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
+| public.admin_food_catalog_audit_v | localens_admin_rpc_owner | admin-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
+| public.admin_food_catalog_review_v | localens_admin_rpc_owner | admin-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.catalog_snapshot_food_items_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.catalog_snapshot_food_vendors_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.catalog_snapshot_places_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
@@ -173,16 +175,18 @@ Migration owner for default privileges: postgres
 | public.read_seo_build_release | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | capability-scoped build read | edge-internal-content-build |
 | public.reconcile_payment | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | audited admin payment reconciliation | browser-jwt |
 | public.review_custom_request | localens_request_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin reviews request | browser-jwt |
+| public.review_food_catalog_item | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin reviews food evidence | browser-jwt |
 | public.submit_custom_request | localens_request_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner submits request | browser-jwt |
 | public.upsert_content_draft | localens_content_admin_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin writes sanitized draft | browser-jwt |
 
 ## Internal functions
 
-Enumerated internal functions: 92. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
+Enumerated internal functions: 94. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
 
 - `private.accept_guide_assignment(uuid)`
 - `private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)`
 - `private.advance_trip_plan_revision(uuid,integer,jsonb)`
+- `private.assert_catalog_review_admin()`
 - `private.assert_checkout_attempt_mutation()`
 - `private.assert_checkout_transition()`
 - `private.assert_content_admin()`
@@ -192,6 +196,7 @@ Enumerated internal functions: 92. All are non-API and must use a named NOLOGIN/
 - `private.assert_exception_consistency()`
 - `private.assert_exception_window_nonoverlap()`
 - `private.assert_exception_window_parent_open()`
+- `private.assert_food_catalog_review_complete(uuid)`
 - `private.assert_food_exception_consistency()`
 - `private.assert_food_exception_window_nonoverlap()`
 - `private.assert_food_exception_window_parent_open()`
@@ -275,7 +280,7 @@ Enumerated internal functions: 92. All are non-API and must use a named NOLOGIN/
 
 ## Explicit grants
 
-Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (543 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (562 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Dynamic policy semantics
 

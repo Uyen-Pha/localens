@@ -268,6 +268,7 @@
         "audit_events_content_admin_owner_select",
         "audit_events_content_build_owner_insert",
         "audit_events_content_owner_insert",
+        "audit_events_food_catalog_admin_insert",
         "audit_events_guide_assignment_owner_insert",
         "audit_events_identity_rpc_insert"
       ],
@@ -663,6 +664,7 @@
       "name": "public.food_item_supports",
       "policies": [
         "catalog_owner_all",
+        "food_item_supports_admin_review_select",
         "food_item_supports_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -673,6 +675,7 @@
       "name": "public.food_item_translations",
       "policies": [
         "catalog_owner_all",
+        "food_item_translations_admin_review_select",
         "food_item_translations_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -683,6 +686,8 @@
       "name": "public.food_items",
       "policies": [
         "catalog_owner_all",
+        "food_items_admin_review_select",
+        "food_items_admin_review_update",
         "food_items_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -693,6 +698,7 @@
       "name": "public.food_vendor_opening_exception_windows",
       "policies": [
         "catalog_owner_all",
+        "food_vendor_exception_windows_admin_review_select",
         "food_vendor_opening_exception_windows_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -703,6 +709,7 @@
       "name": "public.food_vendor_opening_exceptions",
       "policies": [
         "catalog_owner_all",
+        "food_vendor_opening_exceptions_admin_review_select",
         "food_vendor_opening_exceptions_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -713,6 +720,7 @@
       "name": "public.food_vendor_opening_hours",
       "policies": [
         "catalog_owner_all",
+        "food_vendor_opening_hours_admin_review_select",
         "food_vendor_opening_hours_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -723,6 +731,7 @@
       "name": "public.food_vendor_supports",
       "policies": [
         "catalog_owner_all",
+        "food_vendor_supports_admin_review_select",
         "food_vendor_supports_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -733,6 +742,7 @@
       "name": "public.food_vendor_translations",
       "policies": [
         "catalog_owner_all",
+        "food_vendor_translations_admin_review_select",
         "food_vendor_translations_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -743,6 +753,8 @@
       "name": "public.food_vendors",
       "policies": [
         "catalog_owner_all",
+        "food_vendors_admin_review_select",
+        "food_vendors_admin_review_update",
         "food_vendors_guard_select"
       ],
       "writerOperation": "catalog maintenance RPC only",
@@ -1131,6 +1143,16 @@
   ],
   "views": [
     {
+      "name": "public.admin_food_catalog_audit_v",
+      "owner": "localens_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "admin-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
       "name": "public.admin_audit_events_v",
       "owner": "localens_content_admin_owner",
       "readerRoles": [
@@ -1153,6 +1175,16 @@
     {
       "name": "public.admin_custom_request_queue_v",
       "owner": "localens_request_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "admin-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.admin_food_catalog_review_v",
+      "owner": "localens_admin_rpc_owner",
       "readerRoles": [
         "authenticated"
       ],
@@ -1441,6 +1473,16 @@
       "credential": "browser-jwt"
     },
     {
+      "name": "public.review_food_catalog_item",
+      "signature": "public.review_food_catalog_item(uuid,text,jsonb,text)",
+      "owner": "localens_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "admin reviews food evidence",
+      "credential": "browser-jwt"
+    },
+    {
       "name": "public.submit_custom_request",
       "signature": "public.submit_custom_request(uuid,integer)",
       "owner": "localens_request_customer_rpc_owner",
@@ -1467,6 +1509,7 @@
     "private.advance_trip_plan_revision(uuid,integer,jsonb)",
     "private.assert_checkout_attempt_mutation()",
     "private.assert_checkout_transition()",
+    "private.assert_catalog_review_admin()",
     "private.assert_content_admin()",
     "private.assert_content_json_safe()",
     "private.assert_departure_insert()",
@@ -1478,6 +1521,7 @@
     "private.assert_food_exception_window_nonoverlap()",
     "private.assert_food_exception_window_parent_open()",
     "private.assert_food_opening_window_nonoverlap()",
+    "private.assert_food_catalog_review_complete(uuid)",
     "private.assert_published_food_item_complete(uuid)",
     "private.assert_published_food_item_row()",
     "private.assert_published_food_item_transition()",
@@ -1565,7 +1609,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 543,
+  "grantCount": 562,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }
