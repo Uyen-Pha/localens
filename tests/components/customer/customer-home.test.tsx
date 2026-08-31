@@ -10,14 +10,14 @@ import { getDictionary } from "@/lib/i18n/dictionaries";
 afterEach(cleanup);
 
 describe("CustomerHome", () => {
-  it("restores the editorial hero, route CTAs, and four supported entry points", () => {
+  it("renders the green hero with personalization as the primary route", () => {
     const dictionary = getDictionary("en");
 
     render(<CustomerHome locale="en" dictionary={dictionary} />);
 
-    expect(dictionary.home.title).toBe("The city is more than its landmarks");
+    expect(dictionary.home.title).toBe("Your Saigon, planned around you");
     expect(dictionary.home.discoveryTitle).toBe("Four ways into the city");
-    expect(document.querySelector(".customer-home")).toHaveClass("customer-home--landing");
+    expect(document.querySelector(".customer-home")).toHaveClass("customer-home--landing", "customer-home--green");
     expect(
       screen.getByRole("heading", {
         level: 1,
@@ -26,14 +26,22 @@ describe("CustomerHome", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: dictionary.home.heroPrimaryCta })).toHaveAttribute(
       "href",
-      "/en/tours",
+      "/en/planner",
     );
     expect(screen.getByRole("link", { name: dictionary.home.heroSecondaryCta })).toHaveAttribute(
       "href",
-      "/en/planner",
+      "/en/tours",
     );
     expect(screen.getByRole("img", { name: dictionary.home.heroImageAlt })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: dictionary.home.heroInsetAlt })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: dictionary.home.heroImageAlt })).toHaveAttribute(
+      "src",
+      expect.stringContaining("saigon-map.png"),
+    );
+    expect(document.querySelector(".customer-hero__route-card")).not.toBeNull();
+    expect(screen.getByRole("complementary", { name: dictionary.home.heroRoute.ariaLabel })).toHaveTextContent(
+      dictionary.home.heroRoute.modeValue,
+    );
     expect(
       screen.getByRole("heading", {
         level: 2,
@@ -53,6 +61,7 @@ describe("CustomerHome", () => {
       );
     }
 
+    expect(dictionary.home.trustTitle).toBe("How it works");
     expect(screen.getByRole("heading", { level: 2, name: dictionary.home.trustTitle })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: dictionary.home.personalizationTitle })).toBeInTheDocument();
   });
@@ -62,20 +71,23 @@ describe("CustomerHome", () => {
 
     render(<CustomerHome locale="vi" dictionary={dictionary} />);
 
-    expect(dictionary.home.title).toBe("Thành phố không chỉ có những địa danh nổi tiếng");
+    expect(dictionary.home.title).toBe("Sài Gòn của bạn, được thiết kế quanh bạn");
     expect(dictionary.home.discoveryTitle).toBe("Bốn cách bước vào thành phố");
     expect(screen.getByRole("heading", { level: 1, name: dictionary.home.title })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: dictionary.home.heroPrimaryCta })).toHaveAttribute(
       "href",
-      "/vi/tours",
+      "/vi/planner",
     );
     expect(screen.getByRole("link", { name: dictionary.home.heroSecondaryCta })).toHaveAttribute(
       "href",
-      "/vi/planner",
+      "/vi/tours",
     );
     expect(screen.getByRole("heading", { level: 2, name: dictionary.home.discoveryTitle })).toBeInTheDocument();
     expect(screen.getByRole("note")).toHaveTextContent(dictionary.home.demoDisclosure);
     expect(screen.getByRole("img", { name: dictionary.home.heroImageAlt })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: dictionary.home.heroRoute.ariaLabel })).toHaveTextContent(
+      dictionary.home.heroRoute.modeValue,
+    );
   });
 
   it("keeps editorial home selectors scoped away from non-home routes", async () => {

@@ -13,7 +13,7 @@
 
 .booking-page {
   width: 100%;
-  background: linear-gradient(180deg, var(--color-paper) 0, var(--color-paper) 78%, var(--color-surface) 100%);
+  background: var(--color-paper);
 }
 
 .booking-flow__card {

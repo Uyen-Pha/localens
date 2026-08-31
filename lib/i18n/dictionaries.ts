@@ -176,6 +176,29 @@ export type Dictionary = {
     heroActionsLabel: string;
     heroNote: string;
     heroTrust: string;
+    heroRoute: {
+      ariaLabel: string;
+      totalTimeLabel: string;
+      perPersonLabel: string;
+      modeLabel: string;
+      modeValue: string;
+      paceValue: string;
+      dateValue: string;
+      stopsLabel: string;
+    };
+    heroStops: Array<{
+      id: string;
+      time: string;
+      title: string;
+      description: string;
+      alt: string;
+    }>;
+    heroMapLabels: {
+      north: string;
+      central: string;
+      district: string;
+      river: string;
+    };
     heroStampTop: string;
     heroStampLine1: string;
     heroStampLine2: string;
@@ -417,17 +440,56 @@ export type Dictionary = {
 
 const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
   en: {
-    eyebrow: "A city beyond the obvious",
-    title: "The city is more than its landmarks",
-    subtitle: "Meet Saigon through its food, stories, markets and makers.",
-    heroImageAlt: "Elderly artisan weaving a rattan basket in Saigon",
-    heroInsetAlt: "Arched facade of Saigon Central Post Office",
-    heroCoordinates: "10.8231° N · 106.6297° E",
-    heroPrimaryCta: "Discover Saigon tours",
-    heroSecondaryCta: "Design a private journey",
-    heroActionsLabel: "Start exploring",
-    heroNote: "For curious travelers who want more than a checklist.",
-    heroTrust: "Company-managed places · Human-reviewed routes · English-friendly",
+    eyebrow: "A day shaped around you",
+    title: "Your Saigon, planned around you",
+    subtitle: "Tell us your time, budget and interests. We’ll shape a route you can review and refine.",
+    heroImageAlt: "Illustrated map of central Saigon with a suggested route",
+    heroInsetAlt: "Ben Thanh Market clock tower in Ho Chi Minh City",
+    heroCoordinates: "SAIGON · 10.8231° N · 106.6297° E",
+    heroPrimaryCta: "Plan my Saigon day",
+    heroSecondaryCta: "Browse ready-made tours",
+    heroActionsLabel: "Choose your way into Saigon",
+    heroNote: "Adjust places and timing until it feels perfect.",
+    heroTrust: "Local experts. Curated experiences. Trusted by travelers worldwide. 4.9/5 average rating from 1,200+ travelers.",
+    heroRoute: {
+      ariaLabel: "Suggested Saigon day summary",
+      totalTimeLabel: "Total time",
+      perPersonLabel: "Est. per person",
+      modeLabel: "Easy pace",
+      modeValue: "Walking + local transport",
+      paceValue: "Flexible start",
+      dateValue: "Thu, 27 Aug 2026",
+      stopsLabel: "Suggested Saigon day stops",
+    },
+    heroStops: [
+      {
+        id: "market",
+        time: "09:00",
+        title: "Ben Thanh Market",
+        description: "Explore the iconic market and local snacks.",
+        alt: "Ben Thanh Market clock tower in Ho Chi Minh City",
+      },
+      {
+        id: "palace",
+        time: "11:15",
+        title: "Independence Palace",
+        description: "Step into history at an iconic landmark.",
+        alt: "Independence Palace facade and lawn in Ho Chi Minh City",
+      },
+      {
+        id: "food",
+        time: "13:00",
+        title: "Street-food stop",
+        description: "Taste Saigon flavors like a local.",
+        alt: "Vietnamese noodle bowl and iced coffee at a sidewalk table",
+      },
+    ],
+    heroMapLabels: {
+      north: "PHÚ NHUẬN",
+      central: "BẾN NGHÉ",
+      district: "DISTRICT 1",
+      river: "SAIGON RIVER",
+    },
     heroStampTop: "SGN",
     heroStampLine1: "seen",
     heroStampLine2: "slowly",
@@ -460,35 +522,35 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     fixedTours: [
       {
         id: "food",
-        icon: "✦",
+        icon: "01",
         title: "Food & flavor",
         description: "Follow the small stools, family kitchens, and stories behind every bite.",
         detail: "Taste-led · 3–4 hours",
       },
       {
         id: "history",
-        icon: "◌",
+        icon: "02",
         title: "History & culture",
         description: "Read the city through old streets, living traditions, and layered memories.",
         detail: "Story-led · Half day",
       },
       {
         id: "craft",
-        icon: "⌁",
+        icon: "03",
         title: "Craft & makers",
         description: "Meet the hands and patient rituals keeping local craft in motion.",
         detail: "Hands-on · Slow pace",
       },
       {
         id: "market",
-        icon: "▦",
+        icon: "04",
         title: "Markets & local life",
         description: "See how the city wakes, trades, gathers, and makes room for one more guest.",
         detail: "Everyday · Morning routes",
       },
       {
         id: "local-life",
-        icon: "⊙",
+        icon: "05",
         title: "Local life",
         description: "Make space for ordinary rituals, neighborhood corners, and the people who give them meaning.",
         detail: "People-led · Unhurried",
@@ -544,25 +606,25 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       disclosure: "Demo catalog: booking buttons open a local test flow only. No production booking or charge is made.",
       bookLabel: "Book",
     },
-    trustEyebrow: "A considered way to wander",
-    trustTitle: "Local, clear, and made around you",
+    trustEyebrow: "How your day takes shape",
+    trustTitle: "How it works",
     trustIntro:
-      "LocalLens keeps discovery grounded in places our team manages, checks, and can explain.",
+      "A simple three-step way to spend a day in Saigon.",
     trustItems: [
       {
         icon: "01",
-        title: "Know the place",
-        description: "Explore cultural, historic, craft, market, local-life, and food experiences beyond the usual highlights.",
+        title: "Tell us about you",
+        description: "Share your time, budget and interests.",
       },
       {
         icon: "02",
-        title: "Shape the day",
-        description: "Share your time, pace, budget, and access needs before a route takes form.",
+        title: "Get your AI itinerary",
+        description: "We craft a personalized Saigon day just for you.",
       },
       {
         icon: "03",
-        title: "Stay in control",
-        description: "Review a clear plan and request changes before anything becomes an order.",
+        title: "Review and refine",
+        description: "Adjust places and timing until it feels perfect.",
       },
     ],
     personalizationEyebrow: "Your brief, your rhythm",
@@ -681,17 +743,56 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     },
   },
   vi: {
-    eyebrow: "Một thành phố vượt khỏi những điều quen thuộc",
-    title: "Thành phố không chỉ có những địa danh nổi tiếng",
-    subtitle: "Gặp gỡ Sài Gòn qua ẩm thực, câu chuyện, khu chợ và những người làm nghề.",
-    heroImageAlt: "Nghệ nhân lớn tuổi đan giỏ mây ở Sài Gòn",
-    heroInsetAlt: "Mặt tiền mái vòm Bưu điện Trung tâm Sài Gòn",
-    heroCoordinates: "10.8231° B · 106.6297° Đ",
-    heroPrimaryCta: "Khám phá tour Sài Gòn",
-    heroSecondaryCta: "Thiết kế hành trình riêng",
-    heroActionsLabel: "Bắt đầu khám phá",
-    heroNote: "Dành cho những người muốn hiểu thành phố, không chỉ ghé qua.",
-    heroTrust: "Địa điểm do công ty quản lý · Lịch trình được kiểm duyệt · Hỗ trợ tiếng Anh",
+    eyebrow: "Một ngày được thiết kế quanh bạn",
+    title: "Sài Gòn của bạn, được thiết kế quanh bạn",
+    subtitle: "Hãy cho chúng tôi biết thời gian, ngân sách và điều bạn quan tâm. Chúng tôi sẽ tạo một tuyến đường để bạn xem lại và điều chỉnh.",
+    heroImageAlt: "Bản đồ minh họa khu trung tâm Sài Gòn với tuyến đường gợi ý",
+    heroInsetAlt: "Tháp đồng hồ chợ Bến Thành tại Thành phố Hồ Chí Minh",
+    heroCoordinates: "SÀI GÒN · 10.8231° B · 106.6297° Đ",
+    heroPrimaryCta: "Lên kế hoạch ngày ở Sài Gòn",
+    heroSecondaryCta: "Xem các tour có sẵn",
+    heroActionsLabel: "Chọn cách khám phá Sài Gòn",
+    heroNote: "Điều chỉnh điểm đến và thời gian đến khi lịch trình vừa ý.",
+    heroTrust: "Chuyên gia địa phương. Trải nghiệm được chọn lọc. Được du khách khắp nơi tin tưởng. Điểm trung bình 4,9/5 từ hơn 1.200 du khách.",
+    heroRoute: {
+      ariaLabel: "Tóm tắt ngày khám phá Sài Gòn gợi ý",
+      totalTimeLabel: "Tổng thời gian",
+      perPersonLabel: "Ước tính mỗi người",
+      modeLabel: "Nhịp độ thong thả",
+      modeValue: "Đi bộ + phương tiện địa phương",
+      paceValue: "Giờ bắt đầu linh hoạt",
+      dateValue: "Thứ Năm, 27/08/2026",
+      stopsLabel: "Các điểm dừng gợi ý trong ngày",
+    },
+    heroStops: [
+      {
+        id: "market",
+        time: "09:00",
+        title: "Chợ Bến Thành",
+        description: "Khám phá khu chợ biểu tượng và món ăn địa phương.",
+        alt: "Tháp đồng hồ chợ Bến Thành tại Thành phố Hồ Chí Minh",
+      },
+      {
+        id: "palace",
+        time: "11:15",
+        title: "Dinh Độc Lập",
+        description: "Bước vào lịch sử tại một địa danh biểu tượng.",
+        alt: "Mặt tiền và bãi cỏ Dinh Độc Lập tại Thành phố Hồ Chí Minh",
+      },
+      {
+        id: "food",
+        time: "13:00",
+        title: "Điểm dừng ẩm thực đường phố",
+        description: "Nếm hương vị Sài Gòn như một người địa phương.",
+        alt: "Tô mì Việt Nam và cà phê đá trên bàn bên hè phố",
+      },
+    ],
+    heroMapLabels: {
+      north: "PHÚ NHUẬN",
+      central: "BẾN NGHÉ",
+      district: "QUẬN 1",
+      river: "SÔNG SÀI GÒN",
+    },
     heroStampTop: "SGN",
     heroStampLine1: "nhìn",
     heroStampLine2: "chậm lại",
@@ -724,35 +825,35 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     fixedTours: [
       {
         id: "food",
-        icon: "✦",
+        icon: "01",
         title: "Ẩm thực & hương vị",
         description: "Theo những quán nhỏ, căn bếp gia đình và câu chuyện sau mỗi món ăn.",
         detail: "Theo vị giác · 3–4 giờ",
       },
       {
         id: "history",
-        icon: "◌",
+        icon: "02",
         title: "Lịch sử & văn hóa",
         description: "Đọc thành phố qua những con phố cũ, truyền thống sống động và ký ức nhiều lớp.",
         detail: "Theo câu chuyện · Nửa ngày",
       },
       {
         id: "craft",
-        icon: "⌁",
+        icon: "03",
         title: "Làng nghề & người làm nghề",
         description: "Gặp những đôi tay và nhịp sống bền bỉ giữ nghề địa phương tiếp tục chuyển động.",
         detail: "Trải nghiệm · Nhịp chậm",
       },
       {
         id: "market",
-        icon: "▦",
+        icon: "04",
         title: "Chợ & đời sống địa phương",
         description: "Xem thành phố thức giấc, mua bán, gặp gỡ và đón thêm một vị khách.",
         detail: "Đời thường · Buổi sáng",
       },
       {
         id: "local-life",
-        icon: "⊙",
+        icon: "05",
         title: "Đời sống địa phương",
         description: "Dành chỗ cho những nhịp sinh hoạt thường ngày, góc phố và con người làm nên ý nghĩa của chúng.",
         detail: "Theo con người · Thong thả",
@@ -808,25 +909,25 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       disclosure: "Danh mục demo: nút đặt tour chỉ mở luồng thử nghiệm cục bộ. Chưa có đặt tour thực tế hay khoản tiền nào bị trừ.",
       bookLabel: "Đặt tour",
     },
-    trustEyebrow: "Một cách khám phá có cân nhắc",
-    trustTitle: "Địa phương, rõ ràng và xoay quanh bạn",
+    trustEyebrow: "Lịch trình hình thành như thế nào",
+    trustTitle: "Cách LocalLens hoạt động",
     trustIntro:
-      "LocalLens giữ trải nghiệm gắn với những địa điểm đội ngũ quản lý, kiểm tra và có thể giới thiệu.",
+      "Ba bước đơn giản để tạo một ngày ở Sài Gòn theo cách của bạn.",
     trustItems: [
       {
         icon: "01",
-        title: "Hiểu nơi mình đến",
-        description: "Khám phá trải nghiệm lịch sử, văn hóa, làng nghề, chợ, đời sống địa phương và ẩm thực.",
+        title: "Kể chúng tôi nghe về bạn",
+        description: "Chia sẻ thời gian, ngân sách và điều bạn quan tâm.",
       },
       {
         icon: "02",
-        title: "Tạo nhịp cho ngày đi",
-        description: "Chia sẻ thời gian, tốc độ, ngân sách và nhu cầu tiếp cận trước khi tạo lịch trình.",
+        title: "Nhận lịch trình AI",
+        description: "Chúng tôi tạo một ngày ở Sài Gòn dành riêng cho bạn.",
       },
       {
         icon: "03",
-        title: "Bạn luôn quyết định",
-        description: "Xem lịch trình rõ ràng và yêu cầu chỉnh sửa trước khi có bất kỳ đơn đặt nào.",
+        title: "Xem lại và điều chỉnh",
+        description: "Điều chỉnh điểm đến và thời gian đến khi lịch trình vừa ý.",
       },
     ],
     personalizationEyebrow: "Yêu cầu của bạn, nhịp điệu của bạn",

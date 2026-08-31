@@ -16,6 +16,12 @@ const categoryImages: Record<PersonalizationPriorityKey, string> = {
   traditional_market: "/images/editorial/category-market.webp",
 };
 
+const greenHeroImages: Record<string, string> = {
+  market: "/images/green/ben-thanh-market.png",
+  palace: "/images/green/independence-palace.png",
+  food: "/images/green/street-food.png",
+};
+
 export type CustomerHomeProps = {
   locale: Locale;
   dictionary: Dictionary;
@@ -23,50 +29,83 @@ export type CustomerHomeProps = {
 
 export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
   const copy: HomeCopy = dictionary.home;
+  const greenHeroStops = copy.heroStops.map((stop) => ({
+    ...stop,
+    image: greenHeroImages[stop.id] ?? greenHeroImages.market,
+  }));
 
   return (
-    <div className="customer-home customer-home--landing">
-      <section className="customer-hero" aria-labelledby="customer-hero-title">
+    <div className="customer-home customer-home--landing customer-home--green">
+      <section className="customer-hero customer-hero--green" aria-labelledby="customer-hero-title">
         <div className="customer-hero__content">
-          <p className="customer-hero__mark" aria-hidden="true">
-            SAI
-            <br />
-            GON
-          </p>
+          <Image
+            className="customer-hero__skyline"
+            src="/images/green/saigon-skyline.png"
+            alt=""
+            width={900}
+            height={250}
+            priority
+            aria-hidden="true"
+          />
           <h1 id="customer-hero-title">{copy.title}</h1>
           <p className="customer-hero__subtitle">{copy.subtitle}</p>
           <div className="customer-hero__actions" aria-label={copy.heroActionsLabel}>
-            <Link className="button button--primary" href={`/${locale}/tours/`}>
+            <Link className="button button--primary" href={`/${locale}/planner/`}>
               {copy.heroPrimaryCta}
               <span aria-hidden="true"> →</span>
             </Link>
-            <Link className="button button--secondary" href={`/${locale}/planner/`}>
+            <Link className="button button--secondary" href={`/${locale}/tours/`}>
               {copy.heroSecondaryCta}
               <span aria-hidden="true"> →</span>
             </Link>
           </div>
           <p className="customer-hero__note">{copy.heroNote}</p>
+          <p className="customer-hero__trust">{copy.heroTrust}</p>
         </div>
         <div className="customer-hero__visual">
           <div className="customer-hero__image-frame">
             <Image
-              className="customer-hero__image"
-              src="/images/editorial/saigon-artisan-hero.webp"
+              className="customer-hero__map"
+              src="/images/green/saigon-map.png"
               alt={copy.heroImageAlt}
               fill
               priority
-              sizes="(max-width: 720px) 100vw, (max-width: 1100px) 56vw, 760px"
+              sizes="(max-width: 720px) 100vw, (max-width: 1100px) 58vw, 840px"
             />
-          </div>
-          <div className="customer-hero__inset">
-            <Image
-              src="/images/editorial/saigon-post-office-inset.webp"
-              alt={copy.heroInsetAlt}
-              fill
-              sizes="(max-width: 720px) 42vw, 240px"
-            />
+            <div className="customer-hero__map-labels" aria-hidden="true">
+              <span className="customer-hero__map-label customer-hero__map-label--north">{copy.heroMapLabels.north}</span>
+              <span className="customer-hero__map-label customer-hero__map-label--central">{copy.heroMapLabels.central}</span>
+              <span className="customer-hero__map-label customer-hero__map-label--district">{copy.heroMapLabels.district}</span>
+              <span className="customer-hero__map-label customer-hero__map-label--river">{copy.heroMapLabels.river}</span>
+            </div>
+            <ol className="customer-hero__map-route" aria-label={copy.heroRoute.stopsLabel}>
+              {greenHeroStops.map((stop, index) => (
+                <li key={stop.id} className={`customer-hero__map-stop customer-hero__map-stop--${index + 1}`}>
+                  <span aria-hidden="true">{index + 1}</span>
+                  <span className="sr-only">{stop.title}</span>
+                </li>
+              ))}
+            </ol>
           </div>
           <p className="customer-hero__coordinates">{copy.heroCoordinates}</p>
+          <aside className="customer-hero__summary customer-hero__route-card" aria-label={copy.heroRoute.ariaLabel}>
+            <div className="customer-hero__summary-topline">
+              <p><strong>~6.5 h</strong><span>{copy.heroRoute.totalTimeLabel}</span></p>
+              <p><strong>~58 USD</strong><span>{copy.heroRoute.perPersonLabel}</span></p>
+            </div>
+            <p className="customer-hero__summary-mode"><strong>{copy.heroRoute.modeValue}</strong><span>{copy.heroRoute.modeLabel}</span></p>
+            <p className="customer-hero__summary-date"><strong>{copy.heroRoute.dateValue}</strong><span>{copy.heroRoute.paceValue}</span></p>
+          </aside>
+          <ol className="customer-hero__stops" aria-label={copy.heroRoute.stopsLabel}>
+            {greenHeroStops.map((stop) => (
+              <li key={stop.id}>
+                <p className="customer-hero__stop-time">{stop.time}</p>
+                <Image src={stop.image} alt={stop.alt} width={256} height={144} sizes="(max-width: 720px) 30vw, 220px" />
+                <h2>{stop.title}</h2>
+                <p>{stop.description}</p>
+              </li>
+            ))}
+          </ol>
         </div>
       </section>
 

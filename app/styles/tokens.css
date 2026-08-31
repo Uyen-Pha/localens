@@ -1,12 +1,17 @@
 :root {
-  --color-paper: #FAF4EB;
-  --color-surface: #FFFDF8;
-  --color-ink: #171717;
-  --color-muted: #55524D;
-  --color-vermilion: #791312;
-  --color-indigo: #17345F;
-  --color-ochre: #B56E00;
-  --color-rule: #D8CFC2;
+  --color-paper: #ffffff;
+  --color-surface: #ffffff;
+  --color-ink: #093d32;
+  --color-muted: #59635f;
+  --color-vermilion: #f04d32;
+  --color-indigo: #0b5648;
+  --color-ochre: #9b6516;
+  --color-rule: #dce5df;
+  --color-map: #f5f4ee;
+  --color-map-blue: #7bbce3;
+  --color-sage: #e9f0e9;
+  --color-sage-strong: #dfeae2;
+  --color-coral: #f45135;
 
   --content-max: 1440px;
 
@@ -19,24 +24,23 @@
   --space-7: 48px;
   --space-8: 64px;
 
-  --radius-control: 2px;
-  --radius-media: 0px;
-  --shadow-display: 0 1.5rem 2.5rem rgba(24, 53, 45, 0.12);
-  --shadow-card-hover: 0 1rem 2rem rgba(24, 53, 45, 0.08);
-  --shadow-panel: 0 1rem 2.5rem rgba(24, 53, 45, 0.06);
+  --radius-control: 8px;
+  --radius-media: 14px;
+  --shadow-display: 0 20px 45px rgba(9, 61, 50, 0.15);
+  --shadow-card-hover: 0 16px 32px rgba(9, 61, 50, 0.11);
+  --shadow-panel: 0 12px 28px rgba(9, 61, 50, 0.08);
   --border-hairline: 1px solid var(--color-rule);
-  --focus-ring: 3px solid var(--color-indigo);
+  --focus-ring: 3px solid #136d5a;
 
-  /* Compatibility aliases keep existing customer class names stable while the
-     route components migrate to the editorial tokens in later tasks. */
+  /* Compatibility aliases keep existing customer class names stable. */
   --color-brand-forest: var(--color-ink);
-  --color-brand-forest-soft: color-mix(in srgb, var(--color-indigo) 10%, var(--color-surface));
+  --color-brand-forest-soft: var(--color-sage);
   --color-cta-vermilion: var(--color-vermilion);
-  --color-cta-vermilion-dark: #5C0E0D;
+  --color-cta-vermilion-dark: #c63b26;
   --color-surface-raised: var(--color-surface);
   --color-ink-muted: var(--color-muted);
   --color-border: var(--color-rule);
-  --color-focus: var(--color-indigo);
+  --color-focus: #136d5a;
   --interactive-min: 44px;
   --content-width: var(--content-max);
 }

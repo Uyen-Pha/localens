@@ -9,8 +9,8 @@ const viewports = [
 ] as const;
 
 const routes = [
-  { name: "home-en", path: "/en/", heading: "The city is more than its landmarks" },
-  { name: "home-vi", path: "/vi/", heading: "Thành phố không chỉ có những địa danh nổi tiếng" },
+  { name: "home-en", path: "/en/", heading: "Your Saigon, planned around you" },
+  { name: "home-vi", path: "/vi/", heading: "Sài Gòn của bạn, được thiết kế quanh bạn" },
   { name: "tours-en", path: "/en/tours/", heading: "Fixed tours in Ho Chi Minh City" },
   { name: "planner-en", path: "/en/planner/", heading: "Your personalized route proposal" },
   { name: "custom-request-en", path: "/en/custom-request/", heading: "Request a review and quote" },
@@ -235,12 +235,12 @@ async function assertDesktopHomeComposition(page: Page): Promise<void> {
 
 async function assertRouteCtas(page: Page, routeName: (typeof routes)[number]["name"]): Promise<void> {
   if (routeName === "home-en") {
-    await expect(page.getByRole("link", { name: /Discover Saigon tours/ })).toHaveAttribute("href", "/en/tours/");
-    await expect(page.getByRole("link", { name: /Design a private journey/ })).toHaveAttribute("href", "/en/planner/");
+    await expect(page.getByRole("link", { name: /Plan my Saigon day/ })).toHaveAttribute("href", "/en/planner/");
+    await expect(page.getByRole("link", { name: /Browse ready-made tours/ })).toHaveAttribute("href", "/en/tours/");
   }
   if (routeName === "home-vi") {
-    await expect(page.getByRole("link", { name: /Khám phá tour Sài Gòn/ })).toHaveAttribute("href", "/vi/tours/");
-    await expect(page.getByRole("link", { name: /Thiết kế hành trình riêng/ })).toHaveAttribute("href", "/vi/planner/");
+    await expect(page.getByRole("link", { name: /Lên kế hoạch ngày ở Sài Gòn/ })).toHaveAttribute("href", "/vi/planner/");
+    await expect(page.getByRole("link", { name: /Xem các tour có sẵn/ })).toHaveAttribute("href", "/vi/tours/");
   }
   if (routeName === "tours-en") {
     const bookingHref = await page.getByRole("link", { name: /^Book / }).first().getAttribute("href");
@@ -289,7 +289,7 @@ for (const viewport of viewports) {
       await mkdir(qaRoot, { recursive: true });
       await page.goto("/en/", { waitUntil: "domcontentloaded" });
       await waitForDeterministicPage(page);
-      await expect(page.getByRole("heading", { level: 1, name: "The city is more than its landmarks" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Your Saigon, planned around you" })).toBeVisible();
       await assertRouteCtas(page, "home-en");
       await assertAccessibilitySmoke(page);
       if (viewport.name === "desktop") {
