@@ -8,6 +8,14 @@ import { FOOD_FIXTURE, createFoodFixturePlannerState } from "./food-fixture";
 const UNIT_RANGE_PATTERN = /45[.,]000.*60[.,]000/;
 const GROUP_RANGE_PATTERN = /135[.,]000.*180[.,]000/;
 
+function formatVnd(value: number, locale: "en" | "vi"): string {
+  return new Intl.NumberFormat(locale === "vi" ? "vi-VN" : "en-US", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 async function seedPlanner(
   page: Page,
   locale: "en" | "vi",
@@ -49,11 +57,19 @@ function customRequestRegion(page: Page, copy: CustomRequestCopy): Locator {
   return page.getByRole("region", { name: copy.heading });
 }
 
-async function assertApprovedFoodFlow(page: Page, locale: "en" | "vi"): Promise<void> {
+async function assertApprovedFoodFlow(
+  page: Page,
+  locale: "en" | "vi",
+  scenario: Parameters<typeof createFoodFixturePlannerState>[1] = "approved",
+): Promise<void> {
+  const state = await seedPlanner(page, locale, scenario);
+  await page.goto(`/${locale}/planner`);
   const copy = getDictionary(locale);
   const planner = plannerRegion(page, copy.planner);
   const food = planner.locator(".planner-food").first();
   const totals = planner.locator(".planner-flow__totals");
+  const expectedAdmission = formatVnd(state.current.totals.admissionCostVnd, locale);
+  const expectedPayable = formatVnd(state.current.totals.customerPayableVnd, locale);
 
   await expect(food.getByText(FOOD_FIXTURE.vendor[locale], { exact: true })).toBeVisible();
   await expect(food.getByText(FOOD_FIXTURE.menu[locale], { exact: true })).toBeVisible();
@@ -61,11 +77,11 @@ async function assertApprovedFoodFlow(page: Page, locale: "en" | "vi"): Promise<
   await expect(factValue(food, copy.planner.unitPriceLabel)).toHaveText(UNIT_RANGE_PATTERN);
   await expect(factValue(food, copy.planner.estimatedRangeLabel)).toHaveText(GROUP_RANGE_PATTERN);
   await expect(food.getByText(copy.planner.payAtVendorValue, { exact: true })).toBeVisible();
-  await expect(factValue(totals, copy.planner.venueAdmissionLabel)).toHaveText(/0/);
+  await expect(factValue(totals, copy.planner.venueAdmissionLabel)).toHaveText(expectedAdmission);
   await expect(factValue(totals, copy.planner.foodEstimateLabel)).toHaveText(
     GROUP_RANGE_PATTERN,
   );
-  await expect(factValue(totals, copy.planner.localLensPayableLabel)).toHaveText(/0/);
+  await expect(factValue(totals, copy.planner.localLensPayableLabel)).toHaveText(expectedPayable);
   await expect(factValue(totals, copy.planner.payAtVendorLabel)).toHaveText(
     GROUP_RANGE_PATTERN,
   );
@@ -76,7 +92,7 @@ async function assertApprovedFoodFlow(page: Page, locale: "en" | "vi"): Promise<
 
   await expect(selected.getByText(FOOD_FIXTURE.vendor[locale], { exact: true })).toBeVisible();
   await expect(selected.getByText(FOOD_FIXTURE.menu[locale], { exact: true })).toBeVisible();
-  await expect(factValue(selected, copy.customRequest.localLensPayableLabel)).toHaveText(/0/);
+  await expect(factValue(selected, copy.customRequest.localLensPayableLabel)).toHaveText(expectedPayable);
   await expect(factValue(selected, copy.customRequest.payAtVendorLabel)).toHaveText(
     GROUP_RANGE_PATTERN,
   );
@@ -85,7 +101,7 @@ async function assertApprovedFoodFlow(page: Page, locale: "en" | "vi"): Promise<
   await custom.getByRole("button", { name: copy.customRequest.submitRequestLabel }).click();
   await custom.getByRole("button", { name: copy.customRequest.simulateQuoteLabel }).click();
   const quote = custom.getByRole("region", { name: copy.customRequest.quoteHeading });
-  await expect(factValue(quote, copy.customRequest.quoteTotalLabel)).toHaveText(/0/);
+  await expect(factValue(quote, copy.customRequest.quoteTotalLabel)).toHaveText(expectedPayable);
   await custom.getByRole("button", { name: copy.customRequest.acceptQuoteLabel }).click();
   await custom.getByRole("button", { name: copy.customRequest.openStripeMockLabel }).click();
 
@@ -94,19 +110,20 @@ async function assertApprovedFoodFlow(page: Page, locale: "en" | "vi"): Promise<
   await expect(stripe.getByText(FOOD_FIXTURE.vendor[locale], { exact: true })).toHaveCount(0);
   await expect(stripe.getByText(FOOD_FIXTURE.menu[locale], { exact: true })).toHaveCount(0);
   await expect(stripe).not.toContainText(locale === "en" ? "135,000" : "135.000");
+  await expect(stripe).not.toContainText(locale === "en" ? "180,000" : "180.000");
 }
 
 test.describe("food itinerary acceptance paths", () => {
   test("EN approved food selection carries group quantity, range and pay-at-vendor boundary", async ({ page }) => {
-    await seedPlanner(page, "en");
-    await page.goto("/en/planner");
     await assertApprovedFoodFlow(page, "en");
   });
 
   test("VI approved food selection carries localized names, group quantity and range", async ({ page }) => {
-    await seedPlanner(page, "vi");
-    await page.goto("/vi/planner");
     await assertApprovedFoodFlow(page, "vi");
+  });
+
+  test("mixed route carries a nonzero LocalLens payable amount into the quote", async ({ page }) => {
+    await assertApprovedFoodFlow(page, "en", "mixed");
   });
 
   test("research-only food records fail closed without a proposal or invented vendor facts", async ({ page }) => {
@@ -133,6 +150,12 @@ test.describe("food itinerary acceptance paths", () => {
     const foodItem = state.current.items.find((item) => item.foodSelection !== null);
     const museumItem = state.current.items.find((item) => item.foodSelection === null);
     if (foodItem === undefined || museumItem === undefined) throw new Error("mixed fixture did not produce both stops");
+    if (foodItem.foodSelection === null) throw new Error("mixed fixture food selection missing");
+    expect(foodItem.foodSelection).toMatchObject({
+      quantity: FOOD_FIXTURE.groupQuantity,
+      priceVndMin: FOOD_FIXTURE.unitPrice.min,
+      priceVndMax: FOOD_FIXTURE.unitPrice.max,
+    });
 
     const timelineFood = planner.locator(".planner-timeline__item").filter({ hasText: foodItem.title });
     const timelineMuseum = planner.locator(".planner-timeline__item").filter({ hasText: museumItem.title });
@@ -151,6 +174,29 @@ test.describe("food itinerary acceptance paths", () => {
     await expect(factValue(timelineFood.locator(".planner-food"), copy.estimatedRangeLabel)).toHaveText(GROUP_RANGE_PATTERN);
     await expect(timelineFood.getByRole("button", { name: `${copy.unlockLabel}: ${foodItem.title}` })).toHaveAttribute("aria-pressed", "true");
     await expect(timelineMuseum.getByTestId("planner-activity")).not.toHaveText(originalMuseumActivity ?? "");
+  });
+
+  test("unlocked food removal clears the food and pay-at-vendor totals", async ({ page }) => {
+    const state = await seedPlanner(page, "en", "mixed");
+    const foodItem = state.current.items.find((item) => item.foodSelection !== null);
+    if (foodItem === undefined) throw new Error("mixed fixture did not produce a food stop");
+    await page.goto("/en/planner");
+
+    const copy = getDictionary("en").planner;
+    const planner = plannerRegion(page, copy);
+    const timelineFood = planner.locator(".planner-timeline__item").filter({ hasText: foodItem.title });
+    const totals = planner.locator(".planner-flow__totals");
+
+    await planner.getByLabel(copy.feedbackLabel).fill("Remove the food stop.");
+    await planner.getByRole("button", { name: copy.refineLabel }).click();
+    await expect(planner.locator(".planner-flow__status")).toHaveText(copy.revisionCreatedMessage);
+    await expect(timelineFood.locator(".planner-food")).toHaveCount(0);
+    await expect(timelineFood.getByText(copy.foodNotSelectedLabel, { exact: true })).toBeVisible();
+    await expect(factValue(totals, copy.foodEstimateLabel)).toHaveText(copy.foodNotSelectedLabel);
+    await expect(factValue(totals, copy.payAtVendorLabel)).toHaveText(formatVnd(0, "en"));
+    await expect(factValue(totals, copy.localLensPayableLabel)).toHaveText(
+      formatVnd(state.current.totals.customerPayableVnd, "en"),
+    );
   });
 
   test("museum-only route keeps food unselected and reports admission separately", async ({ page }) => {

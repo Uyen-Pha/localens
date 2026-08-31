@@ -258,9 +258,10 @@ street-food stop.
    quantity, price range, payment mode and activity text. If no feasible
    verified food choice exists, the response explains why and never invents a
    recommendation.
-6. Refinement may replace or remove an unlocked vendor/menu selection. Locked
-   selections keep their vendor and item IDs and snapshot prices; a stale base
-   revision still returns `STALE_REVISION`.
+6. Refinement may remove an unlocked vendor/menu selection when the customer
+   explicitly requests no food. Locked selections keep their vendor and item
+   IDs and snapshot prices; a stale base revision still returns
+   `STALE_REVISION`.
 
 The AI remains a recommender. It cannot approve a vendor, change a price,
 confirm availability, collect money or book a table.
@@ -352,7 +353,8 @@ the venue evidence workflow:
 - A vendor closed at the proposed time is rejected even if the parent market is
   open.
 - Vegetarian, halal, allergen and mobility requirements reject unknown support.
-- Refinement can replace an unlocked food selection and preserves a locked one.
+- Refinement can remove an explicitly declined unlocked food selection and
+  preserves a locked one. Replacement is not claimed by this demo adapter.
 - Existing museum/heritage itineraries still calculate zero food cost without
   changing their admission behavior.
 - Stripe Mock receives only LocalLens payable components; pay-at-vendor food is
@@ -365,8 +367,9 @@ the venue evidence workflow:
 
 - The real-route Playwright suite verifies approved EN/VI vendor and menu names,
   whole-group quantity, unit and group price ranges, `pay_at_vendor` display,
-  research-only fail-closed behavior, locked-food refinement, and zero-food
-  museum admission.
+  research-only fail-closed behavior, locked-food preservation, explicit
+  unlocked-food removal, mixed LocalLens payable quoting, and zero-food museum
+  admission.
 - A strictly validated planner snapshot seam is available only when
   `NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES=1`; fixture catalog facts live only under
   `tests/e2e/`. The normal route ignores the session key when the flag is off,
@@ -376,6 +379,11 @@ the venue evidence workflow:
   has no charge amount. External/static servers must be built and started with
   the fixture flag for this acceptance harness; normal production builds keep
   it off.
+- The extracted E2E snapshot validator rejects invalid dates, non-chronological
+  or duplicate items, mismatched food quantities, unsafe price products,
+  inconsistent totals, duration overages and revision budgets over their
+  normalized limits. The public preview DTO intentionally keeps vendor and
+  menu IDs server-side; domain repair tests cover locked ID preservation.
 - PostgreSQL, RLS, locking, and concurrency runtime behavior remain unverified
   when the Supabase CLI/runtime gate is unavailable. In this checkout,
   `pnpm db:verify` reports `SUPABASE_CLI_NOT_FOUND`; static and unit evidence do

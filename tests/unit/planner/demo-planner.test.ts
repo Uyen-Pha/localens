@@ -4,6 +4,7 @@ import {
   createDemoPlannerAdapter,
   type DemoPlannerState,
 } from "@/lib/application/planner/demo-planner";
+import type { ItineraryPreviewFoodSelectionDto } from "@/lib/application/api/read-only-api";
 import type { PersonalizationRequest } from "@/lib/application/planner/personalization-session";
 
 const personalizedRequest: PersonalizationRequest = {
@@ -25,6 +26,43 @@ const personalizedRequest: PersonalizationRequest = {
   lockedStopIds: [],
   specialNeeds: "Prefer a quiet route.",
 };
+
+const foodSelection: ItineraryPreviewFoodSelectionDto = {
+  venueTitle: "Ben Thanh Market",
+  vendorTitle: "Aunt Ba's stall",
+  locationNote: "Aisle 4",
+  menuTitle: "Banh mi",
+  servingUnit: "portion",
+  quantity: 2,
+  priceVndMin: 45_000,
+  priceVndMax: 60_000,
+  activity: "Taste and discuss the selected dish",
+  dietaryAllergenCaveat: "Vegetarian: supported",
+  accessibilityVendorWarning: "Step-free access: not verified",
+  paymentMode: "pay_at_vendor",
+};
+
+function stateWithFoodSelection(): DemoPlannerState {
+  const base = createDemoPlannerAdapter().createInitial();
+  const item = {
+    ...base.current.items[0]!,
+    placeCostVnd: 0,
+    travelCostVndBefore: 0,
+    foodSelection,
+    foodCostMinVnd: 90_000,
+    foodCostMaxVnd: 120_000,
+    payAtVendorMinVnd: 90_000,
+    payAtVendorMaxVnd: 120_000,
+    customerPayableVnd: 0,
+  };
+  return {
+    ...base,
+    current: {
+      ...base.current,
+      items: [item],
+    },
+  };
+}
 
 describe("demo planner adapter", () => {
   it("starts with a typed proposal containing activities, totals, and warnings", () => {
@@ -132,6 +170,53 @@ describe("demo planner adapter", () => {
       locked: true,
     });
     expect(result.state.current.items.some((item) => item.activity !== initial.current.items.find((candidate) => candidate.id === item.id)?.activity)).toBe(true);
+  });
+
+  it("preserves a locked food snapshot when removal is requested", () => {
+    const adapter = createDemoPlannerAdapter();
+    const initial = stateWithFoodSelection();
+    const foodItem = initial.current.items[0]!;
+
+    const result = adapter.refine(initial, {
+      baseRevision: initial.current.revision,
+      feedback: "Remove the food stop.",
+      lockedItemIds: [foodItem.id],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.current.items[0]).toMatchObject({
+      foodSelection,
+      foodCostMinVnd: 90_000,
+      foodCostMaxVnd: 120_000,
+      payAtVendorMinVnd: 90_000,
+      payAtVendorMaxVnd: 120_000,
+    });
+  });
+
+  it("removes an explicitly requested unlocked food selection and clears its vendor costs", () => {
+    const adapter = createDemoPlannerAdapter();
+    const initial = stateWithFoodSelection();
+
+    const result = adapter.refine(initial, {
+      baseRevision: initial.current.revision,
+      feedback: "Remove the food stop.",
+      lockedItemIds: [],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.current.items[0]).toMatchObject({
+      foodSelection: null,
+      foodCostMinVnd: 0,
+      foodCostMaxVnd: 0,
+      payAtVendorMinVnd: 0,
+      payAtVendorMaxVnd: 0,
+    });
+    expect(result.state.current.totals.foodCostMinVnd).toBe(0);
+    expect(result.state.current.totals.foodCostMaxVnd).toBe(0);
+    expect(result.state.current.totals.payAtVendorMinVnd).toBe(0);
+    expect(result.state.current.totals.payAtVendorMaxVnd).toBe(0);
   });
 
   it("rejects a stale base revision without changing the current state", () => {

@@ -229,7 +229,12 @@ describe("repairItinerary", () => {
 
     expect(repaired.ok).toBe(true);
     if (repaired.ok) {
-      expect(repaired.value.items.find((item) => item.placeId === "place-banh-mi")?.foodSelection).toEqual(locked);
+      const repairedSelection = repaired.value.items.find((item) => item.placeId === "place-banh-mi")?.foodSelection;
+      expect(repairedSelection).toEqual(locked);
+      expect(repairedSelection).toMatchObject({
+        vendorId: locked?.vendorId,
+        menuItemId: locked?.menuItemId,
+      });
     }
   });
 

@@ -36,8 +36,9 @@ open findings. Database runtime verification remains a separate gate.
 ## Food itinerary acceptance
 
 The real-route acceptance suite covers approved English and Vietnamese food
-stops, research-only fail-closed behavior, locked-stop refinement, zero-food
-museum behavior, and the pay-at-vendor boundary:
+stops, research-only fail-closed behavior, locked-food preservation, explicit
+unlocked-food removal, mixed LocalLens payable quoting, zero-food museum
+behavior, and the pay-at-vendor boundary:
 
 ```bash
 pnpm exec playwright test tests/e2e/food-itinerary.spec.ts

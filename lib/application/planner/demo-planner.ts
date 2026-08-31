@@ -6,13 +6,14 @@ import {
   type ReadOnlyApi,
 } from "@/lib/application/api/read-only-api";
 import {
-  itineraryRequestSchema,
-} from "@/lib/domain/itinerary/contracts";
-import {
-  isPersonalizationRequest,
   toItineraryRequest,
   type PersonalizationRequest,
 } from "@/lib/application/planner/personalization-session";
+import {
+  totalsFor,
+} from "@/lib/application/planner/e2e-planner-state-validator";
+
+export { E2E_PLANNER_STATE_SESSION_KEY, readE2EPlannerState } from "@/lib/application/planner/e2e-planner-state-validator";
 
 export type DemoPlannerItem = Readonly<{
   id: string;
@@ -108,230 +109,7 @@ const PLANNER_COPY: Record<Locale, Readonly<{ noProposal: string }>> = {
   vi: { noProposal: "Chưa tạo được đề xuất demo vì không có lịch trình khả thi với các điều kiện đã nhập." },
 };
 
-/** Browser-only test seam. Production and normal local demos ignore this key. */
-export const E2E_PLANNER_STATE_SESSION_KEY = "localens.planner.e2e.v1";
-
 const defaultReadOnlyApi = createReadOnlyApi();
-
-const PLANNER_STATE_KEYS = ["planId", "locale", "preferences", "current", "history"] as const;
-const PLANNER_REVISION_KEYS = ["revision", "budgetVnd", "items", "totals", "warnings", "feedback"] as const;
-const PLANNER_ITEM_KEYS = [
-  "id",
-  "placeId",
-  "title",
-  "startAt",
-  "endAt",
-  "activity",
-  "visitDurationMinutes",
-  "travelMinutesBefore",
-  "transitionBufferMinutesBefore",
-  "travelCostVndBefore",
-  "placeCostVnd",
-  "foodSelection",
-  "foodCostMinVnd",
-  "foodCostMaxVnd",
-  "payAtVendorMinVnd",
-  "payAtVendorMaxVnd",
-  "customerPayableVnd",
-  "locked",
-] as const;
-const PLANNER_TOTAL_KEYS = [
-  "durationMinutes",
-  "costVnd",
-  "admissionCostVnd",
-  "foodCostMinVnd",
-  "foodCostMaxVnd",
-  "travelCostVnd",
-  "guideCostVnd",
-  "payAtVendorMinVnd",
-  "payAtVendorMaxVnd",
-  "customerPayableVnd",
-  "groupCostMinVnd",
-  "groupCostMaxVnd",
-] as const;
-const FOOD_SELECTION_KEYS = [
-  "venueTitle",
-  "vendorTitle",
-  "locationNote",
-  "menuTitle",
-  "servingUnit",
-  "quantity",
-  "priceVndMin",
-  "priceVndMax",
-  "activity",
-  "dietaryAllergenCaveat",
-  "accessibilityVendorWarning",
-  "paymentMode",
-] as const;
-const PERSONALIZATION_KEYS = [
-  "startAt",
-  "durationMinutes",
-  "areas",
-  "budget",
-  "partySize",
-  "guideLanguage",
-  "priorityWeights",
-  "pace",
-  "dietaryRequirements",
-  "mobilityRequirements",
-  "lockedStopIds",
-  "specialNeeds",
-] as const;
-const BUDGET_KEYS = ["currency", "amountMinor"] as const;
-const PRIORITY_KEYS = ["street_food", "history", "traditional_craft", "traditional_market"] as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  const actual = Object.keys(value);
-  return actual.length === keys.length && keys.every((key) => Object.prototype.hasOwnProperty.call(value, key)) && actual.every((key) => keys.includes(key));
-}
-
-function isSafeNonNegativeInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-}
-
-function isBoundedText(value: unknown, maxLength: number, allowEmpty = false): value is string {
-  return typeof value === "string"
-    && (allowEmpty ? value.length <= maxLength : value.length > 0 && value.length <= maxLength)
-    && !/[\u0000-\u001F\u007F]/.test(value);
-}
-
-function isUniqueStringArray(value: unknown, maxLength: number, itemMaxLength: number): value is readonly string[] {
-  return Array.isArray(value)
-    && value.length <= maxLength
-    && value.every((item) => isBoundedText(item, itemMaxLength))
-    && new Set(value).size === value.length;
-}
-
-function isPlannerTime(value: unknown): value is string {
-  return typeof value === "string"
-    && (/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)
-      || /^\d{4}-\d{2}-\d{2} (?:[01]\d|2[0-3]):[0-5]\d$/.test(value));
-}
-
-function isStrictPersonalizationRequest(value: unknown): value is PersonalizationRequest {
-  if (!isRecord(value) || !hasExactKeys(value, PERSONALIZATION_KEYS) || !isPersonalizationRequest(value)) return false;
-  if (!isRecord(value.budget) || !hasExactKeys(value.budget, BUDGET_KEYS)) return false;
-  if (!isRecord(value.priorityWeights) || !hasExactKeys(value.priorityWeights, PRIORITY_KEYS)) return false;
-  if (!isUniqueStringArray(value.areas, 8, 80)
-    || !isUniqueStringArray(value.dietaryRequirements, 8, 80)
-    || !isUniqueStringArray(value.mobilityRequirements, 8, 80)
-    || !isUniqueStringArray(value.lockedStopIds, 24, 120)
-    || !isBoundedText(value.specialNeeds, 1_000, true)) return false;
-  return itineraryRequestSchema.safeParse(toItineraryRequest(value)).success;
-}
-
-function isStrictFoodSelection(value: unknown): value is ItineraryPreviewFoodSelectionDto {
-  if (!isRecord(value) || !hasExactKeys(value, FOOD_SELECTION_KEYS)) return false;
-  return isBoundedText(value.venueTitle, 2_000)
-    && isBoundedText(value.vendorTitle, 2_000)
-    && isBoundedText(value.locationNote, 2_000)
-    && isBoundedText(value.menuTitle, 2_000)
-    && (value.servingUnit === "portion" || value.servingUnit === "bowl" || value.servingUnit === "piece" || value.servingUnit === "drink" || value.servingUnit === "shared_set")
-    && isSafeNonNegativeInteger(value.quantity)
-    && value.quantity > 0
-    && isSafeNonNegativeInteger(value.priceVndMin)
-    && isSafeNonNegativeInteger(value.priceVndMax)
-    && value.priceVndMin <= value.priceVndMax
-    && isBoundedText(value.activity, 2_000)
-    && isBoundedText(value.dietaryAllergenCaveat, 2_000)
-    && isBoundedText(value.accessibilityVendorWarning, 2_000)
-    && value.paymentMode === "pay_at_vendor";
-}
-
-function safeProduct(left: number, right: number): number | null {
-  const value = left * right;
-  return Number.isSafeInteger(value) && value >= 0 ? value : null;
-}
-
-function isStrictPlannerItem(value: unknown): value is DemoPlannerItem {
-  if (!isRecord(value) || !hasExactKeys(value, PLANNER_ITEM_KEYS)) return false;
-  if (!isBoundedText(value.id, 160)
-    || !isBoundedText(value.placeId, 160)
-    || !isBoundedText(value.title, 2_000)
-    || !isPlannerTime(value.startAt)
-    || !isPlannerTime(value.endAt)
-    || !isBoundedText(value.activity, 2_000)
-    || !isSafeNonNegativeInteger(value.visitDurationMinutes)
-    || value.visitDurationMinutes < 15
-    || value.visitDurationMinutes > 480
-    || !isSafeNonNegativeInteger(value.travelMinutesBefore)
-    || (value.transitionBufferMinutesBefore !== 0 && value.transitionBufferMinutesBefore !== 10)
-    || !isSafeNonNegativeInteger(value.travelCostVndBefore)
-    || !isSafeNonNegativeInteger(value.placeCostVnd)
-    || !isSafeNonNegativeInteger(value.foodCostMinVnd)
-    || !isSafeNonNegativeInteger(value.foodCostMaxVnd)
-    || value.foodCostMinVnd > value.foodCostMaxVnd
-    || !isSafeNonNegativeInteger(value.payAtVendorMinVnd)
-    || !isSafeNonNegativeInteger(value.payAtVendorMaxVnd)
-    || value.payAtVendorMinVnd > value.payAtVendorMaxVnd
-    || !isSafeNonNegativeInteger(value.customerPayableVnd)
-    || typeof value.locked !== "boolean") return false;
-
-  if (value.foodSelection === null) {
-    if (value.foodCostMinVnd !== 0 || value.foodCostMaxVnd !== 0 || value.payAtVendorMinVnd !== 0 || value.payAtVendorMaxVnd !== 0) return false;
-  } else {
-    if (!isStrictFoodSelection(value.foodSelection)) return false;
-    const minCost = safeProduct(value.foodSelection.priceVndMin, value.foodSelection.quantity);
-    const maxCost = safeProduct(value.foodSelection.priceVndMax, value.foodSelection.quantity);
-    if (minCost === null || maxCost === null || value.foodCostMinVnd !== minCost || value.foodCostMaxVnd !== maxCost || value.payAtVendorMinVnd !== minCost || value.payAtVendorMaxVnd !== maxCost) return false;
-  }
-  return value.customerPayableVnd === value.placeCostVnd + value.travelCostVndBefore
-    && Number.isSafeInteger(value.customerPayableVnd);
-}
-
-function totalsMatch(items: readonly DemoPlannerItem[], totals: DemoPlannerTotals): boolean {
-  const expected = totalsFor(items);
-  return PLANNER_TOTAL_KEYS.every((key) => totals[key] === expected[key]);
-}
-
-function isStrictPlannerTotals(value: unknown, items: readonly DemoPlannerItem[]): value is DemoPlannerTotals {
-  if (!isRecord(value) || !hasExactKeys(value, PLANNER_TOTAL_KEYS)) return false;
-  if (!PLANNER_TOTAL_KEYS.every((key) => isSafeNonNegativeInteger(value[key]))) return false;
-  return totalsMatch(items, value as DemoPlannerTotals);
-}
-
-function isStrictPlannerRevision(value: unknown): value is DemoPlannerRevision {
-  if (!isRecord(value) || !hasExactKeys(value, PLANNER_REVISION_KEYS)) return false;
-  if (typeof value.revision !== "number" || !Number.isSafeInteger(value.revision) || value.revision < 1
-    || !Array.isArray(value.items) || value.items.length > 8 || !value.items.every(isStrictPlannerItem)
-    || (value.budgetVnd !== null && !isSafeNonNegativeInteger(value.budgetVnd))
-    || !Array.isArray(value.warnings) || value.warnings.length > 24 || !value.warnings.every((warning) => isBoundedText(warning, 2_000))
-    || !isBoundedText(value.feedback, 2_000, true)) return false;
-  return isStrictPlannerTotals(value.totals, value.items);
-}
-
-function isStrictPlannerState(value: unknown, locale: Locale): value is DemoPlannerState {
-  if (!isRecord(value) || !hasExactKeys(value, PLANNER_STATE_KEYS)
-    || !isBoundedText(value.planId, 120)
-    || value.locale !== locale
-    || (value.preferences !== null && !isStrictPersonalizationRequest(value.preferences))
-    || !isStrictPlannerRevision(value.current)
-    || !Array.isArray(value.history) || value.history.length > 12 || !value.history.every(isStrictPlannerRevision)) return false;
-  const current = value.current as DemoPlannerRevision;
-  return (value.history as DemoPlannerRevision[]).every((revision) => revision.revision < current.revision);
-}
-
-/**
- * Read a fully validated planner snapshot supplied by the E2E harness. The
- * explicit public flag is compiled into the browser bundle and is off for all
- * normal development/production routes; malformed snapshots are ignored.
- */
-export function readE2EPlannerState(locale: Locale): DemoPlannerState | null {
-  if (process.env.NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES !== "1" || typeof window === "undefined") return null;
-  try {
-    const raw = window.sessionStorage.getItem(E2E_PLANNER_STATE_SESSION_KEY);
-    if (raw === null) return null;
-    const parsed: unknown = JSON.parse(raw);
-    return isStrictPlannerState(parsed, locale) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
 const INITIAL_ITEM_FACTS = [
   {
     id: "demo-item-ben-thanh",
@@ -415,38 +193,6 @@ const INITIAL_ITEM_FACTS = [
 
 function cloneItem(item: DemoPlannerItem, locked = item.locked): DemoPlannerItem {
   return { ...item, locked };
-}
-
-function totalsFor(items: readonly DemoPlannerItem[]): DemoPlannerTotals {
-  const admissionCostVnd = items.reduce((total, item) => total + item.placeCostVnd, 0);
-  const foodCostMinVnd = items.reduce((total, item) => total + item.foodCostMinVnd, 0);
-  const foodCostMaxVnd = items.reduce((total, item) => total + item.foodCostMaxVnd, 0);
-  const travelCostVnd = items.reduce((total, item) => total + item.travelCostVndBefore, 0);
-  const payAtVendorMinVnd = items.reduce((total, item) => total + item.payAtVendorMinVnd, 0);
-  const payAtVendorMaxVnd = items.reduce((total, item) => total + item.payAtVendorMaxVnd, 0);
-  const customerPayableVnd = items.reduce((total, item) => total + item.customerPayableVnd, 0);
-  const groupCostMinVnd = admissionCostVnd + foodCostMinVnd + travelCostVnd;
-  const groupCostMaxVnd = admissionCostVnd + foodCostMaxVnd + travelCostVnd;
-  return {
-    durationMinutes: items.reduce(
-      (total, item) =>
-        total + item.visitDurationMinutes + item.travelMinutesBefore + item.transitionBufferMinutesBefore,
-      0,
-    ),
-    // Keep the legacy quote field scoped to what LocalLens collects. Food
-    // marked pay_at_vendor belongs only in the separate estimate fields.
-    costVnd: customerPayableVnd,
-    admissionCostVnd,
-    foodCostMinVnd,
-    foodCostMaxVnd,
-    travelCostVnd,
-    guideCostVnd: 0,
-    payAtVendorMinVnd,
-    payAtVendorMaxVnd,
-    customerPayableVnd,
-    groupCostMinVnd,
-    groupCostMaxVnd,
-  };
 }
 
 type HcmDateTime = Readonly<{ date: string; minute: number }>;
@@ -615,6 +361,28 @@ function adjustedActivity(feedback: string, locale: Locale): string {
     : "Adjust the visit focus to reflect the latest traveler feedback.";
 }
 
+function feedbackRequestsFoodRemoval(feedback: string): boolean {
+  const normalized = feedback.toLocaleLowerCase("en-US");
+  return normalized.includes("remove food")
+    || normalized.includes("remove the food")
+    || normalized.includes("skip food")
+    || normalized.includes("no food")
+    || normalized.includes("bỏ món")
+    || normalized.includes("bỏ ẩm thực")
+    || normalized.includes("không ăn");
+}
+
+function withoutFoodSelection(item: DemoPlannerItem): DemoPlannerItem {
+  return {
+    ...item,
+    foodSelection: null,
+    foodCostMinVnd: 0,
+    foodCostMaxVnd: 0,
+    payAtVendorMinVnd: 0,
+    payAtVendorMaxVnd: 0,
+  };
+}
+
 export function createDemoPlannerAdapter(
   options: Readonly<{ readOnlyApi?: ReadOnlyApi }> = {},
 ): PlannerAdapter {
@@ -640,10 +408,12 @@ export function createDemoPlannerAdapter(
         return { ok: false, error: { code: "INVALID_FEEDBACK" } };
       }
       const lockedIds = new Set(input.lockedItemIds);
+      const removeFoodSelection = feedbackRequestsFoodRemoval(feedback);
       const items = state.current.items.map((item) => {
         const locked = lockedIds.has(item.id);
         if (locked) return cloneItem(item, true);
-        return { ...cloneItem(item, false), activity: adjustedActivity(feedback, state.locale) };
+        const next = { ...cloneItem(item, false), activity: adjustedActivity(feedback, state.locale) };
+        return removeFoodSelection && next.foodSelection !== null ? withoutFoodSelection(next) : next;
       });
 
       const nextRevision: DemoPlannerRevision = {
