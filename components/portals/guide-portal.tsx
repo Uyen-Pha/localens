@@ -222,7 +222,7 @@ export function GuidePortal({
                       </div>
                       <dl className={styles.facts}>
                         <div><dt>{copy.date}</dt><dd>{formatDate(assignment.startAt, locale)}</dd></div>
-                        <div><dt>{copy.scheduleHeading}</dt><dd>{formatTime(assignment.startAt, locale)}–{formatTime(assignment.endAt, locale)}</dd></div>
+                        <div><dt>{copy.scheduleHeading}</dt><dd>{formatTime(assignment.startAt, locale)}{assignment.endAt === null ? "" : `–${formatTime(assignment.endAt, locale)}`}</dd></div>
                         <div><dt>{copy.meetingPoint}</dt><dd>{assignment.meetingPoint}</dd></div>
                         <div><dt>{copy.partySize}</dt><dd>{assignment.partySize}</dd></div>
                         <div><dt>{copy.tourLanguage}</dt><dd>{assignment.language === "vi" ? copy.vietnamese : copy.english}</dd></div>

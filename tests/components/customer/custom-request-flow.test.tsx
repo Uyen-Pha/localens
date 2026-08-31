@@ -135,7 +135,7 @@ describe("CustomRequestFlow", () => {
     });
     await portal.initialized;
     await portal.session.selectDemoIdentity("demo-user-customer");
-    render(<CustomRequestFlow locale="en" copy={copy} demoPortal={portal} />);
+    const rendered = render(<CustomRequestFlow locale="en" copy={copy} demoPortal={portal} />);
 
     fireEvent.click(await screen.findByRole("button", { name: copy.submitRequestLabel }));
     expect(await screen.findByRole("status")).toHaveTextContent(copy.adminReviewPendingMessage);
@@ -149,9 +149,14 @@ describe("CustomRequestFlow", () => {
       decision: "approved",
       note: null,
     });
+    await portal.demoQuotes.issueDemoQuote({
+      requestId: pending.id,
+      amountVndMinor: Number(pending.requestedTotalVndMinor),
+    });
     await portal.session.selectDemoIdentity("demo-user-customer");
 
-    fireEvent.click(screen.getByRole("button", { name: copy.simulateQuoteLabel }));
+    rendered.unmount();
+    render(<CustomRequestFlow locale="en" copy={copy} demoPortal={portal} />);
     expect(await screen.findByRole("heading", { name: copy.quoteHeading })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: copy.acceptQuoteLabel }));
     fireEvent.click(screen.getByRole("button", { name: copy.openStripeMockLabel }));

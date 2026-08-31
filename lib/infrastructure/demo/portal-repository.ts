@@ -29,6 +29,9 @@ import {
   type AdminDepartureProjection,
   type AdminFixedTourProjection,
   type AdminLocationProjection,
+  type AdminPersonalizedQuoteInput,
+  type AdminPersonalizedQuoteProjection,
+  type AdminPersonalizedQuotesPort,
   type AdminPersonalizedRequestProjection,
   type AdminReportProjection,
   type AdminUserProjection,
@@ -87,6 +90,10 @@ type DemoUserRecord = AdminUserProjection & { bio: string | null; nationality: s
 type DemoRequestRecord = CustomerCustomRequest & {
   ownerUserId: string;
   latestDecisionAt: string | null;
+  locale: Locale;
+  partySize: number;
+  totalVndMinor: string;
+  specialNeeds: string | null;
 };
 
 type DemoBookingRecord = CustomerBooking & {
@@ -115,6 +122,8 @@ type DemoDepartureRecord = AdminDepartureProjection;
 type DemoEnvelopeBody = {
   version: typeof PORTAL_DEMO_STORAGE_VERSION;
   users: DemoUserRecord[];
+  /** Requests remain independent until an admin issues an explicit quote. */
+  requests: DemoRequestRecord[];
   bookings: DemoBookingRecord[];
   cancellations: DemoCancellationRecord[];
   reviews: DemoReviewRecord[];
@@ -137,6 +146,7 @@ export interface DemoPortalRepository {
   readonly guide: GuidePortalPorts;
   readonly admin: AdminPortalPorts;
   readonly demoIntegration: DemoPortalIntegration;
+  readonly demoQuotes: AdminPersonalizedQuotesPort;
   reset(): Promise<void>;
 }
 
@@ -145,6 +155,20 @@ const REPORT_TIMESTAMP = "2026-08-31T00:00:00.000Z";
 const DEMO_CATALOG_SNAPSHOT_ID = "demo-catalog-snapshot-v1";
 const DEMO_TRAVEL_SNAPSHOT_ID = "demo-travel-snapshot-v1";
 const DEMO_FX_SNAPSHOT_ID = "demo-fx-snapshot-v1";
+const DEMO_PERSONALIZED_QUOTE_FIXTURE = Object.freeze({
+  bookingId: "demo-booking-personalized",
+  quoteId: "demo-quote-personalized",
+  titleEn: "A Personal Saigon Day",
+  titleVi: "Một ngày Sài Gòn theo sở thích",
+  cancellationPolicy: "Demo quote: request changes through the administrator.",
+  catalogSnapshotId: DEMO_CATALOG_SNAPSHOT_ID,
+  travelSnapshotId: DEMO_TRAVEL_SNAPSHOT_ID,
+  fxSnapshotId: DEMO_FX_SNAPSHOT_ID,
+  fxVndPerUsd: "25000.00000000",
+  meetingPoint: "To be confirmed",
+  holdExpiresAt: "2026-09-07T00:00:00.000Z",
+  createdAt: "2026-08-23T00:00:00.000Z",
+});
 const HASH_ALGORITHM = "fnv1a32" as const;
 const MAX_RECORDS = 200;
 const PORTAL_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,119}$/;
@@ -202,6 +226,7 @@ const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
 const ENVELOPE_FIELDS = [
   "version",
   "users",
+  "requests",
   "bookings",
   "cancellations",
   "reviews",
@@ -222,6 +247,10 @@ const REQUEST_FIELDS = [
   "updatedAt",
   "ownerUserId",
   "latestDecisionAt",
+  "locale",
+  "partySize",
+  "totalVndMinor",
+  "specialNeeds",
 ] as const;
 const BOOKING_FIELDS = [
   "id",
@@ -267,7 +296,7 @@ const REVIEW_FIELDS = ["id", "bookingId", "customerUserId", "rating", "text", "c
 const ASSIGNMENT_FIELDS = ["bookingId", "assignedGuideUserId", "assignmentStatus", "specialNeeds"] as const;
 const LOCATION_FIELDS = ["id", "slug", "locale", "title", "status"] as const;
 const FIXED_TOUR_FIELDS = ["id", "versionId", "slug", "locale", "title", "status"] as const;
-const DEPARTURE_FIELDS = ["id", "tourVersionId", "date", "status"] as const;
+const DEPARTURE_FIELDS = ["id", "tourVersionId", "date", "status", "startsAt", "endAt"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -494,6 +523,7 @@ function bodyForIntegrity(envelope: DemoEnvelope): DemoEnvelopeBody {
   return {
     version: envelope.version,
     users: envelope.users,
+    requests: envelope.requests,
     bookings: envelope.bookings,
     cancellations: envelope.cancellations,
     reviews: envelope.reviews,
@@ -543,6 +573,10 @@ function parseRequest(value: unknown, path: string): DemoRequestRecord {
     updatedAt: safeTimestamp(row.updatedAt, `${path}.updatedAt`),
     ownerUserId: safeId(row.ownerUserId, `${path}.ownerUserId`),
     latestDecisionAt: safeNullableTimestamp(row.latestDecisionAt, `${path}.latestDecisionAt`),
+    locale: safeLocale(row.locale, `${path}.locale`),
+    partySize: safeInteger(row.partySize, `${path}.partySize`, 1, 20),
+    totalVndMinor: safeMoney(row.totalVndMinor, `${path}.totalVndMinor`),
+    specialNeeds: nullableStorageText(row.specialNeeds, `${path}.specialNeeds`, 1_000),
   };
 }
 
@@ -654,6 +688,8 @@ function parseDeparture(value: unknown, path: string): DemoDepartureRecord {
     tourVersionId: safeId(row.tourVersionId, `${path}.tourVersionId`),
     date: safeDate(row.date, `${path}.date`),
     status: safeEnum(row.status, DEPARTURE_STATUS_VALUES, `${path}.status`, "departure status"),
+    startsAt: safeTimestamp(row.startsAt, `${path}.startsAt`),
+    endAt: safeNullableTimestamp(row.endAt, `${path}.endAt`),
   };
 }
 
@@ -666,6 +702,7 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
     if (!envelope.users.some((user) => user.role === role)) invalidStorage("users", `Fixture must contain a ${role}`);
   }
   const users = new Map(envelope.users.map((user) => [user.userId, user]));
+  const requests = new Map(envelope.requests.map((request) => [request.id, request]));
   const bookings = new Map(envelope.bookings.map((booking) => [booking.id, booking]));
   const departures = new Map(envelope.departures.map((departure) => [departure.id, departure]));
   const tours = new Map(envelope.fixedTours.map((tour) => [tour.versionId, tour]));
@@ -689,6 +726,17 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
     if (!tours.has(departure.tourVersionId)) invalidStorage(`departures.${departure.id}.tourVersionId`, "Unknown tour version reference");
   }
 
+  for (const request of envelope.requests) {
+    const owner = users.get(request.ownerUserId);
+    if (!owner || owner.role !== "customer") invalidStorage(`requests.${request.id}.ownerUserId`, "Request owner must be a customer");
+    if (request.status === "pending_review" && request.latestDecisionAt !== null) {
+      invalidStorage(`requests.${request.id}.latestDecisionAt`, "Pending request cannot have a decision timestamp");
+    }
+    if (request.status !== "pending_review" && request.latestDecisionAt === null) {
+      invalidStorage(`requests.${request.id}.latestDecisionAt`, "Reviewed request requires a decision timestamp");
+    }
+  }
+
   for (const booking of envelope.bookings) {
     const owner = users.get(booking.ownerUserId);
     if (!owner || owner.role !== "customer") invalidStorage(`bookings.${booking.id}.ownerUserId`, "Booking owner must be a customer");
@@ -708,6 +756,10 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
       if (booking.personalizedRequest === null) invalidStorage(`bookings.${booking.id}.personalizedRequest`, "Quote booking requires its request");
       if (booking.personalizedRequest.ownerUserId !== booking.ownerUserId) {
         invalidStorage(`bookings.${booking.id}.personalizedRequest.ownerUserId`, "Request owner mismatch");
+      }
+      const authoritativeRequest = requests.get(booking.personalizedRequest.id);
+      if (!authoritativeRequest || authoritativeRequest.ownerUserId !== booking.ownerUserId) {
+        invalidStorage(`bookings.${booking.id}.personalizedRequest.id`, "Quote booking requires its independent request");
       }
       if (booking.personalizedRequest.status === "pending_review" && booking.personalizedRequest.latestDecisionAt !== null) {
         invalidStorage(`bookings.${booking.id}.personalizedRequest.latestDecisionAt`, "Pending request cannot have a decision timestamp");
@@ -761,7 +813,7 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
       invalidStorage(`cancellations.${cancellation.id}.decidedAt`, "Decided cancellation requires a timestamp");
     } else if (cancellation.status === "approved" && booking.status !== "cancelled") {
       invalidStorage(`cancellations.${cancellation.id}`, "Approved cancellation requires a cancelled booking");
-    } else if (cancellation.status === "rejected" && booking.status === "cancelled") {
+    } else if (cancellation.status === "rejected" && booking.status === "cancelled" && booking.cancellationRequestId === cancellation.id) {
       invalidStorage(`cancellations.${cancellation.id}`, "Rejected cancellation cannot leave a booking cancelled");
     }
   }
@@ -786,8 +838,7 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
     reviews.set(review.bookingId, review);
   }
 
-  const requestCount = envelope.bookings.filter((booking) => booking.personalizedRequest !== null).length;
-  if (requestCount < 1) invalidStorage("bookings", "The demo fixture must include a personalized request");
+  if (envelope.requests.length < 1) invalidStorage("requests", "The demo fixture must include a personalized request");
 }
 
 function parseEnvelope(raw: string): DemoEnvelope {
@@ -806,6 +857,7 @@ function parseEnvelope(raw: string): DemoEnvelope {
   const envelope: DemoEnvelope = {
     version: PORTAL_DEMO_STORAGE_VERSION,
     users: denseArray(root.users, "root.users").map((entry, index) => parseUser(entry, `root.users[${index}]`)),
+    requests: denseArray(root.requests, "root.requests").map((entry, index) => parseRequest(entry, `root.requests[${index}]`)),
     bookings: denseArray(root.bookings, "root.bookings").map((entry, index) => parseBooking(entry, `root.bookings[${index}]`)),
     cancellations: denseArray(root.cancellations, "root.cancellations").map((entry, index) => parseCancellation(entry, `root.cancellations[${index}]`)),
     reviews: denseArray(root.reviews, "root.reviews").map((entry, index) => parseReview(entry, `root.reviews[${index}]`)),
@@ -819,6 +871,7 @@ function parseEnvelope(raw: string): DemoEnvelope {
     },
   };
   ensureUnique(envelope.users.map((user) => user.userId), "root.users");
+  ensureUnique(envelope.requests.map((request) => request.id), "root.requests");
   ensureUnique(envelope.bookings.map((booking) => booking.id), "root.bookings");
   ensureUnique(envelope.cancellations.map((request) => request.id), "root.cancellations");
   ensureUnique(envelope.reviews.map((review) => review.id), "root.reviews");
@@ -910,9 +963,9 @@ function createFixtureBody(): DemoEnvelopeBody {
     },
   ];
   const departures: DemoDepartureRecord[] = [
-    { id: "demo-departure-completed", tourVersionId: "demo-tour-version-markets", date: "2026-08-30", status: "completed" },
-    { id: "demo-departure-cancellation", tourVersionId: "demo-tour-version-history", date: FIXTURE_DATE, status: "scheduled" },
-    { id: "demo-departure-secondary", tourVersionId: "demo-tour-version-markets", date: "2026-09-06", status: "scheduled" },
+    { id: "demo-departure-completed", tourVersionId: "demo-tour-version-markets", date: "2026-08-30", status: "completed", startsAt: "2026-08-30T09:00:00+07:00", endAt: null },
+    { id: "demo-departure-cancellation", tourVersionId: "demo-tour-version-history", date: FIXTURE_DATE, status: "scheduled", startsAt: "2026-09-05T09:30:00+07:00", endAt: null },
+    { id: "demo-departure-secondary", tourVersionId: "demo-tour-version-markets", date: "2026-09-06", status: "scheduled", startsAt: "2026-09-06T09:00:00+07:00", endAt: null },
   ];
   const locations: DemoLocationRecord[] = [
     { id: "demo-location-ben-thanh", slug: "ben-thanh-market", locale: "en", title: "Ben Thanh Market", status: "published" },
@@ -1010,28 +1063,28 @@ function createFixtureBody(): DemoEnvelopeBody {
       personalizedRequest: null,
     },
     {
-      id: "demo-booking-personalized",
+      id: DEMO_PERSONALIZED_QUOTE_FIXTURE.bookingId,
       status: "confirmed",
       sourceKind: "quote",
-      sourceId: "demo-quote-personalized",
+      sourceId: DEMO_PERSONALIZED_QUOTE_FIXTURE.quoteId,
       tourVersionId: null,
-      quoteId: "demo-quote-personalized",
-      titleEn: "A Personal Saigon Day",
-      titleVi: "Một ngày Sài Gòn theo sở thích",
-      cancellationPolicy: "Demo quote: request changes through the administrator.",
-      catalogSnapshotId: DEMO_CATALOG_SNAPSHOT_ID,
-      travelSnapshotId: DEMO_TRAVEL_SNAPSHOT_ID,
-      fxSnapshotId: DEMO_FX_SNAPSHOT_ID,
-      fxVndPerUsd: "25000.00000000",
+      quoteId: DEMO_PERSONALIZED_QUOTE_FIXTURE.quoteId,
+      titleEn: DEMO_PERSONALIZED_QUOTE_FIXTURE.titleEn,
+      titleVi: DEMO_PERSONALIZED_QUOTE_FIXTURE.titleVi,
+      cancellationPolicy: DEMO_PERSONALIZED_QUOTE_FIXTURE.cancellationPolicy,
+      catalogSnapshotId: DEMO_PERSONALIZED_QUOTE_FIXTURE.catalogSnapshotId,
+      travelSnapshotId: DEMO_PERSONALIZED_QUOTE_FIXTURE.travelSnapshotId,
+      fxSnapshotId: DEMO_PERSONALIZED_QUOTE_FIXTURE.fxSnapshotId,
+      fxVndPerUsd: DEMO_PERSONALIZED_QUOTE_FIXTURE.fxVndPerUsd,
       perPersonVndMinor: null,
       totalVndMinor: "750000",
       checkoutCurrency: "vnd",
       checkoutAmountMinor: "750000",
       partySize: 1,
       language: "en",
-      meetingPoint: "To be confirmed",
-      holdExpiresAt: "2026-09-07T00:00:00.000Z",
-      createdAt: "2026-08-23T00:00:00.000Z",
+      meetingPoint: DEMO_PERSONALIZED_QUOTE_FIXTURE.meetingPoint,
+      holdExpiresAt: DEMO_PERSONALIZED_QUOTE_FIXTURE.holdExpiresAt,
+      createdAt: DEMO_PERSONALIZED_QUOTE_FIXTURE.createdAt,
       ownerUserId: "demo-user-customer",
       paymentStatus: "paid",
       assignedGuideUserId: null,
@@ -1046,7 +1099,27 @@ function createFixtureBody(): DemoEnvelopeBody {
         updatedAt: "2026-08-23T00:00:00.000Z",
         ownerUserId: "demo-user-customer",
         latestDecisionAt: null,
+        locale: "en",
+        partySize: 1,
+        totalVndMinor: "750000",
+        specialNeeds: null,
       },
+    },
+  ];
+  const requests: DemoRequestRecord[] = [
+    {
+      id: "demo-request-personalized",
+      planId: "demo-plan-personalized",
+      revisionNo: 1,
+      status: "pending_review",
+      submittedAt: "2026-08-23T00:00:00.000Z",
+      updatedAt: "2026-08-23T00:00:00.000Z",
+      ownerUserId: "demo-user-customer",
+      latestDecisionAt: null,
+      locale: "en",
+      partySize: 1,
+      totalVndMinor: "750000",
+      specialNeeds: null,
     },
   ];
   const assignments: DemoAssignmentRecord[] = [
@@ -1067,6 +1140,7 @@ function createFixtureBody(): DemoEnvelopeBody {
   return {
     version: PORTAL_DEMO_STORAGE_VERSION,
     users,
+    requests,
     bookings,
     cancellations: [],
     reviews: [],
@@ -1179,16 +1253,46 @@ function toAdminBooking(envelope: DemoEnvelope, booking: DemoBookingRecord): Adm
   };
 }
 
-function toAdminRequest(booking: DemoBookingRecord): AdminPersonalizedRequestProjection {
-  if (booking.personalizedRequest === null) {
-    throw new Error("Cannot project a booking without a personalized request.");
-  }
-  const { ownerUserId, latestDecisionAt, ...request } = booking.personalizedRequest;
+function toCustomerRequest(request: DemoRequestRecord): CustomerCustomRequest {
+  const { ownerUserId, latestDecisionAt, locale, partySize, totalVndMinor, specialNeeds, ...customerRequest } = request;
+  void ownerUserId;
+  void latestDecisionAt;
+  void locale;
+  void partySize;
+  void totalVndMinor;
+  void specialNeeds;
+  return customerRequest;
+}
+
+function toAdminRequest(request: DemoRequestRecord): AdminPersonalizedRequestProjection {
   return {
-    ...request,
-    ownerUserId,
-    latestDecisionAt,
+    ...toCustomerRequest(request),
+    ownerUserId: request.ownerUserId,
+    latestDecisionAt: request.latestDecisionAt,
+    locale: request.locale,
+    partySize: request.partySize,
+    requestedTotalVndMinor: request.totalVndMinor,
+    specialNeeds: request.specialNeeds,
   };
+}
+
+function requestForId(envelope: DemoEnvelope, requestId: string): DemoRequestRecord | undefined {
+  return envelope.requests.find((request) => request.id === requestId)
+    ?? envelope.bookings.find((booking) => booking.personalizedRequest?.id === requestId)?.personalizedRequest
+    ?? undefined;
+}
+
+function personalizedRequestsForOwner(envelope: DemoEnvelope, ownerUserId: string): DemoRequestRecord[] {
+  const requests = envelope.requests.filter((request) => request.ownerUserId === ownerUserId);
+  const known = new Set(requests.map((request) => request.id));
+  for (const booking of envelope.bookings) {
+    const request = booking.personalizedRequest;
+    if (booking.ownerUserId === ownerUserId && request !== null && !known.has(request.id)) {
+      requests.push(request);
+      known.add(request.id);
+    }
+  }
+  return requests;
 }
 
 function toGuideAssignment(
@@ -1202,13 +1306,18 @@ function toGuideAssignment(
   }
   const departure = envelope.departures.find((entry) => entry.id === booking.sourceId);
   if (!departure) throw new Error("Cannot project an assignment without a departure.");
+  const cancellation = booking.cancellationRequestId === null
+    ? null
+    : envelope.cancellations.find((request) =>
+      request.id === booking.cancellationRequestId && request.bookingId === booking.id && request.customerUserId === booking.ownerUserId,
+    ) ?? null;
   return {
     bookingId: booking.id,
     tourVersionId: booking.tourVersionId,
     departureId: departure.id,
     title: guide.language === "vi" ? booking.titleVi : booking.titleEn,
-    startAt: `${departure.date}T09:00:00+07:00`,
-    endAt: `${departure.date}T12:00:00+07:00`,
+    startAt: departure.startsAt,
+    endAt: departure.endAt,
     meetingPoint: booking.meetingPoint,
     partySize: booking.partySize,
     language: booking.language,
@@ -1216,7 +1325,7 @@ function toGuideAssignment(
     dietaryFlags: [],
     assignmentStatus: assignment.assignmentStatus,
     specialNeeds: assignment.specialNeeds,
-    cancellationStatus: envelope.cancellations.find((request) => request.bookingId === booking.id)?.status ?? null,
+    cancellationStatus: cancellation?.status ?? null,
   };
 }
 
@@ -1430,6 +1539,17 @@ function readPersonalizedCheckoutInput(input: unknown): DemoPersonalizedCheckout
   return { bookingId: inputId(row.bookingId, "bookingId") };
 }
 
+function readPersonalizedQuoteInput(input: unknown): AdminPersonalizedQuoteInput {
+  const row = exactInput(input, [
+    "requestId",
+    "amountVndMinor",
+  ], "issueDemoQuote");
+  return {
+    requestId: inputId(row.requestId, "requestId"),
+    amountVndMinor: inputMoney(row.amountVndMinor, "amountVndMinor"),
+  };
+}
+
 export function createMemorySessionStorage(initial: Record<string, string> = {}): PortalSessionStorage {
   const values = new Map(Object.entries(initial));
   return {
@@ -1469,6 +1589,10 @@ function ensureFixedHandoffRecords(
     if (existingDeparture.tourVersionId !== tour.versionId || existingDeparture.date !== input.date) {
       conflict("The demo departure reference does not match the catalog fixture.");
     }
+    const expectedStartsAt = `${input.date}T${input.startsAt}:00+07:00`;
+    if (existingDeparture.startsAt !== expectedStartsAt || existingDeparture.endAt !== null) {
+      conflict("The demo departure schedule cannot be changed.");
+    }
     return existingDeparture;
   }
 
@@ -1477,17 +1601,28 @@ function ensureFixedHandoffRecords(
     tourVersionId: tour.versionId,
     date: input.date,
     status: "scheduled",
+    startsAt: `${input.date}T${input.startsAt}:00+07:00`,
+    endAt: null,
   };
   envelope.departures.push(departure);
   return departure;
 }
 
-function addHours(timestamp: string, hours: number): string {
-  const milliseconds = Date.parse(timestamp);
-  if (!Number.isFinite(milliseconds)) invalidInput("The demo timestamp is invalid.");
-  const next = new Date(milliseconds + hours * 60 * 60 * 1_000).toISOString();
-  if (!TIMESTAMP_PATTERN.test(next)) invalidInput("The demo timestamp is invalid.");
-  return next;
+function isSeededPersonalizedQuoteFixture(booking: DemoBookingRecord): boolean {
+  return booking.id === DEMO_PERSONALIZED_QUOTE_FIXTURE.bookingId
+    && booking.sourceKind === "quote"
+    && booking.sourceId === DEMO_PERSONALIZED_QUOTE_FIXTURE.quoteId
+    && booking.quoteId === DEMO_PERSONALIZED_QUOTE_FIXTURE.quoteId
+    && booking.titleEn === DEMO_PERSONALIZED_QUOTE_FIXTURE.titleEn
+    && booking.titleVi === DEMO_PERSONALIZED_QUOTE_FIXTURE.titleVi
+    && booking.cancellationPolicy === DEMO_PERSONALIZED_QUOTE_FIXTURE.cancellationPolicy
+    && booking.catalogSnapshotId === DEMO_PERSONALIZED_QUOTE_FIXTURE.catalogSnapshotId
+    && booking.travelSnapshotId === DEMO_PERSONALIZED_QUOTE_FIXTURE.travelSnapshotId
+    && booking.fxSnapshotId === DEMO_PERSONALIZED_QUOTE_FIXTURE.fxSnapshotId
+    && booking.fxVndPerUsd === DEMO_PERSONALIZED_QUOTE_FIXTURE.fxVndPerUsd
+    && booking.meetingPoint === DEMO_PERSONALIZED_QUOTE_FIXTURE.meetingPoint
+    && booking.holdExpiresAt === DEMO_PERSONALIZED_QUOTE_FIXTURE.holdExpiresAt
+    && booking.createdAt === DEMO_PERSONALIZED_QUOTE_FIXTURE.createdAt;
 }
 
 export function createDemoPortalRepository(options: DemoPortalRepositoryOptions): DemoPortalRepository {
@@ -1646,33 +1781,18 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       const requestInput = readPersonalizedRequestInput(input);
       const envelope = readEnvelope();
       const actor = actorWithRole(envelope, "customer", "submitPersonalizedRequest");
-      const bookingId = `demo-booking-${requestInput.requestId}`;
-      const quoteId = `demo-quote-${requestInput.requestId}`;
-      if (bookingId.length > 120 || quoteId.length > 120) invalidInput("The personalized request identifier is too long.");
-
-      const existing = envelope.bookings.find((booking) => booking.id === bookingId);
+      const existing = envelope.requests.find((request) => request.id === requestInput.requestId)
+        ?? envelope.bookings.find((booking) => booking.personalizedRequest?.id === requestInput.requestId)?.personalizedRequest
+        ?? undefined;
       if (existing !== undefined) {
         if (existing.ownerUserId !== actor.userId) forbidden("customer", "submitPersonalizedRequest for another customer");
-        if (existing.sourceKind !== "quote" || existing.quoteId !== quoteId || existing.personalizedRequest?.id !== requestInput.requestId) {
-          conflict("The personalized request source cannot be changed.");
+        if (existing.planId !== requestInput.planId || existing.revisionNo !== requestInput.revisionNo ||
+          existing.locale !== requestInput.locale || existing.partySize !== requestInput.partySize ||
+          existing.totalVndMinor !== String(requestInput.totalVndMinor) ||
+          existing.specialNeeds !== (requestInput.specialNeeds.length === 0 ? null : requestInput.specialNeeds)) {
+          conflict("The personalized request facts cannot be changed.");
         }
-        const request = existing.personalizedRequest;
-        if (request === null || request.planId !== requestInput.planId || request.revisionNo !== requestInput.revisionNo ||
-          existing.totalVndMinor !== String(requestInput.totalVndMinor) || existing.partySize !== requestInput.partySize) {
-          conflict("The personalized request commercial facts cannot be changed.");
-        }
-        const customerRequest = {
-          id: request.id,
-          planId: request.planId,
-          revisionNo: request.revisionNo,
-          status: request.status,
-          submittedAt: request.submittedAt,
-          updatedAt: request.updatedAt,
-        };
-        return {
-          request: clone(customerRequest),
-          booking: clone(toCustomerBookingView(envelope, existing)),
-        };
+        return { request: clone(toCustomerRequest(existing)) };
       }
 
       const request: DemoRequestRecord = {
@@ -1684,7 +1804,58 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
         updatedAt: requestInput.createdAt,
         ownerUserId: actor.userId,
         latestDecisionAt: null,
+        locale: requestInput.locale,
+        partySize: requestInput.partySize,
+        totalVndMinor: String(requestInput.totalVndMinor),
+        specialNeeds: requestInput.specialNeeds.length === 0 ? null : requestInput.specialNeeds,
       };
+      envelope.requests.push(request);
+      validateCrossReferences(envelope);
+      writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
+      return { request: clone(toCustomerRequest(request)) };
+    },
+
+    async issueDemoQuote(input: AdminPersonalizedQuoteInput): Promise<AdminPersonalizedQuoteProjection> {
+      const quoteInput = readPersonalizedQuoteInput(input);
+      const envelope = readEnvelope();
+      actorWithRole(envelope, "admin", "issueDemoQuote");
+      const seededQuote = envelope.bookings.find((booking) => isSeededPersonalizedQuoteFixture(booking));
+      if (seededQuote === undefined) {
+        conflict("The seeded demo quote fixture is unavailable or does not match its approved facts.");
+      }
+      const request = requestForId(envelope, quoteInput.requestId);
+      if (!request) notFound("Personalized request", quoteInput.requestId);
+      if (request.status !== "approved") conflict("The administrator must approve the personalized request before issuing a quote.");
+      if (request.ownerUserId === undefined) invalidStorage(`requests.${request.id}.ownerUserId`, "Request owner is missing");
+      const quoteId = `demo-quote-${request.id}`;
+      const bookingId = `demo-booking-${request.id}`;
+      if (quoteId.length > 120 || bookingId.length > 120) invalidInput("The personalized request identifier is too long.");
+
+      const existing = envelope.bookings.find((booking) => booking.id === bookingId);
+      if (existing !== undefined) {
+        if (existing.sourceKind !== "quote" || existing.quoteId !== quoteId || existing.personalizedRequest?.id !== request.id) {
+          conflict("The personalized quote source cannot be changed.");
+        }
+        if (existing.totalVndMinor !== String(quoteInput.amountVndMinor) || existing.titleEn !== seededQuote.titleEn ||
+          existing.titleVi !== seededQuote.titleVi || existing.cancellationPolicy !== seededQuote.cancellationPolicy ||
+          existing.holdExpiresAt !== seededQuote.holdExpiresAt || existing.catalogSnapshotId !== seededQuote.catalogSnapshotId ||
+          existing.travelSnapshotId !== seededQuote.travelSnapshotId || existing.fxSnapshotId !== seededQuote.fxSnapshotId ||
+          existing.fxVndPerUsd !== seededQuote.fxVndPerUsd || existing.meetingPoint !== seededQuote.meetingPoint ||
+          existing.createdAt !== seededQuote.createdAt) {
+          conflict("The issued demo quote facts cannot be changed.");
+        }
+        return clone({
+          quoteId,
+          requestId: request.id,
+          bookingId: existing.id,
+          amountVndMinor: existing.totalVndMinor,
+          titleEn: existing.titleEn,
+          titleVi: existing.titleVi,
+          policy: existing.cancellationPolicy,
+          validUntil: existing.holdExpiresAt,
+        });
+      }
+
       const booking: DemoBookingRecord = {
         id: bookingId,
         status: "pending_payment",
@@ -1692,44 +1863,42 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
         sourceId: quoteId,
         tourVersionId: null,
         quoteId,
-        titleEn: "A Personal Saigon Day",
-        titleVi: "Một ngày Sài Gòn theo sở thích",
-        cancellationPolicy: "Demo quote: request changes through the administrator.",
-        catalogSnapshotId: DEMO_CATALOG_SNAPSHOT_ID,
-        travelSnapshotId: DEMO_TRAVEL_SNAPSHOT_ID,
-        fxSnapshotId: DEMO_FX_SNAPSHOT_ID,
-        fxVndPerUsd: "25000.00000000",
+        titleEn: seededQuote.titleEn,
+        titleVi: seededQuote.titleVi,
+        cancellationPolicy: seededQuote.cancellationPolicy,
+        catalogSnapshotId: seededQuote.catalogSnapshotId,
+        travelSnapshotId: seededQuote.travelSnapshotId,
+        fxSnapshotId: seededQuote.fxSnapshotId,
+        fxVndPerUsd: seededQuote.fxVndPerUsd,
         perPersonVndMinor: null,
-        totalVndMinor: String(requestInput.totalVndMinor),
+        totalVndMinor: String(quoteInput.amountVndMinor),
         checkoutCurrency: "vnd",
-        checkoutAmountMinor: String(requestInput.totalVndMinor),
-        partySize: requestInput.partySize,
-        language: requestInput.locale,
-        meetingPoint: "To be confirmed",
-        holdExpiresAt: addHours(requestInput.createdAt, 48),
-        createdAt: requestInput.createdAt,
-        ownerUserId: actor.userId,
+        checkoutAmountMinor: String(quoteInput.amountVndMinor),
+        partySize: request.partySize,
+        language: request.locale,
+        meetingPoint: seededQuote.meetingPoint,
+        holdExpiresAt: seededQuote.holdExpiresAt,
+        createdAt: seededQuote.createdAt,
+        ownerUserId: request.ownerUserId,
         paymentStatus: null,
         assignedGuideUserId: null,
         cancellationRequestId: null,
-        specialNeeds: requestInput.specialNeeds.length === 0 ? null : requestInput.specialNeeds,
-        personalizedRequest: request,
+        specialNeeds: request.specialNeeds,
+        personalizedRequest: clone(request),
       };
       envelope.bookings.push(booking);
       validateCrossReferences(envelope);
       writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
-      const customerRequest = {
-        id: request.id,
-        planId: request.planId,
-        revisionNo: request.revisionNo,
-        status: request.status,
-        submittedAt: request.submittedAt,
-        updatedAt: request.updatedAt,
-      };
-      return {
-        request: clone(customerRequest),
-        booking: clone(toCustomerBookingView(envelope, booking)),
-      };
+      return clone({
+        quoteId,
+        requestId: request.id,
+        bookingId: booking.id,
+        amountVndMinor: booking.totalVndMinor,
+        titleEn: booking.titleEn,
+        titleVi: booking.titleVi,
+        policy: booking.cancellationPolicy,
+        validUntil: booking.holdExpiresAt,
+      });
     },
 
     async completePersonalizedCheckout(input: DemoPersonalizedCheckoutInput): Promise<CustomerBookingView> {
@@ -1741,11 +1910,12 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       if (booking.sourceKind !== "quote" || booking.personalizedRequest === null) {
         conflict("Only a personalized quote can use this demo checkout.");
       }
+      const request = requestForId(envelope, booking.personalizedRequest.id);
+      if (!request || request.ownerUserId !== actor.userId || request.status !== "approved") {
+        conflict("The administrator must approve the personalized request before checkout.");
+      }
       if (booking.status === "confirmed" && booking.paymentStatus === "paid") {
         return clone(toCustomerBookingView(envelope, booking));
-      }
-      if (booking.personalizedRequest.status !== "approved") {
-        conflict("The administrator must approve the personalized request before checkout.");
       }
       if (booking.status !== "pending_payment") conflict("The personalized quote is not ready for demo checkout.");
       booking.status = "confirmed";
@@ -1786,19 +1956,7 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
     async listCustomRequests(): Promise<CustomerCustomRequest[]> {
       const envelope = readEnvelope();
       const actor = actorWithRole(envelope, "customer", "listCustomRequests");
-      return clone(envelope.bookings
-        .filter((booking) => booking.ownerUserId === actor.userId && booking.personalizedRequest !== null)
-        .map((booking) => {
-          const request = booking.personalizedRequest!;
-          return {
-            id: request.id,
-            planId: request.planId,
-            revisionNo: request.revisionNo,
-            status: request.status,
-            submittedAt: request.submittedAt,
-            updatedAt: request.updatedAt,
-          };
-        }));
+      return clone(personalizedRequestsForOwner(envelope, actor.userId).map(toCustomerRequest));
     },
 
     async requestCancellation(input: unknown): Promise<CancellationRequest> {
@@ -1949,24 +2107,31 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
     async listPersonalizedRequests(): Promise<AdminPersonalizedRequestProjection[]> {
       const envelope = readEnvelope();
       actorWithRole(envelope, "admin", "listPersonalizedRequests");
-      return clone(envelope.bookings.filter((booking) => booking.personalizedRequest !== null).map(toAdminRequest));
+      return clone(envelope.requests.map(toAdminRequest));
     },
 
     async reviewPersonalizedRequest(input: unknown): Promise<AdminPersonalizedRequestProjection> {
       const reviewInput = readPersonalizedReviewInput(input);
       const envelope = readEnvelope();
       actorWithRole(envelope, "admin", "reviewPersonalizedRequest");
-      const booking = envelope.bookings.find((entry) => entry.personalizedRequest?.id === reviewInput.requestId);
-      if (!booking || booking.personalizedRequest === null) notFound("Personalized request", reviewInput.requestId);
-      if (booking.personalizedRequest.status !== "pending_review" && booking.personalizedRequest.status !== "changes_requested") {
+      const request = requestForId(envelope, reviewInput.requestId);
+      if (!request) notFound("Personalized request", reviewInput.requestId);
+      if (request.status !== "pending_review" && request.status !== "changes_requested") {
         conflict("This personalized request is already in a terminal state.");
       }
       const changedAt = timestamp();
-      booking.personalizedRequest.status = reviewInput.decision;
-      booking.personalizedRequest.updatedAt = changedAt;
-      booking.personalizedRequest.latestDecisionAt = changedAt;
+      request.status = reviewInput.decision;
+      request.updatedAt = changedAt;
+      request.latestDecisionAt = changedAt;
+      for (const booking of envelope.bookings) {
+        if (booking.personalizedRequest?.id === request.id) {
+          booking.personalizedRequest.status = request.status;
+          booking.personalizedRequest.updatedAt = request.updatedAt;
+          booking.personalizedRequest.latestDecisionAt = request.latestDecisionAt;
+        }
+      }
       writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
-      return clone(toAdminRequest(booking));
+      return clone(toAdminRequest(request));
     },
 
     async listCancellationRequests(): Promise<CancellationRequest[]> {
@@ -2119,6 +2284,9 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
     submitPersonalizedRequest: engine.submitPersonalizedRequest,
     completePersonalizedCheckout: engine.completePersonalizedCheckout,
   };
+  const demoQuotes: AdminPersonalizedQuotesPort = {
+    issueDemoQuote: engine.issueDemoQuote,
+  };
   return {
     reset: engine.reset,
     session,
@@ -2126,5 +2294,6 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
     guide,
     admin,
     demoIntegration,
+    demoQuotes,
   };
 }

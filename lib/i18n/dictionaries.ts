@@ -63,9 +63,11 @@ export type CustomRequestCopy = {
   adminReviewHeading: string;
   adminReviewPendingMessage: string;
   simulateQuoteLabel: string;
+  quotePendingMessage: string;
   quoteHeading: string;
   quoteMessage: string;
   quoteExpiresLabel: string;
+  quoteValidityValue: string;
   quoteTotalLabel: string;
   acceptQuoteLabel: string;
   quoteAcceptedMessage: string;
@@ -1261,10 +1263,12 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
     submitRequestLabel: "Submit local demo request",
     adminReviewHeading: "Admin review pending (simulated)",
     adminReviewPendingMessage: "Your browser demo request is pending administrator review. The seeded demo admin can now review it.",
-    simulateQuoteLabel: "Simulate a 48-hour quote",
+    simulateQuoteLabel: "Check for an issued quote",
+    quotePendingMessage: "The request is approved, but an administrator has not issued a quote yet.",
     quoteHeading: "Mock quote",
-    quoteMessage: "This amount is derived from the selected revision snapshot and is immutable in this local flow.",
+    quoteMessage: "This amount is the administrator-issued demo quote and remains immutable in this local flow.",
     quoteExpiresLabel: "Quote validity",
+    quoteValidityValue: "48 hours (mock)",
     quoteTotalLabel: "Quote total",
     acceptQuoteLabel: "Accept this mock quote",
     quoteAcceptedMessage: "You explicitly accepted the mock quote. Payment has not started.",
@@ -1320,10 +1324,12 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
     submitRequestLabel: "Gửi yêu cầu demo cục bộ",
     adminReviewHeading: "Đang chờ admin xem xét (mô phỏng)",
     adminReviewPendingMessage: "Yêu cầu demo trong trình duyệt đang chờ quản trị viên xem xét. Quản trị viên demo đã nhận được yêu cầu.",
-    simulateQuoteLabel: "Mô phỏng báo giá 48 giờ",
+    simulateQuoteLabel: "Kiểm tra báo giá đã phát hành",
+    quotePendingMessage: "Yêu cầu đã được duyệt nhưng quản trị viên chưa phát hành báo giá.",
     quoteHeading: "Báo giá mô phỏng",
-    quoteMessage: "Số tiền này lấy từ bản chụp phiên bản đã chọn và không đổi trong flow cục bộ này.",
+    quoteMessage: "Số tiền này là báo giá demo do quản trị viên phát hành và không đổi trong flow cục bộ này.",
     quoteExpiresLabel: "Thời hạn báo giá",
+    quoteValidityValue: "48 giờ (mô phỏng)",
     quoteTotalLabel: "Tổng báo giá",
     acceptQuoteLabel: "Chấp nhận báo giá mô phỏng",
     quoteAcceptedMessage: "Bạn đã chủ động chấp nhận báo giá mô phỏng. Chưa bắt đầu thanh toán.",

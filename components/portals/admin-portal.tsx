@@ -105,6 +105,7 @@ export function AdminPortal({
   const [roleDrafts, setRoleDrafts] = useState<Record<string, Role>>({});
   const [requestDecisions, setRequestDecisions] = useState<Record<string, AdminRequestDecision>>({});
   const [requestNotes, setRequestNotes] = useState<Record<string, string>>({});
+  const [quoteAmounts, setQuoteAmounts] = useState<Record<string, string>>({});
   const [cancellationDecisions, setCancellationDecisions] = useState<Record<string, CancellationDecision>>({});
   const [cancellationNotes, setCancellationNotes] = useState<Record<string, string>>({});
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, string>>({});
@@ -160,6 +161,34 @@ export function AdminPortal({
       setActionMessage(copy.decisionSaved);
     } catch {
       setActionError(copy.decisionError);
+    } finally {
+      setActionKey(null);
+    }
+  }
+
+  async function issueQuote(event: FormEvent<HTMLFormElement>, request: AdminPersonalizedRequestProjection): Promise<void> {
+    event.preventDefault();
+    const amount = Number(quoteAmounts[request.id] ?? request.requestedTotalVndMinor);
+    if (!Number.isSafeInteger(amount) || amount < 1) return;
+    const seededQuote = data?.bookings.find((booking) =>
+      booking.id === "demo-booking-personalized" && booking.sourceKind === "quote" && booking.quoteId === "demo-quote-personalized",
+    );
+    if (seededQuote === undefined) {
+      setActionError(copy.quoteError);
+      return;
+    }
+    setActionKey(`quote:${request.id}`);
+    setActionMessage(null);
+    setActionError(null);
+    try {
+      await composition.demoQuotes.issueDemoQuote({
+        requestId: request.id,
+        amountVndMinor: amount,
+      });
+      await refresh();
+      setActionMessage(copy.quoteIssued);
+    } catch {
+      setActionError(copy.quoteError);
     } finally {
       setActionKey(null);
     }
@@ -429,6 +458,28 @@ export function AdminPortal({
                             {actionKey === `request:${request.id}` ? copy.saving : copy.saveDecision}
                           </button>
                         </form>
+                      ) : null}
+                      {request.status === "approved" ? (
+                        <>
+                          <p className={styles.hint}>{copy.quoteFixtureSource}</p>
+                          <form className={styles.inlineForm} onSubmit={(event) => void issueQuote(event, request)}>
+                          <label>
+                            <span>{copy.quoteAmount}</span>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              inputMode="numeric"
+                              aria-label={`${copy.quoteAmount}: ${request.id}`}
+                              value={quoteAmounts[request.id] ?? request.requestedTotalVndMinor}
+                              onChange={(event) => setQuoteAmounts((current) => ({ ...current, [request.id]: event.target.value }))}
+                            />
+                          </label>
+                          <button className={styles.button} type="submit" disabled={actionKey === `quote:${request.id}`}>
+                            {actionKey === `quote:${request.id}` ? copy.saving : copy.issueQuote}
+                          </button>
+                          </form>
+                        </>
                       ) : null}
                     </li>
                   ))}

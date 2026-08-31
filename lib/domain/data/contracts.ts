@@ -461,7 +461,7 @@ export interface GuideAssignedBooking {
   departureId: string;
   title: string;
   startAt: string;
-  endAt: string;
+  endAt: string | null;
   meetingPoint: string;
   partySize: number;
   language: Locale;

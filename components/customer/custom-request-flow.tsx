@@ -12,6 +12,7 @@ import {
 } from "@/lib/application/planner/personalization-session";
 import type { ItineraryPreviewFoodSelectionDto } from "@/lib/application/api/read-only-api";
 import type { DemoPortalComposition } from "@/lib/application/portal/composition";
+import type { CustomerBookingView } from "@/lib/application/portal/contracts";
 import type { Locale } from "@/lib/i18n/config";
 import type { CustomRequestCopy } from "@/lib/i18n/dictionaries";
 
@@ -67,6 +68,7 @@ export function CustomRequestFlow({
   const [phase, setPhase] = useState<DemoPhase>(demoPortal === undefined ? "sign-in" : "request");
   const [requestId, setRequestId] = useState<string | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const [quoteBooking, setQuoteBooking] = useState<CustomerBookingView | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -88,10 +90,71 @@ export function CustomRequestFlow({
     setLoadStatus("ok");
   }, []);
 
+  useEffect(() => {
+    if (draft === null || demoPortal === undefined || loadStatus !== "ok") return;
+    const activeDemoPortal = demoPortal;
+    const selectedDraft = draft;
+    let disposed = false;
+
+    async function hydratePersistedRequest(): Promise<void> {
+      try {
+        await activeDemoPortal.initialized;
+        const session = await activeDemoPortal.session.getSession();
+        if (session === null || session.role !== "customer") {
+          if (!disposed) setPhase("sign-in");
+          return;
+        }
+        const [requests, bookings] = await Promise.all([
+          activeDemoPortal.customer.account.listCustomRequests(),
+          activeDemoPortal.customer.account.listCustomerBookings(),
+        ]);
+        const persistedRequest = requests.find((entry) =>
+          entry.planId === selectedDraft.planId && entry.revisionNo === selectedDraft.revision,
+        );
+        if (disposed) return;
+        if (persistedRequest === undefined) {
+          setRequestId(null);
+          setBookingId(null);
+          setQuoteBooking(null);
+          setActionMessage(null);
+          setPhase("request");
+          return;
+        }
+
+        const persistedQuote = bookings.find((entry) =>
+          entry.sourceKind === "quote" && entry.quoteId === `demo-quote-${persistedRequest.id}`,
+        ) ?? null;
+        setRequestId(persistedRequest.id);
+        setQuoteBooking(persistedQuote);
+        setBookingId(persistedQuote?.id ?? null);
+        if (persistedRequest.status === "approved" && persistedQuote !== null && persistedQuote.status === "confirmed" && persistedQuote.paymentStatus === "paid") {
+          setPhase("stripe-mock");
+        } else if (persistedRequest.status === "approved" && persistedQuote !== null) {
+          setPhase("quote");
+        } else {
+          setPhase("admin-review");
+        }
+      } catch {
+        if (!disposed) setActionMessage(copy.storageErrorMessage);
+      }
+    }
+
+    void hydratePersistedRequest();
+    return () => {
+      disposed = true;
+    };
+  }, [copy.storageErrorMessage, demoPortal, draft, loadStatus]);
+
   const issue = loadStatus !== "pending" && loadStatus !== "ok" ? statusMessage(loadStatus, copy) : null;
   const budgetExceeded = draft !== null
     && draft.revisionSnapshot.budgetVnd !== null
     && draft.revisionSnapshot.totals.groupCostMaxVnd > draft.revisionSnapshot.budgetVnd;
+  const quoteTotalMinor = quoteBooking === null
+    ? draft?.revisionSnapshot.totals.customerPayableVnd ?? 0
+    : Number(quoteBooking.totalVndMinor);
+  const quoteTotal = Number.isSafeInteger(quoteTotalMinor) && quoteTotalMinor >= 0
+    ? quoteTotalMinor
+    : draft?.revisionSnapshot.totals.customerPayableVnd ?? 0;
 
   async function requireDemoCustomer(): Promise<void> {
     if (demoPortal === undefined) return;
@@ -123,7 +186,8 @@ export function CustomRequestFlow({
         createdAt: new Date().toISOString(),
       });
       setRequestId(submission.request.id);
-      setBookingId(submission.booking.id);
+      setBookingId(null);
+      setQuoteBooking(null);
       setPhase("admin-review");
     } catch {
       setActionMessage(copy.storageErrorMessage);
@@ -133,16 +197,26 @@ export function CustomRequestFlow({
   async function continueToQuote(): Promise<void> {
     setActionMessage(null);
     if (demoPortal !== undefined) {
-      if (requestId === null) {
-        setActionMessage(copy.adminReviewPendingMessage);
-        return;
-      }
       try {
         await requireDemoCustomer();
-        const requests = await demoPortal.customer.account.listCustomRequests();
-        const request = requests.find((entry) => entry.id === requestId);
-        if (request?.status !== "approved") {
+        const [requests, bookings] = await Promise.all([
+          demoPortal.customer.account.listCustomRequests(),
+          demoPortal.customer.account.listCustomerBookings(),
+        ]);
+        const request = requests.find((entry) => entry.id === requestId)
+          ?? requests.find((entry) => entry.planId === draft?.planId && entry.revisionNo === draft?.revision);
+        if (request === undefined || request.status !== "approved") {
           setActionMessage(copy.adminReviewPendingMessage);
+          return;
+        }
+        const quote = bookings.find((entry) =>
+          entry.sourceKind === "quote" && entry.quoteId === `demo-quote-${request.id}`,
+        ) ?? null;
+        setRequestId(request.id);
+        setQuoteBooking(quote);
+        setBookingId(quote?.id ?? null);
+        if (quote === null) {
+          setActionMessage(copy.quotePendingMessage);
           return;
         }
       } catch {
@@ -281,8 +355,8 @@ export function CustomRequestFlow({
               <h2 id="custom-request-quote-heading">{copy.quoteHeading}</h2>
               <p>{copy.quoteMessage}</p>
               <dl className="custom-request-flow__facts">
-                <div><dt>{copy.quoteExpiresLabel}</dt><dd>48 hours (mock)</dd></div>
-                <div><dt>{copy.quoteTotalLabel}</dt><dd>{formatVnd(draft.revisionSnapshot.totals.customerPayableVnd, locale)}</dd></div>
+                <div><dt>{copy.quoteExpiresLabel}</dt><dd>{copy.quoteValidityValue}</dd></div>
+                <div><dt>{copy.quoteTotalLabel}</dt><dd>{formatVnd(quoteTotal, locale)}</dd></div>
               </dl>
               <button className="button button--primary" type="button" onClick={() => setPhase("accepted")}>
                 {copy.acceptQuoteLabel}

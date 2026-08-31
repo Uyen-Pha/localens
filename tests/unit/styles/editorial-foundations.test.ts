@@ -9,6 +9,7 @@ const editorialStyleFiles = [
   "editorial-base.css",
   "editorial-shell.css",
   "editorial-home.css",
+  "editorial-home-green.css",
   "editorial-tours.css",
   "editorial-journey.css",
   "editorial-booking.css",
@@ -38,6 +39,7 @@ describe("editorial style foundations", () => {
       '@import "./editorial-base.css";',
       '@import "./editorial-shell.css";',
       '@import "./editorial-home.css";',
+      '@import "./editorial-home-green.css";',
       '@import "./editorial-tours.css";',
       '@import "./editorial-journey.css";',
       '@import "./editorial-booking.css";',
@@ -48,6 +50,7 @@ describe("editorial style foundations", () => {
         "editorial-base.css",
         "editorial-shell.css",
         "editorial-home.css",
+        "editorial-home-green.css",
         "editorial-tours.css",
         "editorial-journey.css",
         "editorial-booking.css",
@@ -101,7 +104,7 @@ describe("editorial style foundations", () => {
     expect(stampRule).toContain('font-family: var(--font-display, Georgia), "Times New Roman", serif;');
     expect(stampRule).toContain("font-weight: 600;");
     expect(fontFamilyDeclarations).toEqual([
-      'var(--font-display, Georgia), "Times New Roman", serif',
+      'var(--font-body, system-ui), -apple-system, "Segoe UI", sans-serif',
       'var(--font-body, system-ui), -apple-system, "Segoe UI", sans-serif',
       'var(--font-display, Georgia), "Times New Roman", serif',
     ]);
@@ -111,12 +114,12 @@ describe("editorial style foundations", () => {
     const tokensCss = await readStyle("tokens.css");
     const editorialCss = await readEditorialStyles();
 
-    expect(tokensCss).toContain("--shadow-display: 0 1.5rem 2.5rem rgba(24, 53, 45, 0.12);");
-    expect(tokensCss).toContain("--shadow-card-hover: 0 1rem 2rem rgba(24, 53, 45, 0.08);");
-    expect(tokensCss).toContain("--shadow-panel: 0 1rem 2.5rem rgba(24, 53, 45, 0.06);");
-    expect(editorialCss).not.toContain("box-shadow: 0 1.5rem 2.5rem rgba(24, 53, 45, 0.12);");
-    expect(editorialCss).not.toContain("box-shadow: 0 1rem 2rem rgba(24, 53, 45, 0.08);");
-    expect(editorialCss).not.toContain("box-shadow: 0 1rem 2.5rem rgba(24, 53, 45, 0.06);");
-    expect(editorialCss.match(/box-shadow:\s*var\(--shadow-panel\);/g)).toHaveLength(4);
+    expect(tokensCss).toContain("--shadow-display: 0 20px 45px rgba(9, 61, 50, 0.15);");
+    expect(tokensCss).toContain("--shadow-card-hover: 0 16px 32px rgba(9, 61, 50, 0.11);");
+    expect(tokensCss).toContain("--shadow-panel: 0 12px 28px rgba(9, 61, 50, 0.08);");
+    expect(editorialCss).not.toContain("box-shadow: 0 20px 45px rgba(9, 61, 50, 0.15);");
+    expect(editorialCss).not.toContain("box-shadow: 0 16px 32px rgba(9, 61, 50, 0.11);");
+    expect(editorialCss).not.toContain("box-shadow: 0 12px 28px rgba(9, 61, 50, 0.08);");
+    expect(editorialCss.match(/box-shadow:\s*var\(--shadow-panel\);/g)).toHaveLength(5);
   });
 });

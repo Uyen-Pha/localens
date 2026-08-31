@@ -283,6 +283,9 @@ describe("PortalSurface", () => {
     fireEvent.click(within(requestForm as HTMLFormElement).getByRole("button", { name: /save request decision/i }));
     expect(await screen.findByText(/request decision saved/i)).toBeInTheDocument();
     expect((await composition.admin.personalizedRequests.listPersonalizedRequests()).find((request) => request.id === "demo-request-personalized")?.status).toBe("approved");
+    const issueQuoteForm = await screen.findByRole("button", { name: /issue demo quote/i });
+    fireEvent.click(issueQuoteForm);
+    expect(await screen.findByText(/demo quote issued/i)).toBeInTheDocument();
   });
 
   it("announces a portal load error and recovers through the retry action", async () => {

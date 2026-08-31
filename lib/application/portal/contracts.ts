@@ -499,6 +499,10 @@ export interface AdminDepartureProjection {
   tourVersionId: string;
   date: string;
   status: DepartureStatus;
+  /** Authoritative departure start persisted by the demo/catalog seam. */
+  startsAt: string;
+  /** End time is optional until the catalog supplies one. */
+  endAt: string | null;
 }
 
 export interface AdminCatalogPort {
@@ -512,6 +516,10 @@ export type AdminRequestDecision = Extract<RequestStatus, "changes_requested" | 
 export type AdminPersonalizedRequestProjection = CustomerCustomRequest & {
   ownerUserId: string;
   latestDecisionAt: string | null;
+  locale: Locale;
+  partySize: number;
+  requestedTotalVndMinor: string;
+  specialNeeds: string | null;
 };
 
 export interface AdminPersonalizedRequestsPort {
@@ -521,6 +529,27 @@ export interface AdminPersonalizedRequestsPort {
     decision: AdminRequestDecision;
     note: string | null;
   }): Promise<AdminPersonalizedRequestProjection>;
+}
+
+/** Admin-only demo operation that issues a quote from the seeded demo facts. */
+export interface AdminPersonalizedQuoteInput {
+  requestId: string;
+  amountVndMinor: number;
+}
+
+export interface AdminPersonalizedQuoteProjection {
+  quoteId: string;
+  requestId: string;
+  bookingId: string;
+  amountVndMinor: string;
+  titleEn: string;
+  titleVi: string;
+  policy: string;
+  validUntil: string;
+}
+
+export interface AdminPersonalizedQuotesPort {
+  issueDemoQuote(input: AdminPersonalizedQuoteInput): Promise<AdminPersonalizedQuoteProjection>;
 }
 
 export interface AdminBookingProjection extends CustomerBooking {

@@ -39,13 +39,14 @@ export interface DemoPersonalizedCheckoutInput {
 
 export interface DemoPersonalizedRequestSubmission {
   request: CustomerCustomRequest;
-  booking: CustomerBookingView;
 }
 
 /**
  * The narrow demo-only handoff used by the customer screens. Methods accept
  * already-authoritative local results and only synchronize their state into
- * the portal fixture; they do not calculate prices or itinerary data.
+ * the portal fixture; they do not calculate prices or itinerary data. Request
+ * submission is intentionally independent from quotes and bookings; the
+ * admin-only quote port issues those operational facts later.
  */
 export interface DemoPortalIntegration {
   syncFixedBooking(input: DemoFixedBookingInput): Promise<CustomerBookingView>;

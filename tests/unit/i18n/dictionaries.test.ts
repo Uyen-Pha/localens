@@ -8,20 +8,20 @@ describe("localized dictionaries", () => {
     const dictionary = getDictionary("en");
 
     expect(dictionary.home.title).toBe(
-      "The city is more than its landmarks",
+      "Your Saigon, planned around you",
     );
     expect(dictionary.home.subtitle).toBe(
-      "Meet Saigon through its food, stories, markets and makers.",
+      "Tell us your time, budget and interests. We’ll shape a route you can review and refine.",
     );
-    expect(dictionary.home.heroPrimaryCta).toBe("Discover Saigon tours");
-    expect(dictionary.home.heroSecondaryCta).toBe("Design a private journey");
+    expect(dictionary.home.heroPrimaryCta).toBe("Plan my Saigon day");
+    expect(dictionary.home.heroSecondaryCta).toBe("Browse ready-made tours");
     expect(dictionary.home.heroImageAlt).toBe(
-      "Elderly artisan weaving a rattan basket in Saigon",
+      "Illustrated map of central Saigon with a suggested route",
     );
     expect(dictionary.home.heroInsetAlt).toBe(
-      "Arched facade of Saigon Central Post Office",
+      "Ben Thanh Market clock tower in Ho Chi Minh City",
     );
-    expect(dictionary.home.heroCoordinates).toBe("10.8231° N · 106.6297° E");
+    expect(dictionary.home.heroCoordinates).toBe("SAIGON · 10.8231° N · 106.6297° E");
     expect(dictionary.home.personalizationForm.durationLabel).toBe("How much time do you have?");
     expect(dictionary.home.personalizationForm.durationHoursLabel).toBe("Hours");
     expect(dictionary.home.personalizationForm.durationMinutesLabel).toBe("Minutes");
@@ -40,20 +40,20 @@ describe("localized dictionaries", () => {
     const dictionary = getDictionary("vi");
 
     expect(dictionary.home.title).toBe(
-      "Thành phố không chỉ có những địa danh nổi tiếng",
+      "Sài Gòn của bạn, được thiết kế quanh bạn",
     );
     expect(dictionary.home.subtitle).toBe(
-      "Gặp gỡ Sài Gòn qua ẩm thực, câu chuyện, khu chợ và những người làm nghề.",
+      "Hãy cho chúng tôi biết thời gian, ngân sách và điều bạn quan tâm. Chúng tôi sẽ tạo một tuyến đường để bạn xem lại và điều chỉnh.",
     );
-    expect(dictionary.home.heroPrimaryCta).toBe("Khám phá tour Sài Gòn");
-    expect(dictionary.home.heroSecondaryCta).toBe("Thiết kế hành trình riêng");
+    expect(dictionary.home.heroPrimaryCta).toBe("Lên kế hoạch ngày ở Sài Gòn");
+    expect(dictionary.home.heroSecondaryCta).toBe("Xem các tour có sẵn");
     expect(dictionary.home.heroImageAlt).toBe(
-      "Nghệ nhân lớn tuổi đan giỏ mây ở Sài Gòn",
+      "Bản đồ minh họa khu trung tâm Sài Gòn với tuyến đường gợi ý",
     );
     expect(dictionary.home.heroInsetAlt).toBe(
-      "Mặt tiền mái vòm Bưu điện Trung tâm Sài Gòn",
+      "Tháp đồng hồ chợ Bến Thành tại Thành phố Hồ Chí Minh",
     );
-    expect(dictionary.home.heroCoordinates).toBe("10.8231° B · 106.6297° Đ");
+    expect(dictionary.home.heroCoordinates).toBe("SÀI GÒN · 10.8231° B · 106.6297° Đ");
     expect(dictionary.home.personalizationForm.durationLabel).toBe("Bạn có bao nhiêu thời gian?");
     expect(dictionary.home.personalizationForm.durationHoursLabel).toBe("Giờ");
     expect(dictionary.home.personalizationForm.durationMinutesLabel).toBe("Phút");

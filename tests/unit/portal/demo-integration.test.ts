@@ -106,12 +106,14 @@ describe("demo portal integration boundary", () => {
         expect.objectContaining({
           bookingId: fixedBookingInput().bookingId,
           cancellationStatus: "approved",
+          startAt: "2026-09-05T09:00:00+07:00",
+          endAt: null,
         }),
       ]),
     );
   });
 
-  it("submits a personalized request for admin review and only completes checkout after approval", async () => {
+  it("keeps personalized requests independent until admin approval and an issued quote", async () => {
     const value = await composition();
     await value.session.selectDemoIdentity("demo-user-customer");
 
@@ -126,9 +128,8 @@ describe("demo portal integration boundary", () => {
       createdAt: "2026-09-05T12:00:00.000Z",
     });
     expect(submitted.request).toMatchObject({ status: "pending_review", revisionNo: 2 });
-    await expect(value.demoIntegration.completePersonalizedCheckout({
-      bookingId: submitted.booking.id,
-    })).rejects.toMatchObject({ code: "CONFLICT" });
+    const customerBookings = await value.customer.account.listCustomerBookings();
+    expect(customerBookings.some((booking) => booking.id === "demo-booking-demo-request-plan-personalized-2")).toBe(false);
 
     await value.session.selectDemoIdentity("demo-user-admin");
     await expect(value.admin.personalizedRequests.listPersonalizedRequests()).resolves.toEqual(
@@ -141,10 +142,26 @@ describe("demo portal integration boundary", () => {
       decision: "approved",
       note: null,
     });
+    await expect(value.demoQuotes.issueDemoQuote({
+      requestId: "demo-request-plan-personalized-2",
+      amountVndMinor: 1_250_000,
+    })).resolves.toMatchObject({
+      requestId: "demo-request-plan-personalized-2",
+      amountVndMinor: "1250000",
+      titleEn: "A Personal Saigon Day",
+      titleVi: "Một ngày Sài Gòn theo sở thích",
+    });
+
+    await expect(value.demoQuotes.issueDemoQuote({
+      requestId: "demo-request-plan-personalized-2",
+      amountVndMinor: 1_250_000,
+      // @ts-expect-error quote metadata is repository-owned seeded fixture data
+      titleEn: "Caller supplied title",
+    })).rejects.toMatchObject({ code: "INVALID_INPUT" });
 
     await value.session.selectDemoIdentity("demo-user-customer");
     await expect(value.demoIntegration.completePersonalizedCheckout({
-      bookingId: submitted.booking.id,
+      bookingId: "demo-booking-demo-request-plan-personalized-2",
     })).resolves.toMatchObject({
       status: "confirmed",
       paymentStatus: "paid",
@@ -152,7 +169,7 @@ describe("demo portal integration boundary", () => {
     });
     await value.session.selectDemoIdentity("demo-user-admin");
     await expect(value.admin.assignments.assignGuideToFixedDeparture({
-      bookingId: submitted.booking.id,
+      bookingId: "demo-booking-demo-request-plan-personalized-2",
       guideUserId: "demo-user-guide",
     })).rejects.toMatchObject({ code: "CONFLICT" });
   });

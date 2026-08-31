@@ -6,6 +6,7 @@ import {
   type DemoSessionPort,
 } from "@/lib/application/portal/contracts";
 import type { DemoPortalIntegration } from "@/lib/application/portal/demo-integration";
+import type { AdminPersonalizedQuotesPort } from "@/lib/application/portal/contracts";
 import {
   createDemoPortalRepository,
   type PortalSessionStorage,
@@ -23,6 +24,8 @@ export type DemoPortalComposition = Omit<PortalComposition, "session"> & {
   readonly session: DemoSessionPort;
   /** Explicit browser-demo handoff; never part of production bindings. */
   readonly demoIntegration: DemoPortalIntegration;
+  /** Demo-only admin quote operation; never required from production bindings. */
+  readonly demoQuotes: AdminPersonalizedQuotesPort;
   /** Resolves once the composition's deterministic demo fixture initialization has completed. */
   readonly initialized: Promise<void>;
 };
@@ -146,6 +149,7 @@ function withCompositionMetadata<TMode extends PortalMode>(
 function withDemoCompositionMetadata(
   ports: Omit<PortalPortBindings, "session"> & { readonly session: DemoSessionPort },
   demoIntegration: DemoPortalIntegration,
+  demoQuotes: AdminPersonalizedQuotesPort,
   initialized: Promise<void>,
 ): DemoPortalComposition {
   return {
@@ -153,6 +157,7 @@ function withDemoCompositionMetadata(
     productionGap: PORTAL_PRODUCTION_GAP,
     session: ports.session,
     demoIntegration,
+    demoQuotes,
     customer: ports.customer,
     guide: ports.guide,
     admin: ports.admin,
@@ -186,5 +191,5 @@ export function createPortalComposition(options: CreatePortalCompositionOptions)
     customer: repository.customer,
     guide: repository.guide,
     admin: repository.admin,
-  }, repository.demoIntegration, initialized);
+  }, repository.demoIntegration, repository.demoQuotes, initialized);
 }

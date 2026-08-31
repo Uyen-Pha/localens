@@ -154,6 +154,7 @@ describe("portal composition", () => {
     expect(first.admin.users).not.toBe(first.session);
     expect(first.admin.catalog).not.toBe(first.session);
     expect(first.admin.personalizedRequests).not.toBe(first.session);
+    expect(first.demoQuotes).not.toBe(first.session);
     expect(first.admin.bookings).not.toBe(first.session);
     expect(first.admin.cancellations).not.toBe(first.session);
     expect(first.admin.assignments).not.toBe(first.session);
@@ -177,6 +178,8 @@ describe("portal composition", () => {
     expect(composition.mode).toBe("production");
     expect(composition.productionGap).toBe(PORTAL_PRODUCTION_GAP);
     expect(storage.getItem(PORTAL_DEMO_STORAGE_KEY)).toBeNull();
+    expect(composition).not.toHaveProperty("demoIntegration");
+    expect(composition).not.toHaveProperty("demoQuotes");
     expect(composition.session).toBe(ports.session);
     expect(composition.session).not.toHaveProperty("selectDemoIdentity");
     expect(composition).not.toHaveProperty("demo");
