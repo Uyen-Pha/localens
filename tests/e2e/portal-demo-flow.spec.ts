@@ -38,6 +38,12 @@ const PORTAL_COPY = {
     seededName: "Demo Traveler",
     chooseIdentity: "Choose a demo identity",
     demoNotice: "Demo-only.",
+    accessDeniedMessage: "This route is limited to the signed-in role.",
+    customRequestUnavailable: "Customer portal unavailable",
+    adminAccessDenied: "Admin portal unavailable",
+    directNoBooking: "Your bookings",
+    signedInAsCustomer: "You are signed in as a Customer.",
+    signedInAsGuide: "You are signed in as a Guide.",
   },
   vi: {
     signInHeading: "Đăng nhập tài khoản demo",
@@ -73,6 +79,12 @@ const PORTAL_COPY = {
     seededName: "Demo Traveler",
     chooseIdentity: "Chọn danh tính demo",
     demoNotice: "Chỉ là bản demo.",
+    accessDeniedMessage: "Trang này chỉ dành cho vai trò đang đăng nhập.",
+    customRequestUnavailable: "Cổng khách hàng không khả dụng",
+    adminAccessDenied: "Cổng quản trị viên không khả dụng",
+    directNoBooking: "Booking của bạn",
+    signedInAsCustomer: "Bạn đang đăng nhập với vai trò Khách hàng.",
+    signedInAsGuide: "Bạn đang đăng nhập với vai trò Hướng dẫn viên.",
   },
 } as const;
 
@@ -370,6 +382,33 @@ test("a completed tour accepts one review and then keeps the review state on cus
   const reenteredBooking = page.getByRole("article", { name: copy.completedBooking });
   await expect(reenteredBooking.getByText(copy.reviewExists, { exact: true })).toBeVisible();
   await expect(reenteredBooking.getByRole("button", { name: copy.submitReview, exact: true })).toHaveCount(0);
+  await assertPortalAccessibility(page);
+  await assertHealthyPage(page, diagnostics);
+});
+
+test("Vietnamese direct entries deny the wrong role and protect the customer request route", async ({ page }) => {
+  const diagnostics = installDiagnostics(page);
+  const copy = PORTAL_COPY.vi;
+
+  await page.goto("/vi/account/");
+  await enterDemoIdentity(page, "vi", "customer");
+  await page.goto("/vi/admin/");
+  await expect(page.getByRole("heading", { name: copy.adminAccessDenied, exact: true })).toBeVisible();
+  await expect(page.getByText(copy.accessDeniedMessage, { exact: true })).toBeVisible();
+  await expect(page.getByText(copy.signedInAsCustomer, { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: copy.adminPortal, exact: true })).toHaveCount(0);
+
+  await switchRole(page, "vi", "guide");
+  await page.goto("/vi/custom-request/");
+  await expect(page.getByRole("heading", { name: copy.customRequestUnavailable, exact: true })).toBeVisible();
+  await expect(page.getByText(copy.accessDeniedMessage, { exact: true })).toBeVisible();
+  await expect(page.getByText(copy.signedInAsGuide, { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: copy.chooseIdentity, exact: true })).toHaveAttribute("href", "/vi/sign-in/");
+  await expect(page.getByRole("heading", { name: copy.customerPortal, exact: true })).toHaveCount(0);
+  await expect(page.getByText(copy.directNoBooking, { exact: true })).toHaveCount(0);
+
+  await page.goto("/vi/guide/");
+  await expect(page.getByRole("heading", { name: copy.guidePortal, exact: true })).toBeVisible();
   await assertPortalAccessibility(page);
   await assertHealthyPage(page, diagnostics);
 });

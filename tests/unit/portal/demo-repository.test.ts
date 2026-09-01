@@ -277,10 +277,65 @@ describe("demo portal repository", () => {
       "locations",
       "requests",
       "reviews",
+      "sessionUserId",
       "users",
       "version",
     ].sort());
     expect(envelope.version).toBe(1);
+    expect(envelope.sessionUserId).toBeNull();
+  });
+
+  it("persists a selected seeded identity across a fresh repository instance", async () => {
+    const { storage, repo } = repository();
+    await repo.reset();
+    await repo.session.selectDemoIdentity("demo-user-guide");
+
+    const reopened = createDemoPortalRepository({ storage, now: CLOCK });
+    await expect(reopened.session.getSession()).resolves.toMatchObject({
+      userId: "demo-user-guide",
+      role: "guide",
+      demo: true,
+    });
+  });
+
+  it("persists a null session identity after sign-out without removing the fixture", async () => {
+    const { storage, repo } = repository();
+    await repo.reset();
+    await repo.session.selectDemoIdentity("demo-user-customer");
+    await repo.session.signOut();
+
+    const envelope = JSON.parse(storage.getItem(DEMO_PORTAL_STORAGE_KEY) ?? "null") as Record<string, unknown>;
+    expect(envelope.sessionUserId).toBeNull();
+    const reopened = createDemoPortalRepository({ storage, now: CLOCK });
+    await expect(reopened.session.getSession()).resolves.toBeNull();
+    await expect(reopened.customer.account.listCustomerBookings()).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+  });
+
+  it("clears the persisted session identity when reset recreates the fixture", async () => {
+    const { storage, repo } = repository();
+    await repo.reset();
+    await repo.session.selectDemoIdentity("demo-user-admin");
+    await repo.reset();
+
+    const envelope = JSON.parse(storage.getItem(DEMO_PORTAL_STORAGE_KEY) ?? "null") as Record<string, unknown>;
+    expect(envelope.sessionUserId).toBeNull();
+    const reopened = createDemoPortalRepository({ storage, now: CLOCK });
+    await expect(reopened.session.getSession()).resolves.toBeNull();
+  });
+
+  it.each([
+    ["unknown", "demo-user-unknown"],
+    ["non-seeded", "customer"],
+    ["non-string", 42],
+    ["tampered", { userId: "demo-user-customer" }],
+  ] as const)("fails closed for a %s persisted session identity", async (_label, sessionUserId) => {
+    const { storage, repo } = repository();
+    await repo.reset();
+    const envelope = JSON.parse(storage.getItem(DEMO_PORTAL_STORAGE_KEY) ?? "null") as Record<string, unknown>;
+    envelope.sessionUserId = sessionUserId;
+    storage.setItem(DEMO_PORTAL_STORAGE_KEY, JSON.stringify(envelope));
+
+    await expect(repo.session.getSession()).rejects.toMatchObject({ code: "INVALID_STORAGE" });
   });
 
   it("rejects invalid JSON, unknown fields, and tampered nested records instead of resetting", async () => {

@@ -121,6 +121,7 @@ type DemoDepartureRecord = AdminDepartureProjection;
 
 type DemoEnvelopeBody = {
   version: typeof PORTAL_DEMO_STORAGE_VERSION;
+  sessionUserId: string | null;
   users: DemoUserRecord[];
   /** Requests remain independent until an admin issues an explicit quote. */
   requests: DemoRequestRecord[];
@@ -172,6 +173,13 @@ const DEMO_PERSONALIZED_QUOTE_FIXTURE = Object.freeze({
 const HASH_ALGORITHM = "fnv1a32" as const;
 const MAX_RECORDS = 200;
 const PORTAL_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,119}$/;
+const SEEDED_DEMO_USER_IDS = new Set([
+  "demo-user-customer",
+  "demo-user-guide",
+  "demo-user-guide-secondary",
+  "demo-user-admin",
+  "demo-user-secondary-customer",
+]);
 const MONEY_PATTERN = /^(?:0|[1-9]\d*)$/;
 const FX_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d{1,8})?$/;
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -225,6 +233,7 @@ const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
 
 const ENVELOPE_FIELDS = [
   "version",
+  "sessionUserId",
   "users",
   "requests",
   "bookings",
@@ -486,6 +495,14 @@ function safeNullableId(value: unknown, path: string): string | null {
   return value === null ? null : safeId(value, path);
 }
 
+function safeSessionUserId(value: unknown, path: string): string | null {
+  if (value === null) return null;
+  if (typeof value !== "string" || !SEEDED_DEMO_USER_IDS.has(value)) {
+    invalidStorage(path, "Selected identity must be a seeded demo user");
+  }
+  return value;
+}
+
 function safeNullableTimestamp(value: unknown, path: string): string | null {
   return value === null ? null : safeTimestamp(value, path);
 }
@@ -522,6 +539,7 @@ function fnv1a32(value: string): string {
 function bodyForIntegrity(envelope: DemoEnvelope): DemoEnvelopeBody {
   return {
     version: envelope.version,
+    sessionUserId: envelope.sessionUserId,
     users: envelope.users,
     requests: envelope.requests,
     bookings: envelope.bookings,
@@ -875,6 +893,7 @@ function parseEnvelope(raw: string): DemoEnvelope {
   }
   const envelope: DemoEnvelope = {
     version: PORTAL_DEMO_STORAGE_VERSION,
+    sessionUserId: safeSessionUserId(root.sessionUserId, "root.sessionUserId"),
     users: denseArray(root.users, "root.users").map((entry, index) => parseUser(entry, `root.users[${index}]`)),
     requests: denseArray(root.requests, "root.requests").map((entry, index) => parseRequest(entry, `root.requests[${index}]`)),
     bookings: denseArray(root.bookings, "root.bookings").map((entry, index) => parseBooking(entry, `root.bookings[${index}]`)),
@@ -899,6 +918,9 @@ function parseEnvelope(raw: string): DemoEnvelope {
   ensureUnique(envelope.fixedTours.map((tour) => tour.id), "root.fixedTours");
   ensureUnique(envelope.fixedTours.map((tour) => tour.versionId), "root.fixedTours.versionId");
   ensureUnique(envelope.departures.map((departure) => departure.id), "root.departures");
+  if (envelope.sessionUserId !== null && !envelope.users.some((user) => user.userId === envelope.sessionUserId)) {
+    invalidStorage("root.sessionUserId", "Selected identity is not present in the fixture");
+  }
   validateCrossReferences(envelope);
   if (digestBody(bodyForIntegrity(envelope)) !== integrity.digest) invalidStorage("root.integrity.digest", "Storage integrity check failed");
   return envelope;
@@ -1158,6 +1180,7 @@ function createFixtureBody(): DemoEnvelopeBody {
 
   return {
     version: PORTAL_DEMO_STORAGE_VERSION,
+    sessionUserId: null,
     users,
     requests,
     bookings,
@@ -1647,7 +1670,6 @@ function isSeededPersonalizedQuoteFixture(booking: DemoBookingRecord): boolean {
 export function createDemoPortalRepository(options: DemoPortalRepositoryOptions): DemoPortalRepository {
   const { storage } = options;
   const now = options.now ?? (() => new Date().toISOString());
-  let sessionUserId: string | null = null;
 
   function readEnvelope(): DemoEnvelope {
     let raw: string | null;
@@ -1679,8 +1701,8 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
   }
 
   function currentActor(envelope: DemoEnvelope): DemoUserRecord {
-    if (sessionUserId === null) unauthenticated();
-    const user = envelope.users.find((entry) => entry.userId === sessionUserId);
+    if (envelope.sessionUserId === null) unauthenticated();
+    const user = envelope.users.find((entry) => entry.userId === envelope.sessionUserId);
     if (!user) invalidStorage("session", "Selected identity is not present in the fixture");
     return user;
   }
@@ -1706,7 +1728,6 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
         throw new Error("Generated demo fixture integrity mismatch.");
       }
       writeEnvelope(envelope);
-      sessionUserId = null;
     },
 
     async selectDemoIdentity(userId: string): Promise<DemoPortalIdentity> {
@@ -1714,19 +1735,26 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       const envelope = readEnvelope();
       const user = envelope.users.find((entry) => entry.userId === id);
       if (!user) notFound("Demo identity", id);
-      sessionUserId = user.userId;
+      writeEnvelope(makeEnvelope({
+        ...bodyForIntegrity(envelope),
+        sessionUserId: user.userId,
+      }));
       return clone(toDemoIdentity(user));
     },
 
     async getSession(): Promise<DemoPortalIdentity | null> {
       const envelope = readEnvelope();
-      if (sessionUserId === null) return null;
+      if (envelope.sessionUserId === null) return null;
       const user = currentActor(envelope);
       return clone(toDemoIdentity(user));
     },
 
     async signOut(): Promise<void> {
-      sessionUserId = null;
+      const envelope = readEnvelope();
+      writeEnvelope(makeEnvelope({
+        ...bodyForIntegrity(envelope),
+        sessionUserId: null,
+      }));
     },
 
     async syncFixedBooking(input: DemoFixedBookingInput): Promise<CustomerBookingView> {

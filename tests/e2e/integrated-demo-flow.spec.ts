@@ -12,6 +12,23 @@ const PORTAL_COPY = {
       admin: "Continue as Administrator",
     },
     signOut: "Sign out",
+    accessDeniedTitle: {
+      customer: "Customer portal unavailable",
+      guide: "Guide portal unavailable",
+      admin: "Admin portal unavailable",
+    },
+    accessDeniedMessage: "This route is limited to the signed-in role.",
+    signedInAsRole: "You are signed in as a",
+    roleLabel: {
+      customer: "Customer",
+      guide: "Guide",
+      admin: "Administrator",
+    },
+    portalHeading: {
+      customer: "Your customer portal",
+      guide: "Guide portal",
+      admin: "Admin portal",
+    },
   },
 } as const;
 
@@ -83,6 +100,23 @@ async function switchRole(page: Page, locale: Locale, nextRole: DemoRole): Promi
     await page.locator("header.site-header").getByRole("link", { name: "Sign in", exact: true }).click();
   }
   await enterDemoIdentity(page, locale, nextRole);
+}
+
+async function assertAccessDenied(
+  page: Page,
+  locale: Locale,
+  expectedRole: DemoRole,
+  actualRole: DemoRole,
+): Promise<void> {
+  const copy = PORTAL_COPY[locale];
+  await page.goto(`/${locale}/${ROLE_SEGMENT[expectedRole]}/`);
+  await expect(page.getByRole("heading", { name: copy.accessDeniedTitle[expectedRole], exact: true })).toBeVisible();
+  await expect(page.getByText(copy.accessDeniedMessage, { exact: true })).toBeVisible();
+  await expect(page.getByText(
+    `${copy.signedInAsRole} ${copy.roleLabel[actualRole]}.`,
+    { exact: true },
+  )).toBeVisible();
+  await expect(page.getByRole("heading", { name: copy.portalHeading[expectedRole], exact: true })).toHaveCount(0);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -223,5 +257,22 @@ test("personalized route refinement submits for admin quote review and completes
   await expect(personalizedBooking).toBeVisible();
   await expect(personalizedBooking).toContainText("Confirmed");
   await expect(personalizedBooking).toContainText("Paid");
+  await assertHealthyPage(page, diagnostics);
+});
+
+test("direct portal entries deny every mismatched signed-in role", async ({ page }) => {
+  const diagnostics = installDiagnostics(page);
+
+  await signInAs(page, "en", "customer");
+  await assertAccessDenied(page, "en", "guide", "customer");
+  await assertAccessDenied(page, "en", "admin", "customer");
+
+  await switchRole(page, "en", "guide");
+  await assertAccessDenied(page, "en", "customer", "guide");
+  await assertAccessDenied(page, "en", "admin", "guide");
+
+  await switchRole(page, "en", "admin");
+  await assertAccessDenied(page, "en", "customer", "admin");
+  await assertAccessDenied(page, "en", "guide", "admin");
   await assertHealthyPage(page, diagnostics);
 });
