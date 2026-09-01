@@ -341,6 +341,10 @@ export interface PortalSessionPort extends PortalSessionCore {
   selectDemoIdentity?: never;
 }
 
+export interface RuntimeSessionPort extends PortalSessionPort {
+  signInWithPassword(input: { email: string; password: string }): Promise<PortalIdentity>;
+}
+
 export interface DemoSessionPort extends PortalSessionCore {
   getSession(): Promise<DemoPortalIdentity | null>;
   selectDemoIdentity(userId: string): Promise<DemoPortalIdentity>;
