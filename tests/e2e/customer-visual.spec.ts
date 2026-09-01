@@ -245,7 +245,8 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
         : style.boxShadow !== "none" ? style.boxShadow.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:\s*[,/]\s*([\d.]+))?\s*\)/) : null;
       const focusContrast = background && focusTreatment
         ? (() => {
-            const foreground = [1, 2, 3].map((index) => Number(focusTreatment[index])) as [number, number, number];
+            const alpha = Number(focusTreatment[4] ?? 1);
+            const foreground = [1, 2, 3].map((index) => Number(focusTreatment[index]) * alpha + background[index - 1] * (1 - alpha)) as [number, number, number];
             const channelLuminance = (color: [number, number, number]) => color.map((channel) => {
               const normalized = channel / 255;
               return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;

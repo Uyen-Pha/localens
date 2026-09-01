@@ -162,6 +162,18 @@ describe("editorial style foundations", () => {
     expect(portalCss).not.toMatch(/outline:\s*3px solid rgba\([^)]*,\s*0\.5\)/);
   });
 
+  it("uses the opaque shared green focus ring for customer form controls", async () => {
+    const baseCss = normalizeLineEndings(await readStyle("editorial-base.css"));
+    const tokensCss = normalizeLineEndings(await readStyle("tokens.css"));
+    const focusRingColor = tokensCss.match(/--focus-ring:\s*3px solid (#[0-9a-f]{6});/i)?.[1];
+
+    expect(focusRingColor, "the shared focus ring needs an opaque color token").toBeDefined();
+    expect(baseCss).toContain("outline: var(--focus-ring);");
+    expect(baseCss).not.toMatch(/outline:\s*3px solid rgba\(19,\s*109,\s*90,\s*0\.28\)/);
+    if (!focusRingColor) return;
+    expect(contrastRatio(focusRingColor, "#ffffff")).toBeGreaterThanOrEqual(3);
+  });
+
   it("reflows the route stops on mobile without hiding copy or masking page overflow", async () => {
     const homeCss = normalizeLineEndings(await readStyle("editorial-home-green.css"));
     const rootRule = homeCss.match(/\.customer-home\.customer-home--green\s*\{([\s\S]*?)\}/)?.[1] ?? "";

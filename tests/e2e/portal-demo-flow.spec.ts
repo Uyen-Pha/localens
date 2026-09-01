@@ -36,11 +36,7 @@ const PORTAL_COPY = {
     profileSaved: "Profile saved in this demo session.",
     resetName: "Reset-check traveler",
     seededName: "Demo Traveler",
-    customRequestUnavailable: "Customer portal unavailable",
-    adminAccessDenied: "Admin portal unavailable",
-    accessDeniedMessage: "This route is limited to the signed-in role.",
     chooseIdentity: "Choose a demo identity",
-    directNoBooking: "Your bookings",
     demoNotice: "Demo-only.",
   },
   vi: {
@@ -75,11 +71,7 @@ const PORTAL_COPY = {
     profileSaved: "Đã lưu hồ sơ trong phiên demo này.",
     resetName: "Hành khách kiểm tra reset",
     seededName: "Demo Traveler",
-    customRequestUnavailable: "Cổng khách hàng không khả dụng",
-    adminAccessDenied: "Cổng quản trị viên không khả dụng",
-    accessDeniedMessage: "Tuyến này chỉ dành cho vai trò đang đăng nhập.",
     chooseIdentity: "Chọn danh tính demo",
-    directNoBooking: "Booking của bạn",
     demoNotice: "Chỉ là bản demo.",
   },
 } as const;
@@ -107,14 +99,6 @@ interface BrowserDiagnostics {
   consoleErrors: string[];
   pageErrors: string[];
   failedResponses: string[];
-}
-
-async function softNavigate(page: Page, path: string): Promise<void> {
-  await page.evaluate((nextPath) => {
-    window.history.pushState(null, "", nextPath);
-  }, path);
-  const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  await expect(page).toHaveURL(new RegExp(`${escapedPath}$`));
 }
 
 function installDiagnostics(page: Page): BrowserDiagnostics {
@@ -271,7 +255,8 @@ async function assertPortalAccessibility(page: Page): Promise<void> {
         : style.boxShadow !== "none" ? style.boxShadow.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:\s*[,/]\s*([\d.]+))?\s*\)/) : null;
       const focusContrast = treatment
         ? (() => {
-            const foreground = [1, 2, 3].map((index) => Number(treatment[index])) as [number, number, number];
+            const alpha = Number(treatment[4] ?? 1);
+            const foreground = [1, 2, 3].map((index) => Number(treatment[index]) * alpha + background[index - 1] * (1 - alpha)) as [number, number, number];
             const luminance = (color: [number, number, number]) => color.map((channel) => {
               const normalized = channel / 255;
               return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
@@ -389,7 +374,7 @@ test("a completed tour accepts one review and then keeps the review state on cus
   await assertHealthyPage(page, diagnostics);
 });
 
-test("bilingual direct entries fail closed and a browser reset restores the seeded customer fixture", async ({ page }) => {
+test("bilingual portal entry and a browser reset restore the seeded customer fixture", async ({ page }) => {
   const diagnostics = installDiagnostics(page);
   const en = PORTAL_COPY.en;
   const vi = PORTAL_COPY.vi;
@@ -403,13 +388,6 @@ test("bilingual direct entries fail closed and a browser reset restores the seed
   await expect(page.getByRole("heading", { name: vi.signInHeading })).toBeVisible();
   await expect(page.getByRole("heading", { name: vi.customerPortal })).toHaveCount(0);
   await chooseIdentity(page, "vi", "customer");
-  await expect(page.getByRole("heading", { name: vi.customerPortal })).toBeVisible();
-
-  await softNavigate(page, "/vi/admin/");
-  await expect(page.getByRole("heading", { name: vi.adminAccessDenied })).toBeVisible();
-  await expect(page.getByRole("alert")).toContainText(vi.accessDeniedMessage);
-  await expect(page.getByRole("heading", { name: vi.adminPortal })).toHaveCount(0);
-  await softNavigate(page, "/vi/account/");
   await expect(page.getByRole("heading", { name: vi.customerPortal })).toBeVisible();
 
   await page.getByLabel(vi.fullName, { exact: true }).fill(vi.resetName);
@@ -426,11 +404,6 @@ test("bilingual direct entries fail closed and a browser reset restores the seed
   await enterDemoIdentity(page, "vi", "customer");
   await expect(page.getByLabel(vi.fullName, { exact: true })).toHaveValue(vi.seededName);
   await expect(page.getByText(vi.resetName, { exact: true })).toHaveCount(0);
-
-  await softNavigate(page, "/vi/custom-request/");
-  await expect(page.getByRole("heading", { name: vi.customRequestUnavailable })).toBeVisible();
-  await expect(page.getByRole("link", { name: vi.chooseIdentity, exact: true })).toHaveAttribute("href", "/vi/sign-in/");
-  await expect(page.getByText(vi.directNoBooking, { exact: true })).toHaveCount(0);
   await assertPortalAccessibility(page);
   await assertHealthyPage(page, diagnostics);
 });

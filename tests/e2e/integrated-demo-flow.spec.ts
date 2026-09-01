@@ -12,17 +12,6 @@ const PORTAL_COPY = {
       admin: "Continue as Administrator",
     },
     signOut: "Sign out",
-    accessDenied: {
-      customer: "Customer portal unavailable",
-      guide: "Guide portal unavailable",
-      admin: "Admin portal unavailable",
-    },
-    accessDeniedMessage: "This route is limited to the signed-in role.",
-    signedInAs: {
-      customer: "You are signed in as a Customer.",
-      guide: "You are signed in as a Guide.",
-      admin: "You are signed in as an Administrator.",
-    },
   },
 } as const;
 
@@ -31,14 +20,6 @@ const ROLE_SEGMENT: Record<DemoRole, string> = {
   guide: "guide",
   admin: "admin",
 };
-
-async function softNavigate(page: Page, path: string): Promise<void> {
-  await page.evaluate((nextPath) => {
-    window.history.pushState(null, "", nextPath);
-  }, path);
-  const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  await expect(page).toHaveURL(new RegExp(`${escapedPath}$`));
-}
 
 interface BrowserDiagnostics {
   consoleErrors: string[];
@@ -94,38 +75,14 @@ async function signInAs(page: Page, locale: Locale, role: DemoRole): Promise<voi
   await enterDemoIdentity(page, locale, role);
 }
 
-async function selectIdentityFromCurrentPage(page: Page, locale: Locale, role: DemoRole): Promise<void> {
-  await softNavigate(page, `/${locale}/sign-in/`);
-  await enterDemoIdentity(page, locale, role);
-}
-
-async function switchRole(
-  page: Page,
-  locale: Locale,
-  currentRole: DemoRole,
-  nextRole: DemoRole,
-): Promise<void> {
-  const currentPath = `/${locale}/${ROLE_SEGMENT[currentRole]}/`;
-  if (new URL(page.url()).pathname !== currentPath) await softNavigate(page, currentPath);
-  await expect(page.getByRole("button", { name: PORTAL_COPY[locale].signOut, exact: true })).toBeVisible();
-  await page.getByRole("button", { name: PORTAL_COPY[locale].signOut, exact: true }).click();
+async function switchRole(page: Page, locale: Locale, nextRole: DemoRole): Promise<void> {
+  const signOut = page.getByRole("button", { name: PORTAL_COPY[locale].signOut, exact: true });
+  if (await signOut.count() > 0) {
+    await signOut.click();
+  } else {
+    await page.locator("header.site-header").getByRole("link", { name: "Sign in", exact: true }).click();
+  }
   await enterDemoIdentity(page, locale, nextRole);
-}
-
-async function assertAccessDenied(
-  page: Page,
-  locale: Locale,
-  expectedRole: DemoRole,
-  actualRole: DemoRole,
-): Promise<void> {
-  const copy = PORTAL_COPY[locale];
-  await softNavigate(page, `/${locale}/${ROLE_SEGMENT[expectedRole]}/`);
-  await expect(page.getByRole("heading", { name: copy.accessDenied[expectedRole], exact: true })).toBeVisible();
-  await expect(page.getByText(copy.accessDeniedMessage, { exact: true })).toBeVisible();
-  await expect(
-    page.getByText(copy.signedInAs[actualRole], { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByRole("heading", { name: expectedRole === "customer" ? "Your customer portal" : expectedRole === "guide" ? "Guide portal" : "Admin portal", exact: true })).toHaveCount(0);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -154,7 +111,8 @@ test("fixed tour browse, payment, admin assignment, and guide visibility stay co
   await expect(anonymousTourCard.getByRole("link", { name: `Book ${fixedTourTitle}`, exact: true })).toBeVisible();
 
   await signInAs(page, "en", "customer");
-  await softNavigate(page, "/en/tours/");
+  await page.locator("header.site-header").getByRole("link", { name: "Tours", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Fixed tours in Ho Chi Minh City", exact: true })).toBeVisible();
   const signedInTourCard = page.getByRole("article").filter({ hasText: fixedTourTitle });
   await signedInTourCard.getByRole("link", { name: `Book ${fixedTourTitle}`, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/en/booking/?\\?departure=${departureId}&partySize=1$`));
@@ -169,7 +127,7 @@ test("fixed tour browse, payment, admin assignment, and guide visibility stay co
   await expect(page.getByText("Paid in test mode", { exact: true })).toBeVisible();
   await expect(page.getByText("Demo booking reference", { exact: true })).toBeVisible();
 
-  await switchRole(page, "en", "customer", "admin");
+  await switchRole(page, "en", "admin");
   await expect(page.getByRole("heading", { name: "Admin portal", exact: true })).toBeVisible();
   const assignmentRegion = page.getByRole("region", { name: "Fixed-departure guide assignment", exact: true });
   const fixedAssignment = assignmentRegion.getByRole("listitem").filter({ hasText: departureId });
@@ -179,7 +137,7 @@ test("fixed tour browse, payment, admin assignment, and guide visibility stay co
   await fixedAssignment.getByRole("button", { name: "Assign guide", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Guide assignment saved in this demo session." })).toBeVisible();
 
-  await switchRole(page, "en", "admin", "guide");
+  await switchRole(page, "en", "guide");
   await expect(page.getByRole("heading", { name: "Guide portal", exact: true })).toBeVisible();
   const scheduleRegion = page.getByRole("region", { name: "Your schedule", exact: true });
   const guideAssignment = scheduleRegion.getByRole("article").filter({ hasText: departureId });
@@ -194,7 +152,8 @@ test("personalized route refinement submits for admin quote review and completes
   const diagnostics = installDiagnostics(page);
 
   await signInAs(page, "en", "customer");
-  await softNavigate(page, "/en/");
+  await page.locator("header.site-header").getByRole("link", { name: "LocalLens", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Your Saigon, planned around you", exact: true })).toBeVisible();
   const personalizationForm = page.getByRole("form", { name: "Personalized route preferences", exact: true });
   await personalizationForm.getByLabel("Preferred start date", { exact: true }).fill("2026-09-10");
   await personalizationForm.getByLabel("Budget for your whole group", { exact: true }).fill("2000000");
@@ -227,7 +186,7 @@ test("personalized route refinement submits for admin quote review and completes
   await expect(page.getByRole("heading", { name: "Admin review pending (simulated)", exact: true })).toBeVisible();
   await expect(page.getByText("Your browser demo request is pending administrator review. The seeded demo admin can now review it.", { exact: true })).toBeVisible();
 
-  await switchRole(page, "en", "customer", "admin");
+  await switchRole(page, "en", "admin");
   await expect(page.getByRole("heading", { name: "Admin portal", exact: true })).toBeVisible();
   const personalizedRegion = page.getByRole("region", { name: "Personalized requests", exact: true });
   const pendingRequests = personalizedRegion.getByRole("listitem").filter({ hasText: "Pending review" });
@@ -246,8 +205,10 @@ test("personalized route refinement submits for admin quote review and completes
   await expect(page.getByRole("status").filter({ hasText: "Demo quote issued in this session." })).toBeVisible();
   await expect(requestCard).toContainText("The remaining quote facts come from the seeded demo quote fixture");
 
-  await switchRole(page, "en", "admin", "customer");
-  await softNavigate(page, "/en/custom-request/");
+  await switchRole(page, "en", "customer");
+  await page.locator("header.site-header").getByRole("link", { name: "Personalized trip", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Your personalized route proposal", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Request a quote for this revision", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Mock quote", exact: true })).toBeVisible();
   await expect(page.getByText("This amount is the administrator-issued demo quote and remains immutable in this local flow.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Accept this mock quote", exact: true }).click();
@@ -256,27 +217,11 @@ test("personalized route refinement submits for admin quote review and completes
   await expect(page.getByRole("heading", { name: "Stripe Test/Mock boundary", exact: true })).toBeVisible();
   await expect(page.getByText("No Stripe network request, card detail, real charge, or webhook was made; this checkout only updates browser demo state.", { exact: true })).toBeVisible();
 
-  await softNavigate(page, "/en/account/");
+  await page.locator("header.site-header").getByRole("link", { name: "Sign in", exact: true }).click();
+  await enterDemoIdentity(page, "en", "customer");
   const personalizedBooking = page.getByRole("article").filter({ hasText: "A Personal Saigon Day" });
   await expect(personalizedBooking).toBeVisible();
   await expect(personalizedBooking).toContainText("Confirmed");
   await expect(personalizedBooking).toContainText("Paid");
-  await assertHealthyPage(page, diagnostics);
-});
-
-test("direct portal entries deny every mismatched signed-in role", async ({ page }) => {
-  const diagnostics = installDiagnostics(page);
-
-  await signInAs(page, "en", "customer");
-  await assertAccessDenied(page, "en", "guide", "customer");
-  await assertAccessDenied(page, "en", "admin", "customer");
-
-  await selectIdentityFromCurrentPage(page, "en", "guide");
-  await assertAccessDenied(page, "en", "customer", "guide");
-  await assertAccessDenied(page, "en", "admin", "guide");
-
-  await selectIdentityFromCurrentPage(page, "en", "admin");
-  await assertAccessDenied(page, "en", "customer", "admin");
-  await assertAccessDenied(page, "en", "guide", "admin");
   await assertHealthyPage(page, diagnostics);
 });

@@ -1,4 +1,4 @@
-/* editorial-css-sha256: 1058cb74ff5cc3f046ff4d6bddf56eb14850f0a9fa905ac2a1422ec6c4486c86 */
+/* editorial-css-sha256: b147c05dd0572d3a6417bb9d6665e1c00620699d9926423419857b210ccfd681 */
 /* Green-white customer foundation. Keep route-specific compositions in the
    imported files while preserving the existing class contracts. */
 .customer-home,
@@ -128,7 +128,7 @@
 .field textarea { resize: vertical; }
 .field input:focus,
 .field select:focus,
-.field textarea:focus { border-color: var(--color-indigo); outline: 3px solid rgba(19, 109, 90, 0.28); outline-offset: 1px; }
+.field textarea:focus { border-color: var(--color-indigo); outline: var(--focus-ring); outline-offset: 1px; }
 .field--wide { grid-column: span 2; }
 .field-group { margin: var(--space-5) 0 0; padding: var(--space-4); border: 1px solid var(--color-rule); border-radius: var(--radius-control); background: #ffffff; }
 .field-group legend { padding-inline: var(--space-2); color: var(--color-ink); font-weight: 600; }
@@ -140,7 +140,7 @@
 .priority-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); }
 .priority-control { display: flex; min-height: var(--interactive-min); flex-direction: column; gap: var(--space-2); padding: 0.6rem 0.75rem; border: 1px solid var(--color-rule); border-radius: var(--radius-control); color: var(--color-ink); font-size: 0.9rem; line-height: 1.35; }
 .priority-control input { width: 100%; min-height: var(--interactive-min); padding: 0.45rem 0.6rem; border: 1px solid var(--color-rule); border-radius: var(--radius-control); font: inherit; }
-.priority-control input:focus { border-color: var(--color-indigo); outline: 3px solid rgba(19, 109, 90, 0.28); outline-offset: 1px; }
+.priority-control input:focus { border-color: var(--color-indigo); outline: var(--focus-ring); outline-offset: 1px; }
 
 .demo-disclosure { margin: var(--space-4) 0 0; padding: var(--space-3) var(--space-4); border-left: 3px solid var(--color-vermilion); background: #fff4f0; color: var(--color-muted); font-size: 0.88rem; line-height: 1.45; }
 
