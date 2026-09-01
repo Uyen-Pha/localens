@@ -11,6 +11,7 @@ const { Client } = pg;
 const LOCAL_SUPABASE_API_PORT = "54321";
 const LOCAL_SUPABASE_DB_PORT = "54322";
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const RUNTIME_AUTH_SEED_ERROR = Symbol("RUNTIME_AUTH_SEED_ERROR");
 
 export const RUNTIME_AUTH_IDENTITIES = Object.freeze([
   { email: "customer.runtime@localens.test", role: "customer", displayName: "Runtime Traveler", language: "en" },
@@ -21,17 +22,29 @@ export const RUNTIME_AUTH_IDENTITIES = Object.freeze([
 function runtimeAuthSeedError(code, message) {
   const error = new Error(`${code}: ${message}`);
   error.code = code;
+  error[RUNTIME_AUTH_SEED_ERROR] = true;
   return error;
 }
 
-function requireLocalEndpoint(value, { protocols, port, label }) {
+function stableRuntimeAuthSeedError(error, code, message) {
+  return error?.[RUNTIME_AUTH_SEED_ERROR] === true
+    ? error
+    : runtimeAuthSeedError(code, message);
+}
+
+function requireLocalEndpoint(value, { protocols, port, label, rejectSearch = false }) {
   let parsed;
   try {
     parsed = new URL(value);
   } catch {
     throw runtimeAuthSeedError("RUNTIME_AUTH_SEED_LOCAL_ONLY", `${label} must be a loopback URL`);
   }
-  if (!protocols.includes(parsed.protocol) || !LOOPBACK_HOSTS.has(parsed.hostname) || parsed.port !== port) {
+  if (
+    !protocols.includes(parsed.protocol) ||
+    !LOOPBACK_HOSTS.has(parsed.hostname) ||
+    parsed.port !== port ||
+    (rejectSearch && parsed.search !== "")
+  ) {
     throw runtimeAuthSeedError("RUNTIME_AUTH_SEED_LOCAL_ONLY", `${label} must use the local Supabase loopback endpoint`);
   }
   return parsed;
@@ -64,6 +77,7 @@ function validateSeedConfiguration({ supabaseUrl, databaseUrl, serviceRoleKey, p
     protocols: ["postgres:", "postgresql:"],
     port: LOCAL_SUPABASE_DB_PORT,
     label: "database URL",
+    rejectSearch: true,
   });
   requireServiceRoleKey(serviceRoleKey);
   requirePasswords(passwords);
@@ -80,7 +94,7 @@ async function callAuthAdmin(operation, call) {
   try {
     return unwrapAdminResult(operation, await call());
   } catch (error) {
-    if (error?.code === "RUNTIME_AUTH_SEED_AUTH_FAILED") throw error;
+    if (error?.[RUNTIME_AUTH_SEED_ERROR] === true) throw error;
     throw runtimeAuthSeedError("RUNTIME_AUTH_SEED_AUTH_FAILED", `${operation} failed`);
   }
 }
@@ -221,7 +235,12 @@ function parseLocalStatusEnv(output) {
 }
 
 export async function runRuntimeAuthSeedCli({ env = process.env, logger = console.log } = {}) {
-  const status = runLocalSupabase(["status", "-o", "env"], { capture: true });
+  let status;
+  try {
+    status = runLocalSupabase(["status", "-o", "env"], { capture: true });
+  } catch {
+    throw runtimeAuthSeedError("RUNTIME_AUTH_SEED_STATUS_FAILED", "local Supabase status failed");
+  }
   const localStatus = parseLocalStatusEnv(status.stdout);
   const databaseUrl = env.LOCALENS_DB_URL;
   const serviceRoleKey = localStatus.SERVICE_ROLE_KEY;
@@ -232,14 +251,26 @@ export async function runRuntimeAuthSeedCli({ env = process.env, logger = consol
     admin: env.LOCALENS_RUNTIME_ADMIN_PASSWORD,
   };
   validateSeedConfiguration({ supabaseUrl, databaseUrl, serviceRoleKey, passwords });
-  const authAdmin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  }).auth.admin;
-  const client = new Client({ connectionString: databaseUrl, application_name: "localens-runtime-auth-seed" });
-
-  await client.connect();
+  let authAdmin;
+  let client;
   try {
-    return await seedRuntimeAuth({
+    authAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    }).auth.admin;
+    client = new Client({ connectionString: databaseUrl, application_name: "localens-runtime-auth-seed" });
+  } catch {
+    throw runtimeAuthSeedError("RUNTIME_AUTH_SEED_CLIENT_FAILED", "local runtime Auth client construction failed");
+  }
+
+  let result;
+  let primaryError;
+  try {
+    try {
+      await client.connect();
+    } catch {
+      throw runtimeAuthSeedError("RUNTIME_AUTH_SEED_CONNECT_FAILED", "local database connection failed");
+    }
+    result = await seedRuntimeAuth({
       supabaseUrl,
       databaseUrl,
       serviceRoleKey,
@@ -248,22 +279,44 @@ export async function runRuntimeAuthSeedCli({ env = process.env, logger = consol
       query: client.query.bind(client),
       logger,
     });
+  } catch (error) {
+    primaryError = stableRuntimeAuthSeedError(
+      error,
+      "RUNTIME_AUTH_SEED_FAILED",
+      "local runtime Auth seed failed",
+    );
   } finally {
-    await client.end();
+    try {
+      await client.end();
+    } catch {
+      if (!primaryError) {
+        primaryError = runtimeAuthSeedError("RUNTIME_AUTH_SEED_TEARDOWN_FAILED", "local database teardown failed");
+      }
+    }
   }
+  if (primaryError) throw primaryError;
+  return result;
 }
 
-async function main() {
+export async function runRuntimeAuthSeedMain({ run = runRuntimeAuthSeedCli, errorLogger = console.error } = {}) {
   try {
-    await runRuntimeAuthSeedCli();
+    await run();
+    return 0;
   } catch (error) {
-    const code = error?.code ?? "RUNTIME_AUTH_SEED_FAILED";
-    const message = error?.message ?? String(error);
-    console.error(message.startsWith(`${code}:`) ? message : `${code}: ${message}`);
-    process.exitCode = 2;
+    const stableError = stableRuntimeAuthSeedError(
+      error,
+      "RUNTIME_AUTH_SEED_FAILED",
+      "local runtime Auth seed failed",
+    );
+    try {
+      errorLogger(stableError.message);
+    } catch {
+      // A failed logger must not re-expose the original error or change the exit contract.
+    }
+    return 2;
   }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  await main();
+  process.exitCode = await runRuntimeAuthSeedMain();
 }

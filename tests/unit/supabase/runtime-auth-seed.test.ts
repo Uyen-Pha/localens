@@ -2,8 +2,26 @@ import { randomUUID } from "node:crypto";
 
 import { describe, expect, it, vi } from "vitest";
 
+const cliDependencyMocks = vi.hoisted(() => ({
+  runLocalSupabase: vi.fn(),
+  createClient: vi.fn(),
+  Client: vi.fn(),
+}));
+
+vi.mock("../../../scripts/supabase-local.mjs", () => ({
+  runLocalSupabase: cliDependencyMocks.runLocalSupabase,
+}));
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: cliDependencyMocks.createClient,
+}));
+vi.mock("pg", () => ({
+  default: { Client: cliDependencyMocks.Client },
+}));
+
 import {
   RUNTIME_AUTH_IDENTITIES,
+  runRuntimeAuthSeedCli,
+  runRuntimeAuthSeedMain,
   seedRuntimeAuth,
 } from "../../../scripts/seed-runtime-auth.mjs";
 
@@ -79,6 +97,44 @@ function validOptions(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function createCliHarness() {
+  const authAdmin = createAuthAdmin();
+  const database = createDatabaseQuery();
+  const client = {
+    connect: vi.fn(async () => {}),
+    query: database.query,
+    end: vi.fn(async () => {}),
+  };
+  const logger = vi.fn();
+  const env = {
+    LOCALENS_DB_URL: LOCAL_DATABASE_URL,
+    LOCALENS_RUNTIME_CUSTOMER_PASSWORD: PASSWORDS.customer,
+    LOCALENS_RUNTIME_GUIDE_PASSWORD: PASSWORDS.guide,
+    LOCALENS_RUNTIME_ADMIN_PASSWORD: PASSWORDS.admin,
+  };
+
+  cliDependencyMocks.runLocalSupabase.mockReset();
+  cliDependencyMocks.runLocalSupabase.mockReturnValue({
+    status: 0,
+    stdout: `API_URL="${LOCAL_SUPABASE_URL}"\nSERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}"\n`,
+    stderr: "",
+  });
+  cliDependencyMocks.createClient.mockReset();
+  cliDependencyMocks.createClient.mockReturnValue({ auth: { admin: authAdmin } });
+  cliDependencyMocks.Client.mockReset();
+  cliDependencyMocks.Client.mockImplementation(function clientConstructor() { return client; });
+
+  return { authAdmin, database, client, env, logger };
+}
+
+function expectStableRedactedError(error: Error & { code?: string }, code: string) {
+  expect(error).toBeInstanceOf(Error);
+  expect(error.code).toBe(code);
+  for (const secret of [SERVICE_ROLE_KEY, LOCAL_DATABASE_URL, ...Object.values(PASSWORDS)]) {
+    expect(error.message).not.toContain(secret);
+  }
+}
+
 describe("runtime Auth seed", () => {
   it.each([
     {
@@ -98,6 +154,41 @@ describe("runtime Auth seed", () => {
 
     expect(authAdmin.createUser).not.toHaveBeenCalled();
     expect(authAdmin.updateUserById).not.toHaveBeenCalled();
+    expect(database.query).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    `${LOCAL_DATABASE_URL}?host=example.com`,
+    `${LOCAL_DATABASE_URL}?port=5432`,
+  ])("rejects PostgreSQL endpoint overrides before writes: %s", async (databaseUrl) => {
+    const authAdmin = createAuthAdmin();
+    const database = createDatabaseQuery();
+
+    await expect(seedRuntimeAuth(validOptions({ authAdmin, query: database.query, databaseUrl })))
+      .rejects.toMatchObject({ code: "RUNTIME_AUTH_SEED_LOCAL_ONLY" });
+
+    expect(authAdmin.listUsers).not.toHaveBeenCalled();
+    expect(authAdmin.createUser).not.toHaveBeenCalled();
+    expect(database.query).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      label: "Supabase API",
+      overrides: { supabaseUrl: "http://127.0.0.1:54322" },
+    },
+    {
+      label: "PostgreSQL",
+      overrides: { databaseUrl: "postgresql://postgres:postgres@127.0.0.1:54321/postgres" },
+    },
+  ])("rejects a loopback $label URL on the wrong port before writes", async ({ overrides }) => {
+    const authAdmin = createAuthAdmin();
+    const database = createDatabaseQuery();
+
+    await expect(seedRuntimeAuth(validOptions({ authAdmin, query: database.query, ...overrides })))
+      .rejects.toMatchObject({ code: "RUNTIME_AUTH_SEED_LOCAL_ONLY" });
+
+    expect(authAdmin.listUsers).not.toHaveBeenCalled();
     expect(database.query).not.toHaveBeenCalled();
   });
 
@@ -132,6 +223,80 @@ describe("runtime Auth seed", () => {
       expect(error.message).not.toContain(secret);
     }
   });
+
+  it.each(["Supabase", "PostgreSQL"])("redacts a failing %s client constructor", async (boundary) => {
+    const harness = createCliHarness();
+    const leakedMessage = [SERVICE_ROLE_KEY, LOCAL_DATABASE_URL, ...Object.values(PASSWORDS)].join(" ");
+    if (boundary === "Supabase") {
+      cliDependencyMocks.createClient.mockImplementationOnce(() => { throw new Error(leakedMessage); });
+    } else {
+      cliDependencyMocks.Client.mockImplementationOnce(function failingClientConstructor() {
+        throw new Error(leakedMessage);
+      });
+    }
+
+    const error = await runRuntimeAuthSeedCli({ env: harness.env, logger: harness.logger }).catch((cause) => cause);
+
+    expectStableRedactedError(error, "RUNTIME_AUTH_SEED_CLIENT_FAILED");
+  });
+
+  it("redacts connect failure and still attempts teardown", async () => {
+    const harness = createCliHarness();
+    const leakedMessage = [SERVICE_ROLE_KEY, LOCAL_DATABASE_URL, ...Object.values(PASSWORDS)].join(" ");
+    harness.client.connect.mockRejectedValueOnce(new Error(leakedMessage));
+
+    const error = await runRuntimeAuthSeedCli({ env: harness.env, logger: harness.logger }).catch((cause) => cause);
+
+    expectStableRedactedError(error, "RUNTIME_AUTH_SEED_CONNECT_FAILED");
+    expect(harness.client.end).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves a redacted database failure when rollback also fails", async () => {
+    const harness = createCliHarness();
+    const leakedMessage = [SERVICE_ROLE_KEY, LOCAL_DATABASE_URL, ...Object.values(PASSWORDS)].join(" ");
+    harness.database.query.mockReset();
+    harness.database.query.mockImplementation(async (sql: string) => {
+      if (sql === "BEGIN") return { rowCount: 0, rows: [] };
+      throw new Error(leakedMessage);
+    });
+
+    const error = await runRuntimeAuthSeedCli({ env: harness.env, logger: harness.logger }).catch((cause) => cause);
+
+    expectStableRedactedError(error, "RUNTIME_AUTH_SEED_DATABASE_FAILED");
+    expect(harness.database.query).toHaveBeenCalledWith("ROLLBACK");
+    expect(harness.client.end).toHaveBeenCalledTimes(1);
+  });
+
+  it("redacts teardown failure after a successful seed", async () => {
+    const harness = createCliHarness();
+    const leakedMessage = [SERVICE_ROLE_KEY, LOCAL_DATABASE_URL, ...Object.values(PASSWORDS)].join(" ");
+    harness.client.end.mockRejectedValueOnce(new Error(leakedMessage));
+
+    const error = await runRuntimeAuthSeedCli({ env: harness.env, logger: harness.logger }).catch((cause) => cause);
+
+    expectStableRedactedError(error, "RUNTIME_AUTH_SEED_TEARDOWN_FAILED");
+  });
+
+  it.each([undefined, "RUNTIME_AUTH_SEED_CONNECT_FAILED"])(
+    "redacts an unexpected top-level CLI failure with code %s",
+    async (spoofedCode) => {
+      const leakedMessage = [SERVICE_ROLE_KEY, LOCAL_DATABASE_URL, ...Object.values(PASSWORDS)].join(" ");
+      const errorLogger = vi.fn();
+      const unexpectedError = Object.assign(new Error(leakedMessage), { code: spoofedCode });
+
+      const exitCode = await runRuntimeAuthSeedMain({
+        run: async () => { throw unexpectedError; },
+        errorLogger,
+      });
+
+      expect(exitCode).toBe(2);
+      expect(errorLogger).toHaveBeenCalledWith("RUNTIME_AUTH_SEED_FAILED: local runtime Auth seed failed");
+      const output = errorLogger.mock.calls.flat().join("\n");
+      for (const secret of [SERVICE_ROLE_KEY, LOCAL_DATABASE_URL, ...Object.values(PASSWORDS)]) {
+        expect(output).not.toContain(secret);
+      }
+    },
+  );
 
   it("reuses three Auth users and normalizes only identity tables on every run", async () => {
     const authAdmin = createAuthAdmin();
