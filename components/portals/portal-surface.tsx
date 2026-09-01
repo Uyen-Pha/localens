@@ -259,7 +259,11 @@ function PortalSurfaceContent({
       return () => undefined;
     }
 
-    void activeComposition.initialized
+    const initialization = retryKey === 0
+      ? activeComposition.initialized
+      : activeComposition.retryInitialization();
+
+    void initialization
       .then(() => activeComposition.session.getSession())
       .then((nextSession) => {
         if (disposed) return;

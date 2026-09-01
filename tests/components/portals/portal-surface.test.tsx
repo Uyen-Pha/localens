@@ -33,9 +33,7 @@ async function signIn(composition: DemoPortalComposition, userId: string): Promi
 
 afterEach(async () => {
   cleanup();
-  for (const composition of compositions) {
-    await composition.session.signOut();
-  }
+  await Promise.allSettled(compositions.map((composition) => composition.session.signOut()));
   compositions.length = 0;
 });
 
@@ -301,7 +299,6 @@ describe("PortalSurface", () => {
     };
     const composition = createPortalComposition({ mode: "demo", storage, now: CLOCK });
     compositions.push(composition);
-    await composition.initialized;
 
     render(<TestSurface locale="en" expectedRole="customer" composition={composition} />);
 

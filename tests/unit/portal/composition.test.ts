@@ -208,8 +208,30 @@ describe("portal composition", () => {
     const composition = createPortalComposition({ mode: "demo", storage });
 
     await expect(composition.initialized).rejects.toMatchObject({ code: "INVALID_STORAGE" });
+    await expect(composition.retryInitialization()).rejects.toMatchObject({ code: "INVALID_STORAGE" });
     expect(storage.getItem(PORTAL_DEMO_STORAGE_KEY)).toBe(invalidRaw);
     expect(storage.getItem("unrelated")).toBe("preserve");
+  });
+
+  it("retries a temporary initialization read failure without replacing the composition", async () => {
+    const storage = createMemorySessionStorage();
+    const originalGetItem = storage.getItem.bind(storage);
+    let failFirstRead = true;
+    storage.getItem = (key: string) => {
+      if (failFirstRead) {
+        failFirstRead = false;
+        throw new Error("temporary session storage failure");
+      }
+      return originalGetItem(key);
+    };
+    const composition = createPortalComposition({ mode: "demo", storage });
+
+    await expect(composition.initialized).rejects.toMatchObject({ code: "STORAGE_UNAVAILABLE" });
+    expect(storage.getItem(PORTAL_DEMO_STORAGE_KEY)).toBeNull();
+
+    await expect(composition.retryInitialization()).resolves.toBeUndefined();
+    await expect(composition.session.getSession()).resolves.toBeNull();
+    expect(storage.getItem(PORTAL_DEMO_STORAGE_KEY)).not.toBeNull();
   });
 
   it("keeps explicit repository reset deterministic and clears a composition session", async () => {

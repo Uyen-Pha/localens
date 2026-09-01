@@ -28,6 +28,8 @@ export type DemoPortalComposition = Omit<PortalComposition, "session"> & {
   readonly demoQuotes: AdminPersonalizedQuotesPort;
   /** Resolves once the composition's deterministic demo fixture initialization has completed. */
   readonly initialized: Promise<void>;
+  /** Starts a fresh fail-closed initialization attempt after a recoverable storage failure. */
+  retryInitialization(): Promise<void>;
 };
 export type ProductionPortalComposition = PortalComposition & { readonly mode: "production" };
 
@@ -151,6 +153,7 @@ function withDemoCompositionMetadata(
   demoIntegration: DemoPortalIntegration,
   demoQuotes: AdminPersonalizedQuotesPort,
   initialized: Promise<void>,
+  retryInitialization: () => Promise<void>,
 ): DemoPortalComposition {
   return {
     mode: "demo",
@@ -162,6 +165,7 @@ function withDemoCompositionMetadata(
     guide: ports.guide,
     admin: ports.admin,
     initialized,
+    retryInitialization,
   };
 }
 
@@ -190,5 +194,5 @@ export function createPortalComposition(options: CreatePortalCompositionOptions)
     customer: repository.customer,
     guide: repository.guide,
     admin: repository.admin,
-  }, repository.demoIntegration, repository.demoQuotes, initialized);
+  }, repository.demoIntegration, repository.demoQuotes, initialized, repository.initialize);
 }
