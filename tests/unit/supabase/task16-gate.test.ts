@@ -12,7 +12,7 @@ import { checkGeneratedDatabaseTypes, writeGeneratedDatabaseTypes } from "@/scri
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { REQUIRED_CONCURRENCY_SCENARIOS, runConcurrencyCheck } from "@/scripts/test-db-concurrency.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
-import { requireLocalSupabaseCli } from "@/scripts/supabase-local.mjs";
+import { requireLocalSupabaseCli, runLocalSupabase } from "@/scripts/supabase-local.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { exitCodeForError } from "@/scripts/run-db-gate.mjs";
 import { resolve as resolvePath } from "node:path";
@@ -66,6 +66,36 @@ describe("Task16 database gate", () => {
         platform: "win32",
       }),
     ).toThrow(/SUPABASE_CLI_PATH_REJECTED/);
+  });
+
+  it("runs the verified Windows Supabase JS entrypoint through project Node", () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-windows-"));
+    const cliPath = path.join(rootDir, "node_modules", ".bin", "supabase.cmd");
+    const jsEntrypoint = path.join(rootDir, "node_modules", "supabase", "dist", "supabase.js");
+    const calls: Array<{ command: string; args: string[] }> = [];
+    mkdirSync(path.dirname(cliPath), { recursive: true });
+    mkdirSync(path.dirname(jsEntrypoint), { recursive: true });
+    writeFileSync(cliPath, "@echo off\r\n", "utf8");
+    writeFileSync(jsEntrypoint, "", "utf8");
+
+    try {
+      expect(() =>
+        runLocalSupabase(["--version"], {
+          cwd: rootDir,
+          platform: "win32",
+          cliPath,
+          capture: true,
+          spawn: (command: string, args: string[]) => {
+            calls.push({ command, args });
+            return { status: 0, stdout: "2.115.0\n", stderr: "" };
+          },
+        }),
+      ).not.toThrow();
+
+      expect(calls).toEqual([{ command: process.execPath, args: [jsEntrypoint, "--version"] }]);
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
   });
 
   it("preserves the failed Supabase step status for the process exit code", () => {

@@ -83,12 +83,47 @@ export function requireLocalSupabaseCli(options = {}) {
   return resolvedCliPath;
 }
 
+function requireWindowsSupabaseJsEntrypoint({ cwd = process.cwd() } = {}) {
+  const candidate = path.resolve(cwd, "node_modules", "supabase", "dist", "supabase.js");
+  if (!existsSync(candidate)) {
+    throw task16Error(
+      "SUPABASE_JS_ENTRYPOINT_NOT_FOUND",
+      "project-local Supabase JavaScript entrypoint is required on Windows",
+    );
+  }
+  try {
+    const realCandidate = realpathSync.native(candidate);
+    const realProjectRoot = realpathSync.native(cwd);
+    const relative = path.relative(realProjectRoot, realCandidate);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      throw task16Error(
+        "SUPABASE_JS_ENTRYPOINT_REJECTED",
+        "project-local Supabase JavaScript entrypoint must remain inside the project",
+      );
+    }
+    return realCandidate;
+  } catch (error) {
+    if (error?.code === "SUPABASE_JS_ENTRYPOINT_REJECTED") throw error;
+    throw task16Error(
+      "SUPABASE_JS_ENTRYPOINT_REJECTED",
+      "project-local Supabase JavaScript entrypoint could not be verified",
+    );
+  }
+}
+
 export function runLocalSupabase(args, options = {}) {
   const tokens = Array.isArray(args) ? args.map((value) => String(value)) : [];
   assertNoRemoteMode(tokens);
   const cliPath = requireLocalSupabaseCli(options);
+  const platform = options.platform ?? process.platform;
+  const command = platform === "win32" ? process.execPath : cliPath;
+  const commandArgs =
+    platform === "win32"
+      ? [requireWindowsSupabaseJsEntrypoint({ cwd: options.cwd ?? process.cwd() }), ...tokens]
+      : tokens;
   const capture = options.capture === true;
-  const result = spawnSync(cliPath, tokens, {
+  const spawn = options.spawn ?? spawnSync;
+  const result = spawn(command, commandArgs, {
     cwd: options.cwd ?? process.cwd(),
     env: options.env ?? process.env,
     encoding: "utf8",
