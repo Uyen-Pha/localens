@@ -153,6 +153,14 @@ function shellFor(session = new MemoryRuntimeSession()): SupabasePortalShell {
   return {
     mode: "supabase",
     session,
+    fixedTour: {
+      listPublishedTours: async () => [],
+      listAvailability: async () => [],
+      beginBooking: async () => {
+        throw new Error("not used by the portal shell test");
+      },
+      listOwnBookings: async () => [],
+    },
     initialized: Promise.resolve(),
   };
 }

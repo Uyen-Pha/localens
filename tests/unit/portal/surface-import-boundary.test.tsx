@@ -27,6 +27,14 @@ import { PortalSurface } from "@/components/portals/portal-surface";
 const shell: SupabasePortalShell = {
   mode: "supabase",
   initialized: Promise.resolve(),
+  fixedTour: {
+    listPublishedTours: async () => [],
+    listAvailability: async () => [],
+    beginBooking: async () => {
+      throw new Error("not used by the import-boundary test");
+    },
+    listOwnBookings: async () => [],
+  },
   session: {
     getSession: async () => null,
     signInWithPassword: async () => {

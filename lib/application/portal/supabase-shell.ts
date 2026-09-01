@@ -1,15 +1,20 @@
 import type { PublicEnv } from "@/lib/env/public";
 import type { BrowserRuntimeConfig } from "@/lib/env/runtime";
 import {
+  createFixedTourRuntimeComposition,
+  type FixedTourRuntimeComposition,
+} from "@/lib/application/fixed-tour/composition";
+import {
   PortalError,
   type RuntimeSessionPort,
 } from "@/lib/application/portal/contracts";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { createSupabasePortalSessionAdapter } from "@/lib/infrastructure/supabase/portal-session-adapter";
+import { createSupabaseFixedTourRuntimeAdapter } from "@/lib/infrastructure/supabase/fixed-tour-runtime-adapter";
 
 type SupabaseRuntimeConfig = Extract<BrowserRuntimeConfig, { mode: "supabase" }>;
 
-export interface SupabasePortalShell {
+export interface SupabasePortalShell extends FixedTourRuntimeComposition {
   readonly mode: "supabase";
   readonly session: RuntimeSessionPort;
   readonly initialized: Promise<void>;
@@ -25,6 +30,7 @@ export function createSupabasePortalShell(config: SupabaseRuntimeConfig): Supaba
     return {
       mode: "supabase",
       session: createSupabasePortalSessionAdapter(client),
+      ...createFixedTourRuntimeComposition(createSupabaseFixedTourRuntimeAdapter(client)),
       initialized: Promise.resolve(),
     };
   } catch {

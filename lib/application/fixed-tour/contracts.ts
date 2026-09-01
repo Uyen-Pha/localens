@@ -28,6 +28,38 @@ export interface FixedTourRuntimePort {
   listOwnBookings(): Promise<CustomerBooking[]>;
 }
 
+export type FixedTourRuntimeErrorCode =
+  | "INVALID_INPUT"
+  | "UNAUTHENTICATED"
+  | "FORBIDDEN"
+  | "IDEMPOTENCY_CONFLICT"
+  | "SOLD_OUT"
+  | "NOT_FOUND"
+  | "SERVICE_UNAVAILABLE"
+  | "INVALID_RESPONSE";
+
+const FIXED_TOUR_ERROR_MESSAGES: Record<FixedTourRuntimeErrorCode, string> = {
+  INVALID_INPUT: "The fixed-tour request is invalid.",
+  UNAUTHENTICATED: "A signed-in customer session is required.",
+  FORBIDDEN: "The fixed-tour operation is not permitted.",
+  IDEMPOTENCY_CONFLICT: "The booking attempt conflicts with an earlier request.",
+  SOLD_OUT: "The selected departure is sold out.",
+  NOT_FOUND: "The requested fixed-tour resource is unavailable.",
+  SERVICE_UNAVAILABLE: "The fixed-tour service is unavailable.",
+  INVALID_RESPONSE: "The fixed-tour service returned an invalid response.",
+};
+
+/** Stable browser-safe failure with no database, URL, or credential detail. */
+export class FixedTourRuntimeError extends Error {
+  readonly code: FixedTourRuntimeErrorCode;
+
+  constructor(code: FixedTourRuntimeErrorCode) {
+    super(FIXED_TOUR_ERROR_MESSAGES[code]);
+    this.name = "FixedTourRuntimeError";
+    this.code = code;
+  }
+}
+
 const BEGIN_BOOKING_INPUT_FIELDS = [
   "departureId",
   "partySize",

@@ -32,6 +32,8 @@ describe("portal runtime loader", () => {
     vi.doUnmock("@/lib/application/portal/composition");
     vi.doUnmock("@/lib/application/portal/supabase-shell");
     vi.doUnmock("@/lib/supabase/client");
+    vi.doUnmock("@/lib/infrastructure/supabase/portal-session-adapter");
+    vi.doUnmock("@/lib/infrastructure/supabase/fixed-tour-runtime-adapter");
     restore("NEXT_PUBLIC_LOCALLENS_RUNTIME", originalRuntime);
     restore("NEXT_PUBLIC_SUPABASE_URL", originalUrl);
     restore("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", originalKey);
@@ -181,5 +183,42 @@ describe("portal runtime loader", () => {
     expect(thrown).toBeInstanceOf(PortalError);
     expect(thrown).toMatchObject({ code: "PRODUCTION_CONFIGURATION" });
     expect((thrown as Error).message).not.toContain(publishableKey);
+  });
+
+  it("wires session and fixed-tour adapters to one shared browser client", async () => {
+    const client = { marker: "one-browser-client" };
+    const session = {
+      getSession: vi.fn(),
+      signInWithPassword: vi.fn(),
+      signOut: vi.fn(),
+    };
+    const fixedTour = {
+      listPublishedTours: vi.fn(),
+      listAvailability: vi.fn(),
+      beginBooking: vi.fn(),
+      listOwnBookings: vi.fn(),
+    };
+    const createBrowserSupabaseClient = vi.fn().mockReturnValue(client);
+    const createSupabasePortalSessionAdapter = vi.fn().mockReturnValue(session);
+    const createSupabaseFixedTourRuntimeAdapter = vi.fn().mockReturnValue(fixedTour);
+    vi.doMock("@/lib/supabase/client", () => ({ createBrowserSupabaseClient }));
+    vi.doMock("@/lib/infrastructure/supabase/portal-session-adapter", () => ({
+      createSupabasePortalSessionAdapter,
+    }));
+    vi.doMock("@/lib/infrastructure/supabase/fixed-tour-runtime-adapter", () => ({
+      createSupabaseFixedTourRuntimeAdapter,
+    }));
+
+    const { createSupabasePortalShell } = await import("@/lib/application/portal/supabase-shell");
+    const shell = createSupabasePortalShell({
+      mode: "supabase",
+      supabaseUrl: "http://127.0.0.1:54321",
+      supabasePublishableKey: "local-publishable-key",
+    });
+
+    expect(createSupabasePortalSessionAdapter).toHaveBeenCalledWith(client);
+    expect(createSupabaseFixedTourRuntimeAdapter).toHaveBeenCalledWith(client);
+    expect(shell.session).toBe(session);
+    expect(shell.fixedTour).toBe(fixedTour);
   });
 });
