@@ -26,6 +26,7 @@ B2.2a is a `runtime-verified-local` slice. It is not staging, production, a comp
 ## Security and authority
 
 - `auth.uid()`/JWT subject and the authoritative database role select the actor; no actor ID or role arrives from the browser.
+- The RPC and owner-booking RLS normalize both PostgREST claim forms: legacy `request.jwt.claim.sub` and JSON `request.jwt.claims ->> 'sub'`. The wrapper sets the transaction-local legacy value before entering the existing checkout transaction so its canonical payload remains authoritative.
 - Amount, currency, booking status, hold duration, title, policy, source snapshots, and provider idempotency values remain server-owned.
 - The public RPC accepts only a departure source and exposes no generic quote checkout seam.
 - Anonymous, guide, and admin callers cannot create a fixed-tour hold.
@@ -47,6 +48,7 @@ The seed must:
 - require loopback Supabase API and database endpoints;
 - fail closed outside local mode;
 - be idempotent and transaction-safe;
+- compensate across the non-transactional Auth boundary: delete only a newly created customer-B Auth user after a database failure, never a reused identity, and preserve the original redacted failure;
 - redact credentials and connection strings;
 - never read or mutate `data/sources/**` or `data/approvals/**`.
 
@@ -92,9 +94,9 @@ B2.2a is complete only when all are true:
 - Customer A cannot see B's booking and B cannot see A's booking.
 - Anonymous, guide, and admin callers cannot invoke the hold RPC.
 - Same-key/same-payload retry resumes; same-key/changed-payload conflicts.
-- Two-session concurrency still proves no oversell.
+- Two-session authenticated concurrency through `public.begin_fixed_tour_booking` proves no oversell.
 - Browser/network payloads expose no actor ID, provider idempotency key, database URL, service-role key, or client-authored amount/status.
-- pgTAP/RLS, generated security inventories, database types, `pnpm check`, demo E2E, runtime Auth E2E, and runtime fixed-tour E2E pass from clean owned servers.
+- pgTAP/RLS, generated security inventories, database types, `build:supabase`, `pnpm check`, demo E2E, runtime Auth E2E, and runtime fixed-tour E2E pass from clean owned servers.
 
 ## Deferred slices
 
@@ -102,4 +104,3 @@ B2.2a is complete only when all are true:
 - B2.3: personalized-tour runtime persistence and quote review.
 - B2.4: guide/admin operational data and assignment flows.
 - B3: staging deployment after credentials and targets are explicitly supplied.
-

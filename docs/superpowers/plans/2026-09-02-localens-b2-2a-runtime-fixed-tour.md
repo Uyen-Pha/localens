@@ -27,19 +27,23 @@
 
 - Create `supabase/migrations/20260902*_runtime_fixed_tour_booking.sql`
 - Create `supabase/tests/database/runtime_fixed_tour_booking_test.sql`
-- Update generated database types and mandatory security inventory files through repository generators only
+- Update `docs/security/data-access-matrix.json` as the reviewed inventory source, then regenerate the derived Markdown/manifests
+- Update generated database types through the repository generator only
+- Update `scripts/test-db-concurrency.mjs` and its focused unit test for the new public-boundary race
 - Update focused SQL/security artifact tests if the generated object count changes
 
 **TDD steps**
 
 1. Add failing pgTAP for exact signature, owner, `SECURITY DEFINER`, empty search path, and grants.
-2. Prove anon/guide/admin denial and authenticated-customer success.
-3. Prove the wrapper derives the JWT actor and canonical hash, accepts only a departure, and returns only `booking_id`, `hold_expires_at`, and `state`.
-4. Prove same-key replay and changed-payload conflict.
-5. Prove executable cross-owner visibility through `customer_bookings_v`.
-6. Implement the narrow wrapper around `private.start_checkout_tx` using the existing non-login checkout owner.
-7. Reset local DB, run the focused pgTAP file, regenerate types/security manifests, and pass drift checks.
-8. Commit `feat: expose guarded fixed-tour hold RPC`.
+2. Prove anon/guide/admin denial and authenticated-customer success under both legacy and JSON-only PostgREST claim formats.
+3. Normalize JSON/legacy claims in the wrapper and owner-booking RLS; set the transaction-local legacy subject before calling the existing checkout transaction.
+4. Reuse `private.checkout_canonical_payload` exactly, accept only a departure, and return only `booking_id`, `hold_expires_at`, and `state`.
+5. Prove same-key replay and changed-payload conflicts independently for departure, party size, and locale.
+6. Prove executable A→B and B→A cross-owner isolation through `customer_bookings_v` with JSON claims only.
+7. Prove final `localens_checkout_rpc_owner` has no `CREATE` on `public`/`private` and only `authenticated` has wrapper execute.
+8. Run a two-session authenticated no-oversell race through the public wrapper.
+9. Reset local DB, run the focused pgTAP/concurrency files, regenerate types/security manifests, and pass drift checks.
+10. Commit `feat: expose guarded fixed-tour hold RPC`.
 
 ## Task 3 — Local-only synthetic runtime fixture
 
@@ -51,12 +55,13 @@
 
 **TDD steps**
 
-1. Write failing tests for loopback URL/DB validation, exact Supabase CLI pin, secret redaction, transaction rollback, and idempotency.
+1. Write failing tests for loopback URL/DB validation, exact Supabase CLI pin, secret redaction, database transaction rollback, and idempotency.
 2. Add a second local customer without changing the B2.1 three-role acceptance identities.
-3. Seed one complete synthetic EN/VI catalog/tour/departure graph with future deterministic dates and capacity.
-4. Assert the seed never reads `data/sources` or `data/approvals` and never marks external research as approved.
-5. Run the CLI twice against local Supabase and verify stable IDs/counts.
-6. Commit `test: seed local fixed-tour runtime fixture`.
+3. Prove cross-system compensation: delete only a newly created Auth user when database work fails, never a reused user, preserve the primary redacted error, and suppress cleanup details.
+4. Insert in guard-safe order: draft snapshot; area/place and EN/VI snapshot translations plus required support/hours; published travel snapshot for the same catalog; draft tour and EN/VI translations; draft version and EN/VI translations; contiguous stops referencing snapshot places with localized copy; publish version/tour/snapshot; fixed far-future 2099 departure.
+5. Assert the seed never reads `data/sources` or `data/approvals` and never marks external research as approved.
+6. Pass unit/lint/typecheck only during the parallel wave; defer both live seed runs until the serialized integration checkpoint after Task 2.
+7. Commit `test: seed local fixed-tour runtime fixture`.
 
 ## Task 4 — Supabase adapter and composition
 
@@ -73,8 +78,8 @@
 
 1. Write failing adapter tests for locale-filtered tours, availability mapping, bounded hold RPC output, and owner booking mapping.
 2. Reject malformed rows, extra sensitive fields, unsafe integer strings, and unstable error details.
-3. Wire the adapter only in Supabase composition; prove demo imports remain absent from the Supabase dependency graph.
-4. Pass focused tests, lint, typecheck, and bundle-boundary tests.
+3. Wire the adapter only in Supabase composition; prove both directions: demo mode does not import Supabase runtime code and Supabase mode does not import demo repository/fixture code.
+4. Pass focused tests, lint, typecheck, `build:supabase`, and bidirectional bundle/import-boundary tests.
 5. Commit `feat: add Supabase fixed-tour runtime adapter`.
 
 ## Task 5 — Mode-aware EN/VI customer UI
@@ -103,25 +108,24 @@
 **Write set**
 
 - Create `tests/e2e/runtime-fixed-tour.spec.ts`
-- Add a local orchestration script/config or safely extend the owned runtime runner without weakening B2.1 secret isolation
+- Add an explicit fixed-tour Playwright config and local orchestration script, or safely extend the owned runtime runner without weakening B2.1 secret isolation
 - Update package scripts, README, and runbook
 
 **TDD steps**
 
-1. Start/reset local Supabase, seed runtime auth and fixed-tour fixtures, and own a clean Supabase Next server.
+1. Serialize reset → migration/pgTAP → runtime Auth seed → fixed-tour seed twice, then own a clean Supabase Next server.
 2. EN customer A: browse, hold, reload, new context, and verify own booking.
 3. VI customer B: repeat with Vietnamese data and verify language persistence.
 4. Verify A/B cross-owner isolation and anon/guide/admin RPC denial.
-5. Verify idempotent replay, changed-payload conflict, and no browser-visible sensitive authority fields.
-6. Run `pnpm db:verify`, exact `pnpm check`, exact demo E2E, runtime Auth E2E, and runtime fixed-tour E2E in the required host context.
+5. Verify idempotent replay, changed-payload conflict, and no browser-visible sensitive authority fields; customer-B password and database URL must never enter the owned Next server environment.
+6. Run `build:supabase`, `pnpm db:verify`, exact `pnpm check`, exact demo E2E, runtime Auth E2E, and runtime fixed-tour E2E in the required host context.
 7. Perform independent full-range review; fix Critical/Important findings with one TDD wave and re-review.
 8. Commit final evidence without claiming B2.2b, B2.3, B2.4, staging, production, or whole-product completion.
 
 ## Delivery checkpoints
 
-- Wave 1: Tasks 1–3 in parallel, then integration review.
+- Wave 1: Tasks 1–3 perform code/unit work in parallel. Only Task 2 may use the shared local database; live fixed-tour seed execution is serialized afterward.
 - Wave 2: Task 4, then Task 5 after contracts/RPC are stable.
 - Wave 3: Task 6, full review, exact gates, browser acceptance, and two open local demos.
 - Preserve all pre-existing modified/untracked files; stage only task-owned paths.
 - Do not merge, push, publish, reset, delete a worktree, or stop unknown processes without explicit approval.
-

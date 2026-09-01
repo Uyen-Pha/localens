@@ -147,6 +147,41 @@ ports. It normalizes only `private.user_roles`, `public.profiles`, and
 `public.guide_profiles`. It does not seed or modify catalog, food, tour,
 departure, booking, payment, or other inventory/transaction data.
 
+## Local runtime fixed-tour fixture
+
+Run this only after the B2.1 runtime Auth seed and after the B2.2a SQL worker is
+integrated. The fixed-tour seed does not alter the three B2.1 identity
+definitions. It adds one separate Vietnamese test customer and a synthetic,
+local-only graph containing two EN/VI places, published catalog and travel
+snapshots, one published fixed tour with two stops, and one departure at the
+fixed UTC time `2099-09-05T02:00:00.000Z`.
+
+Supply the extra customer password only through the current process:
+
+```powershell
+$env:LOCALENS_RUNTIME_FIXED_TOUR_CUSTOMER_PASSWORD = '<temporary local-only customer-B password>'
+try {
+  pnpm db:seed:runtime-fixed-tour
+  pnpm db:seed:runtime-fixed-tour
+} finally {
+  Remove-Item Env:LOCALENS_RUNTIME_FIXED_TOUR_CUSTOMER_PASSWORD -ErrorAction SilentlyContinue
+}
+```
+
+The command requires `LOCALENS_DB_URL`, the exact project-local Supabase CLI
+path, and version `2.115.0`. API and database endpoints must use the standard
+loopback ports. Database writes run in one transaction; a database failure is
+rolled back and a newly-created Auth customer is removed on a best-effort
+basis. A complete prior fixture is reused without creating new snapshots or
+inventory rows.
+
+Every fixture identifier, slug, attribution, and user-facing copy is visibly
+marked `runtime-test` or synthetic. The seed never reads or modifies
+`data/sources` or `data/approvals`, and it does not promote research catalog
+content. At this Task 3 checkpoint, only unit, lint, and typecheck evidence is
+claimed; the controller must perform both live seed runs and stable ID/count
+verification after the SQL worker lands.
+
 ## Runtime Auth browser gate
 
 Run the complete local Auth browser orchestration with:
