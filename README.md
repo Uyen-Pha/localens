@@ -51,7 +51,7 @@ The runner captures local status/startup data rather than printing keys or
 passwords. Supabase remains running for inspection; set
 `LOCALENS_RUNTIME_STOP_DB=1` only when an explicit local stop is wanted.
 
-Final B2.1 verification on 2026-09-02: exact `pnpm check` passed 86 files/1,024
+Final B2.1 verification on 2026-09-02: exact `pnpm check` passed 86 files/1,037
 tests and generated 24/24 demo routes; exact demo Playwright passed 25/25;
 runtime Auth Playwright passed 3/3; and exact `pnpm db:verify` passed with zero
 lint findings, 14 pgTAP files/1,433 tests, all 6/6 concurrency scenarios, and

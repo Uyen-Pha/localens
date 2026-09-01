@@ -280,7 +280,7 @@ GREEN evidence:
   refresh and a second page, was denied both other-role routes with an own-shell
   link, signed out, and showed no demo storage/UI leakage. No runtime artifact
   directory remained.
-- Exact `pnpm check`: lint/typecheck passed, Vitest passed 86 files/1,024 tests,
+- Exact `pnpm check`: lint/typecheck passed, Vitest passed 86 files/1,037 tests,
   and the demo build generated 24/24 routes. The hostile real-CLI test alone has
   a scoped 15-second timeout; global timing and parallelism remain unchanged.
 - `pnpm test:e2e tests/e2e/portal-demo-flow.spec.ts`: 4/4 passed in 37.5 seconds.
