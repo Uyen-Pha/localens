@@ -22,7 +22,7 @@ No pre-fix capture is accepted as final same-viewport evidence. Fresh native cap
 
 | Priority | Finding | Implemented resolution | Verification state |
 | --- | --- | --- | --- |
-| P1 | Brand, four-line heading, skyline position, map proportions and separate stop cards diverged from the locked source. | `editorial-shell.css` now uses the green sans-serif brand and green sign-in action. `editorial-home-green.css` uses a two-line-scale heading, upper skyline, 41/59 hero split, full map panel and one unified stop panel. `saigon-map-route.webp` adds the real bitmap route overlay. | Unit/style gates pass; a fresh final build and exact-viewport visual comparison remain pending. |
+| P1 | Brand, four-line heading, skyline position, map proportions and separate stop cards diverged from the locked source. | `editorial-shell.css` now uses the green sans-serif brand and green sign-in action. `editorial-home-green.css` uses a two-line-scale heading, upper skyline, 41/59 hero split, full map panel and one unified stop panel. `saigon-map-route.webp` adds the real bitmap route overlay. | Unit/style/final-build gates pass; a fresh exact-viewport visual comparison remains pending. |
 | P1 | Portal coral text measured only `3.12:1` on white and `2.81:1` on coral-soft. | Added `--portal-coral-text: #b23d2d`; small text and secondary controls use it while bright coral remains decorative. Danger actions also use the darker fill. | Contrast invariant test passes at `>= 4.5:1`; browser contrast smoke pending. |
 | P1 | Prior comparison normalized a smaller implementation capture to the target canvas. | Marked every prior comparison artifact as superseded rather than presenting it as approval evidence. | Fresh exact-size capture pending authorization. |
 | P2 | Keyboard coverage stopped after the skip link. | Customer E2E now traverses every visible focusable element on every customer route; portal E2E traverses each role state, verifies focus treatment, in-bounds focus and an accessible name. | Static lint/typecheck pass; runtime execution pending authorization. |
@@ -47,8 +47,8 @@ The old `demo-final.stderr.log` hydration mismatch is pre-fix diagnostic evidenc
 | `pnpm lint` | PASS | `eslint . --max-warnings=0`. |
 | TypeScript | PASS | `node_modules/.bin/tsc.cmd --noEmit --incremental false`. |
 | Focused style/customer/i18n/layout | PASS | `4` files, `27` tests. |
-| Full Vitest | PASS | `74` files, `876` tests using `--no-file-parallelism --testTimeout=30000`. |
-| `pnpm build` | PRIOR PASS; FRESH FINAL BUILD REQUIRED | An earlier build compiled and statically generated `24/24` routes, with protected `next-env.d.ts` and `tsconfig.tsbuildinfo` restored to their original SHA-256 values. The green visual finalize task did not run a build, and the earlier evidence was not pinned to an exact commit SHA and timestamp; therefore it is not fresh evidence for `7e92e68` or later commits. |
+| Full Vitest | PASS | On `2026-09-01` at commit `48c2ed5`, `74` files and `893` tests passed using `--no-file-parallelism --testTimeout=30000` in `173.36s`. |
+| `pnpm build` | FRESH PASS | On `2026-09-01` at commit `48c2ed5`, Next.js compiled and statically generated `24/24` routes. Protected `next-env.d.ts` and `tsconfig.tsbuildinfo` remained byte-identical to their pre-build versions. |
 | `pnpm db:static` | PASS | `18` migration files checked. |
 | Playwright inventory | WRITTEN, NOT EXECUTED | `22` tests across `5` files. Running the browser suite still requires explicit Product Design authorization. |
 | `pnpm db:types:check` | BLOCKED | `SUPABASE_CLI_NOT_FOUND`. |
