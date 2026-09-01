@@ -184,14 +184,17 @@ async function createHoldThroughUi(
 
   const requests: Request[] = [];
   const onRequest = (request: Request) => {
-    if (request.method() === "POST" && request.url().includes("/rest/v1/rpc/begin_fixed_tour_booking")) {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/rest/v1/rpc/begin_fixed_tour_booking"
+    ) {
       requests.push(request);
     }
   };
   page.on("request", onRequest);
   const responsePromise = page.waitForResponse((response) =>
     response.request().method() === "POST" &&
-    response.url().includes("/rest/v1/rpc/begin_fixed_tour_booking"));
+    new URL(response.url()).pathname === "/rest/v1/rpc/begin_fixed_tour_booking");
   await page.getByRole("button", {
     name: options.locale === "vi" ? "Tạo giữ chỗ chờ thanh toán" : "Create pending-payment hold",
     exact: true,
@@ -205,7 +208,7 @@ async function createHoldThroughUi(
   expectExactHoldPayload(payload);
   expect(payload.party_size).toBe(options.partySize);
   expect(payload.booking_locale).toBe(options.locale);
-  expect(response.ok()).toBe(true);
+  expect(response.status()).toBe(200);
   const responseBody: unknown = await response.json();
   expect(Array.isArray(responseBody)).toBe(true);
   expect(responseBody).toHaveLength(1);
@@ -343,6 +346,12 @@ test.describe("B2.2a local runtime fixed-tour acceptance", () => {
       const { data, error } = await client.rpc("begin_fixed_tour_booking", deniedPayload);
       expect(data).toBeNull();
       expect(error).not.toBeNull();
+      expect(error?.code).toBe("42501");
+      expect(error?.message).toMatch(
+        account === null
+          ? /permission denied for function begin_fixed_tour_booking/i
+          : /^checkout authentication required$/,
+      );
       expectNoAuthorityLeak(error);
     }
   });

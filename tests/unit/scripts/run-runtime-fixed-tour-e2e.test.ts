@@ -216,6 +216,22 @@ describe("B2.2a runtime fixed-tour runner", () => {
     expect(harness.events).not.toContain("test:e2e:runtime-fixed-tour:playwright");
   });
 
+  it("preserves a stable cleanup marker when owned server startup cannot confirm cleanup", async () => {
+    const startupFailure = Object.assign(new Error("startup-secret"), {
+      serverCleanupError: new Error("cleanup-secret"),
+    });
+    const harness = successfulHarness({
+      startServer: vi.fn(async () => { throw startupFailure; }),
+    });
+
+    const error = await runRuntimeFixedTourE2E(harness.options).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: "RUNTIME_FIXED_TOUR_SERVER_FAILED",
+      cleanupFailed: true,
+    });
+    expect(String(error.message)).not.toMatch(/startup-secret|cleanup-secret/);
+  });
+
   it("cleans owned server and output after browser failure without hiding the primary error", async () => {
     const harness = successfulHarness({
       runStep: vi.fn(async (spec: { name: string }) => {
@@ -272,6 +288,23 @@ describe("B2.2a runtime fixed-tour runner", () => {
 
     expect(status).toBe(2);
     expect(errorLogger).toHaveBeenCalledWith(expect.stringMatching(/^RUNTIME_FIXED_TOUR_FAILED:/));
+    expect(errorLogger.mock.calls.flat().join(" ")).not.toContain("secret");
+  });
+
+  it("main reports an additional stable marker when cleanup is unconfirmed", async () => {
+    const errorLogger = vi.fn();
+    const failure = Object.assign(new Error("primary-secret"), { cleanupFailed: true });
+    const status = await runRuntimeFixedTourE2EMain({
+      run: async () => { throw failure; },
+      errorLogger,
+    });
+
+    expect(status).toBe(2);
+    expect(errorLogger).toHaveBeenCalledTimes(2);
+    expect(errorLogger).toHaveBeenNthCalledWith(
+      2,
+      "RUNTIME_FIXED_TOUR_CLEANUP_FAILED: owned resource cleanup could not be confirmed",
+    );
     expect(errorLogger.mock.calls.flat().join(" ")).not.toContain("secret");
   });
 });

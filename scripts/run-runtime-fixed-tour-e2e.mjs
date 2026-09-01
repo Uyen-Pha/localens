@@ -35,7 +35,10 @@ function runtimeError(code, message, details = {}) {
 }
 
 function stableError(error, code = "RUNTIME_FIXED_TOUR_FAILED", message = "runtime fixed-tour acceptance failed") {
-  return error?.[RUNTIME_FIXED_TOUR_ERROR] === true ? error : runtimeError(code, message);
+  if (error?.[RUNTIME_FIXED_TOUR_ERROR] === true) return error;
+  const stable = runtimeError(code, message);
+  if (error?.cleanupFailed) stable.cleanupFailed = true;
+  return stable;
 }
 
 export function createRuntimeFixedTourPasswords(env = process.env, random = randomBytes) {
@@ -232,8 +235,13 @@ export async function runRuntimeFixedTourE2E(options = {}) {
     logger("[runtime-fixed-tour] runtime:server:start");
     try {
       runtimeServer = await startServer(serverEnv);
-    } catch {
-      throw runtimeError("RUNTIME_FIXED_TOUR_SERVER_FAILED", "owned runtime server could not be started");
+    } catch (error) {
+      const startupError = runtimeError(
+        "RUNTIME_FIXED_TOUR_SERVER_FAILED",
+        "owned runtime server could not be started",
+      );
+      if (error?.serverCleanupError) startupError.cleanupFailed = true;
+      throw startupError;
     }
 
     const playwrightEnv = {
@@ -300,10 +308,18 @@ export async function runRuntimeFixedTourE2EMain({
     return 0;
   } catch (error) {
     const stable = stableError(error);
-    try {
-      errorLogger(stable.message);
-    } catch {
-      // Logging failure must not change the stable exit contract.
+    const messages = [stable.message];
+    if (stable.cleanupFailed) {
+      messages.push(
+        "RUNTIME_FIXED_TOUR_CLEANUP_FAILED: owned resource cleanup could not be confirmed",
+      );
+    }
+    for (const message of messages) {
+      try {
+        errorLogger(message);
+      } catch {
+        // Logging failure must not change the stable exit contract.
+      }
     }
     return stable.status ?? 2;
   }
