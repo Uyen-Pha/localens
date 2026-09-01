@@ -21,6 +21,7 @@
     "test:run": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:runtime-auth": "node scripts/run-runtime-auth-e2e.mjs",
+    "test:e2e:runtime-fixed-tour": "node scripts/run-runtime-fixed-tour-e2e.mjs",
     "db:static": "node scripts/check-supabase-artifacts.mjs",
     "db:static:seed": "node scripts/generate-supabase-seed.mjs --check-readiness",
     "db:start": "node scripts/supabase-local.mjs start",

@@ -8,7 +8,7 @@ const useStaticPreview = process.env.PLAYWRIGHT_STATIC === "1";
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testIgnore: "runtime-auth.spec.ts",
+  testIgnore: ["runtime-auth.spec.ts", "runtime-fixed-tour.spec.ts"],
   // Keep deterministic visual evidence serial: Next dev can compile several
   // route modules concurrently and surface transient JSON parse overlays.
   fullyParallel: false,
