@@ -219,9 +219,12 @@ async function expectAccountHold(
   const article = page.getByRole("article").filter({ hasText: options.title });
   await expect(article).toBeVisible();
   await expect(article.getByText(String(options.partySize), { exact: true })).toBeVisible();
-  await expect(article.getByRole("note")).toContainText(
-    options.locale === "vi" ? "Đang chờ thanh toán" : "Pending payment",
-  );
+  await expect(page.getByText(
+    options.locale === "vi"
+      ? "Đang chờ thanh toán — đây chỉ là giữ chỗ, chưa phải thanh toán hoàn tất."
+      : "Pending payment — this is a hold, not a completed payment.",
+    { exact: true },
+  )).toBeVisible();
   await expectNoDemoOrPaymentSuccess(page);
 }
 
