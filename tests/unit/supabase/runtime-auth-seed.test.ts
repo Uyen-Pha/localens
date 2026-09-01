@@ -25,6 +25,12 @@ import {
   seedRuntimeAuth,
 } from "../../../scripts/seed-runtime-auth.mjs";
 
+const assertSeedRuntimeAuthOptionsContract = () => {
+  // @ts-expect-error seedRuntimeAuth requires the complete local seed dependency contract.
+  void seedRuntimeAuth({});
+};
+void assertSeedRuntimeAuthOptionsContract;
+
 const LOCAL_SUPABASE_URL = "http://127.0.0.1:54321";
 const LOCAL_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 const SERVICE_ROLE_KEY = `runtime-service-role-${randomUUID()}`;
@@ -130,9 +136,15 @@ function createCliHarness() {
   return { authAdmin, database, client, env, logger };
 }
 
-function expectStableRedactedError(error: Error & { code?: string }, code: string) {
-  expect(error).toBeInstanceOf(Error);
-  expect(error.code).toBe(code);
+function expectError(cause: unknown): Error {
+  expect(cause).toBeInstanceOf(Error);
+  if (!(cause instanceof Error)) throw new TypeError("Expected runtime Auth seed to reject with an Error");
+  return cause;
+}
+
+function expectStableRedactedError(cause: unknown, code: string) {
+  const error = expectError(cause);
+  expect("code" in error ? error.code : undefined).toBe(code);
   for (const secret of [SERVICE_ROLE_KEY, LOCAL_DATABASE_URL, ...Object.values(PASSWORDS)]) {
     expect(error.message).not.toContain(secret);
   }
@@ -219,9 +231,10 @@ describe("runtime Auth seed", () => {
       database.query.mockRejectedValueOnce(new Error(leakedMessage));
     }
 
-    const error = await seedRuntimeAuth(validOptions({ authAdmin, query: database.query })).catch((cause) => cause);
+    const cause: unknown = await seedRuntimeAuth(validOptions({ authAdmin, query: database.query }))
+      .catch((caught: unknown) => caught);
+    const error = expectError(cause);
 
-    expect(error).toBeInstanceOf(Error);
     for (const secret of [SERVICE_ROLE_KEY, LOCAL_DATABASE_URL, ...Object.values(PASSWORDS)]) {
       expect(error.message).not.toContain(secret);
     }
@@ -238,9 +251,10 @@ describe("runtime Auth seed", () => {
       });
     }
 
-    const error = await runRuntimeAuthSeedCli({ env: harness.env, logger: harness.logger }).catch((cause) => cause);
+    const cause: unknown = await runRuntimeAuthSeedCli({ env: harness.env, logger: harness.logger })
+      .catch((caught: unknown) => caught);
 
-    expectStableRedactedError(error, "RUNTIME_AUTH_SEED_CLIENT_FAILED");
+    expectStableRedactedError(cause, "RUNTIME_AUTH_SEED_CLIENT_FAILED");
   });
 
   it("redacts connect failure and still attempts teardown", async () => {
@@ -248,9 +262,10 @@ describe("runtime Auth seed", () => {
     const leakedMessage = [SERVICE_ROLE_KEY, LOCAL_DATABASE_URL, ...Object.values(PASSWORDS)].join(" ");
     harness.client.connect.mockRejectedValueOnce(new Error(leakedMessage));
 
-    const error = await runRuntimeAuthSeedCli({ env: harness.env, logger: harness.logger }).catch((cause) => cause);
+    const cause: unknown = await runRuntimeAuthSeedCli({ env: harness.env, logger: harness.logger })
+      .catch((caught: unknown) => caught);
 
-    expectStableRedactedError(error, "RUNTIME_AUTH_SEED_CONNECT_FAILED");
+    expectStableRedactedError(cause, "RUNTIME_AUTH_SEED_CONNECT_FAILED");
     expect(harness.client.end).toHaveBeenCalledTimes(1);
   });
 
@@ -263,9 +278,10 @@ describe("runtime Auth seed", () => {
       throw new Error(leakedMessage);
     });
 
-    const error = await runRuntimeAuthSeedCli({ env: harness.env, logger: harness.logger }).catch((cause) => cause);
+    const cause: unknown = await runRuntimeAuthSeedCli({ env: harness.env, logger: harness.logger })
+      .catch((caught: unknown) => caught);
 
-    expectStableRedactedError(error, "RUNTIME_AUTH_SEED_DATABASE_FAILED");
+    expectStableRedactedError(cause, "RUNTIME_AUTH_SEED_DATABASE_FAILED");
     expect(harness.database.query).toHaveBeenCalledWith("ROLLBACK");
     expect(harness.client.end).toHaveBeenCalledTimes(1);
   });
@@ -275,9 +291,10 @@ describe("runtime Auth seed", () => {
     const leakedMessage = [SERVICE_ROLE_KEY, LOCAL_DATABASE_URL, ...Object.values(PASSWORDS)].join(" ");
     harness.client.end.mockRejectedValueOnce(new Error(leakedMessage));
 
-    const error = await runRuntimeAuthSeedCli({ env: harness.env, logger: harness.logger }).catch((cause) => cause);
+    const cause: unknown = await runRuntimeAuthSeedCli({ env: harness.env, logger: harness.logger })
+      .catch((caught: unknown) => caught);
 
-    expectStableRedactedError(error, "RUNTIME_AUTH_SEED_TEARDOWN_FAILED");
+    expectStableRedactedError(cause, "RUNTIME_AUTH_SEED_TEARDOWN_FAILED");
   });
 
   it.each([undefined, "RUNTIME_AUTH_SEED_CONNECT_FAILED"])(
