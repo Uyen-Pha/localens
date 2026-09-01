@@ -1,13 +1,31 @@
 # LocalLens
 
-Production repository for the LocalLens full-stack MVP.
+LocalLens milestone A is a bilingual, local thesis demo of fixed tours,
+customer-requested personalized tours, role-specific portals, and a simulated
+payment journey.
 
-- Next.js static export for Cloudflare Pages
-- Supabase Auth, PostgreSQL, RLS, and Edge Functions
-- Deterministic itinerary engine with optional Gemini ranking
-- Stripe Test Mode only; no real charges
+This is a local thesis demo. Tour data, AI ranking and payment outcomes are simulated. Supabase/RLS/concurrency are not runtime-verified in milestone A.
 
-The canonical product specification and implementation plans live under
+## Run the accepted demo
+
+Requirements: Node.js `>=24 <25` and pnpm `>=11 <12`.
+
+```powershell
+pnpm install --offline --frozen-lockfile
+pnpm dev
+```
+
+Open `http://127.0.0.1:3000/en/` or `http://127.0.0.1:3000/vi/`. Demo identities
+for Customer, Guide and Administrator are available from the sign-in screen.
+Use **Reset demo** there to remove only LocalLens-owned browser state and restore
+the seeded in-memory fixture.
+
+Milestone A provides deterministic, company-managed demo data; constrained
+ranking/refinement over that data; five payment outcomes (`pending`,
+`succeeded`, `failed`, `cancelled`, `expired`); retry/idempotency behavior; and
+actor-scoped customer, guide and admin views. It does not prove production
+persistence, live payment-provider behavior, database RLS, locking or
+concurrency. The canonical specification and implementation plans live under
 `docs/superpowers/`.
 
 ## Customer visual QA
@@ -32,11 +50,11 @@ SHA-256
 `4CE3DA5E08635D2B7F2F2BF3417B34878A029B0D8547964D5E7518082D75447D` and
 dimensions `1487 x 1058`. The former
 `docs/design/references/localens-editorial-home-selected.png` reference is
-superseded for customer UI but remains, with its specification and QA history,
-until the green design passes QA. The desktop comparison uses documented
+superseded for customer UI and remains only for historical comparison. The
+desktop comparison uses documented
 QA-only 1488×1059 derivatives with a deterministic one-pixel right/bottom
 canvas extension. A screenshot or passing snapshot is not, by itself, visual
-approval; see `design-qa.md` for the current verdict and open findings.
+approval; see `design-qa.md` for the current verdict and evidence.
 Database runtime verification remains a separate gate.
 
 Evidence labels are scoped to the evidence actually recorded:

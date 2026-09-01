@@ -1,64 +1,72 @@
-# LocalLens green customer design QA
+# LocalLens milestone A acceptance evidence
 
-## Scope and evidence level
+## Verdict
 
-- Review target: Task 5 working tree based on `bd65520` (`codex/localens-mvp`).
-- Product scope: `docs/superpowers/specs/2026-08-31-localens-green-production-aligned-demo.md`.
-- Evidence label: `demo-wired` and `contract-implemented` only. This report does not claim production authentication, live AI, live Stripe, Supabase runtime verification, sellable catalog data, deployment, or production readiness.
-- Locked visual source: `docs/design/references/localens-green-home-selected.png`, decoded `1487 x 1058`, SHA-256 `4CE3DA5E08635D2B7F2F2BF3417B34878A029B0D8547964D5E7518082D75447D`.
+Milestone A is accepted as a local thesis demo at implementation commit
+`058b48e` on branch `codex/localens-a-acceptance`. This verdict does not claim a
+production deployment or runtime database verification.
 
-## Accepted and superseded evidence
+## Fresh evidence — 2026-09-01
 
-The prior in-app captures are retained only as pre-fix evidence:
+| Gate | Result |
+| --- | --- |
+| Focused Playwright acceptance | 24/24 passed |
+| Full discovered Playwright suite | 24/24 cases completed on a clean server at port 3100; the same suite returned 24 passed with exit code 0 against the verified demo server |
+| Vitest | 75 files, 906 tests passed |
+| ESLint | passed with zero warnings |
+| TypeScript | passed |
+| Next.js build | passed; 24 static/SSG routes generated |
+| Supabase artifact check | passed; 18 migrations checked |
+| Patch whitespace check | passed |
 
-- `docs/design/qa/green-home-desktop-viewport.jpg`: `1473 x 1049`, not the required `1488 x 1059`.
-- `docs/design/qa/green-home-tablet-viewport.jpg`: `753 x 1004`, not the required `768 x 1024`.
-- `docs/design/qa/green-home-mobile-viewport.jpg`: `375 x 811`, not the required `390 x 844`.
-- `docs/design/qa/green-home-render-1488x1059.png` and `green-home-desktop-comparison.png`: invalid as final fidelity evidence because the pre-fix native implementation capture was expanded by multiple pixels before comparison.
+The Windows Playwright process did not exit after its test-owned Next.js server
+finished the final clean-server case. It was interrupted only after all 24 case
+lines had completed, and port 3100 was then verified to have no listener. The
+external-server run of the same complete 24-test discovery set exited normally.
 
-No pre-fix capture is accepted as final same-viewport evidence. Fresh native captures and a new side-by-side comparison must be produced by the authorized Playwright run without resizing the implementation image.
+## Visual and accessibility acceptance
 
-## Review findings and implemented fixes
+Tested viewports:
 
-| Priority | Finding | Implemented resolution | Verification state |
-| --- | --- | --- | --- |
-| P1 | Brand, four-line heading, skyline position, map proportions and separate stop cards diverged from the locked source. | `editorial-shell.css` now uses the green sans-serif brand and green sign-in action. `editorial-home-green.css` uses a two-line-scale heading, upper skyline, 41/59 hero split, full map panel and one unified stop panel. `saigon-map-route.webp` adds the real bitmap route overlay. | Unit/style/final-build gates pass; a fresh exact-viewport visual comparison remains pending. |
-| P1 | Portal coral text measured only `3.12:1` on white and `2.81:1` on coral-soft. | Added `--portal-coral-text: #b23d2d`; small text and secondary controls use it while bright coral remains decorative. Danger actions also use the darker fill. | Contrast invariant test passes at `>= 4.5:1`; browser contrast smoke pending. |
-| P1 | Prior comparison normalized a smaller implementation capture to the target canvas. | Marked every prior comparison artifact as superseded rather than presenting it as approval evidence. | Fresh exact-size capture pending authorization. |
-| P2 | Keyboard coverage stopped after the skip link. | Customer E2E now traverses every visible focusable element on every customer route; portal E2E traverses each role state, verifies focus treatment, in-bounds focus and an accessible name. | Static lint/typecheck pass; runtime execution pending authorization. |
-| P2 | Root overflow masking and three narrow mobile stop columns could hide clipped content. | Removed root overflow masking. Mobile stops reflow to one column with visible descriptions. E2E now checks semantic element bounds at normal size and 125% text zoom. | Style invariant and component tests pass; runtime screenshots pending. |
-| P2 | Generic `ERR_FAILED` and 404 console messages were silently ignored. | Customer, portal and integrated-flow diagnostics now record every console error and every HTTP response `>= 400`. | Static lint/typecheck pass; clean runtime diagnostics pending. |
-| P2 | Home promised an AI itinerary without disclosing the deterministic demo boundary. | EN/VI copy now says “simulated AI preview” / “bản xem trước AI mô phỏng” and describes approved demo places. | Dictionary/component regression test passes. |
+- Desktop: `1488 x 1059`
+- Tablet: `768 x 1024`
+- Mobile: `390 x 844`
 
-## Interaction and accessibility coverage now present
+The accepted screenshots are stored in `docs/design/qa/` and were visually
+inspected after the final Playwright run. The customer-route audit covers EN/VI
+home plus tours, planner, custom request and booking surfaces.
 
-- `tests/e2e/customer-visual.spec.ts`: EN/VI Home plus Tours, Planner, Custom Request and Booking at `1488 x 1059`, `768 x 1024`, and `390 x 844`; exact viewport capture, full-page capture, heading/landmark/label/alt checks, contrast, full keyboard order, reduced motion, text zoom, element bounds and overflow.
-- `tests/e2e/portal-demo-flow.spec.ts`: customer cancellation -> admin decision -> assigned-guide notice; one completed-tour review; EN/VI direct entry; wrong-role denial; fixture reset; portal contrast and complete keyboard traversal.
-- `tests/e2e/integrated-demo-flow.spec.ts`: fixed tour -> booking -> Stripe Test simulation -> admin assignment -> guide visibility; personalized preview/refine -> request -> admin approval/quote -> customer mock checkout; complete wrong-role matrix.
-- `tests/e2e/food-itinerary.spec.ts`: approved, research-only, mixed, food-removal and museum-only itinerary paths while preserving LocalLens-payable versus pay-at-vendor boundaries.
+- Contrast: visible text and controls pass the automated contrast gate;
+  non-text focus indicators meet the 3:1 treatment requirement.
+- Keyboard: natural Tab traversal reaches each unique control without
+  programmatic focus injection; focused controls remain at least 50% visible.
+- Overflow: no horizontal page overflow was detected at any accepted viewport.
+- Composition: the desktop home viewport includes all four starting-point
+  headings and rules; tablet and mobile CTA/navigation remain readable and
+  unobstructed.
 
-The old `demo-final.stderr.log` hydration mismatch is pre-fix diagnostic evidence and contradicts any clean-runtime claim. It is not treated as superseded until a fresh strict Playwright run produces zero console errors, page errors and failed responses.
+## Functional acceptance
 
-## Fresh non-Playwright gates
+- EN fixed tour: customer sign-in, hold, failed payment, retry, success, one
+  paid booking, admin assignment and assigned-guide visibility.
+- EN and VI personalized tour: generate/refine/lock, explicit revision
+  confirmation, customer request, admin approval, quote, acceptance, simulated
+  checkout and account visibility.
+- Food-only requests preserve approved vendor/menu facts, remain pay-at-vendor,
+  and do not fabricate a quote or LocalLens payment. `research_only` data fails
+  closed.
+- Cancellation, expiry, role mismatch, customer data isolation, guide
+  projection limits, idempotent replay and demo reset have automated coverage.
 
-| Gate | Result | Evidence or exact blocker |
-| --- | --- | --- |
-| `git diff --check` | PASS | No whitespace error; Git emits only LF/CRLF notices. |
-| `pnpm lint` | PASS | `eslint . --max-warnings=0`. |
-| TypeScript | PASS | `node_modules/.bin/tsc.cmd --noEmit --incremental false`. |
-| Focused style/customer/i18n/layout | PASS | `4` files, `27` tests. |
-| Full Vitest | PASS | On `2026-09-01` at commit `48c2ed5`, `74` files and `893` tests passed using `--no-file-parallelism --testTimeout=30000` in `173.36s`. |
-| `pnpm build` | FRESH PASS | On `2026-09-01` at commit `48c2ed5`, Next.js compiled and statically generated `24/24` routes. Protected `next-env.d.ts` and `tsconfig.tsbuildinfo` remained byte-identical to their pre-build versions. |
-| `pnpm db:static` | PASS | `18` migration files checked. |
-| Playwright inventory | WRITTEN, NOT EXECUTED | `23` tests across `5` files. Running the browser suite still requires explicit Product Design authorization. |
-| `pnpm db:types:check` | BLOCKED | `SUPABASE_CLI_NOT_FOUND`. |
-| `pnpm db:static:seed` | BLOCKED | `APPROVAL_NOT_READY`, `CATALOG_NOT_SELLABLE`, `SUPPORT_NOT_RUNTIME_READY`, `TOURS_NOT_AVAILABLE`. |
-| `pnpm db:verify` | BLOCKED | `SUPABASE_CLI_NOT_FOUND`; no PostgreSQL/RLS/pgTAP/locking/concurrency runtime claim. |
+## Exact milestone B blocker
 
-## Final review gate
+`pnpm db:types:check` remains outside milestone A and currently exits nonzero:
 
-- Spec/security review: prior verdict `BLOCK`, with the missing vertical slices, role-denial matrix, strict diagnostics and simulated-AI disclosure now implemented; re-review must wait for runtime evidence.
-- Design/accessibility review: prior verdict `BLOCK`, with art direction, contrast, keyboard coverage and mobile clipping fixes now implemented; re-review must wait for exact-size captures and full-page inspection.
-- Required next action: explicitly authorize Playwright, run all `23` E2E tests, inspect exact native viewport and full-page artifacts, regenerate the same-size comparison, fix any runtime findings, then dispatch both independent re-reviews.
+```text
+SUPABASE_CLI_NOT_FOUND: project-local Supabase CLI is required; install the pinned dev dependency only after a local container runtime is available
+```
 
-final result: blocked
+Therefore Supabase runtime, RLS and concurrency remain unverified. Production
+readiness also requires a real persistence/runtime gate and provider-backed
+deployment evidence; local fixture and static migration checks are not proof of
+those properties.
