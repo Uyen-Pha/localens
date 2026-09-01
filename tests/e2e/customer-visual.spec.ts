@@ -27,38 +27,28 @@ const evidenceRoot = path.resolve(process.cwd(), "test-results/customer-visual")
 async function preparePage(page: Page): Promise<string[]> {
   const browserErrors: string[] = [];
   page.on("console", (message) => {
-    // Static preview has no RSC endpoint for Link prefetches; those requests
-    // are intentionally aborted below and Chromium reports ERR_FAILED.
-    if (
-      message.type() === "error"
-      && !message.text().includes("ERR_FAILED")
-      && !message.text().includes("Failed to load resource: the server responded with a status of 404")
-    ) {
+    if (message.type() === "error") {
       browserErrors.push(`console: ${message.text()}`);
     }
   });
   page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`));
   page.on("response", (response) => {
-    if (response.status() >= 400 && !response.url().includes("_rsc=")) {
+    if (response.status() >= 400) {
       browserErrors.push(`response: ${response.status()} ${response.url()}`);
     }
   });
-  await page.route("**/*", async (route) => {
-    const requestUrl = new URL(route.request().url());
-    if (requestUrl.searchParams.has("_rsc")) {
-      await route.abort();
-      return;
-    }
-    await route.continue();
-  });
 
-  await page.addInitScript(() => {
-    window.localStorage.clear();
-    window.sessionStorage.clear();
-  });
   await page.emulateMedia({ reducedMotion: "reduce" });
   return browserErrors;
 }
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/en/", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+});
 
 async function waitForDeterministicPage(page: Page): Promise<void> {
   await page.waitForLoadState("networkidle");
@@ -99,7 +89,7 @@ async function waitForDeterministicPage(page: Page): Promise<void> {
 async function assertAccessibilitySmoke(page: Page): Promise<void> {
   const diagnostics = await page.evaluate(() => {
     function parseColor(value: string): [number, number, number, number] | null {
-      const match = value.match(/^rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\)$/);
+      const match = value.match(/rgba?\(\s*(\d+(?:\.\d+)?)[,\s]+(\d+(?:\.\d+)?)[,\s]+(\d+(?:\.\d+)?)(?:\s*[,/]\s*([\d.]+))?\s*\)/);
       if (!match) return null;
       return [Number(match[1]), Number(match[2]), Number(match[3]), Number(match[4] ?? 1)];
     }
@@ -129,6 +119,14 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
       return [250, 244, 235];
     }
 
+    function controlText(element: HTMLElement): string {
+      if (element instanceof HTMLSelectElement) return element.selectedOptions[0]?.textContent?.trim() ?? "";
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        return element.value.trim() || element.placeholder.trim();
+      }
+      return element.textContent?.trim() ?? "";
+    }
+
     const headingLevels = Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6"), (heading) => Number(heading.tagName.slice(1)));
     const controlsWithoutLabels = Array.from(document.querySelectorAll("input, select, textarea"))
       .filter((control) => {
@@ -142,14 +140,11 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
     const imagesWithoutAlt = Array.from(document.images)
       .filter((image) => !image.hasAttribute("alt"))
       .map((image) => image.currentSrc || image.src);
-    const active = document.activeElement;
-    const activeStyle = active ? getComputedStyle(active) : null;
-    const activeRect = active?.getBoundingClientRect();
-    const contrastViolations = Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6, p, a, button, label, dt, dd, legend, summary"))
+    const contrastViolations = Array.from(document.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6, p, a, button, label, dt, dd, legend, summary, span, form, input, select, textarea"))
       .flatMap((element) => {
         const style = getComputedStyle(element);
         const rect = element.getBoundingClientRect();
-        const text = element.textContent?.trim();
+        const text = controlText(element);
         const foreground = parseColor(style.color);
         const background = solidBackground(element);
         if (!text || !foreground || !background || rect.width === 0 || rect.height === 0 || foreground[3] < 0.99) return [];
@@ -160,6 +155,18 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
         return ratio < minimum ? [`${element.tagName.toLowerCase()}: ${text.slice(0, 80)} (${ratio.toFixed(2)} < ${minimum})`] : [];
       });
 
+    const clippedContent = Array.from(document.querySelectorAll<HTMLElement>("a, button, input, select, textarea, h1, h2, h3, p, li, img"))
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        if (rect.width === 0 || rect.height === 0 || style.visibility === "hidden" || style.display === "none") return false;
+        if (element.closest("nextjs-portal")) return false;
+        const scrollContainer = element.closest<HTMLElement>("[class*='localNavLinks']");
+        if (scrollContainer && ["auto", "scroll"].includes(getComputedStyle(scrollContainer).overflowX)) return false;
+        return rect.left < -1 || rect.right > window.innerWidth + 1;
+      })
+      .map((element) => `${element.tagName.toLowerCase()}: ${(element.textContent || element.getAttribute("alt") || "").trim().slice(0, 80)}`);
+
     return {
       headingLevels,
       controlsWithoutLabels,
@@ -169,10 +176,7 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
       hasLandmarks: Boolean(document.querySelector("main") && document.querySelector("nav") && document.querySelector("footer")),
       hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       contrastViolations,
-      focusIsVisible: Boolean(activeRect && activeRect.width > 0 && activeRect.height > 0)
-        && activeStyle?.visibility !== "hidden"
-        && activeStyle?.display !== "none"
-        && (activeStyle?.outlineStyle !== "none" || activeStyle?.boxShadow !== "none"),
+      clippedContent,
     };
   });
 
@@ -183,25 +187,105 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
   expect(diagnostics.controlsWithoutLabels).toEqual([]);
   expect(diagnostics.imagesWithoutAlt).toEqual([]);
   expect(diagnostics.contrastViolations).toEqual([]);
+  expect(diagnostics.clippedContent).toEqual([]);
 
   await page.keyboard.press("Tab");
   await expect(page.locator(".skip-link")).toBeFocused();
   await expect(page.locator(".skip-link")).toBeVisible();
-  const focusIsVisible = await page.evaluate(() => {
-    const active = document.activeElement;
-    if (!(active instanceof HTMLElement)) return false;
-    const style = getComputedStyle(active);
-    const rect = active.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.outlineStyle !== "none";
-  });
-  expect(focusIsVisible).toBe(true);
+  const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const focusableCount = await page.evaluate((selector) => Array.from(document.querySelectorAll<HTMLElement>(
+    selector,
+  )).filter((element) => {
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return !element.closest("nextjs-portal") && style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+  }).length, focusableSelector);
+
+  expect(focusableCount).toBeGreaterThan(0);
+  for (let index = 0; index < focusableCount; index += 1) {
+    if (index > 0) await page.keyboard.press("Tab");
+    const focusState = await page.evaluate(() => {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement)) return { valid: false, label: "", tag: "none" };
+      const style = getComputedStyle(active);
+      const rect = active.getBoundingClientRect();
+      const labelledBy = active.getAttribute("aria-labelledby");
+      const labelledByText = labelledBy
+        ? labelledBy.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim() ?? "").join(" ").trim()
+        : "";
+      const associatedLabel = active.id ? document.querySelector(`label[for="${CSS.escape(active.id)}"]`)?.textContent?.trim() ?? "" : "";
+      const wrappingLabel = active instanceof HTMLInputElement || active instanceof HTMLSelectElement || active instanceof HTMLTextAreaElement
+        ? Array.from(active.labels ?? []).map((label) => label.textContent?.trim() ?? "").join(" ").trim()
+        : "";
+      const controlText = active instanceof HTMLSelectElement
+        ? active.selectedOptions[0]?.textContent?.trim() ?? ""
+        : active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+          ? active.value.trim() || active.placeholder.trim()
+          : active.textContent?.trim() ?? "";
+      const label = active.getAttribute("aria-label")
+        || labelledByText
+        || associatedLabel
+        || wrappingLabel
+        || controlText
+        || active.getAttribute("title")
+        || "";
+      const background = (() => {
+        let current = active.parentElement;
+        while (current) {
+          const backgroundStyle = getComputedStyle(current);
+          if (backgroundStyle.backgroundImage !== "none") return null;
+          const color = backgroundStyle.backgroundColor.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:\s*[,/]\s*([\d.]+))?\s*\)/);
+          if (color && Number(color[4] ?? 1) >= 0.99) return [Number(color[1]), Number(color[2]), Number(color[3])] as [number, number, number];
+          current = current.parentElement;
+        }
+        return [250, 244, 235] as [number, number, number];
+      })();
+      const focusTreatment = style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0
+        ? style.outlineColor.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:\s*[,/]\s*([\d.]+))?\s*\)/)
+        : style.boxShadow !== "none" ? style.boxShadow.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:\s*[,/]\s*([\d.]+))?\s*\)/) : null;
+      const focusContrast = background && focusTreatment
+        ? (() => {
+            const foreground = [1, 2, 3].map((index) => Number(focusTreatment[index])) as [number, number, number];
+            const channelLuminance = (color: [number, number, number]) => color.map((channel) => {
+              const normalized = channel / 255;
+              return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+            }).reduce((total, channel, index) => total + channel * [0.2126, 0.7152, 0.0722][index], 0);
+            const foregroundLuminance = channelLuminance(foreground);
+            const backgroundLuminance = channelLuminance(background);
+            return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
+          })()
+        : 0;
+      return {
+        valid: rect.width > 0 && rect.height > 0 && rect.left >= -1 && rect.right <= window.innerWidth + 1
+          && rect.top >= -1 && rect.bottom <= window.innerHeight + 1
+          && style.visibility !== "hidden" && focusContrast >= 3,
+        label: label.trim(),
+        tag: active.tagName.toLowerCase(),
+        focusContrast,
+      };
+    });
+    expect(focusState.valid, `focus ${index + 1}/${focusableCount} (${focusState.tag}) must be visible, in bounds, and have a 3:1 focus treatment`).toBe(true);
+    expect(focusState.label, `focus ${index + 1}/${focusableCount} (${focusState.tag}) needs an accessible name`).not.toBe("");
+  }
 }
 
 async function assertTextZoom(page: Page): Promise<void> {
   const zoomStyle = await page.addStyleTag({ content: "html { font-size: 125% !important; }" });
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  const diagnostics = await page.evaluate(() => ({
+    overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    clippedContent: Array.from(document.querySelectorAll<HTMLElement>("a, button, input, select, textarea, h1, h2, h3, p, li, img"))
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return !element.closest("nextjs-portal") && rect.width > 0 && rect.height > 0
+          && style.visibility !== "hidden" && style.display !== "none"
+          && (rect.left < -1 || rect.right > window.innerWidth + 1);
+      })
+      .map((element) => `${element.tagName.toLowerCase()}: ${(element.textContent || element.getAttribute("alt") || "").trim().slice(0, 80)}`),
+  }));
   await zoomStyle.evaluate((element) => (element as HTMLElement).remove());
-  expect(overflow).toBe(false);
+  expect(diagnostics.overflow).toBe(false);
+  expect(diagnostics.clippedContent).toEqual([]);
 }
 
 async function clearFocus(page: Page): Promise<void> {

@@ -4,6 +4,7 @@
   --portal-forest-soft: #e7f1eb;
   --portal-mint: #f4faf6;
   --portal-coral: #ee684f;
+  --portal-coral-text: #b23d2d;
   --portal-coral-soft: #fff0eb;
   --portal-ink: #17332d;
   --portal-muted: #5d6a65;
@@ -112,7 +113,7 @@
 
 .eyebrow {
   margin: 0;
-  color: var(--portal-coral);
+  color: var(--portal-coral-text);
   font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.14em;
@@ -256,7 +257,7 @@
 .table input:focus-visible,
 .inlineForm select:focus-visible,
 .inlineForm textarea:focus-visible {
-  outline: 3px solid rgba(238, 104, 79, 0.5);
+  outline: 3px solid var(--portal-coral-text);
   outline-offset: 2px;
   border-color: var(--portal-coral);
 }
@@ -306,23 +307,23 @@
 .buttonSecondary {
   border-color: var(--portal-coral);
   background: var(--portal-white);
-  color: var(--portal-coral);
+  color: var(--portal-coral-text);
 }
 
 .buttonSecondary:hover,
 .buttonSecondary:focus-visible {
   background: var(--portal-coral-soft);
-  color: var(--portal-coral);
+  color: var(--portal-coral-text);
 }
 
 .buttonDanger {
-  border-color: var(--portal-coral);
-  background: var(--portal-coral);
+  border-color: var(--portal-coral-text);
+  background: var(--portal-coral-text);
 }
 
 .buttonDanger:hover,
 .buttonDanger:focus-visible {
-  background: #c94f3c;
+  background: #963326;
 }
 
 .button:disabled,
