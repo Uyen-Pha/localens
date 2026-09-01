@@ -2,19 +2,50 @@
 
 ## Current status
 
-Task16 is scaffolded but blocked on a local container runtime. The repository
-does not install a Supabase CLI implicitly, does not connect to a remote
-project, and does not generate `database.types.ts` without a successful local
-schema command.
+The local container prerequisite is available on the Windows host. Docker
+Desktop was installed per-user with the WSL2 Linux-container backend; Windows
+containers were not enabled. Host verification on 2026-09-01 recorded:
 
-The current safe preflight is expected to fail on a machine without the
-project-local CLI with `SUPABASE_CLI_NOT_FOUND`. That is a truthful blocked
-state, not a passing database check.
+- WSL app `2.7.12.0`, kernel `6.18.33.2-2`, Windows `10.0.26200.9168`.
+- Docker Desktop `4.88.1.237512` and Docker client/server `29.7.2`.
+- Engine `OS=linux`, `ARCH=amd64`, `OSTYPE=linux`, and storage driver
+  `overlayfs`.
+- `docker run --rm hello-world` exited `0` and printed
+  `Hello from Docker!`.
+
+Verify the host engine, not only the installed executable:
+
+```powershell
+wsl.exe --status
+docker version
+docker info
+docker run --rm hello-world
+```
+
+Both client and server sections must be present, `docker info` must report a
+Linux engine, and the test container must exit `0`. The per-user engine is
+session-dependent: after a Windows restart or sign-out, start Docker Desktop
+again and wait for the engine before rerunning these checks. If an installer
+reports that a restart is required, stop and restart manually; this runbook
+must never trigger a restart automatically.
+
+These results establish host runtime readiness only. A restricted Codex
+sandbox can still receive access-denied errors for
+`%USERPROFILE%\.docker\config.json` or `npipe:////./pipe/docker_engine`; those
+errors describe sandbox access to the per-user configuration or named pipe,
+not a failed host engine. Run engine verification in an approved host context
+when the sandbox cannot access them.
+
+The repository still does not install a Supabase CLI implicitly, connect to a
+remote project, or generate `database.types.ts` without a successful local
+schema command. Until the reviewed project-local CLI is installed,
+`pnpm db:types:check` truthfully stops with `SUPABASE_CLI_NOT_FOUND`; that is a
+separate project-tooling gate, not a container-runtime failure.
 
 Required local prerequisites:
 
-- Docker Desktop with a working local container engine (Windows normally uses
-  the WSL2 backend).
+- Docker Desktop with a working WSL2 Linux-container engine, verified with the
+  four host commands above.
 - Node 24 and pnpm 11, matching `package.json`.
 - The reviewed, exact project-local `supabase@2.115.0` dev dependency. Add it
   only after Docker is available and only through the normal dependency review.
