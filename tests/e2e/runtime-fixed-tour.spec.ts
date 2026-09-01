@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { expect, test, type Browser, type BrowserContext, type Page, type Request } from "@playwright/test";
+import { expect, test, type Browser, type Page, type Request } from "@playwright/test";
 
 import type { Database } from "@/lib/infrastructure/supabase/database.types";
 

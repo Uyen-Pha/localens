@@ -47,7 +47,7 @@ export function createRuntimeFixedTourPasswords(env = process.env, random = rand
   return { ...auth, customerB };
 }
 
-export function selectRuntimeFixedTourBaseEnv(env = process.env, _platform = process.platform) {
+export function selectRuntimeFixedTourBaseEnv(env = process.env) {
   const selected = {};
   for (const key of BASE_ENV_ALLOWLIST) {
     if (typeof env[key] === "string" && env[key].length > 0) selected[key] = env[key];

@@ -90,7 +90,7 @@ describe("B2.2a runtime fixed-tour runner", () => {
       SUPABASE_SERVICE_ROLE_KEY: "service-secret",
       NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES: "1",
       UNRELATED_PARENT_SECRET: "drop-me",
-    }, "win32");
+    });
 
     expect(base).toMatchObject({
       Path: "C:/Windows/System32",
