@@ -302,27 +302,41 @@ export function stopOwnedRuntimeServer(child, { graceMs = 5_000, forceConfirmMs 
   });
 }
 
-async function runtimeServerResponds(fetchImpl) {
+async function runtimeServerResponds(fetchImpl, serverUrl = RUNTIME_SERVER_URL) {
   try {
-    const response = await fetchImpl(RUNTIME_SERVER_URL, { redirect: "manual" });
+    const response = await fetchImpl(serverUrl, { redirect: "manual" });
     return response.ok || (response.status >= 300 && response.status < 400);
   } catch {
     return false;
   }
 }
 
-export async function startOwnedRuntimeServer(serverEnv, { cwd, spawnChild = spawn, fetchImpl = fetch } = {}) {
-  if (await runtimeServerResponds(fetchImpl)) {
+export async function startOwnedRuntimeServer(serverEnv, {
+  cwd,
+  spawnChild = spawn,
+  fetchImpl = fetch,
+  mode = "supabase",
+  port = 3200,
+  serverUrl = RUNTIME_SERVER_URL,
+} = {}) {
+  if (!["demo", "supabase"].includes(mode) || !Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw runtimeError("RUNTIME_AUTH_SERVER_CONFIG_INVALID", "owned runtime server configuration is invalid");
+  }
+  const parsedServerUrl = new URL(serverUrl);
+  if (!LOOPBACK_HOSTS.has(parsedServerUrl.hostname) || parsedServerUrl.port !== String(port)) {
+    throw runtimeError("RUNTIME_AUTH_SERVER_CONFIG_INVALID", "owned runtime server must use its loopback port");
+  }
+  if (await runtimeServerResponds(fetchImpl, serverUrl)) {
     throw runtimeError("RUNTIME_AUTH_SERVER_PORT_IN_USE", "runtime server endpoint is already occupied");
   }
   const child = spawnChild(process.execPath, [
     path.join(cwd, "scripts", "run-next-mode.mjs"),
     "dev",
-    "supabase",
+    mode,
     "--hostname",
     "127.0.0.1",
     "--port",
-    "3200",
+    String(port),
   ], {
     cwd,
     env: serverEnv,
@@ -361,7 +375,7 @@ export async function startOwnedRuntimeServer(serverEnv, { cwd, spawnChild = spa
 
     const poll = async () => {
       try {
-        if (await runtimeServerResponds(fetchImpl)) {
+        if (await runtimeServerResponds(fetchImpl, serverUrl)) {
           settled = true;
           child.removeListener("close", onClose);
           resolve({ stop: () => stopOwnedRuntimeServer(child) });

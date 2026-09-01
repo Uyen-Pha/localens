@@ -124,6 +124,34 @@ describe("Task 6 runtime Auth runner", () => {
     expect(spawnChild).not.toHaveBeenCalled();
   });
 
+  it("can start a directly-owned demo server on a caller-selected port", async () => {
+    const child = Object.assign(new EventEmitter(), {
+      exitCode: null,
+      signalCode: null,
+      kill: vi.fn(() => {
+        queueMicrotask(() => child.emit("close", 0));
+        return true;
+      }),
+    });
+    const spawnChild = vi.fn(() => child);
+    let probe = 0;
+    const server = await startOwnedRuntimeServer({ NEXT_PUBLIC_LOCALLENS_RUNTIME: "demo" }, {
+      cwd: "C:/repo",
+      spawnChild,
+      fetchImpl: async () => ({ ok: probe++ > 0, status: probe > 1 ? 200 : 503 }),
+      mode: "demo",
+      port: 3300,
+      serverUrl: "http://127.0.0.1:3300/en/",
+    });
+
+    expect(spawnChild).toHaveBeenCalledWith(
+      process.execPath,
+      expect.arrayContaining(["dev", "demo", "--port", "3300"]),
+      expect.any(Object),
+    );
+    await server.stop();
+  });
+
   it("reports startup and cleanup failure without leaking the child error", async () => {
     const secret = `startup-${randomUUID()}`;
     const child = Object.assign(new EventEmitter(), {
