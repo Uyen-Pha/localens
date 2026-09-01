@@ -348,3 +348,19 @@ describe("Task16 runbook", () => {
     expect(runbook).toMatch(/pnpm db:reset[\s\S]*pnpm db:types[\r\n]+[\s\S]*pnpm db:verify/);
   });
 });
+
+describe("Task 1 runtime mode package gate", () => {
+  it("provides explicit demo and Supabase commands and checks the demo build", () => {
+    const packageJson = JSON.parse(readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts).toMatchObject({
+      "dev:demo": "node scripts/run-next-mode.mjs dev demo",
+      "dev:supabase": "node scripts/run-next-mode.mjs dev supabase",
+      "build:demo": "node scripts/run-next-mode.mjs build demo",
+      "build:supabase": "node scripts/run-next-mode.mjs build supabase",
+      check: "pnpm lint && pnpm typecheck && pnpm test:run && pnpm build:demo",
+    });
+  });
+});

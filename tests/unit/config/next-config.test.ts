@@ -1,35 +1,40 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PHASE_DEVELOPMENT_SERVER, PHASE_PRODUCTION_BUILD } from "next/constants";
 
-const originalNodeEnv = process.env.NODE_ENV;
+const originalRuntimeMode = process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME;
 const mutableEnv = process.env as unknown as Record<string, string | undefined>;
 
-async function outputFor(nodeEnv: string | undefined) {
+async function outputFor(runtimeMode: string | undefined, phase: string) {
   vi.resetModules();
 
-  if (nodeEnv === undefined) {
-    delete mutableEnv.NODE_ENV;
+  if (runtimeMode === undefined) {
+    delete mutableEnv.NEXT_PUBLIC_LOCALLENS_RUNTIME;
   } else {
-    mutableEnv.NODE_ENV = nodeEnv;
+    mutableEnv.NEXT_PUBLIC_LOCALLENS_RUNTIME = runtimeMode;
   }
 
   const { default: config } = await import("../../../next.config");
-  return config.output;
+  return config(phase).output;
 }
 
 afterEach(() => {
-  if (originalNodeEnv === undefined) {
-    delete mutableEnv.NODE_ENV;
+  if (originalRuntimeMode === undefined) {
+    delete mutableEnv.NEXT_PUBLIC_LOCALLENS_RUNTIME;
   } else {
-    mutableEnv.NODE_ENV = originalNodeEnv;
+    mutableEnv.NEXT_PUBLIC_LOCALLENS_RUNTIME = originalRuntimeMode;
   }
   vi.resetModules();
 });
 
 describe("Next static export configuration", () => {
-  it("omits export only in development", async () => {
-    expect(await outputFor("development")).toBeUndefined();
-    expect(await outputFor("test")).toBe("export");
-    expect(await outputFor("production")).toBe("export");
-    expect(await outputFor(undefined)).toBe("export");
+  it("enables static export only for demo production builds", async () => {
+    expect(await outputFor("demo", PHASE_PRODUCTION_BUILD)).toBe("export");
+    expect(await outputFor("demo", PHASE_DEVELOPMENT_SERVER)).toBeUndefined();
+    expect(await outputFor("supabase", PHASE_PRODUCTION_BUILD)).toBeUndefined();
+    expect(await outputFor("supabase", PHASE_DEVELOPMENT_SERVER)).toBeUndefined();
+  });
+
+  it("rejects a missing runtime mode instead of inferring from NODE_ENV", async () => {
+    await expect(outputFor(undefined, PHASE_PRODUCTION_BUILD)).rejects.toThrow(/NEXT_PUBLIC_LOCALLENS_RUNTIME/);
   });
 });

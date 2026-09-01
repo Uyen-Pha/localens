@@ -33,7 +33,7 @@ export default defineConfig({
         webServer: {
           command: useStaticPreview
             ? `node scripts/static-preview-server.mjs --port ${port}`
-            : `pnpm dev --hostname 127.0.0.1 --port ${port}`,
+            : `pnpm dev:demo --hostname 127.0.0.1 --port ${port}`,
           url: `${localBaseURL}/en/`,
           env: {
             NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES: "1",

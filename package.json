@@ -9,8 +9,12 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:demo": "node scripts/run-next-mode.mjs dev demo",
+    "dev:supabase": "node scripts/run-next-mode.mjs dev supabase",
     "preview:static": "node scripts/static-preview-server.mjs",
     "build": "next build",
+    "build:demo": "node scripts/run-next-mode.mjs build demo",
+    "build:supabase": "node scripts/run-next-mode.mjs build supabase",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
@@ -27,7 +31,7 @@
     "db:concurrency": "node scripts/test-db-concurrency.mjs",
     "db:stop": "node scripts/supabase-local.mjs stop --no-backup",
     "db:verify": "node scripts/run-db-gate.mjs",
-    "check": "pnpm lint && pnpm typecheck && pnpm test:run && pnpm build"
+    "check": "pnpm lint && pnpm typecheck && pnpm test:run && pnpm build:demo"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.3",
