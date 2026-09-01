@@ -242,20 +242,63 @@ function runChildStep(spec) {
   });
 }
 
-function stopOwnedRuntimeServer(child) {
+function signalOwnedRuntimeServer(child, signal) {
+  try {
+    return child.kill(signal);
+  } catch {
+    return false;
+  }
+}
+
+export function stopOwnedRuntimeServer(child, { graceMs = 5_000, forceConfirmMs = 1_000 } = {}) {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    let settled = false;
     let forceTimer;
-    const finish = () => {
+    let deadlineTimer;
+    const cleanup = () => {
       if (forceTimer) clearTimeout(forceTimer);
+      if (deadlineTimer) clearTimeout(deadlineTimer);
+      child.removeListener("close", finish);
+    };
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
       resolve();
     };
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(runtimeError(
+        "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
+        "owned runtime server could not be confirmed stopped",
+      ));
+    };
+    const forceStop = () => {
+      if (settled) return;
+      if (child.exitCode !== null || child.signalCode !== null) {
+        finish();
+        return;
+      }
+      if (!signalOwnedRuntimeServer(child, "SIGKILL")) {
+        fail();
+        return;
+      }
+      if (settled) return;
+      deadlineTimer = setTimeout(() => {
+        if (child.exitCode !== null || child.signalCode !== null) finish();
+        else fail();
+      }, forceConfirmMs);
+    };
     child.once("close", finish);
-    child.kill("SIGTERM");
-    forceTimer = setTimeout(() => {
-      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
-    }, 5_000);
-    forceTimer.unref?.();
+    if (!signalOwnedRuntimeServer(child, "SIGTERM")) {
+      forceStop();
+      return;
+    }
+    if (settled) return;
+    forceTimer = setTimeout(forceStop, graceMs);
   });
 }
 

@@ -5,7 +5,7 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 // @ts-expect-error The executable JavaScript boundary is covered by focused runtime tests.
-import { createRuntimeAuthPasswords, dockerCliDirectories, ensureDockerCliOnPath, parseLocalRuntimeStatus, requirePinnedLocalSupabase, runRuntimeAuthE2E, startOwnedRuntimeServer } from "@/scripts/run-runtime-auth-e2e.mjs";
+import { createRuntimeAuthPasswords, dockerCliDirectories, ensureDockerCliOnPath, parseLocalRuntimeStatus, requirePinnedLocalSupabase, runRuntimeAuthE2E, startOwnedRuntimeServer, stopOwnedRuntimeServer } from "@/scripts/run-runtime-auth-e2e.mjs";
 
 const LOCAL_STATUS = [
   'API_URL="http://127.0.0.1:54321"',
@@ -122,6 +122,53 @@ describe("Task 6 runtime Auth runner", () => {
       fetchImpl: async () => ({ ok: true, status: 200 }),
     })).rejects.toThrow(/RUNTIME_AUTH_SERVER_PORT_IN_USE/);
     expect(spawnChild).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when neither shutdown signal is accepted and no close event arrives", async () => {
+    const child = Object.assign(new EventEmitter(), {
+      exitCode: null,
+      signalCode: null,
+      kill: vi.fn(() => false),
+    });
+
+    await expect(stopOwnedRuntimeServer(child, { graceMs: 1, forceConfirmMs: 1 }))
+      .rejects.toThrow(/RUNTIME_AUTH_SERVER_CLEANUP_FAILED/);
+    expect(child.kill).toHaveBeenNthCalledWith(1, "SIGTERM");
+    expect(child.kill).toHaveBeenNthCalledWith(2, "SIGKILL");
+  });
+
+  it("bounds cleanup when shutdown signals are accepted but no close event arrives", async () => {
+    const child = Object.assign(new EventEmitter(), {
+      exitCode: null,
+      signalCode: null,
+      kill: vi.fn(() => true),
+    });
+
+    await expect(stopOwnedRuntimeServer(child, { graceMs: 1, forceConfirmMs: 1 }))
+      .rejects.toThrow(/RUNTIME_AUTH_SERVER_CLEANUP_FAILED/);
+    expect(child.kill).toHaveBeenNthCalledWith(1, "SIGTERM");
+    expect(child.kill).toHaveBeenNthCalledWith(2, "SIGKILL");
+  });
+
+  it("redacts shutdown signal exceptions instead of escaping from cleanup timers", async () => {
+    const secret = `shutdown-${randomUUID()}`;
+    const child = Object.assign(new EventEmitter(), {
+      exitCode: null,
+      signalCode: null,
+      kill: vi.fn(() => { throw new Error(secret); }),
+    });
+
+    let caught: unknown;
+    try {
+      await stopOwnedRuntimeServer(child, { graceMs: 1, forceConfirmMs: 1 });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(String(caught)).toMatch(/RUNTIME_AUTH_SERVER_CLEANUP_FAILED/);
+    expect(String(caught)).not.toContain(secret);
+    expect(child.kill).toHaveBeenNthCalledWith(1, "SIGTERM");
+    expect(child.kill).toHaveBeenNthCalledWith(2, "SIGKILL");
   });
 
   it.each([
