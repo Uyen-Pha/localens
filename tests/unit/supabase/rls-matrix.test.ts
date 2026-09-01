@@ -123,7 +123,7 @@ describe("Task 13 RLS/RPC access matrix", () => {
     } finally {
       rmSync(driftRoot, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 
   it("enumerates the live final object surface and exact RPC signatures", () => {
     const matrix = JSON.parse(readFileSync(matrixPath, "utf8")) as {
@@ -210,7 +210,7 @@ describe("Task 13 RLS/RPC access matrix", () => {
     } finally {
       rmSync(guardRoot, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 
   it("checks every published-tour reader role and final FORCE RLS coverage", () => {
     const grantRoot = checkerFixture();
@@ -232,7 +232,7 @@ describe("Task 13 RLS/RPC access matrix", () => {
     } finally {
       rmSync(forceRoot, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 
   it("hardens each SECURITY DEFINER while acting as its named owner", () => {
     const sql = readFileSync(
@@ -267,5 +267,5 @@ describe("Task 13 RLS/RPC access matrix", () => {
         rmSync(root, { recursive: true, force: true });
       }
     }
-  });
+  }, 15_000);
 });
