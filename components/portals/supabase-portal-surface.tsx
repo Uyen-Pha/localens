@@ -172,10 +172,12 @@ function RuntimeAccessDenied({
   locale,
   session,
   onSignOut,
+  actionError,
 }: {
   locale: Locale;
   session: PortalIdentity;
   onSignOut: () => void;
+  actionError: string | null;
 }) {
   const copy = portalCopy(locale);
   return (
@@ -185,6 +187,7 @@ function RuntimeAccessDenied({
         <h1>{copy.runtimeAccessDeniedTitle}</h1>
         <p>{copy.accessDeniedMessage}</p>
         <p>{signedInRoleText(locale, session.role)}</p>
+        {actionError ? <p className={styles.error} role="alert">{actionError}</p> : null}
         <div className={styles.actions}>
           <Link className={styles.button} href={portalPath(locale, session.role)}>{copy.openYourPortal}</Link>
         </div>
@@ -275,7 +278,7 @@ export function SupabasePortalSurface({
     return <RuntimeSignIn locale={locale} session={composition.session} navigate={navigate} onSession={setSession} />;
   }
   if (expectedRole !== undefined && session.role !== expectedRole) {
-    return <RuntimeAccessDenied locale={locale} session={session} onSignOut={() => void signOut()} />;
+    return <RuntimeAccessDenied locale={locale} session={session} onSignOut={() => void signOut()} actionError={actionError} />;
   }
   return <RuntimeRoleShell locale={locale} session={session} onSignOut={() => void signOut()} actionError={actionError} />;
 }

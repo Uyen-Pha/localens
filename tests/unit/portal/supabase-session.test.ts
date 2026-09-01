@@ -168,7 +168,7 @@ describe("Supabase portal session adapter", () => {
     const password = "password-do-not-leak";
     const token = "token-do-not-leak";
     const publishableKey = "publishable-key-do-not-leak";
-    const { adapter, rpc } = adapterFor({
+    const { adapter, rpc, signOut } = adapterFor({
       signInError: new Error(`${password} ${token} ${publishableKey}`),
     });
 
@@ -180,6 +180,42 @@ describe("Supabase portal session adapter", () => {
     expect(error.message).not.toContain(token);
     expect(error.message).not.toContain(publishableKey);
     expect(rpc).not.toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it("clears the Auth session when post-sign-in identity resolution fails", async () => {
+    const password = "identity-password-do-not-leak";
+    const rpcSecret = "identity-rpc-secret-do-not-leak";
+    const { adapter, signOut } = adapterFor({
+      rpcError: new Error(rpcSecret),
+    });
+
+    const error = await expectPortalFailure(
+      adapter.signInWithPassword({ email: authUser.email, password }),
+      "FORBIDDEN",
+    );
+    expect(signOut).toHaveBeenCalledOnce();
+    expect(error.message).toBe("The authenticated portal identity is unavailable.");
+    expect(error.message).not.toContain(password);
+    expect(error.message).not.toContain(rpcSecret);
+  });
+
+  it("preserves the original generic identity failure when cleanup also rejects", async () => {
+    const rpcSecret = "rpc-secret-do-not-leak";
+    const cleanupSecret = "cleanup-secret-do-not-leak";
+    const { adapter, signOut } = adapterFor({
+      rpcReject: new Error(rpcSecret),
+      signOutReject: new Error(cleanupSecret),
+    });
+
+    const error = await expectPortalFailure(
+      adapter.signInWithPassword({ email: authUser.email, password: "correct-password" }),
+      "FORBIDDEN",
+    );
+    expect(signOut).toHaveBeenCalledOnce();
+    expect(error.message).toBe("The authenticated portal identity is unavailable.");
+    expect(error.message).not.toContain(rpcSecret);
+    expect(error.message).not.toContain(cleanupSecret);
   });
 
   it("maps RPC failures to FORBIDDEN without leaking upstream details", async () => {

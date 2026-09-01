@@ -80,6 +80,14 @@ export function createSupabasePortalSessionAdapter(
     }
   }
 
+  async function clearFailedSignIn(): Promise<void> {
+    try {
+      await client.auth.signOut();
+    } catch {
+      // Preserve the original generic identity failure; cleanup is best effort.
+    }
+  }
+
   return {
     async getSession(): Promise<PortalIdentity | null> {
       let response: Awaited<ReturnType<PortalSupabaseClient["auth"]["getSession"]>>;
@@ -106,7 +114,12 @@ export function createSupabasePortalSessionAdapter(
       }
 
       if (response.error !== null || response.data.user === null) throw unauthenticated();
-      return resolveIdentity(response.data.user);
+      try {
+        return await resolveIdentity(response.data.user);
+      } catch (error) {
+        await clearFailedSignIn();
+        throw error;
+      }
     },
 
     async signOut(): Promise<void> {

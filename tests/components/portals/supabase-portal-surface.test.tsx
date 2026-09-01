@@ -40,6 +40,7 @@ const COPY = {
     serviceTitle: "Service unavailable",
     reference: /Reference ID: LL-[A-Z0-9-]+/i,
     signOut: "Sign out",
+    actionError: "We could not complete that account action. Try again.",
   },
   vi: {
     heading: "Đăng nhập LocalLens",
@@ -53,6 +54,7 @@ const COPY = {
     serviceTitle: "Dịch vụ không khả dụng",
     reference: /Mã tham chiếu: LL-[A-Z0-9-]+/i,
     signOut: "Đăng xuất",
+    actionError: "Không thể hoàn tất thao tác tài khoản. Hãy thử lại.",
   },
 } as const;
 
@@ -99,6 +101,7 @@ const ACCOUNTS = [
 class MemoryRuntimeSession implements RuntimeSessionPort {
   private current: PortalIdentity | null = null;
   private signInGate: Promise<void> | null = null;
+  private signOutError: Error | null = null;
   reads = 0;
   signInCalls = 0;
 
@@ -108,6 +111,10 @@ class MemoryRuntimeSession implements RuntimeSessionPort {
 
   pauseSignInUntil(gate: Promise<void>): void {
     this.signInGate = gate;
+  }
+
+  rejectSignOutWith(error: Error): void {
+    this.signOutError = error;
   }
 
   async getSession(): Promise<PortalIdentity | null> {
@@ -129,6 +136,7 @@ class MemoryRuntimeSession implements RuntimeSessionPort {
   }
 
   async signOut(): Promise<void> {
+    if (this.signOutError) throw this.signOutError;
     this.current = null;
   }
 }
@@ -274,6 +282,21 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
       new RegExp(`^/${locale}/guide/?$`),
     );
     expect(screen.queryByText(copy.disclosure)).not.toBeInTheDocument();
+  });
+
+  it("announces a generic sign-out failure from the wrong-role access-denied view", async () => {
+    const secret = "sign-out-detail-do-not-leak";
+    const session = new MemoryRuntimeSession();
+    session.seed(ACCOUNTS[1].identity);
+    session.rejectSignOutWith(new Error(secret));
+    renderSurface({ locale, shell: shellFor(session), expectedRole: "customer" });
+
+    expect(await screen.findByRole("heading", { name: copy.accessDenied })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: copy.signOut }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(copy.actionError);
+    expect(document.body.textContent).not.toContain(secret);
+    expect(screen.getByRole("heading", { name: copy.accessDenied })).toBeInTheDocument();
   });
 
   it("returns to runtime sign-in after sign-out", async () => {

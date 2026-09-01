@@ -2,20 +2,34 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import type { ComponentType } from "react";
 
 import type { DemoPortalComposition } from "@/lib/application/portal/composition";
 import type { SupabasePortalShell } from "@/lib/application/portal/supabase-shell";
 import type { Locale } from "@/lib/i18n/config";
 
-import { DemoPortalSurface } from "@/components/portals/demo-portal-surface";
 import { portalCopy } from "@/components/portals/portal-copy";
 import { loadPortalSurfaceComposition } from "@/components/portals/portal-session";
-import { SupabasePortalSurface } from "@/components/portals/supabase-portal-surface";
 import styles from "@/components/portals/portal.module.css";
 
 export type PortalRole = "customer" | "guide" | "admin";
 export type PortalNavigate = (path: string) => void;
 type PortalSurfaceComposition = DemoPortalComposition | SupabasePortalShell;
+type DemoSurface = ComponentType<{
+  locale: Locale;
+  expectedRole?: PortalRole;
+  composition: DemoPortalComposition;
+  navigate: PortalNavigate;
+}>;
+type SupabaseSurface = ComponentType<{
+  locale: Locale;
+  expectedRole?: PortalRole;
+  composition: SupabasePortalShell;
+  navigate: PortalNavigate;
+}>;
+type LoadedSurface =
+  | { mode: "demo"; composition: DemoPortalComposition; Surface: DemoSurface }
+  | { mode: "supabase"; composition: SupabasePortalShell; Surface: SupabaseSurface };
 
 export interface PortalSurfaceProps {
   locale: Locale;
@@ -27,6 +41,20 @@ export interface PortalSurfaceProps {
 }
 
 type LoadState = "loading" | "ready" | "error";
+
+async function loadSelectedSurface(composition: PortalSurfaceComposition): Promise<LoadedSurface> {
+  // Lazy module loading can outlast initialization; observe early rejection so
+  // the selected surface can render its existing localized recovery state.
+  void composition.initialized.catch(() => undefined);
+
+  if (composition.mode === "demo") {
+    const { DemoPortalSurface } = await import("@/components/portals/demo-portal-surface");
+    return { mode: "demo", composition, Surface: DemoPortalSurface };
+  }
+
+  const { SupabasePortalSurface } = await import("@/components/portals/supabase-portal-surface");
+  return { mode: "supabase", composition, Surface: SupabasePortalSurface };
+}
 
 function createCorrelationId(): string {
   const value = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -75,31 +103,29 @@ function PortalSurfaceContent({
   composition: injectedComposition,
   navigate,
 }: PortalSurfaceProps & { navigate: PortalNavigate }) {
-  const [composition, setComposition] = useState<PortalSurfaceComposition | null>(injectedComposition ?? null);
-  const [loadState, setLoadState] = useState<LoadState>(injectedComposition ? "ready" : "loading");
+  const [loadedSurface, setLoadedSurface] = useState<LoadedSurface | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
   const [retryKey, setRetryKey] = useState(0);
   const [correlationId, setCorrelationId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (injectedComposition) {
-      setComposition(injectedComposition);
-      setLoadState("ready");
-      setCorrelationId(null);
-      return;
-    }
-
     let disposed = false;
     setLoadState("loading");
     setCorrelationId(null);
-    void loadPortalSurfaceComposition()
-      .then((loaded) => {
+    setLoadedSurface(null);
+    const compositionLoad = injectedComposition
+      ? Promise.resolve(injectedComposition)
+      : loadPortalSurfaceComposition();
+    void compositionLoad
+      .then((composition) => loadSelectedSurface(composition))
+      .then((selectedSurface) => {
         if (disposed) return;
-        setComposition(loaded);
+        setLoadedSurface(selectedSurface);
         setLoadState("ready");
       })
       .catch(() => {
         if (disposed) return;
-        setComposition(null);
+        setLoadedSurface(null);
         setCorrelationId(createCorrelationId());
         setLoadState("error");
       });
@@ -110,7 +136,7 @@ function PortalSurfaceContent({
   }, [injectedComposition, retryKey]);
 
   if (loadState === "loading") return <NeutralState locale={locale} />;
-  if (loadState === "error" || composition === null) {
+  if (loadState === "error" || loadedSurface === null) {
     return (
       <NeutralState
         locale={locale}
@@ -120,10 +146,12 @@ function PortalSurfaceContent({
     );
   }
 
-  if (composition.mode === "demo") {
-    return <DemoPortalSurface locale={locale} expectedRole={expectedRole} composition={composition} navigate={navigate} />;
+  if (loadedSurface.mode === "demo") {
+    const { Surface, composition } = loadedSurface;
+    return <Surface locale={locale} expectedRole={expectedRole} composition={composition} navigate={navigate} />;
   }
-  return <SupabasePortalSurface locale={locale} expectedRole={expectedRole} composition={composition} navigate={navigate} />;
+  const { Surface, composition } = loadedSurface;
+  return <Surface locale={locale} expectedRole={expectedRole} composition={composition} navigate={navigate} />;
 }
 
 function RouterPortalSurface(props: PortalSurfaceProps) {
