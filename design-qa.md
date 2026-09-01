@@ -3,16 +3,16 @@
 ## Verdict
 
 Milestone A is accepted as a local thesis demo at tested code commit
-`b7957d4` on branch `codex/localens-a-acceptance`. This verdict does not claim a
+`231c6ff` on branch `codex/localens-a-acceptance`. This verdict does not claim a
 production deployment or runtime database verification.
 
 ## Fresh evidence — 2026-09-01
 
 | Gate | Result |
 | --- | --- |
-| Focused Playwright acceptance | 24/24 passed |
-| Full discovered Playwright suite | 24/24 cases completed on a clean server at port 3100; the same suite returned 24 passed with exit code 0 against the verified demo server |
-| Vitest | 75 files, 906 tests passed |
+| Focused Playwright acceptance | 25/25 passed |
+| Full discovered Playwright suite | 25/25 passed with exit code 0 against the verified demo server; all 25 cases also completed on a clean test-owned server at port 3100 |
+| Vitest | 75 files, 915 tests passed |
 | ESLint | passed with zero warnings |
 | TypeScript | passed |
 | Next.js build | passed; 24 static/SSG routes generated |
@@ -20,9 +20,9 @@ production deployment or runtime database verification.
 | Patch whitespace check | passed |
 
 The Windows Playwright process did not exit after its test-owned Next.js server
-finished the final clean-server case. It was interrupted only after all 24 case
+finished the final clean-server case. It was interrupted only after all 25 case
 lines had completed, and port 3100 was then verified to have no listener. The
-external-server run of the same complete 24-test discovery set exited normally.
+external-server run of the same complete 25-test discovery set exited normally.
 
 ## Visual and accessibility acceptance
 
@@ -47,8 +47,8 @@ home plus tours, planner, custom request and booking surfaces.
 
 ## Functional acceptance
 
-- EN fixed tour: customer sign-in, hold, failed payment, retry, success, one
-  paid booking, admin assignment and assigned-guide visibility.
+- EN and VI fixed tour: customer sign-in, hold, failed payment, retry, success,
+  one paid booking, admin assignment and assigned-guide visibility.
 - EN and VI personalized tour: generate/refine/lock, explicit revision
   confirmation, customer request, admin approval, quote, acceptance, simulated
   checkout and account visibility.
@@ -57,6 +57,11 @@ home plus tours, planner, custom request and booking surfaces.
   closed.
 - Cancellation, expiry, role mismatch, customer data isolation, guide
   projection limits, idempotent replay and demo reset have automated coverage.
+- Confirmed personalized revisions are stored as immutable fingerprinted
+  snapshots; quote amount is request-authoritative, customer acceptance is
+  persisted, and checkout enforces owner, approval and the 48-hour quote limit.
+- Fixed bookings are scoped by customer through browser storage and the portal;
+  a late failed attempt cannot downgrade an already-paid booking.
 
 ## Exact milestone B blocker
 
