@@ -22,8 +22,8 @@ async function createComposition(): Promise<DemoPortalComposition> {
     storage: createMemorySessionStorage(),
     now: CLOCK,
   });
-  compositions.push(composition);
   await composition.initialized;
+  compositions.push(composition);
   return composition;
 }
 
@@ -31,10 +31,17 @@ async function signIn(composition: DemoPortalComposition, userId: string): Promi
   await composition.session.selectDemoIdentity(userId);
 }
 
+async function signOutTrackedCompositions(tracked: readonly DemoPortalComposition[]): Promise<void> {
+  await Promise.all(tracked.map((composition) => composition.session.signOut()));
+}
+
 afterEach(async () => {
   cleanup();
-  await Promise.allSettled(compositions.map((composition) => composition.session.signOut()));
-  compositions.length = 0;
+  try {
+    await signOutTrackedCompositions(compositions);
+  } finally {
+    compositions.length = 0;
+  }
 });
 
 describe("PortalSurface", () => {
@@ -298,7 +305,6 @@ describe("PortalSurface", () => {
       return originalGetItem(key);
     };
     const composition = createPortalComposition({ mode: "demo", storage, now: CLOCK });
-    compositions.push(composition);
 
     render(<TestSurface locale="en" expectedRole="customer" composition={composition} />);
 
@@ -306,6 +312,7 @@ describe("PortalSurface", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/try again/i);
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(await screen.findByRole("heading", { name: /sign in to your demo account/i })).toBeInTheDocument();
+    compositions.push(composition);
   });
 
   it("shows the empty assigned-tour state with an accessible landmark for a guide without assignments", async () => {
@@ -344,5 +351,18 @@ describe("PortalSurface", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: /customer portal/i })).toBeInTheDocument());
 
     expect(storage.getItem(PORTAL_DEMO_STORAGE_KEY)).not.toBeNull();
+  });
+
+  it("propagates cleanup failures for a successfully initialized composition", async () => {
+    const storage = createMemorySessionStorage();
+    const composition = createPortalComposition({ mode: "demo", storage, now: CLOCK });
+    await composition.initialized;
+    storage.getItem = () => {
+      throw new Error("cleanup storage failure");
+    };
+
+    await expect(signOutTrackedCompositions([composition])).rejects.toMatchObject({
+      code: "STORAGE_UNAVAILABLE",
+    });
   });
 });
