@@ -1,6 +1,6 @@
 # LocalLens B2.2a — Fixed-tour runtime local
 
-**Status:** Mentor-approved implementation slice
+**Status:** Runtime-verified local on 2026-09-02
 
 **Goal:** Connect one complete fixed-tour booking-hold path to local Supabase/PostgreSQL: an authenticated customer reads a bilingual synthetic runtime tour, reads live availability, creates or resumes a 35-minute hold, and sees only their own durable booking after reload or a new browser context.
 
@@ -104,3 +104,15 @@ B2.2a is complete only when all are true:
 - B2.3: personalized-tour runtime persistence and quote review.
 - B2.4: guide/admin operational data and assignment flows.
 - B3: staging deployment after credentials and targets are explicitly supplied.
+
+## Verification record — 2026-09-02
+
+- Exact `pnpm check`: lint and typecheck passed; Vitest passed 96 files/1,113 tests; demo build generated 24/24 routes.
+- Exact `pnpm build:supabase`: generated 24/24 routes.
+- Full local `pnpm db:verify` with both explicit loopback guards: schema lint returned zero findings; pgTAP passed 15 files/1,460 tests; all 6/6 two-session concurrency scenarios passed; generated database types had no drift; cleanup stopped the owned stack.
+- Exact `pnpm test:e2e`: 25/25 demo browser cases passed in 2.3 minutes from a directly owned fixture server; port 3300 had no listener after cleanup.
+- Exact `pnpm test:e2e:runtime-auth`: 3/3 role-authentication cases passed against local Supabase.
+- Exact `pnpm test:e2e:runtime-fixed-tour`: pgTAP passed 1,460 assertions and Playwright passed 4/4 cases, including EN/VI holds, reload and new-context persistence, owner isolation, exact `42501` role denial, exact RPC request/response surfaces, idempotent replay, and changed-payload conflicts.
+- Independent review findings for stale capacity, unreported cleanup failure, and weak RPC denial assertions were fixed and rerun. The Windows Playwright web-server teardown hang was removed by giving demo E2E a direct owned-server runner with bounded cleanup.
+
+This evidence completes B2.2a only at `runtime-verified-local`. It does not complete payment, B2.2b–B2.4, staging, production deployment, or the whole product.

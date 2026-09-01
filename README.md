@@ -60,6 +60,26 @@ part of that gate, then local Supabase was restarted and its Auth health check
 returned HTTP 200. These results verify B2.1 only; B2.2-B2.4, staging,
 production deployment, and whole-product completion remain out of scope.
 
+## Verify the local fixed-tour runtime
+
+B2.2a adds a second, isolated acceptance command for the durable fixed-tour hold flow:
+
+```powershell
+pnpm test:e2e:runtime-fixed-tour
+```
+
+The runner requires local `supabase@2.115.0`, resets only loopback Supabase, runs pgTAP, seeds runtime Auth, seeds the synthetic bilingual fixed-tour graph twice to prove idempotency, starts an owned Supabase-mode Next server on port 3200, and runs one serial Chromium project. Database URLs and passwords are allowlisted only to the child that needs them; the Next server receives only public Supabase configuration.
+
+The normal demo command now also owns its clean test server directly:
+
+```powershell
+pnpm test:e2e
+```
+
+This avoids the Windows Playwright shell-teardown hang while retaining the fixture flag, port 3300 isolation, and the same 25 demo cases.
+
+Final B2.2a verification on 2026-09-02: `pnpm check` passed 96 files/1,113 tests and 24/24 demo routes; `pnpm build:supabase` generated 24/24 routes; `pnpm db:verify` passed 15 pgTAP files/1,460 tests, zero schema-lint findings, all 6/6 concurrency scenarios, and type-drift checks; demo Playwright passed 25/25; runtime Auth passed 3/3; runtime fixed-tour Playwright passed 4/4. This is `runtime-verified-local` evidence for B2.2a, not payment completion, staging, production, or whole-product completion.
+
 ## Customer visual QA
 
 The deterministic customer-route visual and accessibility smoke suite covers

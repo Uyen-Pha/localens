@@ -129,3 +129,10 @@
 - Wave 3: Task 6, full review, exact gates, browser acceptance, and two open local demos.
 - Preserve all pre-existing modified/untracked files; stage only task-owned paths.
 - Do not merge, push, publish, reset, delete a worktree, or stop unknown processes without explicit approval.
+
+## Completion record — 2026-09-02
+
+- Tasks 1–6 are implemented and committed on `codex/localens-mvp`.
+- Final gates passed: `pnpm check` (96 files/1,113 tests and 24/24 demo routes), `pnpm build:supabase` (24/24 routes), `pnpm db:verify` (15 pgTAP files/1,460 tests, zero lint findings, 6/6 concurrency scenarios, no type drift), demo E2E (25/25), runtime Auth E2E (3/3), and runtime fixed-tour E2E (4/4 plus the embedded 1,460-assertion pgTAP run).
+- Review hardening is included: exact capacity progression, exact PostgREST RPC path/status and `42501` denial, stable cleanup reporting, and bounded directly owned demo-server cleanup on Windows.
+- B2.2a is complete at `runtime-verified-local`; all later slices and deployment claims remain pending.

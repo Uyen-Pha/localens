@@ -228,6 +228,24 @@ customer-to-admin denial, Vietnamese guide sign-in/disclosure, administrator
 sign-in and customer-route denial, sign-out, and absence of LocalLens demo
 storage/picker/reset disclosures.
 
+## Runtime fixed-tour browser gate
+
+Run the complete local fixed-tour orchestration with:
+
+```powershell
+pnpm test:e2e:runtime-fixed-tour
+```
+
+The runner executes, in order: local start, reset, all pgTAP tests, runtime Auth seed, fixed-tour seed twice, an owned Supabase-mode Next server on port 3200, and one serial Chromium spec. It accepts only the standard loopback Supabase/PostgreSQL endpoints and the exact project-local `supabase@2.115.0` executable.
+
+Child environments are intentionally separate: database controls receive no runtime passwords; the Auth seed receives only customer/guide/admin passwords plus the local DB URL; the fixed-tour seed receives only customer-B password plus the local DB URL; Next receives only public Supabase URL/key; Playwright receives the four temporary passwords and public browser configuration, never the DB URL, service key, or demo fixture flag. The runner removes its owned browser output and Next server in `finally`. Set `LOCALENS_RUNTIME_STOP_DB=1` only when the local database should also be stopped.
+
+The 2026-09-02 acceptance passed 4/4 browser cases and the embedded 15-file/1,460-assertion pgTAP run. It verifies bilingual customer holds, capacity progression, reload and new-context persistence, owner isolation, exact `42501` denial for unauthorized roles, idempotent replay, changed-payload conflicts, and absence of browser authority leaks.
+
+## Demo browser gate
+
+`pnpm test:e2e` uses `scripts/run-demo-e2e.mjs` to own a clean fixture-only Next server on port 3300 directly, then supplies `PLAYWRIGHT_BASE_URL` to Playwright. This avoids Playwright's Windows shell-process teardown path. A successful run must print `server:stop`, exit zero, and leave no listener on port 3300.
+
 ## Two-session concurrency gate
 
 The harness uses two independent PostgreSQL clients and runs only against the
