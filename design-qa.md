@@ -2,8 +2,8 @@
 
 ## Verdict
 
-Milestone A is accepted as a local thesis demo at implementation commit
-`058b48e` on branch `codex/localens-a-acceptance`. This verdict does not claim a
+Milestone A is accepted as a local thesis demo at tested code commit
+`b7957d4` on branch `codex/localens-a-acceptance`. This verdict does not claim a
 production deployment or runtime database verification.
 
 ## Fresh evidence — 2026-09-01
