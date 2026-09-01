@@ -230,6 +230,42 @@ describe("runtime fixed-tour seed", () => {
     expect(database.statements.at(-1)?.sql).toBe("COMMIT");
     expect(database.hasGraph()).toBe(true);
 
+    const orderedPublicationMarkers = [
+      "INSERT INTO public.areas",
+      "INSERT INTO public.area_translations",
+      "INSERT INTO public.places",
+      "INSERT INTO public.place_translations",
+      "INSERT INTO public.place_experience_types",
+      "INSERT INTO public.place_guide_languages",
+      "INSERT INTO public.place_supports",
+      "INSERT INTO public.place_opening_hours",
+      "UPDATE public.places",
+      "INSERT INTO public.travel_edges",
+      "private.create_catalog_snapshot()",
+      "private.create_travel_snapshot()",
+      "INSERT INTO public.tours",
+      "INSERT INTO public.tour_translations",
+      "INSERT INTO public.tour_versions",
+      "INSERT INTO public.tour_version_translations",
+      "INSERT INTO public.tour_version_stops",
+      "UPDATE public.tour_versions",
+      "UPDATE public.tours",
+      "INSERT INTO public.departures",
+    ];
+    let previousIndex = -1;
+    for (const marker of orderedPublicationMarkers) {
+      const markerIndex = sql.indexOf(marker);
+      expect(markerIndex, `${marker} must occur after the previous publication step`).toBeGreaterThan(previousIndex);
+      previousIndex = markerIndex;
+    }
+    expect(sql).toMatch(/\(1::smallint,[\s\S]+\(2::smallint,/);
+    expect(sql.match(/public\.place_translations/g)).toHaveLength(1);
+    expect(sql).toMatch(/public\.catalog_snapshots[\s\S]+status = 'published'/);
+    expect(sql).toMatch(/tour_version_translations[\s\S]+'en'[\s\S]+'vi'/);
+    expect(sql).toMatch(/tour_version_stops[\s\S]+catalog_snapshot_id[\s\S]+place_id/);
+    expect(sql).toMatch(/UPDATE public\.tour_versions[\s\S]+status = 'published'/);
+    expect(sql).toMatch(/UPDATE public\.tours[\s\S]+status = 'published'/);
+
     const output = logs.join("\n");
     expect(output).toContain("customer-b.runtime-fixed-tour@localens.test");
     expect(output).toContain("departure=2099-09-05T02:00:00.000Z");
@@ -265,12 +301,35 @@ describe("runtime fixed-tour seed", () => {
     expect(authAdmin.users.has(RUNTIME_FIXED_TOUR_CUSTOMER.email)).toBe(false);
   });
 
+  it("never deletes a reused second-customer identity when the database transaction fails", async () => {
+    const authAdmin = createAuthAdmin();
+    authAdmin.users.set(RUNTIME_FIXED_TOUR_CUSTOMER.email, {
+      id: "00000000-0000-0000-0000-000000000299",
+      email: RUNTIME_FIXED_TOUR_CUSTOMER.email,
+    });
+    const database = createDatabaseQuery({ failOn: /insert\s+into\s+public\.departures/i });
+
+    const cause = await seedRuntimeFixedTour(validOptions({ authAdmin, query: database.query }))
+      .catch((error: unknown) => error);
+
+    expectRedacted(cause, "RUNTIME_FIXED_TOUR_SEED_DATABASE_FAILED");
+    expect(errorFrom(cause).message).toBe(
+      "RUNTIME_FIXED_TOUR_SEED_DATABASE_FAILED: transactional fixture seed failed",
+    );
+    expect(authAdmin.updateUserById).toHaveBeenCalledTimes(1);
+    expect(authAdmin.deleteUser).not.toHaveBeenCalled();
+    expect(authAdmin.users.has(RUNTIME_FIXED_TOUR_CUSTOMER.email)).toBe(true);
+  });
+
   it("preserves the stable primary error when rollback and Auth compensation also fail", async () => {
     const authAdmin = createAuthAdmin();
     const database = createDatabaseQuery({ failOn: /insert\s+into\s+public\.departures|ROLLBACK/i });
     authAdmin.deleteUser.mockRejectedValueOnce(new Error(`${SERVICE_ROLE_KEY} ${CUSTOMER_PASSWORD}`));
     const cause = await seedRuntimeFixedTour(validOptions({ authAdmin, query: database.query })).catch((error: unknown) => error);
     expectRedacted(cause, "RUNTIME_FIXED_TOUR_SEED_DATABASE_FAILED");
+    expect(errorFrom(cause).message).toBe(
+      "RUNTIME_FIXED_TOUR_SEED_DATABASE_FAILED: transactional fixture seed failed",
+    );
   });
 
   it("redacts CLI status, connect, teardown and unexpected top-level failures", async () => {

@@ -155,15 +155,16 @@ const GRAPH_EXISTS_SQL = `SELECT EXISTS (
     AND catalog.status = 'published'::public.snapshot_status
 ) AS exists`;
 
-const IDENTITY_SQL = `
-DELETE FROM private.user_roles WHERE user_id = $1::uuid;
-INSERT INTO private.user_roles (user_id, role)
-VALUES ($1::uuid, 'customer'::public.app_role);
-INSERT INTO public.profiles (id, display_name, language)
-VALUES ($1::uuid, 'Runtime Test Traveler B', 'vi'::public.locale)
-ON CONFLICT (id) DO UPDATE
-SET display_name = EXCLUDED.display_name, language = EXCLUDED.language;
-DELETE FROM public.guide_profiles WHERE user_id = $1::uuid;`;
+const IDENTITY_SQL = Object.freeze([
+  "DELETE FROM private.user_roles WHERE user_id = $1::uuid",
+  `INSERT INTO private.user_roles (user_id, role)
+   VALUES ($1::uuid, 'customer'::public.app_role)`,
+  `INSERT INTO public.profiles (id, display_name, language)
+   VALUES ($1::uuid, 'Runtime Test Traveler B', 'vi'::public.locale)
+   ON CONFLICT (id) DO UPDATE
+   SET display_name = EXCLUDED.display_name, language = EXCLUDED.language`,
+  "DELETE FROM public.guide_profiles WHERE user_id = $1::uuid",
+]);
 
 const AREA_SQL = `
 INSERT INTO public.areas (id, slug)
@@ -287,7 +288,9 @@ async function seedDatabase(query, userId) {
   try {
     await query("BEGIN");
     transactionStarted = true;
-    await query(IDENTITY_SQL, [userId]);
+    for (const identityStatement of IDENTITY_SQL) {
+      await query(identityStatement, [userId]);
+    }
     const existing = await query(GRAPH_EXISTS_SQL, [
       RUNTIME_FIXED_TOUR_FIXTURE.departureId,
       RUNTIME_FIXED_TOUR_FIXTURE.departureStartAt,
