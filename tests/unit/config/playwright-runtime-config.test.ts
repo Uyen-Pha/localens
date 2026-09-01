@@ -22,6 +22,7 @@ describe("runtime Auth Playwright artifact boundary", () => {
     expect(config.outputDir).toBe("C:/temp/localens-runtime-auth-owned");
     expect(config.preserveOutput).toBe("never");
     expect(config.use).toMatchObject({ trace: "off", screenshot: "off", video: "off" });
+    expect("webServer" in config).toBe(false);
   });
 
   it("fails closed without an owned output directory", async () => {

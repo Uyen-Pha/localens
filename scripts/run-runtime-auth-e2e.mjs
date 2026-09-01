@@ -10,6 +10,8 @@ import { requireLocalSupabaseCli, runLocalSupabase } from "./supabase-local.mjs"
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const LOCAL_API_PORT = "54321";
 const LOCAL_DATABASE_PORT = "54322";
+const RUNTIME_SERVER_URL = "http://127.0.0.1:3200/en/sign-in/";
+const RUNTIME_SERVER_TIMEOUT_MS = 120_000;
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const PASSWORD_ENV = {
   customer: "LOCALENS_RUNTIME_CUSTOMER_PASSWORD",
@@ -240,6 +242,89 @@ function runChildStep(spec) {
   });
 }
 
+function stopOwnedRuntimeServer(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  return new Promise((resolve) => {
+    let forceTimer;
+    const finish = () => {
+      if (forceTimer) clearTimeout(forceTimer);
+      resolve();
+    };
+    child.once("close", finish);
+    child.kill("SIGTERM");
+    forceTimer = setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    }, 5_000);
+    forceTimer.unref?.();
+  });
+}
+
+async function runtimeServerResponds(fetchImpl) {
+  try {
+    const response = await fetchImpl(RUNTIME_SERVER_URL, { redirect: "manual" });
+    return response.ok || (response.status >= 300 && response.status < 400);
+  } catch {
+    return false;
+  }
+}
+
+export async function startOwnedRuntimeServer(serverEnv, { cwd, spawnChild = spawn, fetchImpl = fetch } = {}) {
+  if (await runtimeServerResponds(fetchImpl)) {
+    throw runtimeError("RUNTIME_AUTH_SERVER_PORT_IN_USE", "runtime server endpoint is already occupied");
+  }
+  const child = spawnChild(process.execPath, [
+    path.join(cwd, "scripts", "run-next-mode.mjs"),
+    "dev",
+    "supabase",
+    "--hostname",
+    "127.0.0.1",
+    "--port",
+    "3200",
+  ], {
+    cwd,
+    env: serverEnv,
+    stdio: "inherit",
+    windowsHide: true,
+  });
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timer;
+    const deadline = Date.now() + RUNTIME_SERVER_TIMEOUT_MS;
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      void stopOwnedRuntimeServer(child).finally(() => reject(error));
+    };
+    const onClose = (status) => fail(runtimeError(
+      "RUNTIME_AUTH_SERVER_FAILED",
+      `owned runtime server exited before readiness with status ${status ?? 1}`,
+    ));
+    child.once("error", () => fail(runtimeError("RUNTIME_AUTH_SERVER_FAILED", "owned runtime server could not be started")));
+    child.once("close", onClose);
+
+    const poll = async () => {
+      try {
+        if (await runtimeServerResponds(fetchImpl)) {
+          settled = true;
+          child.removeListener("close", onClose);
+          resolve({ stop: () => stopOwnedRuntimeServer(child) });
+          return;
+        }
+      } catch {
+        // The owned server is still starting; retry until the bounded deadline.
+      }
+      if (Date.now() >= deadline) {
+        fail(runtimeError("RUNTIME_AUTH_SERVER_TIMEOUT", "owned runtime server did not become ready"));
+        return;
+      }
+      timer = setTimeout(poll, 250);
+    };
+    void poll();
+  });
+}
+
 async function runCheckedStep(name, { cwd, env, runStep, logger }) {
   logger(`[runtime-auth] ${name}`);
   let result;
@@ -270,6 +355,7 @@ export async function runRuntimeAuthE2E(options = {}) {
   const requireLocalCli = options.requireLocalCli ?? requireLocalSupabaseCli;
   const createOutputDirectory = options.createOutputDirectory ?? (() => mkdtempSync(path.join(tmpdir(), "localens-runtime-auth-")));
   const removeOutputDirectory = options.removeOutputDirectory ?? ((directory) => rmSync(directory, { recursive: true, force: true }));
+  const startServer = options.startServer ?? ((serverEnv) => startOwnedRuntimeServer(serverEnv, { cwd }));
   const explicitDatabaseUrl = env.LOCALENS_DB_URL;
   if (explicitDatabaseUrl) {
     requireLoopbackEndpoint(explicitDatabaseUrl, {
@@ -298,6 +384,7 @@ export async function runRuntimeAuthE2E(options = {}) {
   let databaseStarted = false;
   let primaryError;
   let outputDirectory;
+  let runtimeServer;
   try {
     await runCheckedStep("db:start", { cwd, env: controlEnv, runStep, logger });
     databaseStarted = true;
@@ -320,8 +407,21 @@ export async function runRuntimeAuthE2E(options = {}) {
     await runCheckedStep("db:seed:runtime-auth", { cwd, env: seedEnv, runStep, logger });
 
     outputDirectory = createOutputDirectory();
+    const serverEnv = {
+      NEXT_PUBLIC_LOCALLENS_RUNTIME: "supabase",
+      NEXT_PUBLIC_SUPABASE_URL: runtime.apiUrl,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: runtime.publishableKey,
+      NEXT_TELEMETRY_DISABLED: "1",
+    };
+    logger("[runtime-auth] runtime:server:start");
+    try {
+      runtimeServer = await startServer(serverEnv);
+    } catch {
+      throw runtimeError("RUNTIME_AUTH_SERVER_FAILED", "owned runtime server could not be started");
+    }
     const playwrightEnv = {
-      ...seedEnv,
+      ...controlEnv,
+      ...passwordEnv,
       LOCALENS_RUNTIME_PLAYWRIGHT_OUTPUT_DIR: outputDirectory,
       NEXT_PUBLIC_LOCALLENS_RUNTIME: "supabase",
       NEXT_PUBLIC_SUPABASE_URL: runtime.apiUrl,
@@ -331,6 +431,15 @@ export async function runRuntimeAuthE2E(options = {}) {
   } catch (error) {
     primaryError = error;
   } finally {
+    if (runtimeServer) {
+      try {
+        await runtimeServer.stop();
+      } catch {
+        const cleanupError = runtimeError("RUNTIME_AUTH_SERVER_CLEANUP_FAILED", "owned runtime server cleanup failed");
+        if (primaryError) primaryError.serverCleanupError = cleanupError;
+        else primaryError = cleanupError;
+      }
+    }
     if (outputDirectory) {
       try {
         removeOutputDirectory(outputDirectory);
@@ -362,6 +471,7 @@ export async function runRuntimeAuthE2EMain({ run = runRuntimeAuthE2E, errorLogg
     const message = error?.code ? error.message : `${code}: local runtime Auth E2E failed`;
     errorLogger(message);
     if (error?.cleanupError) errorLogger(`RUNTIME_AUTH_CLEANUP_FAILED: ${error.cleanupError.message}`);
+    if (error?.serverCleanupError) errorLogger(`RUNTIME_AUTH_SERVER_CLEANUP_FAILED: ${error.serverCleanupError.message}`);
     if (error?.artifactCleanupError) errorLogger(`RUNTIME_AUTH_ARTIFACT_CLEANUP_FAILED: ${error.artifactCleanupError.message}`);
     return error?.status ?? 2;
   }

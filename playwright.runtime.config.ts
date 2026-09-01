@@ -30,18 +30,6 @@ export function createRuntimePlaywrightConfig(env: Record<string, string | undef
       video: "off" as const,
     },
     projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-    webServer: {
-      command: "node scripts/run-next-mode.mjs dev supabase --hostname 127.0.0.1 --port 3200",
-      url: `${baseURL}/en/sign-in/`,
-      env: {
-        NEXT_PUBLIC_LOCALLENS_RUNTIME: "supabase",
-        NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
-        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: publishableKey,
-        NEXT_TELEMETRY_DISABLED: "1",
-      },
-      reuseExistingServer: false,
-      timeout: 120_000,
-    },
   };
 }
 

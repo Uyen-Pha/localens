@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { EventEmitter } from "node:events";
 import path from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
 // @ts-expect-error The executable JavaScript boundary is covered by focused runtime tests.
-import { createRuntimeAuthPasswords, dockerCliDirectories, ensureDockerCliOnPath, parseLocalRuntimeStatus, requirePinnedLocalSupabase, runRuntimeAuthE2E } from "@/scripts/run-runtime-auth-e2e.mjs";
+import { createRuntimeAuthPasswords, dockerCliDirectories, ensureDockerCliOnPath, parseLocalRuntimeStatus, requirePinnedLocalSupabase, runRuntimeAuthE2E, startOwnedRuntimeServer } from "@/scripts/run-runtime-auth-e2e.mjs";
 
 const LOCAL_STATUS = [
   'API_URL="http://127.0.0.1:54321"',
@@ -107,6 +108,22 @@ describe("Task 6 runtime Auth runner", () => {
     expect(versionProbe).toHaveBeenCalledWith(cliPath, expect.objectContaining({ cwd: "C:/repo" }));
   });
 
+  it("fails closed before spawning when the runtime server port is already occupied", async () => {
+    const child = Object.assign(new EventEmitter(), {
+      exitCode: null,
+      signalCode: null,
+      kill: vi.fn(() => true),
+    });
+    const spawnChild = vi.fn(() => child);
+
+    await expect(startOwnedRuntimeServer({ NEXT_PUBLIC_LOCALLENS_RUNTIME: "supabase" }, {
+      cwd: process.cwd(),
+      spawnChild,
+      fetchImpl: async () => ({ ok: true, status: 200 }),
+    })).rejects.toThrow(/RUNTIME_AUTH_SERVER_PORT_IN_USE/);
+    expect(spawnChild).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["stale", { status: 0, stdout: "2.114.0\n", stderr: "" }],
     ["malformed", { status: 0, stdout: "supabase version 2.115.0\n", stderr: "" }],
@@ -123,6 +140,8 @@ describe("Task 6 runtime Auth runner", () => {
 
   it("runs local setup before Playwright, isolates secrets, and leaves Supabase running by default", async () => {
     const calls: Array<{ name: string; env: Record<string, string | undefined>; stdio?: string }> = [];
+    const serverEnvironments: Array<Record<string, string | undefined>> = [];
+    const stopServer = vi.fn(async () => undefined);
     const logs: string[] = [];
     const statusEnvironments: Array<Record<string, string | undefined>> = [];
     const removedDirectories: string[] = [];
@@ -147,6 +166,10 @@ describe("Task 6 runtime Auth runner", () => {
       },
       createOutputDirectory: () => "C:/temp/localens-runtime-auth-owned",
       removeOutputDirectory: (directory: string) => removedDirectories.push(directory),
+      startServer: async (serverEnv: Record<string, string | undefined>) => {
+        serverEnvironments.push(serverEnv);
+        return { stop: stopServer };
+      },
       runStep: async (spec: { name: string; env: Record<string, string | undefined>; stdio?: string }) => {
         calls.push({ name: spec.name, env: spec.env, stdio: spec.stdio });
         return { status: 0 };
@@ -166,6 +189,14 @@ describe("Task 6 runtime Auth runner", () => {
     }
     const seedEnv = calls[2]!.env;
     const playwrightEnv = calls[3]!.env;
+    expect(serverEnvironments).toEqual([{
+      NEXT_PUBLIC_LOCALLENS_RUNTIME: "supabase",
+      NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: expect.stringMatching(/^publishable-/),
+      NEXT_TELEMETRY_DISABLED: "1",
+    }]);
+    expect(serverEnvironments[0]!.LOCALENS_DB_URL).toBeUndefined();
+    expect(Object.keys(serverEnvironments[0]!).filter((name) => /^LOCALENS_RUNTIME_.*_PASSWORD$/.test(name))).toEqual([]);
     expect(seedEnv.LOCALENS_DB_URL).toBe("postgresql://postgres:postgres@127.0.0.1:54322/postgres");
     expect(playwrightEnv).toMatchObject({
       NEXT_PUBLIC_LOCALLENS_RUNTIME: "supabase",
@@ -180,6 +211,7 @@ describe("Task 6 runtime Auth runner", () => {
     expect(playwrightEnv.LOCALENS_RUNTIME_UNUSED_PASSWORD).toBeUndefined();
     expect(seedEnv.LOCALENS_RUNTIME_PLAYWRIGHT_OUTPUT_DIR).toBeUndefined();
     expect(playwrightEnv.NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES).toBeUndefined();
+    expect(stopServer).toHaveBeenCalledOnce();
     expect(removedDirectories).toEqual(["C:/temp/localens-runtime-auth-owned"]);
     const output = logs.join("\n");
     for (const secret of [
@@ -205,6 +237,7 @@ describe("Task 6 runtime Auth runner", () => {
       status: () => ({ status: 0, stdout: LOCAL_STATUS, stderr: "" }),
       createOutputDirectory: () => "C:/temp/localens-runtime-auth-owned",
       removeOutputDirectory: vi.fn(),
+      startServer: async () => ({ stop: async () => undefined }),
       runStep: async (spec: { name: string; env: Record<string, string | undefined> }) => {
         calls.push({ name: spec.name, env: spec.env });
         return { status: 0 };
@@ -234,6 +267,7 @@ describe("Task 6 runtime Auth runner", () => {
       status: () => ({ status: 0, stdout: LOCAL_STATUS, stderr: "" }),
       createOutputDirectory: () => "C:/temp/localens-runtime-auth-owned",
       removeOutputDirectory: (directory: string) => removedDirectories.push(directory),
+      startServer: async () => ({ stop: async () => undefined }),
       runStep: async (spec: { name: string }) => ({
         status: spec.name === "test:e2e:runtime-auth:playwright" ? 1 : 0,
       }),
