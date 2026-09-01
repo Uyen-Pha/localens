@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
 const cliDependencyMocks = vi.hoisted(() => ({
@@ -23,6 +24,9 @@ import {
   runRuntimeAuthSeedCli,
   runRuntimeAuthSeedMain,
   seedRuntimeAuth,
+  type RuntimeAuthListUsersResult,
+  type RuntimeAuthUserResult,
+  type SeedRuntimeAuthOptions,
 } from "../../../scripts/seed-runtime-auth.mjs";
 
 const assertSeedRuntimeAuthOptionsContract = () => {
@@ -30,6 +34,11 @@ const assertSeedRuntimeAuthOptionsContract = () => {
   void seedRuntimeAuth({});
 };
 void assertSeedRuntimeAuthOptionsContract;
+
+const assertSupabaseAuthAdminContract = (
+  authAdmin: SupabaseClient["auth"]["admin"],
+): SeedRuntimeAuthOptions["authAdmin"] => authAdmin;
+void assertSupabaseAuthAdminContract;
 
 const LOCAL_SUPABASE_URL = "http://127.0.0.1:54321";
 const LOCAL_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
@@ -46,23 +55,22 @@ function createAuthAdmin() {
 
   return {
     users,
-    listUsers: vi.fn(async (): Promise<{
-      data: { users: Array<{ id: string; email: string }>; nextPage: null };
-      error: Error | null;
-    }> => ({
+    listUsers: vi.fn(async (): Promise<RuntimeAuthListUsersResult> => ({
       data: { users: [...users.values()], nextPage: null },
       error: null,
     })),
-    createUser: vi.fn(async ({ email }: { email: string }) => {
+    createUser: vi.fn(async ({ email }: { email: string }): Promise<RuntimeAuthUserResult> => {
       const user = { id: `00000000-0000-0000-0000-${String(nextId).padStart(12, "0")}`, email };
       nextId += 1;
       users.set(email, user);
       return { data: { user }, error: null };
     }),
-    updateUserById: vi.fn(async (id: string) => ({
-      data: { user: [...users.values()].find((user) => user.id === id) },
-      error: null,
-    })),
+    updateUserById: vi.fn(async (id: string): Promise<RuntimeAuthUserResult> => {
+      const user = [...users.values()].find((candidate) => candidate.id === id);
+      return user
+        ? { data: { user }, error: null }
+        : { data: { user: null }, error: new Error("Runtime Auth test user not found") };
+    }),
   };
 }
 
@@ -226,7 +234,7 @@ describe("runtime Auth seed", () => {
     const authAdmin = createAuthAdmin();
     const database = createDatabaseQuery();
     if (boundary === "auth") {
-      authAdmin.listUsers.mockResolvedValueOnce({ data: { users: [], nextPage: null }, error: new Error(leakedMessage) });
+      authAdmin.listUsers.mockResolvedValueOnce({ data: { users: [] }, error: new Error(leakedMessage) });
     } else {
       database.query.mockRejectedValueOnce(new Error(leakedMessage));
     }

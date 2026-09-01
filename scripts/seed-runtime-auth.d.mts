@@ -29,22 +29,30 @@ export interface RuntimeAuthUserAttributes {
   email_confirm: true;
 }
 
-export interface RuntimeAuthAdminResult<T> {
-  data: T | null;
-  error: unknown;
-}
+export type RuntimeAuthListUsersResult =
+  | {
+      data: { users: RuntimeAuthUser[]; nextPage: number | null };
+      error: null;
+    }
+  | {
+      data: { users: [] };
+      error: Error;
+    };
+
+export type RuntimeAuthUserResult =
+  | {
+      data: { user: RuntimeAuthUser };
+      error: null;
+    }
+  | {
+      data: { user: null };
+      error: Error;
+    };
 
 export interface RuntimeAuthAdminClient {
-  listUsers(parameters: { page: number; perPage: number }): Promise<RuntimeAuthAdminResult<{
-    users: RuntimeAuthUser[];
-    nextPage: number | null;
-  }>>;
-  createUser(attributes: RuntimeAuthUserAttributes): Promise<RuntimeAuthAdminResult<{
-    user?: RuntimeAuthUser;
-  }>>;
-  updateUserById(userId: string, attributes: RuntimeAuthUserAttributes): Promise<RuntimeAuthAdminResult<{
-    user?: RuntimeAuthUser;
-  }>>;
+  listUsers(parameters: { page: number; perPage: number }): Promise<RuntimeAuthListUsersResult>;
+  createUser(attributes: RuntimeAuthUserAttributes): Promise<RuntimeAuthUserResult>;
+  updateUserById(userId: string, attributes: RuntimeAuthUserAttributes): Promise<RuntimeAuthUserResult>;
 }
 
 export type RuntimeAuthQuery = (sql: string, values?: unknown[]) => Promise<unknown>;
