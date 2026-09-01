@@ -27,7 +27,13 @@ DECLARE
   actor_role public.app_role;
   actor_role_count bigint;
 BEGIN
-  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
+  actor_user_id := COALESCE(
+    NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), ''),
+    pg_catalog.jsonb_extract_path_text(
+      NULLIF(pg_catalog.current_setting('request.jwt.claims', true), '')::jsonb,
+      'sub'
+    )
+  )::uuid;
   IF actor_user_id IS NULL THEN
     RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
   END IF;

@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(12);
+SELECT plan(13);
 
 -- Fixed identities keep the owner-only projection deterministic and rollback-safe.
 DELETE FROM auth.users
@@ -108,6 +108,17 @@ SELECT throws_ok(
   '42501',
   'authentication required'
 );
+
+SELECT set_config('request.jwt.claims', jsonb_build_object(
+  'sub', '00000000-0000-0000-0000-000000002201',
+  'role', 'authenticated'
+)::text, true);
+SELECT results_eq(
+  $$SELECT user_id, display_name, role, language FROM public.get_portal_identity()$$,
+  $$VALUES ('00000000-0000-0000-0000-000000002201'::uuid, 'Portal Customer'::text, 'customer'::public.app_role, 'vi'::public.locale)$$,
+  'PostgREST JSON claims authenticate the customer portal identity'
+);
+SELECT set_config('request.jwt.claims', '', true);
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002201', true);
 SELECT results_eq(

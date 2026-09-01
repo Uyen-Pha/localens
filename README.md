@@ -28,6 +28,33 @@ persistence, live payment-provider behavior, database RLS, locking or
 concurrency. The canonical specification and implementation plans live under
 `docs/superpowers/`.
 
+## Verify local runtime authentication
+
+Task 6 adds a separate local Supabase acceptance command. It never enables the
+demo fixture flag and never reuses the demo server:
+
+```powershell
+pnpm test:e2e:runtime-auth
+```
+
+The runner requires the exact project-local `supabase@2.115.0`, accepts only
+the standard loopback API/database endpoints, resets and seeds only local
+Supabase, and starts a clean Supabase-mode Next child on
+`http://127.0.0.1:3200`. If runtime Auth password variables are absent, it
+creates strong per-run values in memory and passes them only to the seed and
+Playwright children. It captures local status/startup data rather than printing
+keys or passwords. Supabase remains running for inspection; set
+`LOCALENS_RUNTIME_STOP_DB=1` only when an explicit local stop is wanted.
+
+Verified on 2026-09-02: runtime Auth Playwright passed 3/3 tests in 32.0 seconds
+with one Chromium worker; local pgTAP passed 14 files/1,433 tests; the two-session gate
+passed all six concurrency scenarios; the stable frontend suite passed 83
+files/1,011 tests; and the demo production build generated 24/24 routes. These
+results verify the bounded B2.1 local runtime-auth slice, not B2.2-B2.4,
+staging, production deployment, or whole-product completion. The exact
+`pnpm check`, `pnpm db:verify`, and complete demo E2E caveats are recorded in
+`docs/runbooks/local-supabase.md` and the Task 6 report.
+
 ## Customer visual QA
 
 The deterministic customer-route visual and accessibility smoke suite covers

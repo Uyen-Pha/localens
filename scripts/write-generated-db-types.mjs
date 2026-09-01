@@ -43,7 +43,7 @@ function requireNonEmptyOutput(output) {
   if (typeof output !== "string" || output.trim().length === 0) {
     throw typeError("GENERATED_TYPES_EMPTY", "local Supabase CLI returned no TypeScript output");
   }
-  return output;
+  return `${output.trimEnd()}\n`;
 }
 
 function writeAtomically(filePath, contents) {
