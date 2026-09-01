@@ -50,7 +50,7 @@ The old `demo-final.stderr.log` hydration mismatch is pre-fix diagnostic evidenc
 | Full Vitest | PASS | On `2026-09-01` at commit `48c2ed5`, `74` files and `893` tests passed using `--no-file-parallelism --testTimeout=30000` in `173.36s`. |
 | `pnpm build` | FRESH PASS | On `2026-09-01` at commit `48c2ed5`, Next.js compiled and statically generated `24/24` routes. Protected `next-env.d.ts` and `tsconfig.tsbuildinfo` remained byte-identical to their pre-build versions. |
 | `pnpm db:static` | PASS | `18` migration files checked. |
-| Playwright inventory | WRITTEN, NOT EXECUTED | `22` tests across `5` files. Running the browser suite still requires explicit Product Design authorization. |
+| Playwright inventory | WRITTEN, NOT EXECUTED | `23` tests across `5` files. Running the browser suite still requires explicit Product Design authorization. |
 | `pnpm db:types:check` | BLOCKED | `SUPABASE_CLI_NOT_FOUND`. |
 | `pnpm db:static:seed` | BLOCKED | `APPROVAL_NOT_READY`, `CATALOG_NOT_SELLABLE`, `SUPPORT_NOT_RUNTIME_READY`, `TOURS_NOT_AVAILABLE`. |
 | `pnpm db:verify` | BLOCKED | `SUPABASE_CLI_NOT_FOUND`; no PostgreSQL/RLS/pgTAP/locking/concurrency runtime claim. |
@@ -59,6 +59,6 @@ The old `demo-final.stderr.log` hydration mismatch is pre-fix diagnostic evidenc
 
 - Spec/security review: prior verdict `BLOCK`, with the missing vertical slices, role-denial matrix, strict diagnostics and simulated-AI disclosure now implemented; re-review must wait for runtime evidence.
 - Design/accessibility review: prior verdict `BLOCK`, with art direction, contrast, keyboard coverage and mobile clipping fixes now implemented; re-review must wait for exact-size captures and full-page inspection.
-- Required next action: explicitly authorize Playwright, run all `22` E2E tests, inspect exact native viewport and full-page artifacts, regenerate the same-size comparison, fix any runtime findings, then dispatch both independent re-reviews.
+- Required next action: explicitly authorize Playwright, run all `23` E2E tests, inspect exact native viewport and full-page artifacts, regenerate the same-size comparison, fix any runtime findings, then dispatch both independent re-reviews.
 
 final result: blocked
