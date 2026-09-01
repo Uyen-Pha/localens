@@ -199,8 +199,18 @@ RESET ROLE;
 SELECT is((SELECT count(*)::integer FROM private.user_roles WHERE user_id = '00000000-0000-0000-0000-000000000004'::uuid AND role = 'guide'::public.app_role), 1, 'identity owner can write roles under FORCE RLS');
 
 SET LOCAL ROLE localens_admin_rpc_owner;
-SELECT set_config('localens.test.admin_profile_count', (SELECT count(*)::integer FROM public.profiles)::text, true);
-SELECT set_config('localens.test.admin_role_count', (SELECT count(*)::integer FROM private.user_roles)::text, true);
+SELECT set_config('localens.test.admin_profile_count', (
+  SELECT count(*)::integer
+  FROM public.profiles
+  WHERE id BETWEEN '00000000-0000-0000-0000-000000000001'::uuid
+    AND '00000000-0000-0000-0000-000000000004'::uuid
+)::text, true);
+SELECT set_config('localens.test.admin_role_count', (
+  SELECT count(*)::integer
+  FROM private.user_roles
+  WHERE user_id BETWEEN '00000000-0000-0000-0000-000000000001'::uuid
+    AND '00000000-0000-0000-0000-000000000004'::uuid
+)::text, true);
 RESET ROLE;
 SELECT is(current_setting('localens.test.admin_profile_count')::integer, 4, 'admin owner can read profiles under FORCE RLS');
 SELECT is(current_setting('localens.test.admin_role_count')::integer, 7, 'admin owner can read roles under FORCE RLS');

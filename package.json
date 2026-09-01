@@ -24,6 +24,7 @@
     "db:static:seed": "node scripts/generate-supabase-seed.mjs --check-readiness",
     "db:start": "node scripts/supabase-local.mjs start",
     "db:reset": "node scripts/supabase-local.mjs db reset --local",
+    "db:seed:runtime-auth": "node scripts/seed-runtime-auth.mjs",
     "db:lint": "node scripts/supabase-local.mjs db lint --local --level error --fail-on error",
     "db:test": "node scripts/supabase-local.mjs test db --local",
     "db:types": "node scripts/write-generated-db-types.mjs",
