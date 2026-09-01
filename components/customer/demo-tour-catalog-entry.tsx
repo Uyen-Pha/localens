@@ -1,0 +1,33 @@
+"use client";
+
+import { TourCatalogExplorer } from "@/components/customer/tour-catalog-explorer";
+import { createReadOnlyApi } from "@/lib/application/api/read-only-api";
+import type { Locale } from "@/lib/i18n/config";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+
+export function DemoTourCatalogEntry({ locale }: { locale: Locale }) {
+  const copy = getDictionary(locale).home;
+  const catalogResult = createReadOnlyApi().listTours(locale);
+
+  return (
+    <div className="customer-home customer-tours-page">
+      <section className="customer-section customer-section--discovery" aria-labelledby="fixed-tours-title">
+        <div className="section-heading section-heading--tours">
+          <p className="eyebrow">{copy.discoveryEyebrow}</p>
+          <h1 id="fixed-tours-title">{copy.tourCatalog.catalogHeading}</h1>
+          <p>{copy.tourCatalog.catalogIntro}</p>
+        </div>
+        <TourCatalogExplorer
+          locale={locale}
+          copy={copy.tourCatalog}
+          areaOptions={copy.tourCatalog.areaOptions}
+          initialCatalog={catalogResult.ok ? catalogResult.value : null}
+          initialError={catalogResult.ok ? null : {
+            retryable: catalogResult.error.retryable,
+            correlationId: catalogResult.error.correlationId,
+          }}
+        />
+      </section>
+    </div>
+  );
+}

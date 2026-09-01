@@ -31,4 +31,20 @@ describe("fixed-tour runtime import boundary", () => {
     expect(loader).toContain('await import("@/lib/application/portal/composition")');
     expect(loader).not.toMatch(/^import (?!type\b).*supabase-shell/m);
   });
+
+  it("keeps customer routes behind a bidirectional mode-selected boundary", () => {
+    const surface = source("components/customer/fixed-tour-route-surface.tsx");
+    expect(surface).toContain('import("@/components/customer/demo-tour-catalog-entry")');
+    expect(surface).toContain('import("@/components/customer/demo-booking-entry")');
+    expect(surface).toContain('import("@/components/customer/runtime-tour-catalog")');
+    expect(surface).toContain('import("@/components/customer/runtime-fixed-tour-booking")');
+    expect(surface).not.toMatch(/^import (?!type\b).*demo-tour-catalog-entry/m);
+    expect(surface).not.toMatch(/^import (?!type\b).*runtime-tour-catalog/m);
+
+    for (const route of ["tours", "booking"] as const) {
+      const page = source(`app/[locale]/${route}/page.tsx`);
+      expect(page).toContain("FixedTourRouteSurface");
+      expect(page).not.toMatch(/createReadOnlyApi|TourCatalogExplorer|DemoBookingEntry/);
+    }
+  });
 });

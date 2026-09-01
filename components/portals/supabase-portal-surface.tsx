@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 
 import { PortalError, type PortalIdentity } from "@/lib/application/portal/contracts";
@@ -20,6 +20,11 @@ export interface SupabasePortalSurfaceProps {
 }
 
 type LoadState = "loading" | "ready" | "error";
+
+const RuntimeFixedTourAccount = lazy(async () => {
+  const module = await import("@/components/customer/runtime-fixed-tour-account");
+  return { default: module.RuntimeFixedTourAccount };
+});
 
 function isStaleRuntimeSession(error: unknown): error is PortalError {
   return error instanceof PortalError &&
@@ -204,11 +209,13 @@ function RuntimeAccessDenied({
 function RuntimeRoleShell({
   locale,
   session,
+  composition,
   onSignOut,
   actionError,
 }: {
   locale: Locale;
   session: PortalIdentity;
+  composition: SupabasePortalShell;
   onSignOut: () => void;
   actionError: string | null;
 }) {
@@ -225,6 +232,11 @@ function RuntimeRoleShell({
         </dl>
         <p className={styles.runtimeDisclosure} role="note">{copy.runtimeDisclosure}</p>
         {actionError ? <p className={styles.error} role="alert">{actionError}</p> : null}
+        {session.role === "customer" ? (
+          <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
+            <RuntimeFixedTourAccount locale={locale} fixedTour={composition.fixedTour} />
+          </Suspense>
+        ) : null}
       </section>
     </RuntimeFrame>
   );
@@ -297,5 +309,5 @@ export function SupabasePortalSurface({
   if (expectedRole !== undefined && session.role !== expectedRole) {
     return <RuntimeAccessDenied locale={locale} session={session} onSignOut={() => void signOut()} actionError={actionError} />;
   }
-  return <RuntimeRoleShell locale={locale} session={session} onSignOut={() => void signOut()} actionError={actionError} />;
+  return <RuntimeRoleShell locale={locale} session={session} composition={composition} onSignOut={() => void signOut()} actionError={actionError} />;
 }

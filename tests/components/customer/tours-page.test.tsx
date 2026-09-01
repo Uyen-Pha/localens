@@ -1,5 +1,5 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { FixedToursGrid } from "@/components/customer/fixed-tours-grid";
 import ToursPage, { generateMetadata } from "@/app/[locale]/tours/page";
@@ -7,7 +7,17 @@ import { createReadOnlyApi } from "@/lib/application/api/read-only-api";
 import { getDemoDepartureForTourSlug } from "@/lib/application/booking/mock-booking";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
-afterEach(cleanup);
+const originalRuntimeMode = process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME;
+
+beforeEach(() => {
+  process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME = "demo";
+});
+
+afterEach(() => {
+  cleanup();
+  if (originalRuntimeMode === undefined) delete process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME;
+  else process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME = originalRuntimeMode;
+});
 
 describe("localized fixed tours page", () => {
   it("keeps the browser title and Open Graph title aligned", async () => {
@@ -23,7 +33,7 @@ describe("localized fixed tours page", () => {
 
     render(await ToursPage({ params: Promise.resolve({ locale: "en" }) }));
 
-    const heading = screen.getByRole("heading", { level: 1, name: dictionary.home.tourCatalog.catalogHeading });
+    const heading = await screen.findByRole("heading", { level: 1, name: dictionary.home.tourCatalog.catalogHeading });
     expect(heading).toBeInTheDocument();
     expect(heading.closest(".section-heading")).toHaveClass("section-heading--tours");
     expect(screen.getByRole("note")).toHaveTextContent(dictionary.home.tourCatalog.disclosure);
@@ -60,7 +70,7 @@ describe("localized fixed tours page", () => {
 
       render(await ToursPage({ params: Promise.resolve({ locale }) }));
 
-      const filters = screen.getByRole("group", { name: copy.filtersLegend });
+      const filters = await screen.findByRole("group", { name: copy.filtersLegend });
       expect(within(filters).getByText(copy.filtersLegend)).toBeInTheDocument();
       expect(screen.getByLabelText(copy.keywordLabel)).toBeInTheDocument();
       expect(screen.getByLabelText(copy.areaLabel)).toBeInTheDocument();
