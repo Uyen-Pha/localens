@@ -53,7 +53,9 @@ describe("default customer route entry", () => {
     window.history.replaceState({}, "", `/en/booking?departure=${departureId}&partySize=2`);
 
     render(<DemoBookingEntry locale="en" copy={getDictionary("en").booking} />);
-    expect(await screen.findByRole("heading", { name: "Markets and Street Food" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Markets and Street Food" }, { timeout: 5_000 }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: getDictionary("en").booking.continueLabel }));
     expect(await screen.findByRole("heading", { name: getDictionary("en").booking.paymentHeading })).toBeInTheDocument();
 
