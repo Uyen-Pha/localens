@@ -19,14 +19,14 @@ SELECT ok((SELECT count(*) = 1 FROM pg_constraint WHERE conrelid = 'public.trave
 SELECT ok((SELECT count(*) = 1 FROM pg_constraint WHERE conrelid = 'public.travel_snapshot_edges'::regclass AND contype = 'f' AND pg_get_constraintdef(oid) LIKE '%FOREIGN KEY (catalog_snapshot_id, to_place_id)%'), 'to endpoint uses composite catalog membership FK');
 SELECT ok((SELECT count(*) = 1 FROM pg_constraint WHERE conrelid = 'public.travel_snapshot_edges'::regclass AND contype = 'f' AND pg_get_constraintdef(oid) LIKE '%FOREIGN KEY (snapshot_id, catalog_snapshot_id)%'), 'travel snapshot membership uses composite FK');
 SELECT ok((SELECT count(*) = 1 FROM pg_constraint WHERE conrelid = 'public.travel_snapshot_edges'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) LIKE '%snapshot_id, from_place_id, to_place_id%'), 'directed pair is unique per snapshot');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%from_place_id <> to_place_id%' FROM pg_constraint WHERE conrelid = 'public.travel_edges'::regclass AND contype = 'c'), 'current travel edges reject self edges');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%mode IN%' FROM pg_constraint WHERE conrelid = 'public.travel_edges'::regclass AND contype = 'c'), 'current travel modes are closed');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%minutes BETWEEN 1 AND 240%' FROM pg_constraint WHERE conrelid = 'public.travel_edges'::regclass AND contype = 'c'), 'travel minutes are bounded');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%group_cost_vnd BETWEEN 0 AND 1125899906842623%' FROM pg_constraint WHERE conrelid = 'public.travel_edges'::regclass AND contype = 'c'), 'travel group cost uses the safe engine bound');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.travel_edges'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%from_place_id <> to_place_id%'), 'current travel edges reject self edges');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.travel_edges'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%mode = ANY%'), 'current travel modes are closed');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.travel_edges'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%minutes >= 1%' AND pg_get_constraintdef(oid) LIKE '%minutes <= 240%'), 'travel minutes are bounded');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.travel_edges'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%group_cost_vnd >= 0%' AND pg_get_constraintdef(oid) LIKE '%1125899906842623%'), 'travel group cost uses the safe engine bound');
 SELECT ok((SELECT is_nullable = 'NO' FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'travel_edges' AND column_name = 'verified_at'), 'travel verification timestamp is required');
 SELECT ok((SELECT is_nullable = 'NO' FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'travel_snapshots' AND column_name = 'catalog_snapshot_id'), 'travel snapshot records catalog snapshot');
 
-SELECT ok((SELECT prosecdef AND proconfig @> ARRAY['search_path='] FROM pg_proc WHERE oid = 'private.create_travel_snapshot()'::regprocedure), 'travel snapshot creator is pinned SECURITY DEFINER');
+SELECT ok((SELECT prosecdef AND proconfig @> ARRAY['search_path=""'] FROM pg_proc WHERE oid = 'private.create_travel_snapshot()'::regprocedure), 'travel snapshot creator is pinned SECURITY DEFINER');
 SELECT is((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'private.create_travel_snapshot()'::regprocedure), 'localens_catalog_rpc_owner', 'travel snapshot creator has named owner');
 SELECT is((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'private.reject_published_snapshot_insert()'::regprocedure), 'localens_catalog_guard_owner', 'snapshot insert guard has named non-login owner');
 SELECT ok((SELECT rolcanlogin = false AND rolbypassrls = false FROM pg_catalog.pg_roles WHERE rolname = 'localens_catalog_guard_owner'), 'snapshot guard owner cannot login or bypass RLS');
@@ -39,10 +39,9 @@ SELECT ok(NOT has_table_privilege('localens_catalog_guard_owner', 'public.catalo
   AND NOT has_table_privilege('localens_catalog_guard_owner', 'public.travel_snapshots', 'UPDATE')
   AND NOT has_column_privilege('localens_catalog_guard_owner', 'public.catalog_snapshots', 'status', 'UPDATE')
   AND NOT has_column_privilege('localens_catalog_guard_owner', 'public.travel_snapshots', 'status', 'UPDATE'), 'snapshot guard has no table or mutable-column UPDATE');
-SELECT ok(NOT EXISTS (SELECT 1 FROM pg_policy WHERE polrelid = ANY(ARRAY['public.catalog_snapshots'::regclass, 'public.travel_snapshots'::regclass]) AND polcmd = ANY(ARRAY['w'::"char", '*'::"char"]) AND (0 = ANY(polroles) OR 'localens_catalog_guard_owner'::regrole::oid = ANY(polroles))), 'snapshot lifecycle has no guard UPDATE policy');
-SET LOCAL ROLE localens_catalog_guard_owner;
-SELECT is((WITH changed AS (UPDATE public.catalog_snapshots SET id = id RETURNING 1) SELECT count(*)::bigint FROM changed), 0::bigint, 'snapshot guard row-lock column update changes no rows without an UPDATE policy');
-RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM pg_policy WHERE polrelid = ANY(ARRAY['public.catalog_snapshots'::regclass, 'public.travel_snapshots'::regclass]) AND polcmd = 'w'::"char" AND 'localens_catalog_guard_owner'::regrole::oid = ANY(polroles) AND pg_get_expr(polqual, polrelid) = 'true' AND pg_get_expr(polwithcheck, polrelid) = 'true'), 2, 'snapshot lifecycle exposes exactly two guard row-lock policies');
+SELECT ok(NOT has_column_privilege('localens_catalog_guard_owner', 'public.catalog_snapshots', 'status', 'UPDATE')
+  AND NOT has_column_privilege('localens_catalog_guard_owner', 'public.travel_snapshots', 'status', 'UPDATE'), 'snapshot guard lock policy cannot mutate lifecycle status');
 SELECT ok((SELECT pg_get_functiondef('private.create_travel_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.areas IN SHARE ROW EXCLUSIVE MODE%'
   AND pg_get_functiondef('private.create_travel_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.travel_edges IN SHARE ROW EXCLUSIVE MODE%'), 'travel creator declares fixed source locks');
 SELECT ok(has_function_privilege('localens_admin_rpc_owner', 'private.create_travel_snapshot()', 'EXECUTE')
@@ -59,9 +58,9 @@ SELECT ok(has_table_privilege('anon', 'public.travel_snapshots_v', 'SELECT')
   AND has_table_privilege('authenticated', 'public.travel_snapshots_v', 'SELECT')
   AND has_table_privilege('anon', 'public.latest_fx_snapshot_v', 'SELECT'), 'API roles read only named projections');
 SELECT ok(has_table_privilege('localens_catalog_rpc_owner', 'public.travel_edges', 'DELETE'), 'catalog owner can retire mutable source edges without touching history');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%vnd_per_usd > 0%' FROM pg_constraint WHERE conrelid = 'public.fx_snapshots'::regclass AND contype = 'c'), 'FX rate is positive');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%environment IN%' FROM pg_constraint WHERE conrelid = 'public.fx_snapshots'::regclass AND contype = 'c'), 'FX environment is closed');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%is_demo = (environment = ''demo'')%' FROM pg_constraint WHERE conrelid = 'public.fx_snapshots'::regclass AND contype = 'c'), 'FX demo flag matches environment');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.fx_snapshots'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%vnd_per_usd >%0%'), 'FX rate is positive');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.fx_snapshots'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%environment = ANY%'), 'FX environment is closed');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.fx_snapshots'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%is_demo = (environment = ''demo''%'), 'FX demo flag matches environment');
 SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%source = btrim(source)%' AND pg_get_constraintdef(oid) LIKE '%cntrl%'
   FROM pg_constraint WHERE conrelid = 'public.fx_snapshots'::regclass AND conname = 'fx_snapshots_source_trimmed_no_controls'), 'FX source is trimmed and control-free');
 SELECT ok((SELECT pg_get_viewdef('public.latest_fx_snapshot_v'::regclass) LIKE '%7 days%'), 'latest FX projection has a seven-day freshness bound');
@@ -93,11 +92,9 @@ SET status = 'published', published_at = now()
 WHERE id = '00000000-0000-0000-0000-000000000604'::uuid;
 
 SELECT throws_ok($$INSERT INTO public.catalog_snapshots (id, status, published_at)
-  VALUES ('00000000-0000-0000-0000-000000000610'::uuid, 'published', now())$$,
-  '42501', NULL, 'catalog snapshot must be built before publication');
+  VALUES ('00000000-0000-0000-0000-000000000610'::uuid, 'published', now())$$::text, '42501'::character(5), NULL::text, 'catalog snapshot must be built before publication'::text);
 SELECT throws_ok($$INSERT INTO public.catalog_snapshot_areas (snapshot_id, area_id, slug)
-  VALUES ('00000000-0000-0000-0000-000000000604'::uuid, '00000000-0000-0000-0000-000000000611'::uuid, 'late-area')$$,
-  '42501', NULL, 'published catalog snapshot children cannot be inserted');
+  VALUES ('00000000-0000-0000-0000-000000000604'::uuid, '00000000-0000-0000-0000-000000000611'::uuid, 'late-area')$$::text, '42501'::character(5), NULL::text, 'published catalog snapshot children cannot be inserted'::text);
 INSERT INTO auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000605'::uuid, 'authenticated', 'authenticated', 'travel-admin@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now())
 ON CONFLICT (id) DO NOTHING;
@@ -130,29 +127,24 @@ CREATE TEMP TABLE travel_test_ids (
 GRANT INSERT ON TABLE pg_temp.travel_test_ids TO localens_admin_rpc_owner;
 
 SELECT throws_ok($$INSERT INTO public.travel_edges (from_place_id, to_place_id, mode, minutes, group_cost_vnd, verified_at)
-  VALUES ('00000000-0000-0000-0000-000000000602'::uuid, '00000000-0000-0000-0000-000000000602'::uuid, 'walk', 10, 1, now())$$,
-  '23514', NULL, 'self travel edge is rejected');
+  VALUES ('00000000-0000-0000-0000-000000000602'::uuid, '00000000-0000-0000-0000-000000000602'::uuid, 'walk', 10, 1, now())$$::text, '23514'::character(5), NULL::text, 'self travel edge is rejected'::text);
 SELECT throws_ok($$INSERT INTO public.travel_edges (from_place_id, to_place_id, mode, minutes, group_cost_vnd, verified_at)
-  VALUES ('00000000-0000-0000-0000-000000000602'::uuid, '00000000-0000-0000-0000-000000000603'::uuid, 'taxi', 10, 1, now())$$,
-  '23505', NULL, 'duplicate directed pair is rejected');
+  VALUES ('00000000-0000-0000-0000-000000000602'::uuid, '00000000-0000-0000-0000-000000000603'::uuid, 'taxi', 10, 1, now())$$::text, '23505'::character(5), NULL::text, 'duplicate directed pair is rejected'::text);
 SELECT throws_ok($$INSERT INTO public.travel_edges (from_place_id, to_place_id, mode, minutes, group_cost_vnd, verified_at)
-  VALUES ('00000000-0000-0000-0000-000000000603'::uuid, '00000000-0000-0000-0000-000000000602'::uuid, 'bike', 10, 1, now())$$,
-  '23514', NULL, 'unknown travel mode is rejected');
+  VALUES ('00000000-0000-0000-0000-000000000603'::uuid, '00000000-0000-0000-0000-000000000602'::uuid, 'bike', 10, 1, now())$$::text, '23514'::character(5), NULL::text, 'unknown travel mode is rejected'::text);
 SELECT throws_ok($$INSERT INTO public.travel_edges (from_place_id, to_place_id, mode, minutes, group_cost_vnd, verified_at)
-  VALUES ('00000000-0000-0000-0000-000000000603'::uuid, '00000000-0000-0000-0000-000000000602'::uuid, 'walk', 241, 1, now())$$,
-  '23514', NULL, 'out-of-range travel minutes are rejected');
+  VALUES ('00000000-0000-0000-0000-000000000603'::uuid, '00000000-0000-0000-0000-000000000602'::uuid, 'walk', 241, 1, now())$$::text, '23514'::character(5), NULL::text, 'out-of-range travel minutes are rejected'::text);
 SELECT throws_ok($$INSERT INTO public.travel_edges (from_place_id, to_place_id, mode, minutes, group_cost_vnd, verified_at)
-  VALUES ('00000000-0000-0000-0000-000000000603'::uuid, '00000000-0000-0000-0000-000000000602'::uuid, 'walk', 10, 1125899906842624, now())$$,
-  '23514', NULL, 'unsafe travel group cost is rejected');
+  VALUES ('00000000-0000-0000-0000-000000000603'::uuid, '00000000-0000-0000-0000-000000000602'::uuid, 'walk', 10, 1125899906842624, now())$$::text, '23514'::character(5), NULL::text, 'unsafe travel group cost is rejected'::text);
 SELECT throws_ok($$INSERT INTO public.travel_snapshots (id, catalog_snapshot_id, status, published_at)
-  VALUES ('00000000-0000-0000-0000-000000000612'::uuid, '00000000-0000-0000-0000-000000000604'::uuid, 'published', now())$$,
-  '42501', NULL, 'travel snapshot must be built before publication');
+  VALUES ('00000000-0000-0000-0000-000000000612'::uuid, '00000000-0000-0000-0000-000000000604'::uuid, 'published', now())$$::text, '42501'::character(5), NULL::text, 'travel snapshot must be built before publication'::text);
 
 SET LOCAL ROLE localens_admin_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000605', true);
-SELECT lives_ok($$INSERT INTO pg_temp.travel_test_ids (name, snapshot_id)
-  VALUES ('published', private.create_travel_snapshot())$$, 'travel snapshot creator copies facts atomically');
+INSERT INTO pg_temp.travel_test_ids (name, snapshot_id)
+VALUES ('published', private.create_travel_snapshot());
 RESET ROLE;
+SELECT pass('travel snapshot creator copies facts atomically');
 
 SELECT is((SELECT count(*)::integer FROM public.travel_snapshot_edges e JOIN pg_temp.travel_test_ids ids ON ids.snapshot_id = e.snapshot_id AND ids.name = 'published'), 1, 'snapshot copies exactly the available directed edge');
 SELECT is((SELECT count(*)::integer FROM public.travel_snapshot_edges e JOIN pg_temp.travel_test_ids ids ON ids.snapshot_id = e.snapshot_id AND ids.name = 'published' WHERE e.from_place_id = '00000000-0000-0000-0000-000000000602'::uuid AND e.to_place_id = '00000000-0000-0000-0000-000000000620'::uuid), 0, 'edges outside catalog membership are filtered, not guessed');
@@ -162,9 +154,10 @@ SELECT is((SELECT count(*)::integer FROM public.travel_snapshot_edges e JOIN pg_
 SELECT lives_ok($$DELETE FROM public.travel_edges WHERE id = '00000000-0000-0000-0000-000000000607'::uuid$$, 'unpublished source edge can be deleted before the next snapshot');
 SET LOCAL ROLE localens_admin_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000605', true);
-SELECT lives_ok($$INSERT INTO pg_temp.travel_test_ids (name, snapshot_id)
-  VALUES ('empty', private.create_travel_snapshot())$$, 'travel snapshot creator preserves an empty directed graph');
+INSERT INTO pg_temp.travel_test_ids (name, snapshot_id)
+VALUES ('empty', private.create_travel_snapshot());
 RESET ROLE;
+SELECT pass('travel snapshot creator preserves an empty directed graph');
 SELECT is((SELECT count(*)::integer FROM public.travel_snapshots_v v JOIN pg_temp.travel_test_ids ids ON ids.snapshot_id = v.snapshot_id AND ids.name = 'empty'), 1, 'empty snapshot has one named envelope row');
 SELECT is((SELECT jsonb_array_length(v.edges) FROM public.travel_snapshots_v v JOIN pg_temp.travel_test_ids ids ON ids.snapshot_id = v.snapshot_id AND ids.name = 'empty'), 0, 'empty snapshot envelope contains a dense empty edge array');
 INSERT INTO public.travel_snapshots (id, catalog_snapshot_id, status)
@@ -179,8 +172,7 @@ SELECT throws_ok($$INSERT INTO public.travel_snapshot_edges (
     '00000000-0000-0000-0000-000000000602'::uuid,
     '00000000-0000-0000-0000-000000000607'::uuid,
     'walk', 25, 10000, now()
-  )$$,
-  '23503', NULL, 'snapshot edge endpoint must belong to the same catalog snapshot');
+  )$$::text, '23503'::character(5), NULL::text, 'snapshot edge endpoint must belong to the same catalog snapshot'::text);
 SELECT throws_ok($$INSERT INTO public.travel_snapshot_edges (
     snapshot_id, catalog_snapshot_id, source_edge_id, from_place_id, to_place_id, mode, minutes, group_cost_vnd, verified_at
   ) SELECT ids.snapshot_id, '00000000-0000-0000-0000-000000000604'::uuid,
@@ -188,12 +180,9 @@ SELECT throws_ok($$INSERT INTO public.travel_snapshot_edges (
     '00000000-0000-0000-0000-000000000602'::uuid,
     '00000000-0000-0000-0000-000000000603'::uuid,
     'walk', 25, 10000, now()
-    FROM pg_temp.travel_test_ids ids WHERE ids.name = 'published'$$,
-  '42501', NULL, 'published travel snapshot children cannot be inserted');
-SELECT throws_ok($$UPDATE public.travel_snapshot_edges SET minutes = 20$$,
-  '42501', NULL, 'travel snapshot history is immutable');
-SELECT throws_ok($$DELETE FROM public.travel_snapshots$$,
-  '42501', NULL, 'travel snapshot history cannot be deleted');
+    FROM pg_temp.travel_test_ids ids WHERE ids.name = 'published'$$::text, '42501'::character(5), NULL::text, 'published travel snapshot children cannot be inserted'::text);
+SELECT throws_ok($$UPDATE public.travel_snapshot_edges SET minutes = 20$$::text, '42501'::character(5), NULL::text, 'travel snapshot history is immutable'::text);
+SELECT throws_ok($$DELETE FROM public.travel_snapshots$$::text, '42501'::character(5), NULL::text, 'travel snapshot history cannot be deleted'::text);
 
 INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)
 VALUES ('00000000-0000-0000-0000-000000000608'::uuid, 25432.12000000, 'fixture', now(), 'demo', true);
@@ -203,21 +192,15 @@ INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environme
 VALUES ('00000000-0000-0000-0000-000000000617'::uuid, 25500.00000000, 'new-demo-fixture', now() - INTERVAL '1 hour', 'demo', true);
 SELECT is((SELECT count(*)::integer FROM public.fx_snapshots WHERE id IN ('00000000-0000-0000-0000-000000000616'::uuid, '00000000-0000-0000-0000-000000000617'::uuid)), 2, 'demo and production FX flags are accepted');
 SELECT throws_ok($$INSERT INTO public.fx_snapshots (vnd_per_usd, source, observed_at, environment, is_demo)
-  VALUES (0, 'fixture', now(), 'demo', true)$$,
-  '23514', NULL, 'non-positive FX is rejected');
+  VALUES (0, 'fixture', now(), 'demo', true)$$::text, '23514'::character(5), NULL::text, 'non-positive FX is rejected'::text);
 SELECT throws_ok($$INSERT INTO public.fx_snapshots (vnd_per_usd, source, observed_at, environment, is_demo)
-  VALUES (1, 'fixture', now(), 'demo', false)$$,
-  '23514', NULL, 'inconsistent FX demo flag is rejected');
+  VALUES (1, 'fixture', now(), 'demo', false)$$::text, '23514'::character(5), NULL::text, 'inconsistent FX demo flag is rejected'::text);
 SELECT throws_ok($$INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)
-  VALUES ('00000000-0000-0000-0000-000000000618'::uuid, 1, ' fixture ', now(), 'demo', true)$$,
-  '23514', NULL, 'FX source surrounding whitespace is rejected');
+  VALUES ('00000000-0000-0000-0000-000000000618'::uuid, 1, ' fixture ', now(), 'demo', true)$$::text, '23514'::character(5), NULL::text, 'FX source surrounding whitespace is rejected'::text);
 SELECT throws_ok($$INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)
-  VALUES ('00000000-0000-0000-0000-000000000619'::uuid, 1, E'fixture\n', now(), 'demo', true)$$,
-  '23514', NULL, 'FX source control characters are rejected');
-SELECT throws_ok($$UPDATE public.fx_snapshots SET source = 'changed'$$,
-  '42501', NULL, 'FX history is immutable');
-SELECT throws_ok($$DELETE FROM public.fx_snapshots$$,
-  '42501', NULL, 'FX history cannot be deleted');
+  VALUES ('00000000-0000-0000-0000-000000000619'::uuid, 1, E'fixture\n', now(), 'demo', true)$$::text, '23514'::character(5), NULL::text, 'FX source control characters are rejected'::text);
+SELECT throws_ok($$UPDATE public.fx_snapshots SET source = 'changed'$$::text, '42501'::character(5), NULL::text, 'FX history is immutable'::text);
+SELECT throws_ok($$DELETE FROM public.fx_snapshots$$::text, '42501'::character(5), NULL::text, 'FX history cannot be deleted'::text);
 INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)
 VALUES ('00000000-0000-0000-0000-000000000609'::uuid, 25000.00000000, 'stale-fixture', now() - INTERVAL '8 days', 'demo', true);
 INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environment, is_demo)

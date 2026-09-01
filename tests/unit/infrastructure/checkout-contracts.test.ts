@@ -257,7 +257,18 @@ describe("Task 9 checkout contracts", () => {
     expect(pgTap).toMatch(/oversell|capacity/i);
     expect(pgTap).toMatch(/hostile search path|search_path/i);
     expect(migration).toMatch(/CREATE ROLE localens_booking_projection_owner[\s\S]*NOLOGIN[\s\S]*NOBYPASSRLS/i);
-    expect(migration).toMatch(/CREATE POLICY bookings_projection_owner_select[\s\S]*auth\.uid\(\)/i);
+    expect(migration).toMatch(/CREATE ROLE localens_checkout_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/CREATE ROLE localens_availability_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/CREATE ROLE localens_booking_projection_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/unsafe pre-existing LocalLens booking role attributes/);
+    expect(migration).not.toMatch(/ALTER ROLE localens_/);
+    for (const role of ["localens_checkout_rpc_owner", "localens_availability_rpc_owner", "localens_booking_projection_owner"]) {
+      expect(migration).toContain(`GRANT ${role} TO postgres WITH SET TRUE, INHERIT FALSE;`);
+    }
+    expect(migration).toMatch(/REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth[\s\S]*GRANT CREATE ON SCHEMA private TO localens_identity_rpc_owner, localens_checkout_rpc_owner/);
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_availability_rpc_owner, localens_booking_projection_owner/);
+    expect(migration).toMatch(/GRANT INSERT ON TABLE private\.audit_events TO localens_identity_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA private FROM localens_identity_rpc_owner, localens_checkout_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_availability_rpc_owner, localens_booking_projection_owner;[\s\S]*COMMIT/);
+    expect(migration).toMatch(/CREATE POLICY bookings_projection_owner_select[\s\S]*request\.jwt\.claim\.sub/i);
     expect(migration).toMatch(/WITH \(security_invoker\s*=\s*false,\s*security_barrier\s*=\s*true\)/i);
     expect(migration).not.toMatch(/security_invoker\s*=\s*true/i);
     expect(migration).toMatch(/REVOKE ALL ON TABLE public\.bookings[\s\S]*FROM PUBLIC, anon, authenticated/i);

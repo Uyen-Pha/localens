@@ -151,7 +151,7 @@ describe("guest quota migration contract", () => {
     expect(migration).not.toMatch(/GRANT UPDATE \(id\) ON TABLE private\.quota_reservations/);
     const reservationFunction = migration.slice(migration.indexOf("CREATE OR REPLACE FUNCTION private.reserve_quota"));
     expect(reservationFunction).not.toMatch(/FROM private\.quota_reservations[\s\S]{0,180}FOR UPDATE/);
-    expect(reservationFunction).toMatch(/INSERT INTO private\.quota_reservations[\s\S]*ON CONFLICT \(reservation_id\) DO NOTHING[\s\S]*RETURNING/);
+    expect(reservationFunction).toMatch(/INSERT INTO private\.quota_reservations[\s\S]*ON CONFLICT ON CONSTRAINT quota_reservations_reservation_id_key DO NOTHING[\s\S]*RETURNING/);
     expect(reservationFunction).toMatch(/state\s*:=\s*'created'/);
     expect(reservationFunction).toMatch(/state\s*:=\s*'replayed'/);
     expect(reservationFunction).toMatch(/existing\.kind IS DISTINCT FROM p_kind[\s\S]*existing\.bucket_hashes IS DISTINCT FROM expected_hashes/);
@@ -159,7 +159,7 @@ describe("guest quota migration contract", () => {
     expect(migration).toMatch(/CREATE POLICY quota_reservations_quota_owner_select[\s\S]*FOR SELECT/);
     expect(migration).toMatch(/CREATE POLICY quota_reservations_quota_owner_insert[\s\S]*FOR INSERT/);
     expect(migration).toMatch(/pg_auth_members[\s\S]*JOIN pg_catalog\.pg_roles AS parent_role[\s\S]*JOIN pg_catalog\.pg_roles AS member_role/);
-    expect(migration).toMatch(/WHERE parent_role\.rolname[\s\S]*ANY\(protected_roles\)[\s\S]*OR member_role\.rolname[\s\S]*ANY\(protected_roles\)/);
+    expect(migration).toMatch(/WHERE \(parent_role\.rolname[\s\S]*ANY\(protected_roles\)[\s\S]*OR member_role\.rolname[\s\S]*ANY\(protected_roles\)/);
     expect(migration).toMatch(/localens_plan_rpc_owner[\s\S]*localens_plan_guard_owner/);
     expect(migration).not.toMatch(/GRANT UPDATE \(id\) ON TABLE private\.(?:guest_bindings|guest_capabilities) TO localens_plan_rpc_owner/);
     const persistFunction = migration.slice(
@@ -200,7 +200,22 @@ describe("guest quota migration contract", () => {
     for (const role of protectedRoles) {
       expect(migration).toContain(`'${role}'`);
     }
-    expect(migration).toMatch(/FROM pg_catalog\.pg_auth_members[\s\S]*WHERE parent_role\.rolname = ANY\(protected_roles\)[\s\S]*OR member_role\.rolname = ANY\(protected_roles\)/);
+    expect(migration).toMatch(/FROM pg_catalog\.pg_auth_members[\s\S]*WHERE \(parent_role\.rolname = ANY\(protected_roles\)[\s\S]*OR member_role\.rolname = ANY\(protected_roles\)/);
+    expect(migration).toMatch(/member_role\.rolname = 'postgres'[\s\S]*memberships\.set_option[\s\S]*NOT memberships\.inherit_option/);
+    for (const role of protectedRoles) {
+      expect(migration).toContain(`GRANT ${role} TO postgres WITH SET TRUE, INHERIT FALSE;`);
+    }
+    expect(databaseFixture).toMatch(/definer and executor memberships are limited to postgres SET access without inheritance/);
+  });
+
+  it("creates hardened roles and balances temporary owner schema privileges", () => {
+    expect(migration).toMatch(/CREATE ROLE localens_guest_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/CREATE ROLE localens_guest_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION LOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/unsafe pre-existing LocalLens guest or quota role attributes/);
+    expect(migration).toMatch(/REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth[\s\S]*GRANT CREATE ON SCHEMA private TO localens_plan_rpc_owner, localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner/);
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_plan_rpc_owner, localens_claim_rpc_owner/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.advance_trip_plan_revision[\s\S]*RESET ROLE;[\s\S]*ALTER FUNCTION private\.advance_trip_plan_revision/);
+    expect(migration).toMatch(/ALTER FUNCTION private\.reserve_quota[\s\S]*OWNER TO localens_quota_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA private FROM localens_plan_rpc_owner, localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_plan_rpc_owner, localens_claim_rpc_owner;[\s\S]*COMMIT/);
   });
 
   it("samples claim expiry time after all authority locks", () => {
@@ -215,13 +230,13 @@ describe("guest quota migration contract", () => {
   it("defines database-owned expiry, claim-once, and atomic quota limits", () => {
     expect(migration).toMatch(/expires_at timestamptz NOT NULL DEFAULT[^\n]*INTERVAL '24 hours'/);
     expect(migration).toMatch(/owner_user_id IS (?:NULL|NOT NULL)[\s\S]*expires_at (?:>|<=) pg_catalog\.clock_timestamp\(\)/);
-    expect(migration).toMatch(/actor_user_id := \(SELECT auth\.uid\(\)\)/);
+    expect(migration).toMatch(/actor_user_id := NULLIF\(pg_catalog\.current_setting\('request\.jwt\.claim\.sub', true\), ''\)::uuid/);
     expect(migration).toMatch(/UPDATE public\.trip_plans[\s\S]*owner_user_id = p_actor_user_id/);
     expect(migration).toMatch(/planner[\s\S]*30/);
     expect(migration).toMatch(/gemini[\s\S]*5/);
     expect(migration).toMatch(/global[\s\S]*100/);
     expect(migration).toMatch(/FOR UPDATE/);
-    expect(migration).toMatch(/ON CONFLICT \(reservation_id\)/);
+    expect(migration).toMatch(/ON CONFLICT ON CONSTRAINT quota_reservations_reservation_id_key/);
   });
 
   it("reserves both buckets deterministically and keeps failed model attempts consumed", () => {

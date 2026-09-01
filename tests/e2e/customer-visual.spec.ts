@@ -336,7 +336,10 @@ async function prepareProtectedCustomerRoute(page: Page, routeName: (typeof rout
     has: page.getByRole("heading", { name: "Demo Traveler", exact: true }),
   });
   await expect(customerCard).toHaveCount(1);
-  await customerCard.getByRole("link", { name: "Continue as Customer", exact: true }).click();
+  await Promise.all([
+    page.waitForURL(/\/en\/account\/$/),
+    customerCard.getByRole("link", { name: "Continue as Customer", exact: true }).click(),
+  ]);
 
   if (routeName === "booking-en") return;
 

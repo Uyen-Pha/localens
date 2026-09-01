@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -39,6 +39,18 @@ function runChecker(root: string, ...args: string[]): { status: number; output: 
 }
 
 describe("static Supabase artifact gate", () => {
+  it("keeps LocalLens policies and definers independent from the restricted auth schema", () => {
+    const migrations = readdirSync(join(repoRoot, "supabase", "migrations"))
+      .filter((file) => file.endsWith(".sql"))
+      .sort()
+      .map((file) => readFileSync(join(repoRoot, "supabase", "migrations", file), "utf8"))
+      .join("\n");
+
+    expect(migrations).not.toMatch(/auth\.uid\(\)/i);
+    expect(migrations).not.toMatch(/GRANT (?:USAGE ON SCHEMA auth|EXECUTE ON FUNCTION auth\.uid\(\)) TO localens_/i);
+    expect(migrations).toMatch(/NULLIF\(pg_catalog\.current_setting\('request\.jwt\.claim\.sub', true\), ''\)::uuid/);
+  });
+
   it("requires the Task 2 identity migration and deferred pgTAP artifact", () => {
     const required = [
       join(repoRoot, "supabase", "migrations", "20260823090000_extensions_enums.sql"),
@@ -150,13 +162,22 @@ describe("static Supabase artifact gate", () => {
     expect(identity).toMatch(/REVOKE TRUNCATE ON TABLE private\.audit_events FROM PUBLIC, anon, authenticated/i);
 
     for (const owner of ownerRoles) {
-      const ownerDefinition = new RegExp(`ALTER ROLE ${owner} NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS`, "i");
+      const ownerDefinition = new RegExp(`CREATE ROLE ${owner} NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS`, "i");
       expect(identity).toMatch(ownerDefinition);
+      expect(identity).toMatch(new RegExp(`GRANT ${owner} TO postgres WITH SET TRUE, INHERIT FALSE`, "i"));
     }
+    expect(identity).toMatch(/pg_roles[\s\S]*rolsuper[\s\S]*rolreplication[\s\S]*rolbypassrls[\s\S]*RAISE EXCEPTION/i);
+    expect(identity).not.toMatch(/ALTER ROLE\s+localens_[a-z0-9_]+[\s\S]*?(?:NOSUPERUSER|NOREPLICATION|NOBYPASSRLS)/i);
+    expect(identity).toMatch(/GRANT CREATE ON SCHEMA private TO localens_auth_trigger_owner, localens_identity_rpc_owner, localens_audit_guard_owner/i);
+    expect(identity).toMatch(/GRANT CREATE ON SCHEMA public TO localens_admin_rpc_owner/i);
+    expect(identity.indexOf("GRANT CREATE ON SCHEMA private")).toBeLessThan(identity.indexOf("ALTER FUNCTION"));
+    expect(identity.lastIndexOf("REVOKE CREATE ON SCHEMA")).toBeGreaterThan(identity.lastIndexOf("ALTER FUNCTION"));
     expect(identity).not.toMatch(/ALTER FUNCTION [^;]+ OWNER TO (?:postgres|service_role)\s*;/i);
     expect(identity).toMatch(/REVOKE ALL ON SCHEMA public, private, auth FROM localens_auth_trigger_owner, localens_identity_rpc_owner, localens_admin_rpc_owner, localens_audit_guard_owner/i);
-    expect(identity).toMatch(/pg_auth_members[\s\S]*REVOKE/i);
-    expect(identity).toMatch(/GRANT EXECUTE ON FUNCTION auth\.uid\(\) TO localens_identity_rpc_owner, localens_admin_rpc_owner/i);
+    expect(identity).not.toMatch(/GRANT\s+localens_[a-z0-9_]+\s+TO\s+(?:anon|authenticated|service_role)/i);
+    expect(identity).not.toMatch(/GRANT (?:USAGE ON SCHEMA auth|EXECUTE ON FUNCTION auth\.uid\(\)) TO localens_/i);
+    expect(identity).toMatch(/NULLIF\(pg_catalog\.current_setting\('request\.jwt\.claim\.sub', true\), ''\)::uuid/i);
+    expect(identity).toMatch(/FROM private\.user_roles AS actor_roles[\s\S]*WHERE actor_roles\.user_id = actor_user_id[\s\S]*AND actor_roles\.role = 'admin'/i);
 
     expect(pgTap).toMatch(/INSERT INTO auth\.users[\s\S]*raw_user_meta_data/i);
     expect(pgTap).toMatch(/SELECT plan\(89\)/i);
@@ -172,6 +193,36 @@ describe("static Supabase artifact gate", () => {
     expect(pgTap).toMatch(/audit target rejects (?:IP|device|token|email|arbitrary)/i);
     expect(pgTap).toMatch(/audit actor FK restricts deletion/i);
     expect(pgTap).toMatch(/auth deletion cascades profile[\s\S]*auth deletion cascades guide profile[\s\S]*auth deletion cascades roles/i);
+  });
+
+  it("creates catalog owners with PostgreSQL 17-safe attributes and assignment access", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260823092000_catalog_snapshots.sql"), "utf8");
+
+    for (const owner of ["localens_catalog_rpc_owner", "localens_catalog_guard_owner"]) {
+      expect(migration).toMatch(new RegExp(`CREATE ROLE ${owner} NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS`, "i"));
+      expect(migration).toMatch(new RegExp(`GRANT ${owner} TO postgres WITH SET TRUE, INHERIT FALSE`, "i"));
+    }
+    expect(migration).not.toMatch(/ALTER ROLE\s+localens_catalog_[a-z0-9_]+[\s\S]*?(?:NOSUPERUSER|NOREPLICATION|NOBYPASSRLS)/i);
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA private TO localens_catalog_rpc_owner, localens_catalog_guard_owner/i);
+    expect(migration).toMatch(/REVOKE CREATE ON SCHEMA private FROM localens_catalog_rpc_owner, localens_catalog_guard_owner/i);
+  });
+
+  it("keeps EXTRACT as SQL syntax instead of schema-qualifying it like a function", () => {
+    const migrationSql = [
+      "20260823092000_catalog_snapshots.sql",
+      "20260828120000_food_catalog_snapshots.sql",
+    ].map((file) => readFileSync(join(repoRoot, "supabase", "migrations", file), "utf8")).join("\n");
+
+    expect(migrationSql).not.toMatch(/pg_catalog\.extract\s*\(/i);
+    expect(migrationSql).toMatch(/extract\s*\(epoch FROM/i);
+  });
+
+  it("balances temporary private-schema ownership access in travel and FX migration", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260823093000_travel_fx_snapshots.sql"), "utf8");
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA private TO localens_catalog_rpc_owner, localens_catalog_guard_owner/i);
+    expect(migration).toMatch(/REVOKE CREATE ON SCHEMA private FROM localens_catalog_rpc_owner, localens_catalog_guard_owner/i);
+    expect(migration.indexOf("GRANT CREATE ON SCHEMA private")).toBeLessThan(migration.indexOf("ALTER FUNCTION"));
+    expect(migration.indexOf("REVOKE CREATE ON SCHEMA private")).toBeGreaterThan(migration.lastIndexOf("ALTER FUNCTION"));
   });
 
   it("keeps Task 3B SQL identifiers within PostgreSQL's 63-byte limit and avoids trigger truncation collisions", () => {
@@ -195,6 +246,32 @@ describe("static Supabase artifact gate", () => {
       seen.set(key, name);
     }
     expect(collisions, "trigger names must remain unique after PostgreSQL truncation").toEqual([]);
+  });
+
+  it("balances food snapshot owner privileges and replaces the catalog creator as its owner", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260828120000_food_catalog_snapshots.sql"), "utf8");
+    expect(migration).toMatch(/BEGIN;[\s\S]*GRANT CREATE ON SCHEMA private TO localens_catalog_rpc_owner, localens_catalog_guard_owner/);
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_catalog_rpc_owner/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_catalog_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.create_catalog_snapshot\(\)[\s\S]*RESET ROLE/);
+    expect(migration).not.toMatch(/RESET ROLE;\s*ALTER FUNCTION private\.create_catalog_snapshot/);
+    expect(migration).toMatch(/GRANT SELECT ON public\.catalog_snapshot_food_items_v TO anon, authenticated;[\s\S]*REVOKE CREATE ON SCHEMA private FROM localens_catalog_rpc_owner, localens_catalog_guard_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_catalog_rpc_owner;[\s\S]*COMMIT/);
+  });
+
+  it("replaces Task 9 plan and quote artifacts as their existing PostgreSQL 17 owners", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260828123000_food_plan_quote_snapshots.sql"), "utf8");
+
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA private TO localens_plan_rpc_owner, localens_request_guard_owner, localens_request_admin_rpc_owner/);
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_request_admin_rpc_owner, localens_request_customer_rpc_owner/);
+    expect(migration).toMatch(/GRANT USAGE ON SCHEMA private TO localens_request_guard_owner/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*ALTER FUNCTION private\.validate_trip_plan_revision_dto\(jsonb\)[\s\S]*CREATE OR REPLACE FUNCTION private\.persist_trip_plan_revision[\s\S]*RESET ROLE;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_request_guard_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.reject_custom_quote_mutation\(\)[\s\S]*RESET ROLE;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_request_admin_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.create_custom_quote[\s\S]*CREATE OR REPLACE FUNCTION public\.create_custom_quote[\s\S]*RESET ROLE;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_request_customer_rpc_owner;[\s\S]*CREATE OR REPLACE VIEW public\.customer_custom_quotes_v[\s\S]*RESET ROLE;/);
+    expect(migration).not.toMatch(/auth\.uid\(\)/);
+    expect(migration.match(/NULLIF\(pg_catalog\.current_setting\('request\.jwt\.claim\.sub', true\), ''\)::uuid/g)).toHaveLength(2);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*ALTER FUNCTION private\.validate_food_plan_revision_dto\(jsonb\) OWNER TO localens_plan_rpc_owner;[\s\S]*RESET ROLE;/);
+    expect(migration).toMatch(/REVOKE CREATE ON SCHEMA private FROM localens_plan_rpc_owner, localens_request_guard_owner, localens_request_admin_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_request_admin_rpc_owner, localens_request_customer_rpc_owner;[\s\S]*COMMIT;/);
+    expect(migration).toMatch(/REVOKE USAGE ON SCHEMA private FROM localens_request_guard_owner;[\s\S]*COMMIT;/);
   });
 
   it("requires Task 3C published food projection views to expose immutable dense rows", () => {
@@ -232,6 +309,16 @@ describe("static Supabase artifact gate", () => {
     expect(pgTap).toMatch(/catalog_snapshot_food_items_v[\s\S]*decimal/i);
   });
 
+  it("correlates vendor opening hours before closing the JSON aggregate", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260828120000_food_catalog_snapshots.sql"), "utf8");
+    const vendorProjection = migration.slice(
+      migration.indexOf("CREATE OR REPLACE VIEW public.catalog_snapshot_food_vendors_v"),
+      migration.indexOf("CREATE OR REPLACE VIEW public.catalog_snapshot_food_items_v"),
+    );
+
+    expect(vendorProjection).toMatch(/SELECT jsonb_agg\(jsonb_build_object\([\s\S]*?ORDER BY h\.weekday, h\.opens_at, h\.closes_at, h\.opening_id\)[\s\S]*?FROM public\.catalog_snapshot_food_vendor_opening_hours AS h[\s\S]*?WHERE h\.snapshot_id = v\.snapshot_id[\s\S]*?AND h\.vendor_id = v\.vendor_id[\s\S]*?\), '\[\]'::jsonb\) AS opening_hours/i);
+  });
+
   it("guards a published vendor when its food item loses availability, status, owner, or row", () => {
     const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260828120000_food_catalog_snapshots.sql"), "utf8");
     const pgTap = readFileSync(join(repoRoot, "supabase", "tests", "database", "food_catalog_test.sql"), "utf8");
@@ -243,8 +330,8 @@ describe("static Supabase artifact gate", () => {
     expect(pgTap).toMatch(/UPDATE public\.food_items SET status = 'draft'/i);
     expect(pgTap).toMatch(/UPDATE public\.food_items SET food_vendor_id =/i);
     expect(pgTap).toMatch(/DELETE FROM public\.food_items/i);
-    const plan = pgTap.match(/^SELECT plan\((\d+)\);$/im);
-    const executableAssertions = pgTap.match(/^SELECT (?:ok|is|throws_ok|lives_ok)\b/gm) ?? [];
+    const plan = pgTap.match(/^SELECT\s+plan\((\d+)\);$/im);
+    const executableAssertions = pgTap.match(/^SELECT\s+(?:extensions\.)?(?:ok|is|isnt|like|unlike|pass|throws_ok|lives_ok|has_table_privilege|has_function_privilege)\s*\(/gm) ?? [];
     expect(plan, "food pgTAP must declare an executable assertion plan").not.toBeNull();
     expect(Number(plan?.[1]), "food pgTAP plan must match executable assertion count").toBe(executableAssertions.length);
   });
@@ -263,7 +350,7 @@ describe("static Supabase artifact gate", () => {
     expect(pgTap).toMatch(/food_item_supports[\s\S]*?00000000-0000-0000-0000-000000000406[\s\S]*?'dietary'[\s\S]*?00000000-0000-0000-0000-000000000406[\s\S]*?'allergen'/i);
     expect(pgTap).toMatch(/explicit zero prices publish with complete evidence/i);
     expect(pgTap).toMatch(/'zero-price-dish',\s*'draft',\s*'portion',\s*0,\s*0,\s*'Complimentary portion',\s*false,/i);
-    expect(pgTap).toMatch(/'23503', NULL, 'food item delete is blocked by restrictive child foreign keys'/i);
+    expect(pgTap).toMatch(/'23503'::character\(5\), NULL::text, 'food item delete is blocked by restrictive child foreign keys'::text/i);
   });
 
   it("passes an empty migration directory because seed data is optional", () => {

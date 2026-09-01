@@ -292,6 +292,7 @@ describe("Task 8 SQL contract", () => {
     expect(migration).toMatch(/UNIQUE INDEX custom_requests_one_active_per_plan[\s\S]*status IN \('draft', 'pending_review', 'changes_requested', 'approved'\)/);
     expect(migration).toMatch(/UNIQUE INDEX custom_quotes_one_sellable_per_request[\s\S]*status IN \('active', 'checkout_pending'\)/);
     expect(migration).toMatch(/valid_until[\s\S]*created_at[\s\S]*48 hours/);
+    expect(migration).toMatch(/valid_until timestamptz GENERATED ALWAYS AS \(\s*pg_catalog\.timezone\('UTC', pg_catalog\.timezone\('UTC', created_at\) \+ interval '48 hours'\)\s*\) STORED/);
     expect(migration).toMatch(/checkout_amount_minor[\s\S]*amount_vnd_minor/);
     expect(migration).toMatch(/amount_vnd_minor bigint NOT NULL CHECK \(amount_vnd_minor BETWEEN 1 AND 9007199254740991\)/);
     expect(migration).toMatch(/fx_vnd_per_usd numeric\(20,8\)/);
@@ -305,16 +306,28 @@ describe("Task 8 SQL contract", () => {
     expect(migration).toMatch(/request_row\.owner_user_id IS DISTINCT FROM actor_user_id[\s\S]*p_revision_no <= request_row\.revision_no/);
     expect(migration).toMatch(/status = 'draft'[\s\S]*status = 'pending_review'/);
     expect(migration).toMatch(/OLD\.id IS DISTINCT FROM NEW\.id[\s\S]*custom request facts are immutable/);
-    expect(migration).toMatch(/CREATE ROLE localens_request_customer_rpc_owner NOLOGIN NOINHERIT NOBYPASSRLS/);
-    expect(migration).toMatch(/CREATE ROLE localens_request_admin_rpc_owner NOLOGIN NOINHERIT NOBYPASSRLS/);
-    expect(migration).toMatch(/CREATE ROLE localens_request_guard_owner NOLOGIN NOINHERIT NOBYPASSRLS/);
+    expect(migration).toMatch(/CREATE ROLE localens_request_customer_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/CREATE ROLE localens_request_admin_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/CREATE ROLE localens_request_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
     expect(migration).toMatch(/localens_request_customer_rpc_owner[\s\S]*localens_request_admin_rpc_owner[\s\S]*localens_request_guard_owner/);
     expect(migration).toMatch(/localens_request_customer_rpc_owner[\s\S]*localens_request_admin_rpc_owner[\s\S]*localens_request_guard_owner[\s\S]*protected_roles constant text\[\]/);
-    expect(migration).toMatch(/ALTER ROLE localens_request_customer_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
-    expect(migration).toMatch(/ALTER ROLE localens_request_admin_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
-    expect(migration).toMatch(/ALTER ROLE localens_request_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
-    expect(migration).toMatch(/ALTER ROLE localens_guest_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION LOGIN NOBYPASSRLS/);
-    expect(migration).toMatch(/ALTER ROLE localens_quota_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION LOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/unsafe pre-existing LocalLens protected role attributes or login class/);
+    expect(migration).not.toMatch(/ALTER ROLE localens_/);
+    expect(migration).toMatch(/member\.rolname = 'postgres'[\s\S]*memberships\.set_option[\s\S]*NOT memberships\.inherit_option/);
+    for (const role of [
+      "localens_auth_trigger_owner", "localens_identity_rpc_owner", "localens_admin_rpc_owner",
+      "localens_audit_guard_owner", "localens_catalog_rpc_owner", "localens_catalog_guard_owner",
+      "localens_tour_rpc_owner", "localens_tour_guard_owner", "localens_plan_rpc_owner",
+      "localens_plan_guard_owner", "localens_guest_rpc_owner", "localens_claim_rpc_owner",
+      "localens_quota_rpc_owner", "localens_guest_executor", "localens_quota_executor",
+      "localens_webhook_executor", "localens_build_executor", "localens_request_customer_rpc_owner",
+      "localens_request_admin_rpc_owner", "localens_request_guard_owner",
+    ]) {
+      expect(migration).toContain(`GRANT ${role} TO postgres WITH SET TRUE, INHERIT FALSE;`);
+    }
+    expect(migration).toMatch(/REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth[\s\S]*GRANT CREATE ON SCHEMA private TO localens_identity_rpc_owner, localens_request_customer_rpc_owner, localens_request_admin_rpc_owner, localens_request_guard_owner/);
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner/);
+    expect(migration).toMatch(/REVOKE INSERT ON TABLE private\.audit_events[\s\S]*REVOKE CREATE ON SCHEMA private FROM localens_identity_rpc_owner, localens_request_customer_rpc_owner, localens_request_admin_rpc_owner, localens_request_guard_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;[\s\S]*COMMIT/);
     expect(migration).toMatch(/GRANT UPDATE \(revision_id, revision_no, status, submitted_at, updated_at\)[\s\S]*ON TABLE public\.custom_requests TO localens_request_customer_rpc_owner/);
     expect(migration).toMatch(/GRANT UPDATE \(status, latest_decision_at, updated_at\)[\s\S]*ON TABLE public\.custom_requests TO localens_request_admin_rpc_owner/);
     expect(migration).toMatch(/GRANT UPDATE \(id\) ON TABLE public\.trip_plans TO localens_request_customer_rpc_owner/);
@@ -356,7 +369,7 @@ describe("Task 8 SQL contract", () => {
   });
 
   it("defines guarded wrappers, fixed search paths, explicit grants, and safe projections", () => {
-    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.submit_custom_request\(\s*plan_id uuid,\s*revision_no integer\s*\)[\s\S]*auth\.uid\(\)/);
+    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.submit_custom_request\(\s*plan_id uuid,\s*revision_no integer\s*\)[\s\S]*request\.jwt\.claim\.sub/);
     expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.review_custom_request\(\s*request_id uuid,\s*decision public\.request_status,\s*note text\s*\)/);
     expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.create_custom_quote\([\s\S]*amount_vnd_minor bigint[\s\S]*checkout_currency public\.checkout_currency/);
     expect(migration).toMatch(/CREATE OR REPLACE FUNCTION private\.record_request_quote_audit_event/);
@@ -394,7 +407,7 @@ describe("Task 8 SQL contract", () => {
   it("contains the executable pgTAP contract with a mechanically exact plan", () => {
     expect(pgTap).toMatch(/BEGIN;/);
     expect(pgTap).toMatch(/SELECT plan\(\d+\);/);
-    const assertions = pgTap.match(/^SELECT (?:ok|is|isnt|like|unlike|throws_ok|lives_ok|has_table_privilege|has_function_privilege)\(/gim) ?? [];
+    const assertions = pgTap.match(/^SELECT\s+(?:extensions\.)?(?:ok|is|isnt|like|unlike|throws_ok|lives_ok|has_table_privilege|has_function_privilege)\s*\(/gim) ?? [];
     const planned = Number(pgTap.match(/SELECT plan\((\d+)\);/)?.[1]);
     expect(assertions.length).toBe(planned);
     expect(pgTap).toMatch(/SET LOCAL ROLE authenticated/);

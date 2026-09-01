@@ -1,5 +1,12 @@
 BEGIN;
 
+-- PostgreSQL 17 requires the current role to own an existing function/view
+-- before it can be renamed or replaced. Grant only transaction-scoped build
+-- capability, assume each named owner for its own artifacts, then revoke it.
+GRANT CREATE ON SCHEMA private TO localens_plan_rpc_owner, localens_request_guard_owner, localens_request_admin_rpc_owner;
+GRANT CREATE ON SCHEMA public TO localens_request_admin_rpc_owner, localens_request_customer_rpc_owner;
+GRANT USAGE ON SCHEMA private TO localens_request_guard_owner;
+
 -- Task 9 adds only append-safe columns.  Existing rows remain valid as
 -- historical no-food revisions/quotes; every new write is checked by the
 -- guarded RPCs below.
@@ -142,6 +149,8 @@ GRANT SELECT (food_snapshot, food_estimate_min_vnd, food_estimate_max_vnd,
 -- The historical validator is retained under a private alias while the new
 -- validator adds Task 8 food material checks.  The public function name stays
 -- stable for Task 7 guest/authenticated persistence callers.
+SET LOCAL ROLE localens_plan_rpc_owner;
+
 ALTER FUNCTION private.validate_trip_plan_revision_dto(jsonb)
   RENAME TO validate_trip_plan_revision_dto_legacy;
 
@@ -478,7 +487,6 @@ BEGIN
   RETURN private.validate_food_plan_revision_dto(persistence_dto);
 END;
 $function$;
-ALTER FUNCTION private.validate_trip_plan_revision_dto(jsonb) OWNER TO localens_plan_rpc_owner;
 REVOKE ALL ON FUNCTION private.validate_trip_plan_revision_dto(jsonb) FROM PUBLIC, anon, authenticated;
 
 -- Replace the shared persistence helper while preserving guest capability,
@@ -598,7 +606,7 @@ BEGIN
     (dto->>'totalCostVnd')::bigint, (dto->>'totalDurationMinutes')::integer,
     COALESCE(ARRAY(SELECT values.value::uuid FROM jsonb_array_elements_text(dto->'lockedPlaceIds') AS values(value)), '{}'::uuid[]),
     p_actor_user_id
-  ) ON CONFLICT (plan_id, revision_no) DO NOTHING RETURNING id INTO new_revision_id;
+  ) ON CONFLICT ON CONSTRAINT trip_plan_revisions_plan_id_revision_no_key DO NOTHING RETURNING id INTO new_revision_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'STALE_REVISION' USING ERRCODE = 'P0001', DETAIL = 'STALE_REVISION'; END IF;
 
   INSERT INTO public.trip_plan_items (
@@ -636,12 +644,14 @@ BEGIN
   RETURN NEXT;
 END;
 $function$;
-ALTER FUNCTION private.persist_trip_plan_revision(uuid, integer, jsonb, uuid, uuid, text, smallint) OWNER TO localens_plan_rpc_owner;
 REVOKE ALL ON FUNCTION private.persist_trip_plan_revision(uuid, integer, jsonb, uuid, uuid, text, smallint) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.persist_trip_plan_revision(uuid, integer, jsonb, uuid, uuid, text, smallint) TO localens_guest_rpc_owner;
+RESET ROLE;
 
 -- Quote commercial facts remain immutable; only the existing guarded state
 -- machine may change status after this migration.
+SET LOCAL ROLE localens_request_guard_owner;
+
 CREATE OR REPLACE FUNCTION private.reject_custom_quote_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -663,7 +673,6 @@ BEGIN
      OR OLD.title_vi IS DISTINCT FROM NEW.title_vi
      OR OLD.policy IS DISTINCT FROM NEW.policy
      OR OLD.created_at IS DISTINCT FROM NEW.created_at
-     OR OLD.valid_until IS DISTINCT FROM NEW.valid_until
      OR OLD.food_snapshot IS DISTINCT FROM NEW.food_snapshot
      OR OLD.food_estimate_min_vnd IS DISTINCT FROM NEW.food_estimate_min_vnd
      OR OLD.food_estimate_max_vnd IS DISTINCT FROM NEW.food_estimate_max_vnd
@@ -685,8 +694,10 @@ BEGIN
   RETURN NEW;
 END;
 $function$;
-ALTER FUNCTION private.reject_custom_quote_mutation() OWNER TO localens_request_guard_owner;
 REVOKE ALL ON FUNCTION private.reject_custom_quote_mutation() FROM PUBLIC, anon, authenticated;
+RESET ROLE;
+
+SET LOCAL ROLE localens_request_admin_rpc_owner;
 
 CREATE OR REPLACE FUNCTION private.create_custom_quote(
   p_request_id uuid,
@@ -703,7 +714,7 @@ SET search_path = ''
 SET statement_timeout = '5s'
 AS $function$
 DECLARE
-  actor_user_id uuid := (SELECT auth.uid());
+  actor_user_id uuid := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   plan_row public.trip_plans%ROWTYPE;
   request_row public.custom_requests%ROWTYPE;
   revision_row public.trip_plan_revisions%ROWTYPE;
@@ -764,9 +775,9 @@ BEGIN
      OR request_row.revision_no IS DISTINCT FROM revision_row.revision_no THEN
     RAISE EXCEPTION 'custom request operation failed' USING ERRCODE = 'P0001';
   END IF;
-  SELECT * INTO existing_quote FROM public.custom_quotes
-    WHERE request_id = request_row.id AND status IN ('active', 'checkout_pending')
-    ORDER BY id LIMIT 1 FOR UPDATE;
+  SELECT * INTO existing_quote FROM public.custom_quotes AS quotes
+    WHERE quotes.request_id = request_row.id AND quotes.status IN ('active', 'checkout_pending')
+    ORDER BY quotes.id LIMIT 1 FOR UPDATE;
   IF FOUND THEN RAISE EXCEPTION 'custom request operation failed' USING ERRCODE = 'P0001'; END IF;
   authority_time := pg_catalog.clock_timestamp();
 
@@ -963,8 +974,6 @@ BEGIN
   RETURN NEXT;
 END;
 $function$;
-ALTER FUNCTION private.create_custom_quote(uuid, bigint, public.checkout_currency, text, text, text)
-  OWNER TO localens_request_admin_rpc_owner;
 REVOKE ALL ON FUNCTION private.create_custom_quote(uuid, bigint, public.checkout_currency, text, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.create_custom_quote(uuid, bigint, public.checkout_currency, text, text, text)
   TO localens_request_admin_rpc_owner;
@@ -990,14 +999,15 @@ BEGIN
   FROM private.create_custom_quote(request_id, amount_vnd_minor, checkout_currency, title_en, title_vi, policy) AS created;
 END;
 $function$;
-ALTER FUNCTION public.create_custom_quote(uuid, bigint, public.checkout_currency, text, text, text)
-  OWNER TO localens_request_admin_rpc_owner;
 REVOKE ALL ON FUNCTION public.create_custom_quote(uuid, bigint, public.checkout_currency, text, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_custom_quote(uuid, bigint, public.checkout_currency, text, text, text) TO authenticated;
+RESET ROLE;
 
 -- Extend the safe customer view without exposing owner/admin fields.  The
 -- checkout amount remains the LocalLens-payable amount; pay-at-vendor totals
 -- are display-only estimates and are never read by Stripe checkout RPCs.
+SET LOCAL ROLE localens_request_customer_rpc_owner;
+
 CREATE OR REPLACE VIEW public.customer_custom_quotes_v
 WITH (security_invoker = false, security_barrier = true)
 AS
@@ -1019,13 +1029,17 @@ SELECT
 FROM public.custom_quotes AS quotes
 JOIN public.custom_requests AS requests ON requests.id = quotes.request_id
 JOIN public.profiles AS owners ON owners.id = requests.owner_user_id
-WHERE requests.owner_user_id = (SELECT auth.uid());
-ALTER VIEW public.customer_custom_quotes_v OWNER TO localens_request_customer_rpc_owner;
+WHERE requests.owner_user_id = NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
 REVOKE ALL ON public.customer_custom_quotes_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.customer_custom_quotes_v TO authenticated;
+RESET ROLE;
 
 -- The existing start_checkout_tx and webhook finalizer continue to validate
 -- only custom_quotes.amount_vnd_minor/checkout_amount_minor and currency.
 -- They intentionally do not consult pay_at_vendor_min_vnd/max_vnd.
+
+REVOKE CREATE ON SCHEMA private FROM localens_plan_rpc_owner, localens_request_guard_owner, localens_request_admin_rpc_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_request_admin_rpc_owner, localens_request_customer_rpc_owner;
+REVOKE USAGE ON SCHEMA private FROM localens_request_guard_owner;
 
 COMMIT;

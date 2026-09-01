@@ -6,20 +6,23 @@ BEGIN;
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_guide_assignment_rpc_owner') THEN
-    EXECUTE 'CREATE ROLE localens_guide_assignment_rpc_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_guide_assignment_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_guide_projection_owner') THEN
-    EXECUTE 'CREATE ROLE localens_guide_projection_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_guide_projection_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_guide_assignment_guard_owner') THEN
-    EXECUTE 'CREATE ROLE localens_guide_assignment_guard_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_guide_assignment_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE rolname IN ('localens_guide_assignment_rpc_owner', 'localens_guide_projection_owner', 'localens_guide_assignment_guard_owner')
+      AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolcanlogin OR rolreplication OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'unsafe pre-existing LocalLens guide assignment role attributes';
   END IF;
 END
 $roles$;
-
-ALTER ROLE localens_guide_assignment_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_guide_projection_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_guide_assignment_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
 
 DO $memberships$
 DECLARE
@@ -30,7 +33,7 @@ BEGIN
     FROM pg_catalog.pg_auth_members AS memberships
     JOIN pg_catalog.pg_roles AS granted ON granted.oid = memberships.roleid
     JOIN pg_catalog.pg_roles AS member ON member.oid = memberships.member
-    WHERE granted.rolname IN (
+    WHERE (granted.rolname IN (
       'localens_guide_assignment_rpc_owner',
       'localens_guide_projection_owner',
       'localens_guide_assignment_guard_owner'
@@ -39,6 +42,11 @@ BEGIN
       'localens_guide_assignment_rpc_owner',
       'localens_guide_projection_owner',
       'localens_guide_assignment_guard_owner'
+    ))
+    AND NOT (
+      member.rolname = 'postgres'
+      AND memberships.set_option
+      AND NOT memberships.inherit_option
     )
   LOOP
     EXECUTE pg_catalog.format('REVOKE %I FROM %I', membership_record.granted_role, membership_record.member_role);
@@ -46,14 +54,18 @@ BEGIN
 END
 $memberships$;
 
+GRANT localens_guide_assignment_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_guide_projection_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_guide_assignment_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+
 REVOKE ALL ON SCHEMA public, private, auth
   FROM localens_guide_assignment_rpc_owner, localens_guide_projection_owner, localens_guide_assignment_guard_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth
   FROM localens_guide_assignment_rpc_owner, localens_guide_projection_owner, localens_guide_assignment_guard_owner;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public, private
   FROM localens_guide_assignment_rpc_owner, localens_guide_projection_owner, localens_guide_assignment_guard_owner;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth
-  FROM localens_guide_assignment_rpc_owner, localens_guide_projection_owner, localens_guide_assignment_guard_owner;
+GRANT CREATE ON SCHEMA private TO localens_guide_assignment_rpc_owner, localens_guide_assignment_guard_owner;
+GRANT CREATE ON SCHEMA public TO localens_guide_assignment_rpc_owner, localens_guide_projection_owner;
 
 CREATE OR REPLACE FUNCTION private.valid_guide_requirement_flags(value text[], kind text)
 RETURNS boolean
@@ -130,6 +142,10 @@ CREATE POLICY guide_assignments_projection_owner_select ON public.guide_assignme
 CREATE POLICY bookings_guide_assignment_owner_select ON public.bookings
   FOR SELECT TO localens_guide_assignment_rpc_owner, localens_guide_projection_owner
   USING (current_user IN ('localens_guide_assignment_rpc_owner', 'localens_guide_projection_owner'));
+CREATE POLICY bookings_guide_assignment_owner_lock ON public.bookings
+  FOR UPDATE TO localens_guide_assignment_rpc_owner
+  USING (current_user = 'localens_guide_assignment_rpc_owner')
+  WITH CHECK (current_user = 'localens_guide_assignment_rpc_owner');
 CREATE POLICY departures_guide_assignment_owner_select ON public.departures
   FOR SELECT TO localens_guide_assignment_rpc_owner, localens_guide_projection_owner
   USING (current_user IN ('localens_guide_assignment_rpc_owner', 'localens_guide_projection_owner'));
@@ -156,11 +172,11 @@ CREATE POLICY trip_plan_revisions_guide_assignment_owner_select ON public.trip_p
   USING (current_user = 'localens_guide_assignment_rpc_owner');
 
 GRANT USAGE ON SCHEMA public, private TO localens_guide_assignment_rpc_owner, localens_guide_projection_owner, localens_guide_assignment_guard_owner;
-GRANT USAGE ON SCHEMA auth TO localens_guide_assignment_rpc_owner, localens_guide_projection_owner;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.guide_assignments TO localens_guide_assignment_rpc_owner;
 GRANT SELECT ON TABLE public.guide_assignments TO localens_guide_projection_owner;
-GRANT SELECT (id, source_kind, departure_id, tour_version_id, status, title_en, title_vi, party_size, language, meeting_point)
+GRANT SELECT (id, source_kind, departure_id, tour_version_id, status, quote_id, title_en, title_vi, party_size, language, meeting_point)
   ON TABLE public.bookings TO localens_guide_assignment_rpc_owner, localens_guide_projection_owner;
+GRANT UPDATE (id) ON TABLE public.bookings TO localens_guide_assignment_rpc_owner;
 GRANT SELECT (id, tour_version_id, start_at, end_at, status)
   ON TABLE public.departures TO localens_guide_assignment_rpc_owner, localens_guide_projection_owner;
 GRANT SELECT (user_id, language) ON TABLE public.guide_profiles TO localens_guide_assignment_rpc_owner, localens_guide_projection_owner;
@@ -169,8 +185,9 @@ GRANT INSERT ON TABLE private.audit_events TO localens_guide_assignment_rpc_owne
 GRANT SELECT (id, request_id) ON TABLE public.custom_quotes TO localens_guide_assignment_rpc_owner;
 GRANT SELECT (id, plan_id, revision_id, revision_no) ON TABLE public.custom_requests TO localens_guide_assignment_rpc_owner;
 GRANT SELECT (id, plan_id, revision_no, request_json) ON TABLE public.trip_plan_revisions TO localens_guide_assignment_rpc_owner;
-GRANT EXECUTE ON FUNCTION auth.uid() TO localens_guide_assignment_rpc_owner, localens_guide_projection_owner;
+SET LOCAL ROLE localens_guide_assignment_guard_owner;
 GRANT EXECUTE ON FUNCTION private.valid_guide_requirement_flags(text[], text) TO localens_guide_assignment_rpc_owner;
+RESET ROLE;
 
 REVOKE ALL ON TABLE public.guide_assignments FROM PUBLIC, anon, authenticated;
 
@@ -333,7 +350,7 @@ DECLARE
   transition_at timestamptz;
   had_active boolean := false;
 BEGIN
-  actor_user_id := (SELECT auth.uid());
+  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles
     WHERE user_id = actor_user_id AND role = 'admin'::public.app_role
@@ -349,9 +366,10 @@ BEGIN
   END IF;
 
   -- Every assignment mutation locks booking first, then the active assignment.
-  SELECT id, source_kind, departure_id, tour_version_id, status, quote_id INTO booking_row
-  FROM public.bookings
-  WHERE public.bookings.id = p_booking_id
+  SELECT bookings.id, bookings.source_kind, bookings.departure_id,
+    bookings.tour_version_id, bookings.status, bookings.quote_id INTO booking_row
+  FROM public.bookings AS bookings
+  WHERE bookings.id = p_booking_id
   FOR UPDATE;
   IF NOT FOUND OR booking_row.status <> 'confirmed'::public.booking_status
      OR booking_row.source_kind <> 'departure' OR booking_row.departure_id IS NULL
@@ -428,7 +446,7 @@ DECLARE
   assignment_row public.guide_assignments%ROWTYPE;
   transition_at timestamptz;
 BEGIN
-  actor_user_id := (SELECT auth.uid());
+  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles WHERE user_id = actor_user_id AND role = 'guide'::public.app_role
   ) OR p_assignment_id IS NULL THEN
@@ -476,7 +494,7 @@ DECLARE
   assignment_row public.guide_assignments%ROWTYPE;
   transition_at timestamptz;
 BEGIN
-  actor_user_id := (SELECT auth.uid());
+  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles WHERE user_id = actor_user_id AND role = 'guide'::public.app_role
   ) OR p_assignment_id IS NULL THEN
@@ -538,7 +556,7 @@ DECLARE
   actor_user_id uuid;
   guide_language public.locale;
 BEGIN
-  actor_user_id := (SELECT auth.uid());
+  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles WHERE user_id = actor_user_id AND role = 'guide'::public.app_role
   ) THEN
@@ -589,5 +607,8 @@ GRANT EXECUTE ON FUNCTION private.assign_guide(uuid, uuid), private.accept_guide
   TO localens_guide_assignment_rpc_owner;
 GRANT EXECUTE ON FUNCTION public.assign_guide(uuid, uuid), public.accept_guide_assignment(uuid), public.complete_guide_assignment(uuid),
   public.get_guide_assigned_bookings() TO authenticated;
+
+REVOKE CREATE ON SCHEMA private FROM localens_guide_assignment_rpc_owner, localens_guide_assignment_guard_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_guide_assignment_rpc_owner, localens_guide_projection_owner;
 
 COMMIT;

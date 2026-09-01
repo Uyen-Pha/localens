@@ -6,21 +6,23 @@ BEGIN;
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_payment_rpc_owner') THEN
-    EXECUTE 'CREATE ROLE localens_payment_rpc_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_payment_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_payment_projection_owner') THEN
-    EXECUTE 'CREATE ROLE localens_payment_projection_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_payment_projection_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_payment_guard_owner') THEN
-    EXECUTE 'CREATE ROLE localens_payment_guard_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_payment_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE rolname IN ('localens_payment_rpc_owner', 'localens_payment_projection_owner', 'localens_payment_guard_owner', 'localens_webhook_executor')
+      AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolcanlogin OR rolreplication OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'unsafe pre-existing LocalLens payment role attributes';
   END IF;
 END
 $roles$;
-
-ALTER ROLE localens_payment_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_payment_projection_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_payment_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_webhook_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
 
 -- Scrub both directions: a protected role cannot inherit another role and no
 -- other role may inherit a protected owner/executor.
@@ -37,18 +39,29 @@ BEGIN
     FROM pg_catalog.pg_auth_members AS memberships
     JOIN pg_catalog.pg_roles AS granted ON granted.oid = memberships.roleid
     JOIN pg_catalog.pg_roles AS member ON member.oid = memberships.member
-    WHERE granted.rolname = ANY(protected_roles)
-       OR member.rolname = ANY(protected_roles)
+    WHERE (granted.rolname = ANY(protected_roles)
+       OR member.rolname = ANY(protected_roles))
+      AND NOT (
+        member.rolname = 'postgres'
+        AND memberships.set_option
+        AND NOT memberships.inherit_option
+      )
   LOOP
     EXECUTE pg_catalog.format('REVOKE %I FROM %I', membership_record.granted_role, membership_record.member_role);
   END LOOP;
 END
 $memberships$;
 
+GRANT localens_payment_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_payment_projection_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_payment_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_webhook_executor TO postgres WITH SET TRUE, INHERIT FALSE;
+
 REVOKE ALL ON SCHEMA public, private, auth FROM localens_payment_rpc_owner, localens_payment_projection_owner, localens_payment_guard_owner, localens_webhook_executor;
 REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_payment_rpc_owner, localens_payment_projection_owner, localens_payment_guard_owner, localens_webhook_executor;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public, private, auth FROM localens_payment_rpc_owner, localens_payment_projection_owner, localens_payment_guard_owner, localens_webhook_executor;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM localens_payment_rpc_owner, localens_payment_projection_owner, localens_payment_guard_owner, localens_webhook_executor;
+GRANT CREATE ON SCHEMA private TO localens_identity_rpc_owner, localens_checkout_rpc_owner, localens_payment_rpc_owner, localens_payment_guard_owner;
+GRANT CREATE ON SCHEMA public TO localens_admin_rpc_owner, localens_payment_projection_owner;
 
 -- These are server-owned, non-secret Stripe Test identifiers.  They are never
 -- exposed through PostgREST and are not accepted from a browser caller.
@@ -160,7 +173,7 @@ CREATE POLICY payments_payment_owner_all ON public.payments
   WITH CHECK (current_user = 'localens_payment_rpc_owner');
 CREATE POLICY payments_checkout_owner_select ON public.payments
   FOR SELECT TO localens_checkout_rpc_owner
-  USING ((SELECT auth.uid()) = owner_user_id);
+  USING (NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid = owner_user_id);
 CREATE POLICY bookings_payment_owner_all ON public.bookings
   FOR ALL TO localens_payment_rpc_owner
   USING (current_user = 'localens_payment_rpc_owner')
@@ -179,13 +192,25 @@ CREATE POLICY capacity_holds_payment_owner_all ON private.capacity_holds
 CREATE POLICY departures_payment_owner_select ON public.departures
   FOR SELECT TO localens_payment_rpc_owner
   USING (current_user = 'localens_payment_rpc_owner');
+CREATE POLICY stripe_test_settings_payment_owner_lock ON private.stripe_test_settings
+  FOR UPDATE TO localens_payment_rpc_owner
+  USING (current_user = 'localens_payment_rpc_owner')
+  WITH CHECK (current_user = 'localens_payment_rpc_owner');
+CREATE POLICY checkout_idempotency_payment_owner_lock ON private.checkout_idempotency
+  FOR UPDATE TO localens_payment_rpc_owner
+  USING (current_user = 'localens_payment_rpc_owner')
+  WITH CHECK (current_user = 'localens_payment_rpc_owner');
+CREATE POLICY departures_payment_owner_lock ON public.departures
+  FOR UPDATE TO localens_payment_rpc_owner
+  USING (current_user = 'localens_payment_rpc_owner')
+  WITH CHECK (current_user = 'localens_payment_rpc_owner');
 CREATE POLICY custom_quotes_payment_owner_all ON public.custom_quotes
   FOR ALL TO localens_payment_rpc_owner
   USING (current_user = 'localens_payment_rpc_owner')
   WITH CHECK (current_user = 'localens_payment_rpc_owner');
 CREATE POLICY payments_projection_owner_select ON public.payments
   FOR SELECT TO localens_payment_projection_owner
-  USING ((SELECT auth.uid()) = owner_user_id);
+  USING (NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid = owner_user_id);
 CREATE POLICY payments_admin_select ON public.payments
   FOR SELECT TO localens_admin_rpc_owner
   USING (current_user = 'localens_admin_rpc_owner');
@@ -195,7 +220,7 @@ CREATE POLICY payments_admin_reconciliation_update ON public.payments
   WITH CHECK (current_user = 'localens_admin_rpc_owner');
 CREATE POLICY bookings_payment_projection_select ON public.bookings
   FOR SELECT TO localens_payment_projection_owner
-  USING ((SELECT auth.uid()) = owner_user_id);
+  USING (NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid = owner_user_id);
 CREATE POLICY webhook_events_payment_owner_all ON private.webhook_events
   FOR ALL TO localens_payment_rpc_owner
   USING (current_user = 'localens_payment_rpc_owner')
@@ -212,14 +237,13 @@ GRANT SELECT ON TABLE public.bookings, public.departures, public.custom_quotes T
  -- checkout RPC owner only inspects the owner-scoped payment id/status needed for
 -- replay hydration; it cannot insert or update payment facts.
 GRANT SELECT (id, booking_id, status) ON TABLE public.payments TO localens_checkout_rpc_owner;
-GRANT EXECUTE ON FUNCTION auth.uid() TO localens_checkout_rpc_owner;
 GRANT UPDATE (status) ON TABLE public.bookings, public.custom_quotes TO localens_payment_rpc_owner;
 GRANT SELECT ON TABLE private.checkout_attempts, private.checkout_idempotency, private.capacity_holds TO localens_payment_rpc_owner;
+GRANT UPDATE (id) ON TABLE private.stripe_test_settings, private.checkout_idempotency, public.departures TO localens_payment_rpc_owner;
 GRANT UPDATE (provider_session_id, provider_expires_at, status, updated_at) ON TABLE private.checkout_attempts TO localens_payment_rpc_owner;
 GRANT UPDATE (status, consumed_at, released_at) ON TABLE private.capacity_holds TO localens_payment_rpc_owner;
 GRANT SELECT (id, status, owner_user_id, booking_id, amount_minor, currency, updated_at) ON TABLE public.payments TO localens_payment_projection_owner;
 GRANT SELECT (id, status) ON TABLE public.bookings TO localens_payment_projection_owner;
-GRANT EXECUTE ON FUNCTION auth.uid() TO localens_payment_projection_owner;
 GRANT SELECT ON TABLE public.payments TO localens_admin_rpc_owner;
 GRANT UPDATE (status, updated_at) ON TABLE public.payments TO localens_admin_rpc_owner;
 GRANT SELECT ON TABLE public.bookings TO localens_admin_rpc_owner;
@@ -305,6 +329,7 @@ CREATE TRIGGER webhook_events_append_only_truncate
 -- Extend the Task 9 attempt guard for one safe hydration write: the early
 -- webhook may set session_recorded with a null expiry, then the authenticated
 -- browser can fill the real provider expiry for that same session exactly once.
+SET LOCAL ROLE localens_checkout_rpc_owner;
 CREATE OR REPLACE FUNCTION private.assert_checkout_attempt_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -334,6 +359,7 @@ BEGIN
   RETURN NEW;
 END;
 $function$;
+RESET ROLE;
 ALTER FUNCTION private.assert_checkout_attempt_mutation() OWNER TO localens_checkout_rpc_owner;
 REVOKE ALL ON FUNCTION private.assert_checkout_attempt_mutation() FROM PUBLIC, anon, authenticated;
 
@@ -385,8 +411,10 @@ $function$;
 ALTER FUNCTION private.record_payment_audit_event(public.audit_event_type, uuid, public.audit_target_type, uuid, text, text, public.audit_metadata_key, text, numeric, boolean)
   OWNER TO localens_identity_rpc_owner;
 REVOKE ALL ON FUNCTION private.record_payment_audit_event(public.audit_event_type, uuid, public.audit_target_type, uuid, text, text, public.audit_metadata_key, text, numeric, boolean) FROM PUBLIC, anon, authenticated;
+SET LOCAL ROLE localens_identity_rpc_owner;
 GRANT EXECUTE ON FUNCTION private.record_payment_audit_event(public.audit_event_type, uuid, public.audit_target_type, uuid, text, text, public.audit_metadata_key, text, numeric, boolean)
   TO localens_payment_rpc_owner, localens_admin_rpc_owner;
+RESET ROLE;
 GRANT USAGE ON SCHEMA private, public TO localens_identity_rpc_owner;
 GRANT INSERT ON TABLE private.audit_events TO localens_identity_rpc_owner;
 
@@ -397,7 +425,7 @@ SELECT p.booking_id, b.status AS booking_status, p.status AS payment_status,
   p.amount_minor::text AS amount_minor, p.currency, p.updated_at
 FROM public.payments AS p
 JOIN public.bookings AS b ON b.id = p.booking_id
-WHERE p.owner_user_id = (SELECT auth.uid());
+WHERE p.owner_user_id = NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
 ALTER VIEW public.customer_payment_status_v OWNER TO localens_payment_projection_owner;
 REVOKE ALL ON public.customer_payment_status_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.customer_payment_status_v TO authenticated;
@@ -441,7 +469,7 @@ DECLARE
   hold_row private.capacity_holds%ROWTYPE;
   payment_row public.payments%ROWTYPE;
   event_row private.webhook_events%ROWTYPE;
-  current_time timestamptz;
+  authority_time timestamptz;
   hold_is_active boolean := false;
   payment_was_finalized boolean := false;
   next_booking_status public.booking_status;
@@ -471,6 +499,11 @@ BEGIN
     OR (p_event_type = 'checkout.session.expired' AND p_payment_intent_id IS NOT NULL AND p_payment_intent_id !~ '^pi_[A-Za-z0-9][A-Za-z0-9_-]{5,254}$') THEN
     RAISE EXCEPTION 'Stripe event facts rejected' USING ERRCODE = '22023';
   END IF;
+
+  -- A receipt also has unique session/type and payment-intent identities. Lock
+  -- the provider event id first so a same-event race cannot lose on one of
+  -- those alternate constraints before ON CONFLICT sees provider_event_id.
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_event_id, 0));
 
   -- Reserve the event receipt before locking or changing booking/payment
   -- facts. ON CONFLICT plus the row lock makes same-event races wait for the
@@ -544,11 +577,11 @@ BEGIN
   -- Sample only after the final payment lock. All expiry decisions and
   -- timestamps below use this post-lock time, so a wait cannot validate a
   -- hold or session against stale time.
-  current_time := pg_catalog.clock_timestamp();
-  hold_is_active := hold_row.id IS NOT NULL AND hold_row.expires_at > current_time AND booking_row.status IN ('pending_payment'::public.booking_status, 'payment_processing'::public.booking_status);
-  IF hold_row.id IS NOT NULL AND NOT hold_is_active AND hold_row.expires_at <= current_time THEN
+  authority_time := pg_catalog.clock_timestamp();
+  hold_is_active := hold_row.id IS NOT NULL AND hold_row.expires_at > authority_time AND booking_row.status IN ('pending_payment'::public.booking_status, 'payment_processing'::public.booking_status);
+  IF hold_row.id IS NOT NULL AND NOT hold_is_active AND hold_row.expires_at <= authority_time THEN
     PERFORM pg_catalog.set_config('localens.checkout_transition', 'on', true);
-    UPDATE private.capacity_holds SET status = 'expired'::public.hold_status, released_at = current_time WHERE id = hold_row.id;
+    UPDATE private.capacity_holds SET status = 'expired'::public.hold_status, released_at = authority_time WHERE id = hold_row.id;
   END IF;
   IF attempt_row.provider_session_id IS NULL THEN
     PERFORM pg_catalog.set_config('localens.checkout_transition', 'on', true);
@@ -556,7 +589,7 @@ BEGIN
       SET provider_session_id = p_session_id,
           provider_expires_at = NULL,
           status = CASE WHEN status = 'created' THEN 'session_recorded' ELSE status END,
-          updated_at = current_time
+          updated_at = authority_time
       WHERE id = attempt_row.id;
   END IF;
   IF p_event_type = 'checkout.session.completed' THEN
@@ -582,7 +615,7 @@ BEGIN
     END IF;
     PERFORM pg_catalog.set_config('localens.payment_transition', 'on', true);
     IF payment_row.status = 'pending'::public.payment_status THEN
-      UPDATE public.payments SET status = 'paid'::public.payment_status, updated_at = current_time WHERE id = payment_row.id;
+      UPDATE public.payments SET status = 'paid'::public.payment_status, updated_at = authority_time WHERE id = payment_row.id;
       payment_row.status := 'paid'::public.payment_status;
       payment_was_finalized := true;
     END IF;
@@ -603,7 +636,7 @@ BEGIN
       END IF;
       IF hold_is_active OR (quote_row.id IS NOT NULL AND booking_row.status = 'payment_processing'::public.booking_status) THEN
         IF hold_is_active THEN
-          UPDATE private.capacity_holds SET status = 'consumed'::public.hold_status, consumed_at = current_time WHERE id = hold_row.id;
+          UPDATE private.capacity_holds SET status = 'consumed'::public.hold_status, consumed_at = authority_time WHERE id = hold_row.id;
         END IF;
         UPDATE public.bookings SET status = 'confirmed'::public.booking_status WHERE id = booking_row.id;
         next_booking_status := 'confirmed'::public.booking_status;
@@ -625,8 +658,8 @@ BEGIN
     IF hold_row.id IS NOT NULL AND hold_row.status = 'active'::public.hold_status THEN
       PERFORM pg_catalog.set_config('localens.checkout_transition', 'on', true);
       UPDATE private.capacity_holds
-        SET status = CASE WHEN expires_at <= current_time THEN 'expired'::public.hold_status ELSE 'released'::public.hold_status END,
-            released_at = current_time
+        SET status = CASE WHEN expires_at <= authority_time THEN 'expired'::public.hold_status ELSE 'released'::public.hold_status END,
+            released_at = authority_time
         WHERE id = hold_row.id;
     END IF;
     IF booking_row.status IN ('confirmed'::public.booking_status, 'payment_review'::public.booking_status) THEN
@@ -644,7 +677,7 @@ BEGIN
   SET status = 'processed'::public.webhook_event_status,
       result_booking_status = next_booking_status,
       result_payment_status = next_payment_status,
-      processed_at = current_time
+      processed_at = authority_time
   WHERE id = event_row.id;
   PERFORM private.record_payment_audit_event(
     'webhook_processed'::public.audit_event_type, NULL,
@@ -661,11 +694,14 @@ $function$;
 ALTER FUNCTION private.finalize_stripe_event(text, text, text, uuid, uuid, bigint, public.checkout_currency, boolean, text, text, text, text, text, text, text)
   OWNER TO localens_payment_rpc_owner;
 REVOKE ALL ON FUNCTION private.finalize_stripe_event(text, text, text, uuid, uuid, bigint, public.checkout_currency, boolean, text, text, text, text, text, text, text) FROM PUBLIC, anon, authenticated;
+SET LOCAL ROLE localens_payment_rpc_owner;
 GRANT EXECUTE ON FUNCTION private.finalize_stripe_event(text, text, text, uuid, uuid, bigint, public.checkout_currency, boolean, text, text, text, text, text, text, text)
   TO localens_webhook_executor;
+RESET ROLE;
 
 -- Minimal Task 9 replay hydration: if the finalizer won the race, the browser
 -- session-recording retry returns the durable payment and booking states.
+SET LOCAL ROLE localens_checkout_rpc_owner;
 CREATE OR REPLACE FUNCTION private.record_checkout_session(
   p_booking_id uuid,
   p_attempt_id uuid,
@@ -685,7 +721,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 DECLARE
-  actor_user_id uuid := auth.uid();
+  actor_user_id uuid := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   idempotency_row private.checkout_idempotency%ROWTYPE;
   attempt_booking_id uuid;
   attempt_owner_user_id uuid;
@@ -719,13 +755,14 @@ BEGIN
     WHERE owner_user_id = actor_user_id AND checkout_attempt_id = p_attempt_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'checkout attempt unavailable' USING ERRCODE = '42501'; END IF;
 
-  SELECT booking_id, owner_user_id, source_kind, departure_id, quote_id, status,
-         provider_session_id, provider_expires_at
+  SELECT attempts.booking_id, attempts.owner_user_id, attempts.source_kind,
+         attempts.departure_id, attempts.quote_id, attempts.status,
+         attempts.provider_session_id, attempts.provider_expires_at
     INTO attempt_booking_id, attempt_owner_user_id, attempt_source_kind,
          attempt_departure_id, attempt_quote_id, attempt_status,
          attempt_provider_session_id, attempt_provider_expires_at
-  FROM private.checkout_attempts
-  WHERE id = p_attempt_id;
+  FROM private.checkout_attempts AS attempts
+  WHERE attempts.id = p_attempt_id;
   IF NOT FOUND OR attempt_booking_id IS DISTINCT FROM p_booking_id OR attempt_owner_user_id IS DISTINCT FROM actor_user_id THEN
     RAISE EXCEPTION 'checkout attempt unavailable' USING ERRCODE = '42501';
   END IF;
@@ -752,21 +789,22 @@ BEGIN
 
   IF attempt_source_kind = 'departure' THEN
     SELECT * INTO hold_row
-    FROM private.capacity_holds
-    WHERE booking_id = p_booking_id
-    ORDER BY created_at DESC, id DESC
+    FROM private.capacity_holds AS holds
+    WHERE holds.booking_id = p_booking_id
+    ORDER BY holds.created_at DESC, holds.id DESC
     LIMIT 1
     FOR UPDATE;
     hold_found := FOUND;
   END IF;
 
-  SELECT booking_id, owner_user_id, source_kind, departure_id, quote_id, status,
-         provider_session_id, provider_expires_at
+  SELECT attempts.booking_id, attempts.owner_user_id, attempts.source_kind,
+         attempts.departure_id, attempts.quote_id, attempts.status,
+         attempts.provider_session_id, attempts.provider_expires_at
     INTO attempt_booking_id, attempt_owner_user_id, attempt_source_kind,
          attempt_departure_id, attempt_quote_id, attempt_status,
          attempt_provider_session_id, attempt_provider_expires_at
-  FROM private.checkout_attempts
-  WHERE id = p_attempt_id
+  FROM private.checkout_attempts AS attempts
+  WHERE attempts.id = p_attempt_id
   FOR UPDATE;
   IF NOT FOUND OR attempt_booking_id IS DISTINCT FROM p_booking_id OR attempt_owner_user_id IS DISTINCT FROM actor_user_id THEN
     RAISE EXCEPTION 'checkout attempt unavailable' USING ERRCODE = '42501';
@@ -775,10 +813,10 @@ BEGIN
   -- Checkout only needs the named payment identity/status columns. FOR KEY
   -- SHARE provides a stable replay read without granting payment writes, and
   -- follows the same attempt -> payment order used by the webhook finalizer.
-  SELECT id, booking_id, status
+  SELECT payments.id, payments.booking_id, payments.status
     INTO payment_id, payment_booking_id, payment_status_value
-  FROM public.payments
-  WHERE booking_id = p_booking_id
+  FROM public.payments AS payments
+  WHERE payments.booking_id = p_booking_id
   FOR KEY SHARE;
   IF FOUND AND payment_booking_id IS DISTINCT FROM p_booking_id THEN
     RAISE EXCEPTION 'payment booking mismatch' USING ERRCODE = 'P0001';
@@ -853,6 +891,7 @@ BEGIN
   provider_session_id := p_provider_session_id; state := 'recorded'; RETURN NEXT;
 END;
 $function$;
+RESET ROLE;
 ALTER FUNCTION private.record_checkout_session(uuid, uuid, text, timestamptz) OWNER TO localens_checkout_rpc_owner;
 REVOKE ALL ON FUNCTION private.record_checkout_session(uuid, uuid, text, timestamptz) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.record_checkout_session(uuid, uuid, text, timestamptz) TO localens_checkout_rpc_owner;
@@ -876,7 +915,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 DECLARE
-  actor_user_id uuid := auth.uid();
+  actor_user_id uuid := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   booking_row public.bookings%ROWTYPE;
   payment_row public.payments%ROWTYPE;
 BEGIN
@@ -917,5 +956,8 @@ $function$;
 ALTER FUNCTION public.reconcile_payment(uuid, public.booking_status) OWNER TO localens_admin_rpc_owner;
 REVOKE ALL ON FUNCTION public.reconcile_payment(uuid, public.booking_status) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.reconcile_payment(uuid, public.booking_status) TO authenticated;
+
+REVOKE CREATE ON SCHEMA private FROM localens_identity_rpc_owner, localens_checkout_rpc_owner, localens_payment_rpc_owner, localens_payment_guard_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_admin_rpc_owner, localens_payment_projection_owner;
 
 COMMIT;

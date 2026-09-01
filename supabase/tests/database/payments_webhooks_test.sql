@@ -3,7 +3,7 @@
 -- webhook event idempotency and early webhook races are covered below.
 BEGIN;
 
-SELECT plan(101);
+SELECT plan(105);
 RESET ROLE;
 
 SELECT ok(to_regclass('public.payments') IS NOT NULL, 'payments table exists');
@@ -37,14 +37,18 @@ SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'priva
 SELECT ok(EXISTS (SELECT 1 FROM private.stripe_test_settings WHERE id = true AND stripe_test_account_id LIKE 'acct_%' AND stripe_test_endpoint_id LIKE 'we_%'), 'expected Test account and endpoint are server owned');
 
 SELECT ok((SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid = 'private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'finalizer is SECURITY DEFINER');
-SELECT ok((SELECT proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc WHERE oid = 'private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'finalizer pins empty search_path');
+SELECT ok((SELECT proconfig @> ARRAY['search_path=""'] FROM pg_catalog.pg_proc WHERE oid = 'private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'finalizer pins empty search_path');
 SELECT ok((SELECT pg_get_userbyid(proowner) = 'localens_payment_rpc_owner' FROM pg_catalog.pg_proc WHERE oid = 'private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'finalizer has a named non-login owner');
 SELECT ok((SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid = 'public.reconcile_payment(uuid,public.booking_status)'::regprocedure), 'reconciliation is SECURITY DEFINER');
-SELECT ok((SELECT proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc WHERE oid = 'public.reconcile_payment(uuid,public.booking_status)'::regprocedure), 'reconciliation pins empty search_path');
+SELECT ok((SELECT proconfig @> ARRAY['search_path=""'] FROM pg_catalog.pg_proc WHERE oid = 'public.reconcile_payment(uuid,public.booking_status)'::regprocedure), 'reconciliation pins empty search_path');
 SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc WHERE proname IN ('finalize_stripe_event', 'reconcile_payment') AND pg_get_userbyid(proowner) IN ('postgres', 'service_role')), 'payment definers are not superuser or service role');
 SELECT ok(NOT has_function_privilege('anon', 'private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)', 'EXECUTE'), 'anonymous cannot finalize events');
 SELECT ok(NOT has_function_privilege('authenticated', 'private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)', 'EXECUTE'), 'browser role cannot finalize events');
 SELECT ok(has_function_privilege('localens_webhook_executor', 'private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)', 'EXECUTE'), 'only webhook executor can call finalizer');
+SELECT ok(
+  has_function_privilege('localens_payment_rpc_owner', 'private.record_payment_audit_event(public.audit_event_type,uuid,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)', 'EXECUTE')
+  AND has_function_privilege('localens_admin_rpc_owner', 'private.record_payment_audit_event(public.audit_event_type,uuid,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)', 'EXECUTE'),
+  'payment and admin owners can execute the identity-owned audit helper');
 SELECT ok(has_function_privilege('authenticated', 'public.reconcile_payment(uuid,public.booking_status)', 'EXECUTE'), 'authenticated reaches only guarded reconciliation');
 
 SELECT ok(NOT has_table_privilege('anon', 'public.payments', 'SELECT') AND NOT has_table_privilege('authenticated', 'public.payments', 'SELECT'), 'API roles cannot read payment facts');
@@ -56,6 +60,27 @@ SELECT ok(NOT has_table_privilege('authenticated', 'public.bookings', 'SELECT'),
 SELECT ok(NOT has_table_privilege('authenticated', 'private.stripe_test_settings', 'SELECT'), 'customer cannot read Stripe Test configuration');
 SELECT ok(NOT has_table_privilege('localens_payment_projection_owner', 'public.payments', 'UPDATE'), 'projection owner has no payment write privilege');
 SELECT ok(NOT has_table_privilege('localens_payment_projection_owner', 'public.payments', 'DELETE'), 'projection owner has no payment delete privilege');
+SELECT ok(
+  has_column_privilege('localens_payment_rpc_owner', 'private.stripe_test_settings', 'id', 'UPDATE')
+  AND has_column_privilege('localens_payment_rpc_owner', 'private.checkout_idempotency', 'id', 'UPDATE')
+  AND has_column_privilege('localens_payment_rpc_owner', 'public.departures', 'id', 'UPDATE')
+  AND NOT has_table_privilege('localens_payment_rpc_owner', 'private.stripe_test_settings', 'UPDATE')
+  AND NOT has_table_privilege('localens_payment_rpc_owner', 'private.checkout_idempotency', 'UPDATE')
+  AND NOT has_table_privilege('localens_payment_rpc_owner', 'public.departures', 'UPDATE'),
+  'payment owner has only id-column UPDATE grants for read-only row locks');
+SELECT is(
+  (SELECT count(*)::integer FROM pg_catalog.pg_policy
+   WHERE polrelid = ANY(ARRAY[
+     'private.stripe_test_settings'::regclass,
+     'private.checkout_idempotency'::regclass,
+     'public.departures'::regclass
+   ])
+     AND polcmd = 'w'::"char"
+     AND 'localens_payment_rpc_owner'::regrole::oid = ANY(polroles)
+     AND pg_get_expr(polqual, polrelid) = '(CURRENT_USER = ''localens_payment_rpc_owner''::name)'
+     AND pg_get_expr(polwithcheck, polrelid) = '(CURRENT_USER = ''localens_payment_rpc_owner''::name)'),
+  3,
+  'payment owner has explicit RLS policies for every read-only locked row');
 
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'payments_status_guard'), 'payment status guard exists');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'webhook_events_append_only'), 'webhook append-only guard exists');
@@ -72,13 +97,18 @@ SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'event_row.*payload_hash', 'same event id replays only the same hash');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'webhook_conflict', 'different hash records a conflict audit');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'ON CONFLICT.*provider_event_id', 'same-event races reserve one receipt before side effects');
+SELECT ok(
+  strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'pg_advisory_xact_lock') > 0
+  AND strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'pg_advisory_xact_lock')
+    < strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'INSERT INTO private.webhook_events'),
+  'same Stripe event id is serialized before competing unique indexes are touched');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'event_row.status.*received', 'only a received receipt can be terminalized');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'event_status := .conflict', 'hash conflict returns a conflict result without mutation');
 
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'checkout_pending.*accepted', 'paid custom quote is accepted and never reactivated');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'checkout.session.expired', 'expired event is handled separately');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'active.*expired', 'expired hold is released before review');
-SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'status = CASE WHEN expires_at <= current_time THEN .expired.*released', 'expired session releases an unexpired active hold');
+SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'status = CASE WHEN expires_at <= authority_time THEN .expired.*released', 'expired session releases an unexpired active hold');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'payment_review', 'paid without an active hold enters payment review');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'consumed', 'paid with an active hold consumes that hold');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'confirmed', 'paid with valid capacity confirms a booking');
@@ -86,7 +116,7 @@ SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'confirmed.*payment_review', 'confirmed or reviewed bookings are never downgraded');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'terminal/incompatible', 'terminal booking status remains unchanged on late payment');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'idempotency_row.*source.*booking.*hold.*attempt.*payment', 'finalizer documents the common lock order');
-SELECT ok(strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'current_time := pg_catalog.clock_timestamp()') > strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'SELECT * INTO payment_row FROM public.payments WHERE booking_id = booking_row.id FOR UPDATE') AND strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'current_time := pg_catalog.clock_timestamp()') < strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'hold_is_active :='), 'finalizer samples time after payment lock before hold evaluation');
+SELECT ok(strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'authority_time := pg_catalog.clock_timestamp()') > strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'SELECT * INTO payment_row FROM public.payments WHERE booking_id = booking_row.id FOR UPDATE') AND strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'authority_time := pg_catalog.clock_timestamp()') < strpos(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure), 'hold_is_active :='), 'finalizer samples time after payment lock before hold evaluation');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'provider_session_id IS NULL', 'early webhook attaches the same provider session');
 SELECT ok(pg_get_functiondef('private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)'::regprocedure) ~* 'provider_expires_at = NULL', 'early webhook does not fabricate provider expiry');
 SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'provider_expires_at IS NULL', 'browser session recording hydrates an early event');
@@ -96,13 +126,17 @@ SELECT ok(pg_get_functiondef('public.reconcile_payment(uuid,public.booking_statu
 SELECT ok(pg_get_functiondef('public.reconcile_payment(uuid,public.booking_status)'::regprocedure) ~* 'payment_reconciled', 'reconciliation writes an audit event');
 SELECT ok(pg_get_functiondef('public.reconcile_payment(uuid,public.booking_status)'::regprocedure) ~* 'payment_review', 'reconciliation only resolves payment review');
 SELECT ok(pg_get_functiondef('public.reconcile_payment(uuid,public.booking_status)'::regprocedure) ~* 'review.*paid|review.*failed', 'admin reconciliation owns reviewed payment resolution');
-SELECT ok(pg_get_viewdef('public.customer_payment_status_v'::regclass) !~* 'owner_user_id|provider_payment_intent_id|provider_account_id|provider_endpoint_id', 'customer projection omits internal provider and owner facts');
+SELECT ok(NOT EXISTS (
+  SELECT 1 FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'customer_payment_status_v'
+    AND column_name IN ('owner_user_id', 'provider_payment_intent_id', 'provider_account_id', 'provider_endpoint_id')
+), 'customer projection omits internal provider and owner facts');
 SELECT ok(pg_get_viewdef('public.customer_payment_status_v'::regclass) ~* 'booking_status|payment_status|amount_minor|currency|updated_at', 'customer projection has explicit payment columns');
-SELECT ok(pg_get_viewdef('public.customer_payment_status_v'::regclass) ~* 'auth\.uid', 'customer payment projection derives the authenticated owner');
+SELECT ok(pg_get_viewdef('public.customer_payment_status_v'::regclass) ~* 'request\.jwt\.claim\.sub', 'customer payment projection derives the authenticated owner');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'bookings' AND policyname = 'bookings_payment_projection_select'), 'payment projection has an owner-scoped booking policy');
-SELECT ok((SELECT pg_get_expr(polqual, polrelid) FROM pg_catalog.pg_policy WHERE polname = 'bookings_payment_projection_select' AND polrelid = 'public.bookings'::regclass) ~* 'auth\.uid', 'cross-user booking rows are filtered by auth uid');
+SELECT ok((SELECT pg_get_expr(polqual, polrelid) FROM pg_catalog.pg_policy WHERE polname = 'bookings_payment_projection_select' AND polrelid = 'public.bookings'::regclass) ~* 'request\.jwt\.claim\.sub', 'cross-user booking rows are filtered by JWT subject');
 SELECT ok(NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'customer_payment_status_v' AND column_name = 'provider_session_id'), 'customer projection omits provider session identity');
-SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members AS m JOIN pg_catalog.pg_roles AS r ON r.oid = m.roleid WHERE r.rolname IN ('localens_payment_rpc_owner', 'localens_payment_projection_owner', 'localens_webhook_executor')), 'payment owners have no inherited roles');
+SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members AS memberships JOIN pg_catalog.pg_roles AS granted ON granted.oid = memberships.roleid JOIN pg_catalog.pg_roles AS member ON member.oid = memberships.member WHERE granted.rolname IN ('localens_payment_rpc_owner', 'localens_payment_projection_owner', 'localens_webhook_executor') AND (member.rolname <> 'postgres' OR memberships.inherit_option)), 'payment owners have only postgres SET membership');
 SELECT ok(has_schema_privilege('localens_payment_rpc_owner', 'private', 'USAGE'), 'payment owner has private schema usage only');
 SELECT ok(NOT has_table_privilege('localens_payment_projection_owner', 'public.payments', 'INSERT'), 'projection owner cannot insert payments');
 SELECT ok(NOT has_table_privilege('localens_payment_rpc_owner', 'private.webhook_events', 'UPDATE'), 'payment owner cannot mutate webhook events');
@@ -112,11 +146,11 @@ SELECT ok(has_column_privilege('localens_checkout_rpc_owner', 'public.payments',
   AND has_column_privilege('localens_checkout_rpc_owner', 'public.payments', 'status', 'SELECT'), 'checkout owner has only named payment replay columns');
 SELECT ok(NOT has_table_privilege('localens_checkout_rpc_owner', 'public.payments', 'INSERT')
   AND NOT has_column_privilege('localens_checkout_rpc_owner', 'public.payments', 'provider_session_id', 'SELECT'), 'checkout owner cannot write or read provider payment facts');
-SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'SELECT id, booking_id, status', 'session replay uses named payment columns');
+SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'SELECT payments\.id, payments\.booking_id, payments\.status', 'session replay uses named payment columns');
 SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'idempotency.*source.*booking.*hold.*attempt.*payment', 'session recorder keeps the common lock order');
 SELECT ok(strpos(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure), 'now_time := pg_catalog.clock_timestamp()') > strpos(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure), 'FOR KEY SHARE'), 'session recorder samples database time after locks');
 SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'NOT hold_found.*hold_row.status.*active.*expires_at', 'fixed departure recording rejects missing or stale holds');
-SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members AS m JOIN pg_catalog.pg_roles AS granted ON granted.oid = m.roleid JOIN pg_catalog.pg_roles AS member ON member.oid = m.member WHERE granted.rolname IN ('localens_payment_rpc_owner', 'localens_payment_projection_owner', 'localens_payment_guard_owner', 'localens_webhook_executor') OR member.rolname IN ('localens_payment_rpc_owner', 'localens_payment_projection_owner', 'localens_payment_guard_owner', 'localens_webhook_executor')), 'payment owners and webhook executor have no parent or member roles');
+SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members AS memberships JOIN pg_catalog.pg_roles AS granted ON granted.oid = memberships.roleid JOIN pg_catalog.pg_roles AS member ON member.oid = memberships.member WHERE (granted.rolname IN ('localens_payment_rpc_owner', 'localens_payment_projection_owner', 'localens_payment_guard_owner', 'localens_webhook_executor') AND (member.rolname <> 'postgres' OR memberships.inherit_option)) OR member.rolname IN ('localens_payment_rpc_owner', 'localens_payment_projection_owner', 'localens_payment_guard_owner', 'localens_webhook_executor')), 'payment memberships are limited to postgres SET access without inheritance');
 
 SELECT * FROM finish();
 ROLLBACK;

@@ -9,8 +9,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.areas",
@@ -19,8 +19,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_area_translations",
@@ -29,8 +29,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_areas",
@@ -39,8 +39,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_food_item_supports",
@@ -49,8 +49,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_food_item_translations",
@@ -59,8 +59,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_food_items",
@@ -69,8 +69,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_food_vendor_opening_exception_windows",
@@ -79,8 +79,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_food_vendor_opening_exceptions",
@@ -89,8 +89,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_food_vendor_opening_hours",
@@ -99,8 +99,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_food_vendor_supports",
@@ -109,8 +109,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_food_vendor_translations",
@@ -119,8 +119,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_food_vendors",
@@ -129,8 +129,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_place_experience_types",
@@ -139,8 +139,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_place_guide_languages",
@@ -149,8 +149,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_place_opening_exception_windows",
@@ -159,8 +159,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_place_opening_exceptions",
@@ -169,8 +169,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_place_opening_hours",
@@ -179,8 +179,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_place_supports",
@@ -189,8 +189,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_place_translations",
@@ -199,8 +199,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshot_places",
@@ -209,8 +209,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.catalog_snapshots",
@@ -219,8 +219,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.departures",
@@ -239,8 +239,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.food_item_translations",
@@ -249,8 +249,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.food_items",
@@ -259,8 +259,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.food_vendor_opening_exception_windows",
@@ -269,8 +269,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.food_vendor_opening_exceptions",
@@ -279,8 +279,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.food_vendor_opening_hours",
@@ -289,8 +289,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.food_vendor_supports",
@@ -299,8 +299,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.food_vendor_translations",
@@ -309,8 +309,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.food_vendors",
@@ -319,8 +319,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.place_experience_types",
@@ -329,8 +329,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.place_guide_languages",
@@ -339,8 +339,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.place_opening_exception_windows",
@@ -349,8 +349,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.place_opening_exceptions",
@@ -359,8 +359,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.place_opening_hours",
@@ -369,8 +369,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.place_supports",
@@ -379,8 +379,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.place_translations",
@@ -389,8 +389,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.places",
@@ -399,8 +399,8 @@
       "roles": [
         "localens_catalog_rpc_owner"
       ],
-      "using": "current_user = 'localens_catalog_rpc_owner'",
-      "withCheck": "current_user = 'localens_catalog_rpc_owner'"
+      "using": "true",
+      "withCheck": "true"
     },
     {
       "table": "public.tour_translations",

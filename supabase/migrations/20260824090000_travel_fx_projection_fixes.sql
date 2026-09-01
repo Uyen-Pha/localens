@@ -3,8 +3,11 @@ BEGIN;
 -- The API boundary is deliberately a named, non-invoker projection.  Its
 -- NOLOGIN/NOBYPASSRLS owner has only the narrow source grants required to
 -- build this explicit shape; API roles never receive base-table access.
+GRANT CREATE ON SCHEMA public TO localens_catalog_rpc_owner;
+
 DROP VIEW IF EXISTS public.travel_snapshot_edges_v;
 
+SET LOCAL ROLE localens_catalog_rpc_owner;
 CREATE OR REPLACE VIEW public.travel_snapshots_v
 WITH (security_invoker = false, security_barrier = true)
 AS
@@ -56,12 +59,14 @@ WHERE f.observed_at >= pg_catalog.now() - INTERVAL '7 days'
   AND f.observed_at <= pg_catalog.now()
 ORDER BY f.environment, f.observed_at DESC, f.id DESC;
 
-ALTER VIEW public.latest_fx_snapshot_v OWNER TO localens_catalog_rpc_owner;
 REVOKE ALL ON public.latest_fx_snapshot_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.latest_fx_snapshot_v TO anon, authenticated;
+RESET ROLE;
 
 ALTER TABLE public.fx_snapshots
   ADD CONSTRAINT fx_snapshots_source_trimmed_no_controls
   CHECK (source = btrim(source) AND source !~ '[[:cntrl:]]');
+
+REVOKE CREATE ON SCHEMA public FROM localens_catalog_rpc_owner;
 
 COMMIT;

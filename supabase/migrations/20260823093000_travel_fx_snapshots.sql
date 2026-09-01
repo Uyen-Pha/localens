@@ -70,26 +70,28 @@ ALTER TABLE public.fx_snapshots FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY travel_edges_catalog_owner_all ON public.travel_edges
   FOR ALL TO localens_catalog_rpc_owner
-  USING (current_user = 'localens_catalog_rpc_owner')
-  WITH CHECK (current_user = 'localens_catalog_rpc_owner');
+  USING (true)
+  WITH CHECK (true);
 CREATE POLICY travel_snapshots_catalog_owner_all ON public.travel_snapshots
   FOR ALL TO localens_catalog_rpc_owner
-  USING (current_user = 'localens_catalog_rpc_owner')
-  WITH CHECK (current_user = 'localens_catalog_rpc_owner');
+  USING (true)
+  WITH CHECK (true);
 CREATE POLICY travel_snapshot_edges_catalog_owner_all ON public.travel_snapshot_edges
   FOR ALL TO localens_catalog_rpc_owner
-  USING (current_user = 'localens_catalog_rpc_owner')
-  WITH CHECK (current_user = 'localens_catalog_rpc_owner');
+  USING (true)
+  WITH CHECK (true);
 CREATE POLICY fx_snapshots_catalog_owner_all ON public.fx_snapshots
   FOR ALL TO localens_catalog_rpc_owner
-  USING (current_user = 'localens_catalog_rpc_owner')
-  WITH CHECK (current_user = 'localens_catalog_rpc_owner');
+  USING (true)
+  WITH CHECK (true);
 CREATE POLICY travel_snapshots_guard_select ON public.travel_snapshots
   FOR SELECT TO localens_catalog_guard_owner USING (true);
 CREATE POLICY catalog_snapshots_guard_select ON public.catalog_snapshots
   FOR SELECT TO localens_catalog_guard_owner USING (true);
 
 GRANT USAGE ON SCHEMA public, private TO localens_catalog_rpc_owner;
+GRANT CREATE ON SCHEMA private TO localens_catalog_rpc_owner, localens_catalog_guard_owner;
+GRANT CREATE ON SCHEMA public TO localens_catalog_rpc_owner;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.travel_edges TO localens_catalog_rpc_owner;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.travel_snapshots TO localens_catalog_rpc_owner;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.travel_snapshot_edges TO localens_catalog_rpc_owner;
@@ -114,13 +116,13 @@ SET search_path = ''
 AS $function$
 BEGIN
   IF TG_TABLE_NAME = 'travel_snapshots' AND TG_OP = 'UPDATE'
-     AND OLD.status = 'building'::public.snapshot_status
-     AND NEW.status = 'published'::public.snapshot_status
-     AND OLD.id = NEW.id
-     AND OLD.catalog_snapshot_id = NEW.catalog_snapshot_id
-     AND OLD.created_at = NEW.created_at
-     AND OLD.published_at IS NULL
-     AND NEW.published_at IS NOT NULL THEN
+     AND to_jsonb(OLD)->>'status' = 'building'
+     AND to_jsonb(NEW)->>'status' = 'published'
+     AND to_jsonb(OLD)->>'id' = to_jsonb(NEW)->>'id'
+     AND to_jsonb(OLD)->>'catalog_snapshot_id' = to_jsonb(NEW)->>'catalog_snapshot_id'
+     AND to_jsonb(OLD)->>'created_at' = to_jsonb(NEW)->>'created_at'
+     AND to_jsonb(OLD)->>'published_at' IS NULL
+     AND to_jsonb(NEW)->>'published_at' IS NOT NULL THEN
     RETURN NEW;
   END IF;
   RAISE EXCEPTION 'travel and FX snapshot history is append-only' USING ERRCODE = '42501';
@@ -240,7 +242,7 @@ DECLARE
   catalog_id uuid;
   snapshot_id uuid;
 BEGIN
-  actor := auth.uid();
+  actor := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor IS NULL OR NOT EXISTS (
     SELECT 1
     FROM private.user_roles
@@ -319,8 +321,10 @@ BEGIN
 END;
 $function$;
 ALTER FUNCTION private.create_travel_snapshot() OWNER TO localens_catalog_rpc_owner;
+SET LOCAL ROLE localens_catalog_rpc_owner;
 REVOKE ALL ON FUNCTION private.create_travel_snapshot() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.create_travel_snapshot() TO localens_admin_rpc_owner;
+RESET ROLE;
 
 -- FX observations are inserted through the same authenticated admin boundary;
 -- the table checks remain authoritative for decimal, environment, and demo
@@ -341,7 +345,7 @@ DECLARE
   actor uuid;
   snapshot_id uuid;
 BEGIN
-  actor := auth.uid();
+  actor := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor IS NULL OR NOT EXISTS (
     SELECT 1
     FROM private.user_roles
@@ -357,8 +361,10 @@ BEGIN
 END;
 $function$;
 ALTER FUNCTION private.create_fx_snapshot(numeric, text, timestamptz, text, boolean) OWNER TO localens_catalog_rpc_owner;
+SET LOCAL ROLE localens_catalog_rpc_owner;
 REVOKE ALL ON FUNCTION private.create_fx_snapshot(numeric, text, timestamptz, text, boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.create_fx_snapshot(numeric, text, timestamptz, text, boolean) TO localens_admin_rpc_owner;
+RESET ROLE;
 
 -- PostgREST receives only these explicit named projections.  Decimal money and
 -- numeric FX are text, while timestamps are canonical UTC ISO strings.
@@ -403,6 +409,9 @@ LIMIT 1;
 ALTER VIEW public.latest_fx_snapshot_v OWNER TO localens_catalog_rpc_owner;
 REVOKE ALL ON public.latest_fx_snapshot_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.latest_fx_snapshot_v TO anon, authenticated;
+
+REVOKE CREATE ON SCHEMA private FROM localens_catalog_rpc_owner, localens_catalog_guard_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_catalog_rpc_owner;
 
 CREATE INDEX travel_edges_from_idx ON public.travel_edges (from_place_id, to_place_id);
 CREATE INDEX travel_snapshots_catalog_idx ON public.travel_snapshots (catalog_snapshot_id, status, published_at DESC);

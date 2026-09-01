@@ -56,6 +56,18 @@ describe("Task 13 RLS/RPC access matrix", () => {
     expect(itemLock).toBeGreaterThan(vendorLock);
   });
 
+  it("builds review functions and view as their named owners without auth-schema grants", () => {
+    const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260831100000_food_catalog_review.sql"), "utf8");
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA private TO localens_admin_rpc_owner, localens_catalog_guard_owner/);
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_admin_rpc_owner/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_admin_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.assert_catalog_review_admin\(\)[\s\S]*RESET ROLE;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_catalog_guard_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.assert_food_catalog_review_complete[\s\S]*RESET ROLE;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_admin_rpc_owner;[\s\S]*CREATE OR REPLACE VIEW public\.admin_food_catalog_review_v[\s\S]*CREATE OR REPLACE FUNCTION public\.review_food_catalog_item[\s\S]*RESET ROLE;/);
+    expect(migration).not.toMatch(/auth\.uid\(\)/);
+    expect(migration.match(/NULLIF\(pg_catalog\.current_setting\('request\.jwt\.claim\.sub', true\), ''\)::uuid/g)).toHaveLength(2);
+    expect(migration).toMatch(/REVOKE CREATE ON SCHEMA private FROM localens_admin_rpc_owner, localens_catalog_guard_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_admin_rpc_owner;[\s\S]*COMMIT;/);
+  });
+
   it("rejects a stale or archived vendor before any review write and enforces one return row", () => {
     const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260831100000_food_catalog_review.sql"), "utf8");
     const start = migration.indexOf("CREATE OR REPLACE FUNCTION public.review_food_catalog_item");
@@ -217,11 +229,27 @@ describe("Task 13 RLS/RPC access matrix", () => {
     }
   });
 
+  it("hardens each SECURITY DEFINER while acting as its named owner", () => {
+    const sql = readFileSync(
+      join(process.cwd(), "supabase", "migrations", "20260823110000_rls_rpc_security.sql"),
+      "utf8",
+    );
+    expect(sql).toMatch(/JOIN pg_catalog\.pg_roles AS owner_role ON owner_role\.oid = p\.proowner/);
+    expect(sql).toMatch(/owner_role\.rolname AS owner_name/);
+    expect(sql).toMatch(/pg_catalog\.has_schema_privilege\(owner_role\.oid, n\.oid, 'USAGE'\) AS had_schema_usage/);
+    expect(sql).toMatch(/IF NOT function_record\.had_schema_usage THEN[\s\S]*GRANT USAGE ON SCHEMA %I TO %I/);
+    expect(sql).toMatch(/SET LOCAL ROLE %I[\s\S]*function_record\.owner_name/);
+    expect(sql).toMatch(/ALTER FUNCTION %s SET statement_timeout[\s\S]*RESET ROLE;[\s\S]*REVOKE USAGE ON SCHEMA %I FROM %I/);
+    expect(sql).toMatch(/EXCEPTION WHEN OTHERS[\s\S]*RESET ROLE;[\s\S]*REVOKE USAGE ON SCHEMA %I FROM %I[\s\S]*RAISE/);
+    expect(sql).not.toMatch(/REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth/);
+    expect(sql).toMatch(/function_acl_reset[\s\S]*SET LOCAL ROLE %I[\s\S]*REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role/);
+  });
+
   it("checks dynamic owner policy command, roles, and predicates", () => {
     for (const mutation of [
       (policy: { roles: string[] }) => { policy.roles[0] = "anon"; },
       (policy: { command: string }) => { policy.command = "SELECT"; },
-      (policy: { using: string }) => { policy.using = "true"; },
+      (policy: { using: string }) => { policy.using = "false"; },
     ]) {
       const root = checkerFixture();
       const manifestPath = join(root, "docs", "security", "policies-manifest.json");

@@ -2,6 +2,10 @@
 -- executable pgTAP suite verifies the guide boundary and its least privilege.
 BEGIN;
 
+SET LOCAL ROLE localens_tour_guard_owner;
+GRANT EXECUTE ON FUNCTION private.valid_tour_copy_array(text[]) TO postgres;
+RESET ROLE;
+
 SELECT plan(79);
 
 RESET ROLE;
@@ -25,7 +29,7 @@ SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'publi
 
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname = 'guide_assignment_mutation_guard'), 'assignment mutation guard exists');
 SELECT ok((SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid = 'private.assert_guide_assignment_mutation()'::regprocedure), 'assignment mutation guard is SECURITY DEFINER');
-SELECT ok((SELECT proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc WHERE oid = 'private.assert_guide_assignment_mutation()'::regprocedure), 'assignment mutation guard pins search path');
+SELECT ok((SELECT proconfig @> ARRAY['search_path=""'] FROM pg_catalog.pg_proc WHERE oid = 'private.assert_guide_assignment_mutation()'::regprocedure), 'assignment mutation guard pins search path');
 SELECT ok((SELECT pg_get_userbyid(proowner) = 'localens_guide_assignment_guard_owner' FROM pg_catalog.pg_proc WHERE oid = 'private.assert_guide_assignment_mutation()'::regprocedure), 'assignment mutation guard has named owner');
 SELECT ok(pg_get_functiondef('private.assert_guide_assignment_mutation()'::regprocedure) ~* 'assigned.*accepted|accepted.*completed', 'assignment accepts only exact forward transitions');
 SELECT ok(pg_get_functiondef('private.assert_guide_assignment_mutation()'::regprocedure) ~* 'closed', 'assignment close transition is explicit');
@@ -33,7 +37,7 @@ SELECT ok(pg_get_functiondef('private.assert_guide_assignment_mutation()'::regpr
 SELECT ok(pg_get_functiondef('private.assert_guide_assignment_mutation()'::regprocedure) ~* 'localens.guide_assignment_transition', 'direct assignment DML requires transition context');
 
 SELECT ok((SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid = 'private.assign_guide(uuid,uuid)'::regprocedure), 'admin assignment transaction is SECURITY DEFINER');
-SELECT ok((SELECT proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc WHERE oid = 'private.assign_guide(uuid,uuid)'::regprocedure), 'admin assignment pins search path');
+SELECT ok((SELECT proconfig @> ARRAY['search_path=""'] FROM pg_catalog.pg_proc WHERE oid = 'private.assign_guide(uuid,uuid)'::regprocedure), 'admin assignment pins search path');
 SELECT ok((SELECT pg_get_userbyid(proowner) = 'localens_guide_assignment_rpc_owner' FROM pg_catalog.pg_proc WHERE oid = 'private.assign_guide(uuid,uuid)'::regprocedure), 'admin assignment has named owner');
 SELECT ok(pg_get_functiondef('private.assign_guide(uuid,uuid)'::regprocedure) ~* 'role.*admin', 'assignment derives admin authority');
 SELECT ok(pg_get_functiondef('private.assign_guide(uuid,uuid)'::regprocedure) ~* 'role.*guide', 'assignment validates guide authority');
@@ -41,7 +45,7 @@ SELECT ok(pg_get_functiondef('private.assign_guide(uuid,uuid)'::regprocedure) ~*
 SELECT ok(
   pg_get_functiondef('private.assign_guide(uuid,uuid)'::regprocedure) ~* 'confirmed'
   AND pg_get_functiondef('private.assign_guide(uuid,uuid)'::regprocedure) ~* 'source_kind.*departure'
-  AND pg_get_functiondef('private.assign_guide(uuid,uuid)'::regprocedure) ~* 'departure_id IS NOT NULL',
+  AND pg_get_functiondef('private.assign_guide(uuid,uuid)'::regprocedure) ~* 'departure_id IS NULL',
   'only confirmed fixed-departure bookings can be assigned');
 SELECT ok(strpos(pg_get_functiondef('private.assign_guide(uuid,uuid)'::regprocedure), 'FROM public.bookings') < strpos(pg_get_functiondef('private.assign_guide(uuid,uuid)'::regprocedure), 'FROM public.guide_assignments'), 'assignment lock order is booking then active assignment');
 SELECT ok(pg_get_functiondef('private.assign_guide(uuid,uuid)'::regprocedure) ~* 'status = .closed|closed_at', 'reassignment closes the old assignment');
@@ -64,10 +68,10 @@ SELECT ok(pg_get_functiondef('private.accept_guide_assignment(uuid)'::regprocedu
 SELECT ok(pg_get_functiondef('private.complete_guide_assignment(uuid)'::regprocedure) ~* 'guide_completed', 'complete is audited');
 
 SELECT ok((SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid = 'public.get_guide_assigned_bookings()'::regprocedure), 'guide projection is SECURITY DEFINER');
-SELECT ok((SELECT proconfig @> ARRAY['search_path='] FROM pg_catalog.pg_proc WHERE oid = 'public.get_guide_assigned_bookings()'::regprocedure), 'guide projection pins search path');
+SELECT ok((SELECT proconfig @> ARRAY['search_path=""'] FROM pg_catalog.pg_proc WHERE oid = 'public.get_guide_assigned_bookings()'::regprocedure), 'guide projection pins search path');
 SELECT ok((SELECT pg_get_userbyid(proowner) = 'localens_guide_projection_owner' FROM pg_catalog.pg_proc WHERE oid = 'public.get_guide_assigned_bookings()'::regprocedure), 'guide projection has named owner');
 SELECT ok(pg_get_functiondef('public.get_guide_assigned_bookings()'::regprocedure) ~* 'RETURNS TABLE', 'projection declares named return columns');
-SELECT ok(pg_get_functiondef('public.get_guide_assigned_bookings()'::regprocedure) ~* 'auth\.uid', 'projection derives authenticated guide identity');
+SELECT ok(pg_get_functiondef('public.get_guide_assigned_bookings()'::regprocedure) ~* 'request\.jwt\.claim\.sub', 'projection derives authenticated guide identity');
 SELECT ok(pg_get_functiondef('public.get_guide_assigned_bookings()'::regprocedure) ~* 'role.*guide', 'projection requires active guide role');
 SELECT ok(pg_get_functiondef('public.get_guide_assigned_bookings()'::regprocedure) ~* 'guide_profiles', 'projection uses stored guide locale');
 SELECT ok(pg_get_functiondef('public.get_guide_assigned_bookings()'::regprocedure) !~* 'owner_user_id|provider|payment|raw|notes|special|SELECT \*', 'guide projection omits PII payment notes and wildcard reads');
@@ -96,9 +100,10 @@ SELECT ok(NOT EXISTS (
   SELECT 1 FROM pg_catalog.pg_auth_members AS memberships
   JOIN pg_catalog.pg_roles AS granted ON granted.oid = memberships.roleid
   JOIN pg_catalog.pg_roles AS member ON member.oid = memberships.member
-  WHERE granted.rolname IN ('localens_guide_assignment_rpc_owner', 'localens_guide_projection_owner', 'localens_guide_assignment_guard_owner')
+  WHERE (granted.rolname IN ('localens_guide_assignment_rpc_owner', 'localens_guide_projection_owner', 'localens_guide_assignment_guard_owner')
+    AND (member.rolname <> 'postgres' OR memberships.inherit_option))
      OR member.rolname IN ('localens_guide_assignment_rpc_owner', 'localens_guide_projection_owner', 'localens_guide_assignment_guard_owner')
-), 'guide owners have no inherited memberships');
+) AND (SELECT bool_and(pg_catalog.pg_has_role('postgres', role_name, 'SET')) FROM unnest(ARRAY['localens_guide_assignment_rpc_owner', 'localens_guide_projection_owner', 'localens_guide_assignment_guard_owner']) AS protected(role_name)), 'guide memberships are limited to postgres SET access without inheritance');
 SELECT ok(NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc WHERE proname IN ('assign_guide', 'accept_guide_assignment', 'complete_guide_assignment', 'get_guide_assigned_bookings') AND pg_get_userbyid(proowner) IN ('postgres', 'service_role')), 'guide definers are not superuser or service role');
 SELECT ok(
   pg_get_functiondef('public.get_guide_assigned_bookings()'::regprocedure) !~* 'SELECT \*'
@@ -131,12 +136,44 @@ VALUES
 ON CONFLICT (user_id) DO NOTHING;
 INSERT INTO public.catalog_snapshots (id, status)
 VALUES ('00000000-0000-0000-0000-000000001105'::uuid, 'building'::public.snapshot_status);
+INSERT INTO public.catalog_snapshot_areas (snapshot_id, area_id, slug)
+VALUES ('00000000-0000-0000-0000-000000001105'::uuid, '00000000-0000-0000-0000-000000001112'::uuid, 'task11-fixture-area');
+INSERT INTO public.catalog_snapshot_places (
+  snapshot_id, place_id, area_id, slug, price_vnd_per_person,
+  visit_duration_minutes, source_url, verified_at, attribution
+)
+VALUES (
+  '00000000-0000-0000-0000-000000001105'::uuid,
+  '00000000-0000-0000-0000-000000001113'::uuid,
+  '00000000-0000-0000-0000-000000001112'::uuid,
+  'task11-fixture-place', 0, 60, 'https://example.invalid/task11-place', DATE '2026-08-25', 'Task 11 fixture'
+);
+INSERT INTO public.catalog_snapshot_place_translations (snapshot_id, place_id, locale, title, summary, description)
+VALUES
+  ('00000000-0000-0000-0000-000000001105'::uuid, '00000000-0000-0000-0000-000000001113'::uuid, 'en', 'Task 11 fixture place', 'Fixture', 'Fixture'),
+  ('00000000-0000-0000-0000-000000001105'::uuid, '00000000-0000-0000-0000-000000001113'::uuid, 'vi', 'Dia diem mau Task 11', 'Mau', 'Mau');
 INSERT INTO public.travel_snapshots (id, catalog_snapshot_id, status)
 VALUES ('00000000-0000-0000-0000-000000001106'::uuid, '00000000-0000-0000-0000-000000001105'::uuid, 'building'::public.snapshot_status);
 INSERT INTO public.tours (id, slug, status)
 VALUES ('00000000-0000-0000-0000-000000001107'::uuid, 'task11-fixture-tour', 'draft'::public.tour_status);
-INSERT INTO public.tour_versions (id, tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, cancellation_policy, source_url, verified_at, attribution, license)
-VALUES ('00000000-0000-0000-0000-000000001108'::uuid, '00000000-0000-0000-0000-000000001107'::uuid, '00000000-0000-0000-0000-000000001105'::uuid, 'draft'::public.tour_version_status, 60, 100, 'Task 11 fixture policy', 'https://example.invalid/task11-tour', DATE '2026-08-25', 'Task 11 fixture', 'CC0');
+INSERT INTO public.tour_translations (tour_id, locale, title, summary, meeting_point)
+VALUES
+  ('00000000-0000-0000-0000-000000001107'::uuid, 'en', 'Task 11 fixture tour', 'Fixture', 'Task 11 gate'),
+  ('00000000-0000-0000-0000-000000001107'::uuid, 'vi', 'Tour mau Task 11', 'Mau', 'Cong mau Task 11');
+INSERT INTO public.tour_versions (id, tour_id, catalog_snapshot_id, status, duration_minutes, price_vnd_per_person, inclusions, exclusions, cancellation_policy, source_url, verified_at, attribution, license)
+VALUES ('00000000-0000-0000-0000-000000001108'::uuid, '00000000-0000-0000-0000-000000001107'::uuid, '00000000-0000-0000-0000-000000001105'::uuid, 'draft'::public.tour_version_status, 60, 100, ARRAY['guide'], ARRAY['transfer'], 'Task 11 fixture policy', 'https://example.invalid/task11-tour', DATE '2026-08-25', 'Task 11 fixture', 'CC0');
+INSERT INTO public.tour_version_translations (tour_version_id, locale, title, summary, meeting_point)
+VALUES
+  ('00000000-0000-0000-0000-000000001108'::uuid, 'en', 'Task 11 fixture version', 'Fixture', 'Task 11 gate'),
+  ('00000000-0000-0000-0000-000000001108'::uuid, 'vi', 'Phien ban mau Task 11', 'Mau', 'Cong mau Task 11');
+INSERT INTO public.tour_version_stops (tour_version_id, catalog_snapshot_id, position, place_id)
+VALUES ('00000000-0000-0000-0000-000000001108'::uuid, '00000000-0000-0000-0000-000000001105'::uuid, 1, '00000000-0000-0000-0000-000000001113'::uuid);
+UPDATE public.catalog_snapshots SET status = 'published', published_at = now()
+WHERE id = '00000000-0000-0000-0000-000000001105'::uuid;
+UPDATE public.tour_versions SET status = 'published', published_at = now()
+WHERE id = '00000000-0000-0000-0000-000000001108'::uuid;
+UPDATE public.tours SET status = 'published'
+WHERE id = '00000000-0000-0000-0000-000000001107'::uuid;
 INSERT INTO public.departures (id, tour_version_id, start_at, end_at, status, capacity)
 VALUES ('00000000-0000-0000-0000-000000001109'::uuid, '00000000-0000-0000-0000-000000001108'::uuid, '2026-09-10 18:00:00+07'::timestamptz, '2026-09-10 21:00:00+07'::timestamptz, 'scheduled'::public.departure_status, 10);
 INSERT INTO public.bookings (

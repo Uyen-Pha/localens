@@ -5,36 +5,46 @@ BEGIN;
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_guest_rpc_owner') THEN
-    CREATE ROLE localens_guest_rpc_owner NOLOGIN NOBYPASSRLS;
+    CREATE ROLE localens_guest_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_claim_rpc_owner') THEN
-    CREATE ROLE localens_claim_rpc_owner NOLOGIN NOBYPASSRLS;
+    CREATE ROLE localens_claim_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_quota_rpc_owner') THEN
-    CREATE ROLE localens_quota_rpc_owner NOLOGIN NOBYPASSRLS;
+    CREATE ROLE localens_quota_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_guest_executor') THEN
-    CREATE ROLE localens_guest_executor LOGIN NOINHERIT NOBYPASSRLS;
+    CREATE ROLE localens_guest_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION LOGIN NOBYPASSRLS;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_quota_executor') THEN
-    CREATE ROLE localens_quota_executor LOGIN NOINHERIT NOBYPASSRLS;
+    CREATE ROLE localens_quota_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION LOGIN NOBYPASSRLS;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_webhook_executor') THEN
-    CREATE ROLE localens_webhook_executor NOLOGIN NOINHERIT NOBYPASSRLS;
+    CREATE ROLE localens_webhook_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_build_executor') THEN
-    CREATE ROLE localens_build_executor NOLOGIN NOINHERIT NOBYPASSRLS;
+    CREATE ROLE localens_build_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE rolname IN (
+      'localens_guest_rpc_owner', 'localens_claim_rpc_owner', 'localens_quota_rpc_owner',
+      'localens_guest_executor', 'localens_quota_executor',
+      'localens_webhook_executor', 'localens_build_executor'
+    )
+      AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolreplication OR rolbypassrls)
+  ) OR EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE (rolname IN (
+      'localens_guest_rpc_owner', 'localens_claim_rpc_owner', 'localens_quota_rpc_owner',
+      'localens_webhook_executor', 'localens_build_executor'
+    ) AND rolcanlogin)
+       OR (rolname IN ('localens_guest_executor', 'localens_quota_executor') AND NOT rolcanlogin)
+  ) THEN
+    RAISE EXCEPTION 'unsafe pre-existing LocalLens guest or quota role attributes';
   END IF;
 END
 $roles$;
-
-ALTER ROLE localens_guest_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_claim_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_quota_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_guest_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION LOGIN NOBYPASSRLS;
-ALTER ROLE localens_quota_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION LOGIN NOBYPASSRLS;
-ALTER ROLE localens_webhook_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_build_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
 
 -- Identity migrations must not inherit authority through stale role
 -- memberships. Scrub every edge whose parent or member is a protected owner
@@ -61,8 +71,13 @@ BEGIN
     FROM pg_catalog.pg_auth_members AS memberships
     JOIN pg_catalog.pg_roles AS parent_role ON parent_role.oid = memberships.roleid
     JOIN pg_catalog.pg_roles AS member_role ON member_role.oid = memberships.member
-    WHERE parent_role.rolname = ANY(protected_roles)
-       OR member_role.rolname = ANY(protected_roles)
+    WHERE (parent_role.rolname = ANY(protected_roles)
+       OR member_role.rolname = ANY(protected_roles))
+      AND NOT (
+        member_role.rolname = 'postgres'
+        AND memberships.set_option
+        AND NOT memberships.inherit_option
+      )
   LOOP
     EXECUTE pg_catalog.format(
       'REVOKE %I FROM %I',
@@ -73,10 +88,29 @@ BEGIN
 END
 $membership$;
 
+GRANT localens_auth_trigger_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_identity_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_admin_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_audit_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_catalog_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_catalog_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_tour_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_tour_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_plan_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_plan_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_guest_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_claim_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_quota_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_guest_executor TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_quota_executor TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_webhook_executor TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_build_executor TO postgres WITH SET TRUE, INHERIT FALSE;
+
 REVOKE ALL ON SCHEMA public, private, auth FROM localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner, localens_guest_executor, localens_quota_executor;
 REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner, localens_guest_executor, localens_quota_executor;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA private, public FROM localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner, localens_guest_executor, localens_quota_executor;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner, localens_guest_executor, localens_quota_executor;
+GRANT CREATE ON SCHEMA private TO localens_plan_rpc_owner, localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner;
+GRANT CREATE ON SCHEMA public TO localens_plan_rpc_owner, localens_claim_rpc_owner;
 
 CREATE TABLE private.guest_bindings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -261,7 +295,6 @@ CREATE POLICY user_roles_claim_rpc_select ON private.user_roles
   USING (current_user = 'localens_claim_rpc_owner');
 
 GRANT USAGE ON SCHEMA public, private TO localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner;
-GRANT USAGE ON SCHEMA auth TO localens_guest_rpc_owner, localens_claim_rpc_owner;
 GRANT USAGE ON SCHEMA private TO localens_guest_executor, localens_quota_executor;
 GRANT SELECT, INSERT ON TABLE public.trip_plans TO localens_guest_rpc_owner;
 GRANT UPDATE (guest_binding_id, latest_revision_no, owner_user_id) ON TABLE public.trip_plans TO localens_guest_rpc_owner;
@@ -277,7 +310,6 @@ GRANT UPDATE (owner_user_id) ON TABLE public.trip_plans TO localens_claim_rpc_ow
 GRANT SELECT ON TABLE private.guest_bindings, private.guest_capabilities TO localens_claim_rpc_owner;
 GRANT UPDATE (claimed_at, claimed_by) ON TABLE private.guest_bindings TO localens_claim_rpc_owner;
 GRANT UPDATE (revoked_at) ON TABLE private.guest_capabilities TO localens_claim_rpc_owner;
-GRANT EXECUTE ON FUNCTION auth.uid() TO localens_claim_rpc_owner, localens_plan_rpc_owner;
 GRANT SELECT ON TABLE private.user_roles TO localens_claim_rpc_owner;
 
 REVOKE ALL ON TABLE private.guest_bindings, private.guest_capabilities,
@@ -305,7 +337,7 @@ DECLARE
   item jsonb;
   result_item jsonb;
   dto_item jsonb;
-  key_name text;
+  request_array_key text;
   expected_keys constant text[] := ARRAY[
     'revisionNo', 'request', 'result', 'fingerprint', 'rankingSource',
     'catalogSnapshotId', 'travelSnapshotId', 'fxSnapshotId', 'fxVndPerUsd',
@@ -400,9 +432,9 @@ BEGIN
   -- Every array element is checked after its array container is known to be an
   -- array.  This prevents jsonb_array_elements/text from becoming an
   -- uncontrolled built-in error for scalar/null forged input.
-  FOR key_name IN SELECT unnest(ARRAY['areas', 'dietaryRequirements', 'mobilityRequirements', 'lockedStopIds']) LOOP
+  FOR request_array_key IN SELECT unnest(ARRAY['areas', 'dietaryRequirements', 'mobilityRequirements', 'lockedStopIds']) LOOP
     IF EXISTS (
-      SELECT 1 FROM jsonb_array_elements(request_json->key_name) AS values(value)
+      SELECT 1 FROM jsonb_array_elements(request_json->request_array_key) AS values(value)
       WHERE jsonb_typeof(values.value) IS DISTINCT FROM 'string'
          OR length(values.value #>> '{}') < 1
          OR length(values.value #>> '{}') > 160
@@ -411,8 +443,8 @@ BEGIN
     ) THEN
       RAISE EXCEPTION 'invalid nested request array element' USING ERRCODE = '22023';
     END IF;
-    IF (SELECT count(*) FROM jsonb_array_elements_text(request_json->key_name))
-       <> (SELECT count(DISTINCT value) FROM jsonb_array_elements_text(request_json->key_name) AS values(value)) THEN
+    IF (SELECT count(*) FROM jsonb_array_elements_text(request_json->request_array_key))
+       <> (SELECT count(DISTINCT value) FROM jsonb_array_elements_text(request_json->request_array_key) AS values(value)) THEN
       RAISE EXCEPTION 'invalid nested request array uniqueness' USING ERRCODE = '22023';
     END IF;
   END LOOP;
@@ -910,7 +942,7 @@ BEGIN
     (dto->>'totalDurationMinutes')::integer,
     COALESCE(ARRAY(SELECT values.value::uuid FROM jsonb_array_elements_text(dto->'lockedPlaceIds') AS values(value)), '{}'::uuid[]),
     p_actor_user_id
-  ) ON CONFLICT (plan_id, revision_no) DO NOTHING
+  ) ON CONFLICT ON CONSTRAINT trip_plan_revisions_plan_id_revision_no_key DO NOTHING
     RETURNING id INTO new_revision_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'STALE_REVISION' USING ERRCODE = 'P0001', DETAIL = 'STALE_REVISION';
@@ -958,11 +990,14 @@ BEGIN
 END;
 $function$;
 ALTER FUNCTION private.persist_trip_plan_revision(uuid, integer, jsonb, uuid, uuid, text, smallint) OWNER TO localens_plan_rpc_owner;
+SET LOCAL ROLE localens_plan_rpc_owner;
 REVOKE ALL ON FUNCTION private.persist_trip_plan_revision(uuid, integer, jsonb, uuid, uuid, text, smallint) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.persist_trip_plan_revision(uuid, integer, jsonb, uuid, uuid, text, smallint) TO localens_guest_rpc_owner;
+RESET ROLE;
 
 -- Authenticated owner CAS remains a distinct public contract.  It derives the
 -- actor from the JWT and cannot receive a guest capability argument.
+SET LOCAL ROLE localens_plan_rpc_owner;
 CREATE OR REPLACE FUNCTION private.advance_trip_plan_revision(
   plan_id uuid,
   base_revision_no integer,
@@ -976,7 +1011,7 @@ AS $function$
 DECLARE
   actor_user_id uuid;
 BEGIN
-  actor_user_id := (SELECT auth.uid());
+  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles
     WHERE user_id = actor_user_id AND role = 'customer'::public.app_role
@@ -991,12 +1026,13 @@ BEGIN
   ) AS persisted;
 END;
 $function$;
+RESET ROLE;
 ALTER FUNCTION private.advance_trip_plan_revision(uuid, integer, jsonb) OWNER TO localens_plan_rpc_owner;
 REVOKE ALL ON FUNCTION private.advance_trip_plan_revision(uuid, integer, jsonb) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION private.advance_trip_plan_revision(uuid, integer, jsonb) FROM authenticated;
 
 -- PostgREST exposes public schemas, so the authenticated customer entrypoint
--- is a thin public wrapper.  The private helper derives auth.uid() and owns
+-- is a thin public wrapper.  The private helper derives the JWT subject and owns
 -- the single customer-role check; this wrapper only delegates.
 CREATE OR REPLACE FUNCTION public.advance_trip_plan_revision(
   plan_id uuid,
@@ -1077,8 +1113,10 @@ BEGIN
 END;
 $function$;
 ALTER FUNCTION private.advance_guest_trip_plan_revision(uuid, integer, jsonb, jsonb) OWNER TO localens_guest_rpc_owner;
+SET LOCAL ROLE localens_guest_rpc_owner;
 REVOKE ALL ON FUNCTION private.advance_guest_trip_plan_revision(uuid, integer, jsonb, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.advance_guest_trip_plan_revision(uuid, integer, jsonb, jsonb) TO localens_guest_executor;
+RESET ROLE;
 
 CREATE OR REPLACE FUNCTION private.create_guest_plan(args jsonb)
 RETURNS TABLE (plan_id uuid, revision_no integer, expires_at timestamptz)
@@ -1137,8 +1175,10 @@ BEGIN
 END;
 $function$;
 ALTER FUNCTION private.create_guest_plan(jsonb) OWNER TO localens_guest_rpc_owner;
+SET LOCAL ROLE localens_guest_rpc_owner;
 REVOKE ALL ON FUNCTION private.create_guest_plan(jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.create_guest_plan(jsonb) TO localens_guest_executor;
+RESET ROLE;
 
 -- Private claim helper.  Its errors intentionally share one SQLSTATE/message
 -- for wrong, expired, replayed, and cross-plan capabilities.
@@ -1217,9 +1257,9 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'guest claim failed' USING ERRCODE = 'P0001';
   END IF;
-  UPDATE private.guest_bindings
+  UPDATE private.guest_bindings AS bindings
   SET claimed_at = claim_time, claimed_by = p_actor_user_id
-  WHERE id = binding_row.id AND claimed_at IS NULL;
+  WHERE bindings.id = binding_row.id AND bindings.claimed_at IS NULL;
   UPDATE private.guest_capabilities
   SET revoked_at = claim_time
   WHERE id = capability_row.id AND revoked_at IS NULL;
@@ -1232,7 +1272,7 @@ ALTER FUNCTION private.claim_guest_binding(uuid, text, smallint, uuid) OWNER TO 
 REVOKE ALL ON FUNCTION private.claim_guest_binding(uuid, text, smallint, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.claim_guest_binding(uuid, text, smallint, uuid) TO localens_claim_rpc_owner;
 
--- Public claim wrapper: auth.uid() is derived here and is the only owner
+-- Public claim wrapper: the JWT subject is derived here and is the only owner
 -- identity passed to the private helper.
 CREATE OR REPLACE FUNCTION public.claim_guest_plan(
   p_plan_id uuid,
@@ -1247,7 +1287,7 @@ AS $function$
 DECLARE
   actor_user_id uuid;
 BEGIN
-  actor_user_id := (SELECT auth.uid());
+  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles
     WHERE user_id = actor_user_id AND role = 'customer'::public.app_role
@@ -1329,7 +1369,7 @@ BEGIN
   -- replay and must return the stored decision without incrementing anything.
   INSERT INTO private.quota_reservations (reservation_id, kind, bucket_hashes, period_start)
   VALUES (p_reservation_id, p_kind, expected_hashes, current_period)
-  ON CONFLICT (reservation_id) DO NOTHING
+  ON CONFLICT ON CONSTRAINT quota_reservations_reservation_id_key DO NOTHING
   RETURNING * INTO inserted;
   IF NOT FOUND THEN
     SELECT * INTO existing
@@ -1355,7 +1395,7 @@ BEGIN
   UNION ALL
   SELECT CASE WHEN p_kind = 'planner' THEN 'planner_device' ELSE 'gemini_device' END,
          expected_hashes[2], current_period, limit_per_bucket
-  ON CONFLICT (bucket_kind, bucket_hash, period_start) DO NOTHING;
+  ON CONFLICT ON CONSTRAINT quota_buckets_bucket_kind_bucket_hash_period_start_key DO NOTHING;
 
   -- Deterministic sorted lock order for the two non-global rows.
   FOR bucket_row IN
@@ -1383,7 +1423,7 @@ BEGIN
   IF p_kind = 'gemini' THEN
     INSERT INTO private.quota_global_buckets (period_start)
     VALUES (current_period)
-    ON CONFLICT (period_start) DO NOTHING;
+    ON CONFLICT ON CONSTRAINT quota_global_buckets_pkey DO NOTHING;
     SELECT * INTO global_row
     FROM private.quota_global_buckets AS globals
     WHERE globals.period_start = current_period
@@ -1424,11 +1464,16 @@ BEGIN
 END;
 $function$;
 ALTER FUNCTION private.reserve_quota(uuid, text, text, text) OWNER TO localens_quota_rpc_owner;
+SET LOCAL ROLE localens_quota_rpc_owner;
 REVOKE ALL ON FUNCTION private.reserve_quota(uuid, text, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.reserve_quota(uuid, text, text, text) TO localens_quota_executor;
+RESET ROLE;
 
 -- Webhook/build roles are deliberately separate from guest and quota
 -- executors; no membership or table access is granted here.
 REVOKE localens_guest_rpc_owner, localens_quota_rpc_owner FROM localens_webhook_executor, localens_build_executor;
+
+REVOKE CREATE ON SCHEMA private FROM localens_plan_rpc_owner, localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_plan_rpc_owner, localens_claim_rpc_owner;
 
 COMMIT;

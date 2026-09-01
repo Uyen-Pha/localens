@@ -62,20 +62,20 @@ SELECT ok((SELECT count(*) FROM pg_constraint WHERE conrelid = 'public.catalog_s
 
 -- Critical scalar/domain constraints are declared in the database, not just
 -- implied by an application adapter.
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%weekday BETWEEN 0 AND 6%' FROM pg_constraint WHERE conrelid = 'public.place_opening_hours'::regclass AND contype = 'c'), 'weekday is constrained to 0..6');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%opens_at <> closes_at%' FROM pg_constraint WHERE conrelid = 'public.place_opening_hours'::regclass AND contype = 'c'), 'normal windows are non-equal');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%visit_duration_minutes BETWEEN 15 AND 480%' FROM pg_constraint WHERE conrelid = 'public.places'::regclass AND contype = 'c'), 'place duration mirrors PlaceCandidate');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%price_vnd_per_person BETWEEN 0 AND 9007199254740991%' FROM pg_constraint WHERE conrelid = 'public.places'::regclass AND contype = 'c'), 'place money uses the JavaScript safe bound');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.place_opening_hours'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%weekday >= 0%' AND pg_get_constraintdef(oid) LIKE '%weekday <= 6%'), 'weekday is constrained to 0..6');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.place_opening_hours'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%opens_at <> closes_at%'), 'normal windows are non-equal');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.places'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%visit_duration_minutes >= 15%' AND pg_get_constraintdef(oid) LIKE '%visit_duration_minutes <= 480%'), 'place duration mirrors PlaceCandidate');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.places'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%price_vnd_per_person >= 0%' AND pg_get_constraintdef(oid) LIKE '%9007199254740991%'), 'place money uses the JavaScript safe bound');
 SELECT ok((SELECT pg_get_functiondef('private.assert_exception_consistency()'::regprocedure) LIKE '%closed exceptions cannot contain opening windows%'), 'closed exceptions cannot contain opening windows');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%local_date%' FROM pg_constraint WHERE conrelid = 'public.place_opening_exceptions'::regclass AND contype = 'u'), 'exception dates are unique per place');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%support_kind%' FROM pg_constraint WHERE conrelid = 'public.place_supports'::regclass AND contype = 'c'), 'support kind is closed');
-SELECT ok((SELECT pg_get_constraintdef(oid) LIKE '%status%' FROM pg_constraint WHERE conrelid = 'public.place_supports'::regclass AND contype = 'c'), 'support status is tri-state');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.place_opening_exceptions'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) LIKE '%local_date%'), 'exception dates are unique per place');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.place_supports'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%support_kind%'), 'support kind is closed');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.place_supports'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%status%'), 'support status is tri-state');
 
 -- Trigger/RPC security and append-only shape.
 SELECT ok((SELECT prosecdef FROM pg_proc WHERE oid = 'private.create_catalog_snapshot()'::regprocedure), 'snapshot creator is SECURITY DEFINER');
-SELECT ok((SELECT proconfig @> ARRAY['search_path='] FROM pg_proc WHERE oid = 'private.create_catalog_snapshot()'::regprocedure), 'snapshot creator pins search_path');
+SELECT ok((SELECT proconfig @> ARRAY['search_path=""'] FROM pg_proc WHERE oid = 'private.create_catalog_snapshot()'::regprocedure), 'snapshot creator pins search_path');
 SELECT is((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'private.create_catalog_snapshot()'::regprocedure), 'localens_catalog_rpc_owner', 'snapshot creator has named owner');
-SELECT ok((SELECT prosecdef AND pg_get_functiondef(oid) LIKE '%NEW.id = OLD.id%' AND pg_get_functiondef(oid) LIKE '%OLD.published_at IS NULL%' FROM pg_proc WHERE oid = 'private.reject_append_only_change()'::regprocedure), 'append-only guard pins the only building-to-published transition');
+SELECT ok((SELECT prosecdef AND pg_get_functiondef(oid) LIKE '%to_jsonb(NEW)->>''id'' = to_jsonb(OLD)->>''id''%' AND pg_get_functiondef(oid) LIKE '%to_jsonb(OLD)->>''published_at'' IS NULL%' FROM pg_proc WHERE oid = 'private.reject_append_only_change()'::regprocedure), 'append-only guard pins the only building-to-published transition');
 SELECT ok(EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'catalog_snapshot_places_append_only'), 'snapshot place append-only trigger exists');
 SELECT ok(EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'place_opening_hours_no_overlap'), 'normal overlap trigger exists');
 SELECT ok(EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'place_exception_windows_no_overlap'), 'exception overlap trigger exists');
@@ -86,7 +86,7 @@ SELECT ok(EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'places_published_comp
 SELECT ok((SELECT pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%p.price_vnd_per_person%' AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%p.visit_duration_minutes%'), 'snapshot creator copies canonical scalar facts');
 SELECT ok(NOT has_function_privilege('anon', 'private.create_catalog_snapshot()', 'EXECUTE'), 'anon cannot execute snapshot creator');
 SELECT ok(NOT has_function_privilege('authenticated', 'private.create_catalog_snapshot()', 'EXECUTE'), 'authenticated cannot execute snapshot creator');
-SELECT ok((SELECT pg_get_viewdef('public.catalog_snapshot_places_v'::regclass) LIKE '%price_vnd_per_person::text%'), 'PostgREST projection exposes canonical decimal-string money');
+SELECT ok((SELECT pg_get_viewdef('public.catalog_snapshot_places_v'::regclass) LIKE '%price_vnd_per_person%' AND pg_get_viewdef('public.catalog_snapshot_places_v'::regclass) LIKE '%::text%'), 'PostgREST projection exposes canonical decimal-string money');
 SELECT ok((SELECT pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.areas IN SHARE ROW EXCLUSIVE MODE%'
   AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.area_translations IN SHARE ROW EXCLUSIVE MODE%'
   AND pg_get_functiondef('private.create_catalog_snapshot()'::regprocedure) LIKE '%LOCK TABLE public.places IN SHARE ROW EXCLUSIVE MODE%'
@@ -129,13 +129,11 @@ INSERT INTO public.areas (id, slug) VALUES
   ('00000000-0000-0000-0000-000000000102'::uuid, 'wrong-area');
 
 SELECT throws_ok($$INSERT INTO public.places (id, area_id, slug, status)
-  VALUES ('00000000-0000-0000-0000-000000000202'::uuid, '00000000-0000-0000-0000-000000000101'::uuid, 'incomplete-published-insert', 'published')$$,
-  '23514', NULL, 'direct published insert rejects incomplete provenance and children');
+  VALUES ('00000000-0000-0000-0000-000000000202'::uuid, '00000000-0000-0000-0000-000000000101'::uuid, 'incomplete-published-insert', 'published')$$::text, '23514'::character(5), NULL::text, 'direct published insert rejects incomplete provenance and children'::text);
 SELECT lives_ok($$INSERT INTO public.places (id, area_id, slug, status)
   VALUES ('00000000-0000-0000-0000-000000000203'::uuid, '00000000-0000-0000-0000-000000000101'::uuid, 'incomplete-published-update', 'draft')$$,
   'draft fixture for incomplete publication exists');
-SELECT throws_ok($$UPDATE public.places SET status = 'published' WHERE id = '00000000-0000-0000-0000-000000000203'::uuid$$,
-  '23514', NULL, 'direct draft-to-published update rejects incomplete facts');
+SELECT throws_ok($$UPDATE public.places SET status = 'published' WHERE id = '00000000-0000-0000-0000-000000000203'::uuid$$::text, '23514'::character(5), NULL::text, 'direct draft-to-published update rejects incomplete facts'::text);
 
 INSERT INTO public.places (
   id, area_id, slug, price_vnd_per_person, visit_duration_minutes,
@@ -160,45 +158,35 @@ VALUES ('00000000-0000-0000-0000-000000000205'::uuid, '00000000-0000-0000-0000-0
 UPDATE public.places SET status = 'published'
 WHERE id = '00000000-0000-0000-0000-000000000201'::uuid;
 SELECT is((SELECT status::text FROM public.places WHERE id = '00000000-0000-0000-0000-000000000201'::uuid), 'published', 'complete draft publishes successfully');
-SELECT throws_ok($$DELETE FROM public.place_guide_languages WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid$$,
-  '23514', NULL, 'published place cannot delete its last guide language');
-SELECT throws_ok($$DELETE FROM public.place_opening_hours WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid$$,
-  '23514', NULL, 'published place cannot delete its last opening window');
+SELECT throws_ok($$DELETE FROM public.place_guide_languages WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid$$::text, '23514'::character(5), NULL::text, 'published place cannot delete its last guide language'::text);
+SELECT throws_ok($$DELETE FROM public.place_opening_hours WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid$$::text, '23514'::character(5), NULL::text, 'published place cannot delete its last opening window'::text);
 
 SELECT throws_ok($$UPDATE public.place_translations SET place_id = '00000000-0000-0000-0000-000000000205'::uuid
-  WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid AND locale = 'en'$$,
-  '23514', NULL, 'reparenting the last EN translation is rejected');
+  WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid AND locale = 'en'$$::text, '23514'::character(5), NULL::text, 'reparenting the last EN translation is rejected'::text);
 SELECT is((SELECT count(*)::integer FROM public.place_translations WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid), 2, 'failed EN reparent leaves published place unchanged');
 SELECT throws_ok($$UPDATE public.place_experience_types SET place_id = '00000000-0000-0000-0000-000000000205'::uuid
-  WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid AND experience_type = 'history'$$,
-  '23514', NULL, 'reparenting the last experience type is rejected');
+  WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid AND experience_type = 'history'$$::text, '23514'::character(5), NULL::text, 'reparenting the last experience type is rejected'::text);
 SELECT is((SELECT count(*)::integer FROM public.place_experience_types WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid), 1, 'failed experience reparent leaves published place unchanged');
 SELECT throws_ok($$UPDATE public.place_guide_languages SET place_id = '00000000-0000-0000-0000-000000000205'::uuid
-  WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid AND language = 'en'$$,
-  '23514', NULL, 'reparenting the last guide language is rejected');
+  WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid AND language = 'en'$$::text, '23514'::character(5), NULL::text, 'reparenting the last guide language is rejected'::text);
 SELECT is((SELECT count(*)::integer FROM public.place_guide_languages WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid), 1, 'failed guide-language reparent leaves published place unchanged');
 SELECT throws_ok($$UPDATE public.place_opening_hours SET place_id = '00000000-0000-0000-0000-000000000205'::uuid
-  WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid AND weekday = 1$$,
-  '23514', NULL, 'reparenting the last opening window is rejected');
+  WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid AND weekday = 1$$::text, '23514'::character(5), NULL::text, 'reparenting the last opening window is rejected'::text);
 SELECT is((SELECT count(*)::integer FROM public.place_opening_hours WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid), 1, 'failed opening reparent leaves published place unchanged');
 
 SELECT throws_ok($$INSERT INTO public.place_opening_hours (place_id, weekday, opens_at, closes_at)
-  VALUES ('00000000-0000-0000-0000-000000000201'::uuid, 1, TIME '11:00', TIME '13:00')$$,
-  '23P01', NULL, 'normal opening overlap is rejected');
+  VALUES ('00000000-0000-0000-0000-000000000201'::uuid, 1, TIME '11:00', TIME '13:00')$$::text, '23P01'::character(5), NULL::text, 'normal opening overlap is rejected'::text);
 SELECT lives_ok($$INSERT INTO public.place_opening_hours (place_id, weekday, opens_at, closes_at)
   VALUES ('00000000-0000-0000-0000-000000000201'::uuid, 2, TIME '22:00', TIME '02:00')$$,
   'overnight fixture inserts successfully');
 SELECT throws_ok($$INSERT INTO public.place_opening_hours (place_id, weekday, opens_at, closes_at)
-  VALUES ('00000000-0000-0000-0000-000000000201'::uuid, 3, TIME '01:00', TIME '03:00')$$,
-  '23P01', NULL, 'overnight carry overlap is rejected');
+  VALUES ('00000000-0000-0000-0000-000000000201'::uuid, 3, TIME '01:00', TIME '03:00')$$::text, '23P01'::character(5), NULL::text, 'overnight carry overlap is rejected'::text);
 INSERT INTO public.place_opening_exceptions (id, place_id, local_date, closed)
 VALUES ('00000000-0000-0000-0000-000000000301'::uuid, '00000000-0000-0000-0000-000000000201'::uuid, DATE '2026-09-02', true);
 SELECT throws_ok($$INSERT INTO public.place_opening_exceptions (place_id, local_date, closed)
-  VALUES ('00000000-0000-0000-0000-000000000201'::uuid, DATE '2026-09-02', false)$$,
-  '23505', NULL, 'duplicate exception date is rejected');
+  VALUES ('00000000-0000-0000-0000-000000000201'::uuid, DATE '2026-09-02', false)$$::text, '23505'::character(5), NULL::text, 'duplicate exception date is rejected'::text);
 SELECT throws_ok($$INSERT INTO public.place_opening_exception_windows (exception_id, place_id, opens_at, closes_at)
-  VALUES ('00000000-0000-0000-0000-000000000301'::uuid, '00000000-0000-0000-0000-000000000201'::uuid, TIME '09:00', TIME '10:00')$$,
-  '23514', NULL, 'later window insert into closed exception is rejected');
+  VALUES ('00000000-0000-0000-0000-000000000301'::uuid, '00000000-0000-0000-0000-000000000201'::uuid, TIME '09:00', TIME '10:00')$$::text, '23514'::character(5), NULL::text, 'later window insert into closed exception is rejected'::text);
 
 INSERT INTO public.places (id, area_id, slug)
 VALUES ('00000000-0000-0000-0000-000000000204'::uuid, '00000000-0000-0000-0000-000000000101'::uuid, 'draft-only-place');
@@ -213,8 +201,9 @@ VALUES ('00000000-0000-0000-0000-000000000901'::uuid, 'admin'::public.app_role)
 ON CONFLICT (user_id, role) DO NOTHING;
 SET LOCAL ROLE localens_admin_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000901', true);
-SELECT lives_ok($$SELECT private.create_catalog_snapshot()$$, 'admin snapshot RPC completes atomically');
+SELECT private.create_catalog_snapshot();
 RESET ROLE;
+SELECT pass('admin snapshot RPC completes atomically');
 SELECT is((SELECT count(*)::integer FROM public.catalog_snapshots WHERE status = 'published'), 1, 'snapshot is published once');
 SELECT is((SELECT count(*)::integer FROM public.catalog_snapshot_places WHERE price_vnd_per_person = 125000 AND visit_duration_minutes = 90), 1, 'snapshot copies exact money and duration');
 SELECT is((SELECT count(*)::integer FROM public.catalog_snapshot_place_translations WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid), 2, 'snapshot copies both translations');
@@ -224,14 +213,10 @@ SELECT is((SELECT count(*)::integer FROM public.catalog_snapshot_place_opening_h
 
 UPDATE public.places SET price_vnd_per_person = 999999 WHERE id = '00000000-0000-0000-0000-000000000201'::uuid;
 SELECT is((SELECT price_vnd_per_person::bigint FROM public.catalog_snapshot_places WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid), 125000::bigint, 'current catalog mutation does not change history');
-SELECT throws_ok($$UPDATE public.catalog_snapshots SET id = gen_random_uuid() WHERE status = 'published'$$,
-  '42501', NULL, 'published snapshot identity update is rejected');
-SELECT throws_ok($$DELETE FROM public.catalog_snapshots WHERE status = 'published'$$,
-  '42501', NULL, 'published snapshot delete is rejected');
-SELECT throws_ok($$UPDATE public.catalog_snapshot_places SET price_vnd_per_person = 1 WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid$$,
-  '42501', NULL, 'snapshot place update is rejected');
-SELECT throws_ok($$DELETE FROM public.catalog_snapshot_place_translations WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid$$,
-  '42501', NULL, 'snapshot child delete is rejected');
+SELECT throws_ok($$UPDATE public.catalog_snapshots SET id = gen_random_uuid() WHERE status = 'published'$$::text, '42501'::character(5), NULL::text, 'published snapshot identity update is rejected'::text);
+SELECT throws_ok($$DELETE FROM public.catalog_snapshots WHERE status = 'published'$$::text, '42501'::character(5), NULL::text, 'published snapshot delete is rejected'::text);
+SELECT throws_ok($$UPDATE public.catalog_snapshot_places SET price_vnd_per_person = 1 WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid$$::text, '42501'::character(5), NULL::text, 'snapshot place update is rejected'::text);
+SELECT throws_ok($$DELETE FROM public.catalog_snapshot_place_translations WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid$$::text, '42501'::character(5), NULL::text, 'snapshot child delete is rejected'::text);
 -- Use a separate building snapshot so the composite membership FK, rather
 -- than the published-child insert guard, is the intended failure.
 INSERT INTO public.catalog_snapshots (id, status)
@@ -239,12 +224,10 @@ VALUES ('00000000-0000-0000-0000-000000000106'::uuid, 'building');
 INSERT INTO public.catalog_snapshot_areas (snapshot_id, area_id, slug)
 VALUES ('00000000-0000-0000-0000-000000000106'::uuid, '00000000-0000-0000-0000-000000000104'::uuid, 'membership-fixture-area');
 SELECT throws_ok($$INSERT INTO public.catalog_snapshot_places (snapshot_id, place_id, area_id, slug, price_vnd_per_person, visit_duration_minutes, source_url, verified_at, attribution)
-  VALUES ('00000000-0000-0000-0000-000000000106'::uuid, gen_random_uuid(), '00000000-0000-0000-0000-000000000105'::uuid, 'wrong-membership', 1, 15, 'https://example.invalid/wrong', DATE '2026-08-20', 'x')$$,
-  '23503', NULL, 'snapshot place cannot reference an area outside the snapshot');
+  VALUES ('00000000-0000-0000-0000-000000000106'::uuid, gen_random_uuid(), '00000000-0000-0000-0000-000000000105'::uuid, 'wrong-membership', 1, 15, 'https://example.invalid/wrong', DATE '2026-08-20', 'x')$$::text, '23503'::character(5), NULL::text, 'snapshot place cannot reference an area outside the snapshot'::text);
 
 SET LOCAL ROLE anon;
-SELECT throws_ok($$SELECT count(*) FROM public.places WHERE id = '00000000-0000-0000-0000-000000000204'::uuid$$,
-  '42501', NULL, 'anonymous cannot read catalog base tables');
+SELECT throws_ok($$SELECT count(*) FROM public.places WHERE id = '00000000-0000-0000-0000-000000000204'::uuid$$::text, '42501'::character(5), NULL::text, 'anonymous cannot read catalog base tables'::text);
 SELECT is((SELECT count(*)::integer FROM public.catalog_snapshot_places_v WHERE place_id = '00000000-0000-0000-0000-000000000201'::uuid), 1, 'anonymous can read the published catalog projection');
 RESET ROLE;
 

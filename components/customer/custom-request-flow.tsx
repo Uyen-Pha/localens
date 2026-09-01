@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   readCustomRequestDraftState,
@@ -70,6 +70,7 @@ export function CustomRequestFlow({
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [quoteBooking, setQuoteBooking] = useState<CustomerBookingView | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const interactionStarted = useRef(false);
 
   useEffect(() => {
     const personalization = readPersonalizationState();
@@ -100,8 +101,9 @@ export function CustomRequestFlow({
       try {
         await activeDemoPortal.initialized;
         const session = await activeDemoPortal.session.getSession();
+        if (disposed || interactionStarted.current) return;
         if (session === null || session.role !== "customer") {
-          if (!disposed) setPhase("sign-in");
+          setPhase("sign-in");
           return;
         }
         const [requests, bookings] = await Promise.all([
@@ -111,7 +113,7 @@ export function CustomRequestFlow({
         const persistedRequest = requests.find((entry) =>
           entry.planId === selectedDraft.planId && entry.revisionNo === selectedDraft.revision,
         );
-        if (disposed) return;
+        if (disposed || interactionStarted.current) return;
         if (persistedRequest === undefined) {
           setRequestId(null);
           setBookingId(null);
@@ -169,6 +171,7 @@ export function CustomRequestFlow({
 
   async function submitRequest(): Promise<void> {
     if (draft === null || budgetExceeded) return;
+    interactionStarted.current = true;
     setActionMessage(null);
     if (demoPortal === undefined) {
       setPhase("admin-review");

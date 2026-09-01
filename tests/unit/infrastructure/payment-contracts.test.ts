@@ -172,7 +172,23 @@ describe("Stripe Test payment adapter contracts", () => {
     expect(migration).toContain("payments_checkout_owner_select");
     expect(migration).toContain("checkout RPC owner");
     expect(migration).toContain("membership_record");
+    expect(migration).toMatch(/CREATE ROLE localens_payment_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/CREATE ROLE localens_payment_projection_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/CREATE ROLE localens_payment_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/unsafe pre-existing LocalLens payment role attributes/);
+    expect(migration).not.toMatch(/ALTER ROLE localens_/);
+    expect(migration).toMatch(/member\.rolname = 'postgres'[\s\S]*memberships\.set_option[\s\S]*NOT memberships\.inherit_option/);
+    for (const role of ["localens_payment_rpc_owner", "localens_payment_projection_owner", "localens_payment_guard_owner", "localens_webhook_executor"]) {
+      expect(migration).toContain(`GRANT ${role} TO postgres WITH SET TRUE, INHERIT FALSE;`);
+    }
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA private TO localens_identity_rpc_owner, localens_checkout_rpc_owner, localens_payment_rpc_owner, localens_payment_guard_owner/);
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_admin_rpc_owner, localens_payment_projection_owner/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_checkout_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.assert_checkout_attempt_mutation[\s\S]*RESET ROLE;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_checkout_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.record_checkout_session[\s\S]*RESET ROLE;/);
+    expect(migration).toMatch(/ALTER FUNCTION public\.reconcile_payment[\s\S]*OWNER TO localens_admin_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA private FROM localens_identity_rpc_owner, localens_checkout_rpc_owner, localens_payment_rpc_owner, localens_payment_guard_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_admin_rpc_owner, localens_payment_projection_owner;[\s\S]*COMMIT/);
     expect(migration).toContain("hold_row.status");
+    expect(migration).toContain("authority_time := pg_catalog.clock_timestamp()");
+    expect(migration).not.toMatch(/\bcurrent_time\b/);
     expect(migration).not.toMatch(/raw_body|stripe_signature|authorization/i);
     expect(pgTap).toContain("webhook event idempotency");
     expect(pgTap).toContain("early webhook");

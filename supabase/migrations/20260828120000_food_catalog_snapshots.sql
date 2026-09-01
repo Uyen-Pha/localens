@@ -2,6 +2,8 @@ BEGIN;
 
 -- Task 3A/3B/3C: canonical food facts, immutable snapshots, and published
 -- projections. The public views below never read mutable food relations.
+GRANT CREATE ON SCHEMA private TO localens_catalog_rpc_owner, localens_catalog_guard_owner;
+GRANT CREATE ON SCHEMA public TO localens_catalog_rpc_owner;
 
 CREATE TABLE public.food_vendors (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -203,7 +205,7 @@ BEGIN
     'food_item_translations', 'food_item_supports'
   ]
   LOOP
-    EXECUTE format('CREATE POLICY catalog_owner_all ON public.%I FOR ALL TO localens_catalog_rpc_owner USING (current_user = %L) WITH CHECK (current_user = %L)', table_name, 'localens_catalog_rpc_owner', 'localens_catalog_rpc_owner');
+    EXECUTE format('CREATE POLICY catalog_owner_all ON public.%I FOR ALL TO localens_catalog_rpc_owner USING (true) WITH CHECK (true)', table_name);
   END LOOP;
 END
 $policies$;
@@ -228,12 +230,18 @@ REVOKE ALL ON TABLE
   FROM PUBLIC, anon, authenticated, service_role;
 
 -- Reuse the existing catalog timestamp helper for all mutable parent rows.
+SET LOCAL ROLE localens_catalog_rpc_owner;
+GRANT EXECUTE ON FUNCTION private.catalog_set_updated_at() TO postgres;
+RESET ROLE;
 CREATE TRIGGER food_vendors_set_updated_at
 BEFORE UPDATE ON public.food_vendors
 FOR EACH ROW EXECUTE FUNCTION private.catalog_set_updated_at();
 CREATE TRIGGER food_items_set_updated_at
 BEFORE UPDATE ON public.food_items
 FOR EACH ROW EXECUTE FUNCTION private.catalog_set_updated_at();
+SET LOCAL ROLE localens_catalog_rpc_owner;
+REVOKE EXECUTE ON FUNCTION private.catalog_set_updated_at() FROM postgres;
+RESET ROLE;
 
 CREATE OR REPLACE FUNCTION private.assert_food_opening_window_nonoverlap()
 RETURNS trigger
@@ -259,18 +267,18 @@ BEGIN
     FROM public.food_vendor_opening_hours AS existing
     CROSS JOIN LATERAL (
       SELECT NEW.weekday AS day,
-             pg_catalog.extract(epoch FROM NEW.opens_at)::integer AS start_seconds,
-             CASE WHEN NEW.closes_at > NEW.opens_at THEN pg_catalog.extract(epoch FROM NEW.closes_at)::integer ELSE 86400 END AS end_seconds
+             extract(epoch FROM NEW.opens_at)::integer AS start_seconds,
+             CASE WHEN NEW.closes_at > NEW.opens_at THEN extract(epoch FROM NEW.closes_at)::integer ELSE 86400 END AS end_seconds
       UNION ALL
-      SELECT ((NEW.weekday + 1) % 7), 0, pg_catalog.extract(epoch FROM NEW.closes_at)::integer
+      SELECT ((NEW.weekday + 1) % 7), 0, extract(epoch FROM NEW.closes_at)::integer
       WHERE NEW.closes_at < NEW.opens_at
     ) AS incoming
     CROSS JOIN LATERAL (
       SELECT existing.weekday AS day,
-             pg_catalog.extract(epoch FROM existing.opens_at)::integer AS start_seconds,
-             CASE WHEN existing.closes_at > existing.opens_at THEN pg_catalog.extract(epoch FROM existing.closes_at)::integer ELSE 86400 END AS end_seconds
+             extract(epoch FROM existing.opens_at)::integer AS start_seconds,
+             CASE WHEN existing.closes_at > existing.opens_at THEN extract(epoch FROM existing.closes_at)::integer ELSE 86400 END AS end_seconds
       UNION ALL
-      SELECT ((existing.weekday + 1) % 7), 0, pg_catalog.extract(epoch FROM existing.closes_at)::integer
+      SELECT ((existing.weekday + 1) % 7), 0, extract(epoch FROM existing.closes_at)::integer
       WHERE existing.closes_at < existing.opens_at
     ) AS stored
     WHERE existing.food_vendor_id = NEW.food_vendor_id
@@ -286,9 +294,15 @@ END;
 $function$;
 ALTER FUNCTION private.assert_food_opening_window_nonoverlap() OWNER TO localens_catalog_guard_owner;
 REVOKE ALL ON FUNCTION private.assert_food_opening_window_nonoverlap() FROM PUBLIC, anon, authenticated, service_role;
+SET LOCAL ROLE localens_catalog_guard_owner;
+GRANT EXECUTE ON FUNCTION private.assert_food_opening_window_nonoverlap() TO postgres;
+RESET ROLE;
 CREATE TRIGGER food_vendor_opening_hours_no_overlap
 BEFORE INSERT OR UPDATE ON public.food_vendor_opening_hours
 FOR EACH ROW EXECUTE FUNCTION private.assert_food_opening_window_nonoverlap();
+SET LOCAL ROLE localens_catalog_guard_owner;
+REVOKE EXECUTE ON FUNCTION private.assert_food_opening_window_nonoverlap() FROM postgres;
+RESET ROLE;
 
 CREATE OR REPLACE FUNCTION private.assert_food_exception_window_nonoverlap()
 RETURNS trigger
@@ -303,17 +317,17 @@ BEGIN
     SELECT 1
     FROM public.food_vendor_opening_exception_windows AS existing
     CROSS JOIN LATERAL (
-      SELECT pg_catalog.extract(epoch FROM NEW.opens_at)::integer AS start_seconds,
-             CASE WHEN NEW.closes_at > NEW.opens_at THEN pg_catalog.extract(epoch FROM NEW.closes_at)::integer ELSE 86400 END AS end_seconds
+      SELECT extract(epoch FROM NEW.opens_at)::integer AS start_seconds,
+             CASE WHEN NEW.closes_at > NEW.opens_at THEN extract(epoch FROM NEW.closes_at)::integer ELSE 86400 END AS end_seconds
       UNION ALL
-      SELECT 0, pg_catalog.extract(epoch FROM NEW.closes_at)::integer
+      SELECT 0, extract(epoch FROM NEW.closes_at)::integer
       WHERE NEW.closes_at < NEW.opens_at
     ) AS incoming
     CROSS JOIN LATERAL (
-      SELECT pg_catalog.extract(epoch FROM existing.opens_at)::integer AS start_seconds,
-             CASE WHEN existing.closes_at > existing.opens_at THEN pg_catalog.extract(epoch FROM existing.closes_at)::integer ELSE 86400 END AS end_seconds
+      SELECT extract(epoch FROM existing.opens_at)::integer AS start_seconds,
+             CASE WHEN existing.closes_at > existing.opens_at THEN extract(epoch FROM existing.closes_at)::integer ELSE 86400 END AS end_seconds
       UNION ALL
-      SELECT 0, pg_catalog.extract(epoch FROM existing.closes_at)::integer
+      SELECT 0, extract(epoch FROM existing.closes_at)::integer
       WHERE existing.closes_at < existing.opens_at
     ) AS stored
     WHERE existing.exception_id = NEW.exception_id
@@ -328,9 +342,15 @@ END;
 $function$;
 ALTER FUNCTION private.assert_food_exception_window_nonoverlap() OWNER TO localens_catalog_guard_owner;
 REVOKE ALL ON FUNCTION private.assert_food_exception_window_nonoverlap() FROM PUBLIC, anon, authenticated, service_role;
+SET LOCAL ROLE localens_catalog_guard_owner;
+GRANT EXECUTE ON FUNCTION private.assert_food_exception_window_nonoverlap() TO postgres;
+RESET ROLE;
 CREATE TRIGGER food_vendor_exception_windows_no_overlap
 BEFORE INSERT OR UPDATE ON public.food_vendor_opening_exception_windows
 FOR EACH ROW EXECUTE FUNCTION private.assert_food_exception_window_nonoverlap();
+SET LOCAL ROLE localens_catalog_guard_owner;
+REVOKE EXECUTE ON FUNCTION private.assert_food_exception_window_nonoverlap() FROM postgres;
+RESET ROLE;
 
 CREATE OR REPLACE FUNCTION private.assert_food_exception_consistency()
 RETURNS trigger
@@ -352,10 +372,16 @@ END;
 $function$;
 ALTER FUNCTION private.assert_food_exception_consistency() OWNER TO localens_catalog_guard_owner;
 REVOKE ALL ON FUNCTION private.assert_food_exception_consistency() FROM PUBLIC, anon, authenticated, service_role;
+SET LOCAL ROLE localens_catalog_guard_owner;
+GRANT EXECUTE ON FUNCTION private.assert_food_exception_consistency() TO postgres;
+RESET ROLE;
 CREATE CONSTRAINT TRIGGER food_vendor_exception_consistency
 AFTER INSERT OR UPDATE ON public.food_vendor_opening_exceptions
 DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW EXECUTE FUNCTION private.assert_food_exception_consistency();
+SET LOCAL ROLE localens_catalog_guard_owner;
+REVOKE EXECUTE ON FUNCTION private.assert_food_exception_consistency() FROM postgres;
+RESET ROLE;
 
 CREATE OR REPLACE FUNCTION private.assert_food_exception_window_parent_open()
 RETURNS trigger
@@ -379,9 +405,15 @@ END;
 $function$;
 ALTER FUNCTION private.assert_food_exception_window_parent_open() OWNER TO localens_catalog_guard_owner;
 REVOKE ALL ON FUNCTION private.assert_food_exception_window_parent_open() FROM PUBLIC, anon, authenticated, service_role;
+SET LOCAL ROLE localens_catalog_guard_owner;
+GRANT EXECUTE ON FUNCTION private.assert_food_exception_window_parent_open() TO postgres;
+RESET ROLE;
 CREATE TRIGGER food_vendor_exception_window_parent_open
 BEFORE INSERT OR UPDATE ON public.food_vendor_opening_exception_windows
 FOR EACH ROW EXECUTE FUNCTION private.assert_food_exception_window_parent_open();
+SET LOCAL ROLE localens_catalog_guard_owner;
+REVOKE EXECUTE ON FUNCTION private.assert_food_exception_window_parent_open() FROM postgres;
+RESET ROLE;
 
 CREATE INDEX food_vendors_place_status_idx ON public.food_vendors (place_id, status, slug);
 CREATE INDEX food_vendor_translations_locale_idx ON public.food_vendor_translations (locale, food_vendor_id);
@@ -587,7 +619,7 @@ BEGIN
     'catalog_snapshot_food_item_translations', 'catalog_snapshot_food_item_supports'
   ]
   LOOP
-    EXECUTE format('CREATE POLICY catalog_owner_all ON public.%I FOR ALL TO localens_catalog_rpc_owner USING (current_user = %L) WITH CHECK (current_user = %L)', table_name, 'localens_catalog_rpc_owner', 'localens_catalog_rpc_owner');
+    EXECUTE format('CREATE POLICY catalog_owner_all ON public.%I FOR ALL TO localens_catalog_rpc_owner USING (true) WITH CHECK (true)', table_name);
   END LOOP;
 END
 $snapshot_policies$;
@@ -607,6 +639,9 @@ REVOKE ALL ON TABLE
   public.catalog_snapshot_food_item_translations, public.catalog_snapshot_food_item_supports
   FROM PUBLIC, anon, authenticated, service_role;
 
+SET LOCAL ROLE localens_catalog_guard_owner;
+GRANT EXECUTE ON FUNCTION private.reject_append_only_change() TO postgres;
+RESET ROLE;
 CREATE TRIGGER catalog_snapshot_food_vendors_append_only BEFORE UPDATE OR DELETE ON public.catalog_snapshot_food_vendors
 FOR EACH ROW EXECUTE FUNCTION private.reject_append_only_change();
 CREATE TRIGGER catalog_snapshot_food_vendor_translations_append_only BEFORE UPDATE OR DELETE ON public.catalog_snapshot_food_vendor_translations
@@ -681,6 +716,9 @@ FOR EACH STATEMENT EXECUTE FUNCTION private.reject_append_only_change();
 CREATE TRIGGER catalog_snapshot_place_exception_windows_append_only_truncate
 BEFORE TRUNCATE ON public.catalog_snapshot_place_opening_exception_windows
 FOR EACH STATEMENT EXECUTE FUNCTION private.reject_append_only_change();
+SET LOCAL ROLE localens_catalog_guard_owner;
+REVOKE EXECUTE ON FUNCTION private.reject_append_only_change() FROM postgres;
+RESET ROLE;
 
 -- Publication checks run as the named non-login guard owner.  Because every
 -- catalog table is FORCE RLS, the guard receives only the narrow SELECT rows
@@ -1003,6 +1041,15 @@ $function$;
 ALTER FUNCTION private.assert_published_food_item_vendor_row() OWNER TO localens_catalog_guard_owner;
 REVOKE ALL ON FUNCTION private.assert_published_food_item_vendor_row() FROM PUBLIC, anon, authenticated, service_role;
 
+SET LOCAL ROLE localens_catalog_guard_owner;
+GRANT EXECUTE ON FUNCTION
+  private.assert_published_food_vendor_transition(),
+  private.assert_published_food_item_vendor_row(),
+  private.assert_published_food_item_transition(),
+  private.assert_published_food_vendor_row(),
+  private.assert_published_food_item_row()
+TO postgres;
+RESET ROLE;
 CREATE TRIGGER food_vendors_published_completeness
 AFTER INSERT OR UPDATE OF place_id, status, source_url, verified_at, attribution ON public.food_vendors
 FOR EACH ROW WHEN (NEW.status = 'published'::public.place_status)
@@ -1029,10 +1076,20 @@ CREATE TRIGGER food_item_translations_published_completeness AFTER INSERT OR UPD
 FOR EACH ROW EXECUTE FUNCTION private.assert_published_food_item_row();
 CREATE TRIGGER food_item_supports_published_completeness AFTER INSERT OR UPDATE OR DELETE ON public.food_item_supports
 FOR EACH ROW EXECUTE FUNCTION private.assert_published_food_item_row();
+SET LOCAL ROLE localens_catalog_guard_owner;
+REVOKE EXECUTE ON FUNCTION
+  private.assert_published_food_vendor_transition(),
+  private.assert_published_food_item_vendor_row(),
+  private.assert_published_food_item_transition(),
+  private.assert_published_food_vendor_row(),
+  private.assert_published_food_item_row()
+FROM postgres;
+RESET ROLE;
 
 -- Extend the existing venue snapshot RPC forward-only.  The venue lock prefix
 -- and copy statements intentionally remain byte-for-byte compatible; food
 -- locks and copies follow them in deterministic parent/child order.
+SET LOCAL ROLE localens_catalog_rpc_owner;
 CREATE OR REPLACE FUNCTION private.create_catalog_snapshot()
 RETURNS uuid
 LANGUAGE plpgsql
@@ -1042,12 +1099,12 @@ SET statement_timeout = '5s'
 AS $function$
 DECLARE
   actor uuid;
-  snapshot_id uuid;
+  created_snapshot_id uuid;
   place_row public.places%ROWTYPE;
   vendor_row public.food_vendors%ROWTYPE;
   item_row public.food_items%ROWTYPE;
 BEGIN
-  actor := auth.uid();
+  actor := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles WHERE user_id = actor AND role = 'admin'::public.app_role
   ) THEN
@@ -1077,7 +1134,7 @@ BEGIN
   LOCK TABLE public.food_item_translations IN SHARE ROW EXCLUSIVE MODE;
   LOCK TABLE public.food_item_supports IN SHARE ROW EXCLUSIVE MODE;
 
-  snapshot_id := gen_random_uuid();
+  created_snapshot_id := gen_random_uuid();
   FOR place_row IN
     SELECT * FROM public.places WHERE status = 'published'::public.place_status
   LOOP
@@ -1093,58 +1150,58 @@ BEGIN
   LOOP
     PERFORM private.assert_published_food_item_complete(item_row.id);
   END LOOP;
-  INSERT INTO public.catalog_snapshots (id, status) VALUES (snapshot_id, 'building'::public.snapshot_status);
+  INSERT INTO public.catalog_snapshots (id, status) VALUES (created_snapshot_id, 'building'::public.snapshot_status);
 
   INSERT INTO public.catalog_snapshot_areas (snapshot_id, area_id, slug)
-  SELECT snapshot_id, a.id, a.slug
+  SELECT created_snapshot_id, a.id, a.slug
   FROM public.areas AS a
   WHERE EXISTS (SELECT 1 FROM public.places AS p WHERE p.area_id = a.id AND p.status = 'published'::public.place_status);
 
   INSERT INTO public.catalog_snapshot_area_translations (snapshot_id, area_id, locale, name, description)
-  SELECT snapshot_id, t.area_id, t.locale, t.name, t.description
+  SELECT created_snapshot_id, t.area_id, t.locale, t.name, t.description
   FROM public.area_translations AS t
-  WHERE EXISTS (SELECT 1 FROM public.catalog_snapshot_areas AS a WHERE a.snapshot_id = snapshot_id AND a.area_id = t.area_id);
+  WHERE EXISTS (SELECT 1 FROM public.catalog_snapshot_areas AS a WHERE a.snapshot_id = created_snapshot_id AND a.area_id = t.area_id);
 
   INSERT INTO public.catalog_snapshot_places (
     snapshot_id, place_id, area_id, slug, price_vnd_per_person,
     visit_duration_minutes, source_url, verified_at, attribution
   )
-  SELECT snapshot_id, p.id, p.area_id, p.slug, p.price_vnd_per_person, p.visit_duration_minutes, p.source_url, p.verified_at, p.attribution
+  SELECT created_snapshot_id, p.id, p.area_id, p.slug, p.price_vnd_per_person, p.visit_duration_minutes, p.source_url, p.verified_at, p.attribution
   FROM public.places AS p
   WHERE p.status = 'published'::public.place_status;
 
   INSERT INTO public.catalog_snapshot_place_translations (snapshot_id, place_id, locale, title, summary, description)
-  SELECT snapshot_id, t.place_id, t.locale, t.title, t.summary, t.description
+  SELECT created_snapshot_id, t.place_id, t.locale, t.title, t.summary, t.description
   FROM public.place_translations AS t
   WHERE EXISTS (SELECT 1 FROM public.places AS p WHERE p.id = t.place_id AND p.status = 'published'::public.place_status);
 
   INSERT INTO public.catalog_snapshot_place_experience_types (snapshot_id, place_id, experience_type)
-  SELECT snapshot_id, e.place_id, e.experience_type
+  SELECT created_snapshot_id, e.place_id, e.experience_type
   FROM public.place_experience_types AS e
   WHERE EXISTS (SELECT 1 FROM public.places AS p WHERE p.id = e.place_id AND p.status = 'published'::public.place_status);
 
   INSERT INTO public.catalog_snapshot_place_guide_languages (snapshot_id, place_id, language)
-  SELECT snapshot_id, l.place_id, l.language
+  SELECT created_snapshot_id, l.place_id, l.language
   FROM public.place_guide_languages AS l
   WHERE EXISTS (SELECT 1 FROM public.places AS p WHERE p.id = l.place_id AND p.status = 'published'::public.place_status);
 
   INSERT INTO public.catalog_snapshot_place_supports (snapshot_id, place_id, support_kind, requirement, status)
-  SELECT snapshot_id, s.place_id, s.support_kind, s.requirement, s.status
+  SELECT created_snapshot_id, s.place_id, s.support_kind, s.requirement, s.status
   FROM public.place_supports AS s
   WHERE EXISTS (SELECT 1 FROM public.places AS p WHERE p.id = s.place_id AND p.status = 'published'::public.place_status);
 
   INSERT INTO public.catalog_snapshot_place_opening_hours (snapshot_id, place_id, opening_id, weekday, opens_at, closes_at)
-  SELECT snapshot_id, h.place_id, h.id, h.weekday, h.opens_at, h.closes_at
+  SELECT created_snapshot_id, h.place_id, h.id, h.weekday, h.opens_at, h.closes_at
   FROM public.place_opening_hours AS h
   WHERE EXISTS (SELECT 1 FROM public.places AS p WHERE p.id = h.place_id AND p.status = 'published'::public.place_status);
 
   INSERT INTO public.catalog_snapshot_place_opening_exceptions (snapshot_id, place_id, exception_id, local_date, closed)
-  SELECT snapshot_id, e.place_id, e.id, e.local_date, e.closed
+  SELECT created_snapshot_id, e.place_id, e.id, e.local_date, e.closed
   FROM public.place_opening_exceptions AS e
   WHERE EXISTS (SELECT 1 FROM public.places AS p WHERE p.id = e.place_id AND p.status = 'published'::public.place_status);
 
   INSERT INTO public.catalog_snapshot_place_opening_exception_windows (snapshot_id, place_id, exception_id, window_id, opens_at, closes_at)
-  SELECT snapshot_id, w.place_id, w.exception_id, w.id, w.opens_at, w.closes_at
+  SELECT created_snapshot_id, w.place_id, w.exception_id, w.id, w.opens_at, w.closes_at
   FROM public.place_opening_exception_windows AS w
   WHERE EXISTS (SELECT 1 FROM public.places AS p WHERE p.id = w.place_id AND p.status = 'published'::public.place_status);
 
@@ -1152,52 +1209,52 @@ BEGIN
     snapshot_id, vendor_id, place_id, slug, status, service_type, location_note,
     capacity_note, source_url, verified_at, attribution, created_at, updated_at
   )
-  SELECT snapshot_id, v.id, v.place_id, v.slug, v.status, v.service_type, v.location_note,
+  SELECT created_snapshot_id, v.id, v.place_id, v.slug, v.status, v.service_type, v.location_note,
     v.capacity_note, v.source_url, v.verified_at, v.attribution, v.created_at, v.updated_at
   FROM public.food_vendors AS v
   JOIN public.places AS p ON p.id = v.place_id AND p.status = 'published'::public.place_status
   WHERE v.status = 'published'::public.place_status;
 
   INSERT INTO public.catalog_snapshot_food_vendor_translations (snapshot_id, vendor_id, locale, title, description)
-  SELECT snapshot_id, t.food_vendor_id, t.locale, t.title, t.description
+  SELECT created_snapshot_id, t.food_vendor_id, t.locale, t.title, t.description
   FROM public.food_vendor_translations AS t
   WHERE EXISTS (
     SELECT 1 FROM public.catalog_snapshot_food_vendors AS v
-    WHERE v.snapshot_id = snapshot_id AND v.vendor_id = t.food_vendor_id
+    WHERE v.snapshot_id = created_snapshot_id AND v.vendor_id = t.food_vendor_id
   );
 
   INSERT INTO public.catalog_snapshot_food_vendor_supports (snapshot_id, vendor_id, support_kind, requirement, status)
-  SELECT snapshot_id, s.food_vendor_id, s.support_kind, s.requirement, s.status
+  SELECT created_snapshot_id, s.food_vendor_id, s.support_kind, s.requirement, s.status
   FROM public.food_vendor_supports AS s
   WHERE EXISTS (
     SELECT 1 FROM public.catalog_snapshot_food_vendors AS v
-    WHERE v.snapshot_id = snapshot_id AND v.vendor_id = s.food_vendor_id
+    WHERE v.snapshot_id = created_snapshot_id AND v.vendor_id = s.food_vendor_id
   );
 
   INSERT INTO public.catalog_snapshot_food_vendor_opening_hours (snapshot_id, vendor_id, opening_id, weekday, opens_at, closes_at)
-  SELECT snapshot_id, h.food_vendor_id, h.id, h.weekday, h.opens_at, h.closes_at
+  SELECT created_snapshot_id, h.food_vendor_id, h.id, h.weekday, h.opens_at, h.closes_at
   FROM public.food_vendor_opening_hours AS h
   WHERE EXISTS (
     SELECT 1 FROM public.catalog_snapshot_food_vendors AS v
-    WHERE v.snapshot_id = snapshot_id AND v.vendor_id = h.food_vendor_id
+    WHERE v.snapshot_id = created_snapshot_id AND v.vendor_id = h.food_vendor_id
   );
 
   INSERT INTO public.catalog_snapshot_food_vendor_opening_exceptions (snapshot_id, vendor_id, exception_id, local_date, closed)
-  SELECT snapshot_id, e.food_vendor_id, e.id, e.local_date, e.closed
+  SELECT created_snapshot_id, e.food_vendor_id, e.id, e.local_date, e.closed
   FROM public.food_vendor_opening_exceptions AS e
   WHERE EXISTS (
     SELECT 1 FROM public.catalog_snapshot_food_vendors AS v
-    WHERE v.snapshot_id = snapshot_id AND v.vendor_id = e.food_vendor_id
+    WHERE v.snapshot_id = created_snapshot_id AND v.vendor_id = e.food_vendor_id
   );
 
   INSERT INTO public.catalog_snapshot_food_vendor_opening_exception_windows (
     snapshot_id, vendor_id, exception_id, window_id, opens_at, closes_at
   )
-  SELECT snapshot_id, w.food_vendor_id, w.exception_id, w.id, w.opens_at, w.closes_at
+  SELECT created_snapshot_id, w.food_vendor_id, w.exception_id, w.id, w.opens_at, w.closes_at
   FROM public.food_vendor_opening_exception_windows AS w
   WHERE EXISTS (
     SELECT 1 FROM public.catalog_snapshot_food_vendor_opening_exceptions AS e
-    WHERE e.snapshot_id = snapshot_id AND e.vendor_id = w.food_vendor_id AND e.exception_id = w.exception_id
+    WHERE e.snapshot_id = created_snapshot_id AND e.vendor_id = w.food_vendor_id AND e.exception_id = w.exception_id
   );
 
   INSERT INTO public.catalog_snapshot_food_items (
@@ -1205,45 +1262,46 @@ BEGIN
     price_vnd_min, price_vnd_max, portion_description, available, allergens,
     source_url, verified_at, attribution, created_at, updated_at
   )
-  SELECT snapshot_id, i.id, i_vendor.place_id, i.food_vendor_id, i.slug, i.status, i.serving_unit,
+  SELECT created_snapshot_id, i.id, i_vendor.place_id, i.food_vendor_id, i.slug, i.status, i.serving_unit,
     i.price_vnd_min, i.price_vnd_max, i.portion_description, i.available, i.allergens,
     i.source_url, i.verified_at, i.attribution, i.created_at, i.updated_at
   FROM public.food_items AS i
   JOIN public.catalog_snapshot_food_vendors AS i_vendor
-    ON i_vendor.snapshot_id = snapshot_id AND i_vendor.vendor_id = i.food_vendor_id
+    ON i_vendor.snapshot_id = created_snapshot_id AND i_vendor.vendor_id = i.food_vendor_id
   WHERE i.status = 'published'::public.place_status
     AND i.available = true;
 
   INSERT INTO public.catalog_snapshot_food_item_translations (snapshot_id, item_id, locale, title, description)
-  SELECT snapshot_id, t.food_item_id, t.locale, t.title, t.description
+  SELECT created_snapshot_id, t.food_item_id, t.locale, t.title, t.description
   FROM public.food_item_translations AS t
   WHERE EXISTS (
     SELECT 1 FROM public.catalog_snapshot_food_items AS i
-    WHERE i.snapshot_id = snapshot_id AND i.item_id = t.food_item_id
+    WHERE i.snapshot_id = created_snapshot_id AND i.item_id = t.food_item_id
   );
 
   INSERT INTO public.catalog_snapshot_food_item_supports (snapshot_id, item_id, support_kind, requirement, status)
-  SELECT snapshot_id, s.food_item_id, s.support_kind, s.requirement, s.status
+  SELECT created_snapshot_id, s.food_item_id, s.support_kind, s.requirement, s.status
   FROM public.food_item_supports AS s
   WHERE EXISTS (
     SELECT 1 FROM public.catalog_snapshot_food_items AS i
-    WHERE i.snapshot_id = snapshot_id AND i.item_id = s.food_item_id
+    WHERE i.snapshot_id = created_snapshot_id AND i.item_id = s.food_item_id
   );
 
   UPDATE public.catalog_snapshots
   SET status = 'published'::public.snapshot_status, published_at = pg_catalog.clock_timestamp()
-  WHERE id = snapshot_id;
-  RETURN snapshot_id;
+  WHERE id = created_snapshot_id;
+  RETURN created_snapshot_id;
 END;
 $function$;
-ALTER FUNCTION private.create_catalog_snapshot() OWNER TO localens_catalog_rpc_owner;
 REVOKE ALL ON FUNCTION private.create_catalog_snapshot() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION private.create_catalog_snapshot() TO localens_admin_rpc_owner;
+RESET ROLE;
 
 -- Task 3C: safe, published-only projections for the catalog adapter. Every
 -- nested value is built from immutable snapshot children in a deterministic
 -- order, and bigint money is converted to canonical decimal text at the SQL
 -- boundary so PostgREST/JavaScript cannot lose integer precision.
+SET LOCAL ROLE localens_catalog_rpc_owner;
 CREATE OR REPLACE VIEW public.catalog_snapshot_food_vendors_v
 WITH (security_invoker = false, security_barrier = true)
 AS
@@ -1284,8 +1342,11 @@ SELECT
       'weekday', h.weekday,
       'opens_at', h.opens_at::text,
       'closes_at', h.closes_at::text
-    ) ORDER BY h.weekday, h.opens_at, h.closes_at, h.opening_id), '[]'::jsonb
-  ) AS opening_hours,
+    ) ORDER BY h.weekday, h.opens_at, h.closes_at, h.opening_id)
+    FROM public.catalog_snapshot_food_vendor_opening_hours AS h
+    WHERE h.snapshot_id = v.snapshot_id
+      AND h.vendor_id = v.vendor_id
+  ), '[]'::jsonb) AS opening_hours,
   COALESCE((
     SELECT jsonb_agg(jsonb_build_object(
       'local_date', e.local_date::text,
@@ -1355,5 +1416,9 @@ WHERE s.status = 'published'::public.snapshot_status;
 ALTER VIEW public.catalog_snapshot_food_items_v OWNER TO localens_catalog_rpc_owner;
 REVOKE ALL ON public.catalog_snapshot_food_items_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.catalog_snapshot_food_items_v TO anon, authenticated;
+RESET ROLE;
+
+REVOKE CREATE ON SCHEMA private FROM localens_catalog_rpc_owner, localens_catalog_guard_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_catalog_rpc_owner;
 
 COMMIT;

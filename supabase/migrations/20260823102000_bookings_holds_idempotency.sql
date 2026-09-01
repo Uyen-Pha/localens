@@ -6,25 +6,33 @@ BEGIN;
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_checkout_rpc_owner') THEN
-    CREATE ROLE localens_checkout_rpc_owner NOLOGIN NOBYPASSRLS;
+    CREATE ROLE localens_checkout_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_availability_rpc_owner') THEN
-    CREATE ROLE localens_availability_rpc_owner NOLOGIN NOBYPASSRLS;
+    CREATE ROLE localens_availability_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_booking_projection_owner') THEN
-    CREATE ROLE localens_booking_projection_owner NOLOGIN NOBYPASSRLS;
+    CREATE ROLE localens_booking_projection_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE rolname IN ('localens_checkout_rpc_owner', 'localens_availability_rpc_owner', 'localens_booking_projection_owner')
+      AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolcanlogin OR rolreplication OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'unsafe pre-existing LocalLens booking role attributes';
   END IF;
 END
 $roles$;
 
-ALTER ROLE localens_checkout_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_availability_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_booking_projection_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
+GRANT localens_checkout_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_availability_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_booking_projection_owner TO postgres WITH SET TRUE, INHERIT FALSE;
 
 REVOKE ALL ON SCHEMA public, private, auth FROM localens_checkout_rpc_owner, localens_availability_rpc_owner, localens_booking_projection_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_checkout_rpc_owner, localens_availability_rpc_owner, localens_booking_projection_owner;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public, private FROM localens_checkout_rpc_owner, localens_availability_rpc_owner, localens_booking_projection_owner;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM localens_checkout_rpc_owner, localens_availability_rpc_owner, localens_booking_projection_owner;
+GRANT CREATE ON SCHEMA private TO localens_identity_rpc_owner, localens_checkout_rpc_owner;
+GRANT CREATE ON SCHEMA public TO localens_availability_rpc_owner, localens_booking_projection_owner;
 
 CREATE TABLE public.bookings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -141,7 +149,7 @@ ALTER TABLE private.capacity_holds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE private.capacity_holds FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY bookings_projection_owner_select ON public.bookings
-  FOR SELECT TO localens_booking_projection_owner USING ((SELECT auth.uid()) = owner_user_id);
+  FOR SELECT TO localens_booking_projection_owner USING (NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid = owner_user_id);
 CREATE POLICY bookings_checkout_owner_all ON public.bookings
   FOR ALL TO localens_checkout_rpc_owner
   USING (current_user = 'localens_checkout_rpc_owner')
@@ -198,6 +206,34 @@ CREATE POLICY trip_plan_revisions_checkout_owner_select ON public.trip_plan_revi
 CREATE POLICY fx_snapshots_checkout_owner_select ON public.fx_snapshots
   FOR SELECT TO localens_checkout_rpc_owner
   USING (current_user = 'localens_checkout_rpc_owner');
+CREATE POLICY departures_checkout_owner_lock ON public.departures
+  FOR UPDATE TO localens_checkout_rpc_owner
+  USING (current_user = 'localens_checkout_rpc_owner')
+  WITH CHECK (current_user = 'localens_checkout_rpc_owner');
+CREATE POLICY tour_versions_checkout_owner_lock ON public.tour_versions
+  FOR UPDATE TO localens_checkout_rpc_owner
+  USING (current_user = 'localens_checkout_rpc_owner')
+  WITH CHECK (current_user = 'localens_checkout_rpc_owner');
+CREATE POLICY tours_checkout_owner_lock ON public.tours
+  FOR UPDATE TO localens_checkout_rpc_owner
+  USING (current_user = 'localens_checkout_rpc_owner')
+  WITH CHECK (current_user = 'localens_checkout_rpc_owner');
+CREATE POLICY travel_snapshots_checkout_owner_lock ON public.travel_snapshots
+  FOR UPDATE TO localens_checkout_rpc_owner
+  USING (current_user = 'localens_checkout_rpc_owner')
+  WITH CHECK (current_user = 'localens_checkout_rpc_owner');
+CREATE POLICY custom_requests_checkout_owner_lock ON public.custom_requests
+  FOR UPDATE TO localens_checkout_rpc_owner
+  USING (current_user = 'localens_checkout_rpc_owner')
+  WITH CHECK (current_user = 'localens_checkout_rpc_owner');
+CREATE POLICY trip_plans_checkout_owner_lock ON public.trip_plans
+  FOR UPDATE TO localens_checkout_rpc_owner
+  USING (current_user = 'localens_checkout_rpc_owner')
+  WITH CHECK (current_user = 'localens_checkout_rpc_owner');
+CREATE POLICY trip_plan_revisions_checkout_owner_lock ON public.trip_plan_revisions
+  FOR UPDATE TO localens_checkout_rpc_owner
+  USING (current_user = 'localens_checkout_rpc_owner')
+  WITH CHECK (current_user = 'localens_checkout_rpc_owner');
 CREATE POLICY user_roles_checkout_owner_select ON private.user_roles
   FOR SELECT TO localens_checkout_rpc_owner
   USING (current_user = 'localens_checkout_rpc_owner');
@@ -219,7 +255,7 @@ CREATE POLICY catalog_snapshots_availability_owner_select ON public.catalog_snap
 
 REVOKE ALL ON TABLE public.bookings, private.checkout_attempts, private.checkout_idempotency, private.capacity_holds FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE public.bookings FROM authenticated;
-GRANT USAGE ON SCHEMA public, private, auth TO localens_checkout_rpc_owner;
+GRANT USAGE ON SCHEMA public, private, auth, extensions TO localens_checkout_rpc_owner;
 GRANT USAGE ON SCHEMA public, private TO localens_availability_rpc_owner;
 GRANT USAGE ON SCHEMA public, auth TO localens_booking_projection_owner;
 GRANT SELECT, INSERT ON TABLE public.bookings TO localens_checkout_rpc_owner;
@@ -232,12 +268,16 @@ GRANT UPDATE (status, consumed_at, released_at) ON TABLE private.capacity_holds 
 GRANT SELECT ON TABLE public.departures, public.tour_versions, public.tour_version_translations, public.tours, public.catalog_snapshots, public.travel_snapshots TO localens_checkout_rpc_owner;
 GRANT SELECT ON TABLE public.custom_quotes, public.custom_requests, public.trip_plans, public.trip_plan_revisions, public.fx_snapshots TO localens_checkout_rpc_owner;
 GRANT UPDATE (status) ON TABLE public.custom_quotes TO localens_checkout_rpc_owner;
+-- PostgreSQL locking clauses require UPDATE privilege even when the function
+-- never mutates these immutable/source facts. Restrict that capability to the
+-- primary key column so row locks work without exposing business mutations.
+GRANT UPDATE (id) ON TABLE private.checkout_idempotency, public.departures, public.tour_versions,
+  public.tours, public.travel_snapshots, public.custom_requests, public.trip_plans,
+  public.trip_plan_revisions TO localens_checkout_rpc_owner;
 GRANT SELECT ON TABLE private.user_roles TO localens_checkout_rpc_owner;
 GRANT SELECT ON TABLE public.departures TO localens_availability_rpc_owner;
 GRANT SELECT ON TABLE public.bookings, private.capacity_holds TO localens_availability_rpc_owner;
 GRANT SELECT ON TABLE public.tour_versions, public.tours, public.catalog_snapshots TO localens_availability_rpc_owner;
-GRANT EXECUTE ON FUNCTION auth.uid() TO localens_checkout_rpc_owner;
-GRANT EXECUTE ON FUNCTION auth.uid() TO localens_booking_projection_owner;
 GRANT SELECT (
   id, status, source_kind, source_id, tour_version_id, quote_id, title_en, title_vi,
   cancellation_policy, catalog_snapshot_id, travel_snapshot_id, fx_snapshot_id, fx_vnd_per_usd,
@@ -443,7 +483,9 @@ END;
 $function$;
 ALTER FUNCTION private.record_checkout_audit_event(public.audit_event_type, uuid, public.audit_target_type, uuid, text, text, public.audit_metadata_key, text, numeric, boolean) OWNER TO localens_identity_rpc_owner;
 REVOKE ALL ON FUNCTION private.record_checkout_audit_event(public.audit_event_type, uuid, public.audit_target_type, uuid, text, text, public.audit_metadata_key, text, numeric, boolean) FROM PUBLIC, anon, authenticated;
+SET LOCAL ROLE localens_identity_rpc_owner;
 GRANT EXECUTE ON FUNCTION private.record_checkout_audit_event(public.audit_event_type, uuid, public.audit_target_type, uuid, text, text, public.audit_metadata_key, text, numeric, boolean) TO localens_checkout_rpc_owner;
+RESET ROLE;
 
 CREATE OR REPLACE FUNCTION private.start_checkout_tx(
   p_source_kind text,
@@ -467,7 +509,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 DECLARE
-  actor_user_id uuid := auth.uid();
+  actor_user_id uuid := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   idempotency_id uuid := gen_random_uuid();
   new_booking_id uuid := gen_random_uuid();
   new_attempt_id uuid := gen_random_uuid();
@@ -521,7 +563,7 @@ BEGIN
   -- normalized source fact before consulting the idempotency receipt.  A
   -- retry that reuses the old hash with changed parameters must conflict even
   -- when the idempotency key itself is already present.
-  canonical_hash := pg_catalog.encode(pg_catalog.digest(pg_catalog.convert_to(
+  canonical_hash := pg_catalog.encode(extensions.digest(pg_catalog.convert_to(
     private.checkout_canonical_payload(actor_user_id, p_source_kind, p_source_id, p_party_size, p_locale), 'UTF8'
   ), 'sha256'), 'hex');
   IF NOT private.checkout_hash_equal(canonical_hash, p_canonical_request_hash) THEN
@@ -571,7 +613,7 @@ BEGIN
        OR retry_attempt_row.provider_idempotency_key IS DISTINCT FROM idempotency_row.provider_idempotency_key THEN
       RAISE EXCEPTION 'IDEMPOTENCY_CONFLICT' USING ERRCODE = 'P0001';
     END IF;
-    canonical_hash := pg_catalog.encode(pg_catalog.digest(pg_catalog.convert_to(
+    canonical_hash := pg_catalog.encode(extensions.digest(pg_catalog.convert_to(
       private.checkout_canonical_payload(
         booking_row.owner_user_id, booking_row.source_kind, booking_row.source_id,
         booking_row.party_size, booking_row.language
@@ -687,7 +729,7 @@ BEGIN
     amount_value := quote_row.checkout_amount_minor;
   END IF;
 
-  canonical_hash := pg_catalog.encode(pg_catalog.digest(pg_catalog.convert_to(
+  canonical_hash := pg_catalog.encode(extensions.digest(pg_catalog.convert_to(
     private.checkout_canonical_payload(actor_user_id, p_source_kind, p_source_id, derived_party_size, p_locale), 'UTF8'
   ), 'sha256'), 'hex');
   IF NOT private.checkout_hash_equal(canonical_hash, p_canonical_request_hash) THEN
@@ -766,7 +808,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 DECLARE
-  actor_user_id uuid := auth.uid();
+  actor_user_id uuid := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   attempt_row private.checkout_attempts%ROWTYPE;
   idempotency_row private.checkout_idempotency%ROWTYPE;
   booking_row public.bookings%ROWTYPE;
@@ -872,7 +914,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 DECLARE
-  actor_user_id uuid := auth.uid();
+  actor_user_id uuid := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   idempotency_row private.checkout_idempotency%ROWTYPE;
   attempt_row private.checkout_attempts%ROWTYPE;
   booking_row public.bookings%ROWTYPE;
@@ -896,7 +938,10 @@ BEGIN
   END IF;
   SELECT * INTO booking_row FROM public.bookings WHERE id = attempt_row.booking_id FOR UPDATE;
   IF NOT FOUND OR booking_row.owner_user_id IS DISTINCT FROM actor_user_id THEN RAISE EXCEPTION 'checkout attempt unavailable' USING ERRCODE = '42501'; END IF;
-  SELECT * INTO hold_row FROM private.capacity_holds WHERE booking_id = booking_row.id AND status = 'active'::public.hold_status FOR UPDATE;
+  SELECT * INTO hold_row
+  FROM private.capacity_holds AS holds
+  WHERE holds.booking_id = booking_row.id AND holds.status = 'active'::public.hold_status
+  FOR UPDATE;
   has_hold := FOUND;
   SELECT * INTO attempt_row FROM private.checkout_attempts WHERE id = p_attempt_id FOR UPDATE;
   IF NOT FOUND OR attempt_row.booking_id IS DISTINCT FROM booking_row.id OR attempt_row.owner_user_id IS DISTINCT FROM actor_user_id THEN
@@ -983,5 +1028,8 @@ GRANT EXECUTE ON FUNCTION public.get_live_departure_availability() TO anon, auth
 
 GRANT USAGE ON SCHEMA public, private TO localens_identity_rpc_owner;
 GRANT INSERT ON TABLE private.audit_events TO localens_identity_rpc_owner;
+
+REVOKE CREATE ON SCHEMA private FROM localens_identity_rpc_owner, localens_checkout_rpc_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_availability_rpc_owner, localens_booking_projection_owner;
 
 COMMIT;

@@ -26,14 +26,18 @@ export function exitCodeForError(error) {
   return error?.status ?? 2;
 }
 
-function packageManagerCommand() {
-  return process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-}
-
-function packageScriptSpec(name, cwd) {
+function packageScriptSpec(name, cwd, platform = process.platform, comSpec = process.env.ComSpec ?? "cmd.exe") {
+  if (platform === "win32") {
+    return {
+      name,
+      command: comSpec,
+      args: ["/d", "/s", "/c", `pnpm.cmd run ${name}`],
+      cwd,
+    };
+  }
   return {
     name,
-    command: packageManagerCommand(),
+    command: "pnpm",
     args: ["run", name],
     cwd,
   };
@@ -63,6 +67,8 @@ function asStepFailure(spec, result) {
 
 export async function runDbGate(options = {}) {
   const cwd = options.cwd ?? process.cwd();
+  const platform = options.platform ?? process.platform;
+  const comSpec = options.comSpec ?? process.env.ComSpec ?? "cmd.exe";
   const args = options.args ?? [];
   assertNoRemoteMode(args);
   const cliPath = requireLocalSupabaseCli({ cwd, cliPath: options.cliPath });
@@ -72,7 +78,7 @@ export async function runDbGate(options = {}) {
 
   try {
     for (const name of DB_GATE_STEPS) {
-      const spec = packageScriptSpec(name, cwd);
+      const spec = packageScriptSpec(name, cwd, platform, comSpec);
       calls.push(spec);
       const result = await runner(spec);
       const stepFailure = asStepFailure(spec, result);
@@ -81,7 +87,7 @@ export async function runDbGate(options = {}) {
   } catch (error) {
     failure = error;
   } finally {
-    const stopSpec = packageScriptSpec("db:stop", cwd);
+    const stopSpec = packageScriptSpec("db:stop", cwd, platform, comSpec);
     calls.push(stopSpec);
     try {
       const stopResult = await runner(stopSpec);

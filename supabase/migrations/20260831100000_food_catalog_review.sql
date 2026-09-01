@@ -1,5 +1,8 @@
 BEGIN;
 
+GRANT CREATE ON SCHEMA private TO localens_admin_rpc_owner, localens_catalog_guard_owner;
+GRANT CREATE ON SCHEMA public TO localens_admin_rpc_owner;
+
 -- Task 11: the mutable food catalog has one authenticated review boundary.
 -- The existing place_status enum remains the persistence vocabulary:
 -- draft is research-only and published is sellable.  Review audit rows reuse
@@ -77,6 +80,8 @@ CREATE POLICY audit_events_food_catalog_admin_insert ON private.audit_events
   );
 GRANT INSERT ON TABLE private.audit_events TO localens_admin_rpc_owner;
 
+SET LOCAL ROLE localens_admin_rpc_owner;
+
 CREATE OR REPLACE FUNCTION private.assert_catalog_review_admin()
 RETURNS uuid
 LANGUAGE plpgsql
@@ -87,7 +92,7 @@ AS $function$
 DECLARE
   actor uuid;
 BEGIN
-  actor := (SELECT auth.uid());
+  actor := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor IS NULL OR NOT EXISTS (
     SELECT 1
     FROM private.user_roles AS roles
@@ -101,14 +106,15 @@ END;
 $function$;
 ALTER FUNCTION private.assert_catalog_review_admin() OWNER TO localens_admin_rpc_owner;
 REVOKE ALL ON FUNCTION private.assert_catalog_review_admin() FROM PUBLIC, anon, authenticated, service_role;
-GRANT USAGE ON SCHEMA auth TO localens_admin_rpc_owner;
-GRANT EXECUTE ON FUNCTION auth.uid() TO localens_admin_rpc_owner;
 GRANT SELECT ON TABLE private.user_roles TO localens_admin_rpc_owner;
 GRANT EXECUTE ON FUNCTION private.assert_catalog_review_admin() TO localens_admin_rpc_owner;
+RESET ROLE;
 
 -- This guard is intentionally stricter than the older publication trigger:
 -- every evidence field that the queue asks an admin to confirm must be a real
 -- database row, and unknown support statuses never pass the sellable gate.
+SET LOCAL ROLE localens_catalog_guard_owner;
+
 CREATE OR REPLACE FUNCTION private.assert_food_catalog_review_complete(target_item_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -285,6 +291,9 @@ $function$;
 ALTER FUNCTION private.assert_food_catalog_review_complete(uuid) OWNER TO localens_catalog_guard_owner;
 REVOKE ALL ON FUNCTION private.assert_food_catalog_review_complete(uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION private.assert_food_catalog_review_complete(uuid) TO localens_admin_rpc_owner;
+RESET ROLE;
+
+SET LOCAL ROLE localens_admin_rpc_owner;
 
 CREATE OR REPLACE VIEW public.admin_food_catalog_review_v
 WITH (security_invoker = false, security_barrier = true)
@@ -441,7 +450,7 @@ WHERE item.status IN ('draft'::public.place_status, 'published'::public.place_st
   AND vendor.status IN ('draft'::public.place_status, 'published'::public.place_status)
   AND EXISTS (
     SELECT 1 FROM private.user_roles AS roles
-    WHERE roles.user_id = (SELECT auth.uid())
+    WHERE roles.user_id = NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid
       AND roles.role = 'admin'::public.app_role
   );
 ALTER VIEW public.admin_food_catalog_review_v OWNER TO localens_admin_rpc_owner;
@@ -624,5 +633,9 @@ $function$;
 ALTER FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) OWNER TO localens_admin_rpc_owner;
 REVOKE ALL ON FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) TO authenticated;
+RESET ROLE;
+
+REVOKE CREATE ON SCHEMA private FROM localens_admin_rpc_owner, localens_catalog_guard_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_admin_rpc_owner;
 
 COMMIT;

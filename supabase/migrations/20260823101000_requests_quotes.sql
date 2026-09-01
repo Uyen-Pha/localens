@@ -5,40 +5,28 @@ BEGIN;
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_request_customer_rpc_owner') THEN
-    EXECUTE 'CREATE ROLE localens_request_customer_rpc_owner NOLOGIN NOINHERIT NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_request_customer_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_request_admin_rpc_owner') THEN
-    EXECUTE 'CREATE ROLE localens_request_admin_rpc_owner NOLOGIN NOINHERIT NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_request_admin_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_request_guard_owner') THEN
-    EXECUTE 'CREATE ROLE localens_request_guard_owner NOLOGIN NOINHERIT NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_request_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE rolname LIKE 'localens_%'
+      AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolreplication OR rolbypassrls)
+  ) OR EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE rolname LIKE 'localens_%'
+      AND ((rolname IN ('localens_guest_executor', 'localens_quota_executor') AND NOT rolcanlogin)
+        OR (rolname NOT IN ('localens_guest_executor', 'localens_quota_executor') AND rolcanlogin))
+  ) THEN
+    RAISE EXCEPTION 'unsafe pre-existing LocalLens protected role attributes or login class';
   END IF;
 END
 $roles$;
-
-ALTER ROLE localens_request_customer_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_request_admin_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_request_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-
--- Re-assert all flags for the complete protected registry, including owners
--- introduced by earlier migrations.
-ALTER ROLE localens_auth_trigger_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_identity_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_admin_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_audit_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_catalog_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_catalog_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_tour_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_tour_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_plan_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_plan_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_guest_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_claim_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_quota_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_guest_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION LOGIN NOBYPASSRLS;
-ALTER ROLE localens_quota_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION LOGIN NOBYPASSRLS;
-ALTER ROLE localens_webhook_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_build_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
 
 -- Re-run the complete protected-role scrub whenever a new protected identity is
 -- introduced.  A stale membership must never widen a SECURITY DEFINER owner.
@@ -64,18 +52,45 @@ BEGIN
     FROM pg_catalog.pg_auth_members AS memberships
     JOIN pg_catalog.pg_roles AS granted ON granted.oid = memberships.roleid
     JOIN pg_catalog.pg_roles AS member ON member.oid = memberships.member
-    WHERE granted.rolname = ANY(protected_roles)
-       OR member.rolname = ANY(protected_roles)
+    WHERE (granted.rolname = ANY(protected_roles)
+       OR member.rolname = ANY(protected_roles))
+      AND NOT (
+        member.rolname = 'postgres'
+        AND memberships.set_option
+        AND NOT memberships.inherit_option
+      )
   LOOP
     EXECUTE pg_catalog.format('REVOKE %I FROM %I', membership_record.granted_role, membership_record.member_role);
   END LOOP;
 END
 $memberships$;
 
+GRANT localens_auth_trigger_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_identity_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_admin_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_audit_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_catalog_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_catalog_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_tour_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_tour_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_plan_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_plan_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_guest_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_claim_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_quota_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_guest_executor TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_quota_executor TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_webhook_executor TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_build_executor TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_request_customer_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_request_admin_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_request_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+
 REVOKE ALL ON SCHEMA public, private, auth FROM localens_request_customer_rpc_owner, localens_request_admin_rpc_owner, localens_request_guard_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_request_customer_rpc_owner, localens_request_admin_rpc_owner, localens_request_guard_owner;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public, private, auth FROM localens_request_customer_rpc_owner, localens_request_admin_rpc_owner, localens_request_guard_owner;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM localens_request_customer_rpc_owner, localens_request_admin_rpc_owner, localens_request_guard_owner;
+GRANT CREATE ON SCHEMA private TO localens_identity_rpc_owner, localens_request_customer_rpc_owner, localens_request_admin_rpc_owner, localens_request_guard_owner;
+GRANT CREATE ON SCHEMA public TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
 
 -- Customer locale is a profile fact, not a request/HTTP input.  Task 8 owns
 -- only this additive schema change; the identity migration remains immutable.
@@ -170,7 +185,9 @@ CREATE TABLE public.custom_quotes (
   title_vi text NOT NULL CHECK (title_vi = btrim(title_vi) AND length(title_vi) BETWEEN 1 AND 240 AND title_vi !~ '[[:cntrl:]]'),
   policy text NOT NULL CHECK (policy = btrim(policy) AND length(policy) BETWEEN 1 AND 4000 AND policy !~ '[[:cntrl:]]'),
   created_at timestamptz NOT NULL DEFAULT now(),
-  valid_until timestamptz GENERATED ALWAYS AS (created_at + interval '48 hours') STORED,
+  valid_until timestamptz GENERATED ALWAYS AS (
+    pg_catalog.timezone('UTC', pg_catalog.timezone('UTC', created_at) + interval '48 hours')
+  ) STORED,
   UNIQUE (id, request_id),
   FOREIGN KEY (travel_snapshot_id, catalog_snapshot_id)
     REFERENCES public.travel_snapshots(id, catalog_snapshot_id) ON DELETE RESTRICT,
@@ -212,17 +229,17 @@ ALTER TABLE public.custom_quotes FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY custom_requests_customer_select ON public.custom_requests
   FOR SELECT TO authenticated
-  USING ((SELECT auth.uid()) = owner_user_id);
+  USING (NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid = owner_user_id);
 
 CREATE POLICY custom_requests_customer_rpc_owner_all ON public.custom_requests
   FOR ALL TO localens_request_customer_rpc_owner
-  USING (current_user = 'localens_request_customer_rpc_owner')
-  WITH CHECK (current_user = 'localens_request_customer_rpc_owner');
+  USING (true)
+  WITH CHECK (true);
 
 CREATE POLICY custom_requests_admin_rpc_owner_all ON public.custom_requests
   FOR ALL TO localens_request_admin_rpc_owner
-  USING (current_user = 'localens_request_admin_rpc_owner')
-  WITH CHECK (current_user = 'localens_request_admin_rpc_owner');
+  USING (true)
+  WITH CHECK (true);
 
 CREATE POLICY custom_request_events_customer_rpc_owner_insert ON private.custom_request_events
   FOR INSERT TO localens_request_customer_rpc_owner
@@ -239,18 +256,18 @@ CREATE POLICY custom_quotes_customer_select ON public.custom_quotes
       SELECT 1
       FROM public.custom_requests AS requests
       WHERE requests.id = custom_quotes.request_id
-        AND requests.owner_user_id = (SELECT auth.uid())
+        AND requests.owner_user_id = NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid
     )
   );
 
 CREATE POLICY custom_quotes_customer_rpc_owner_select ON public.custom_quotes
   FOR SELECT TO localens_request_customer_rpc_owner
-  USING (current_user = 'localens_request_customer_rpc_owner');
+  USING (true);
 
 CREATE POLICY custom_quotes_admin_rpc_owner_all ON public.custom_quotes
   FOR ALL TO localens_request_admin_rpc_owner
-  USING (current_user = 'localens_request_admin_rpc_owner')
-  WITH CHECK (current_user = 'localens_request_admin_rpc_owner');
+  USING (true)
+  WITH CHECK (true);
 
 -- The request owner needs read-only access to immutable source facts and the
 -- claimed plan.  API roles still receive no base-table privileges.
@@ -285,12 +302,12 @@ CREATE POLICY fx_snapshots_request_admin_rpc_lock ON public.fx_snapshots
   USING (current_user = 'localens_request_admin_rpc_owner')
   WITH CHECK (current_user = 'localens_request_admin_rpc_owner');
 CREATE POLICY user_roles_request_customer_rpc_select ON private.user_roles
-  FOR SELECT TO localens_request_customer_rpc_owner USING (current_user = 'localens_request_customer_rpc_owner');
+  FOR SELECT TO localens_request_customer_rpc_owner USING (true);
 CREATE POLICY user_roles_request_admin_rpc_select ON private.user_roles
-  FOR SELECT TO localens_request_admin_rpc_owner USING (current_user = 'localens_request_admin_rpc_owner');
+  FOR SELECT TO localens_request_admin_rpc_owner USING (true);
 CREATE POLICY profiles_request_customer_rpc_language_select ON public.profiles
   FOR SELECT TO localens_request_customer_rpc_owner
-  USING ((SELECT auth.uid()) = id);
+  USING (NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid = id);
 
 CREATE OR REPLACE FUNCTION private.reject_custom_request_event_mutation()
 RETURNS trigger
@@ -354,8 +371,7 @@ BEGIN
      OR OLD.title_en IS DISTINCT FROM NEW.title_en
      OR OLD.title_vi IS DISTINCT FROM NEW.title_vi
      OR OLD.policy IS DISTINCT FROM NEW.policy
-     OR OLD.created_at IS DISTINCT FROM NEW.created_at
-     OR OLD.valid_until IS DISTINCT FROM NEW.valid_until THEN
+     OR OLD.created_at IS DISTINCT FROM NEW.created_at THEN
      RAISE EXCEPTION 'custom quote commercial facts are immutable' USING ERRCODE = '42501';
   END IF;
   IF pg_catalog.current_setting('localens.quote_transition', true) IS DISTINCT FROM 'on'
@@ -515,7 +531,7 @@ SELECT
   pg_catalog.to_char(requests.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS submitted_at,
   pg_catalog.to_char(requests.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at
 FROM public.custom_requests AS requests
-WHERE requests.owner_user_id = (SELECT auth.uid());
+WHERE requests.owner_user_id = NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
 
 CREATE OR REPLACE VIEW public.admin_custom_request_queue_v
 WITH (security_invoker = false, security_barrier = true)
@@ -535,7 +551,7 @@ SELECT
 FROM public.custom_requests AS requests
 WHERE EXISTS (
   SELECT 1 FROM private.user_roles AS roles
-  WHERE roles.user_id = (SELECT auth.uid())
+  WHERE roles.user_id = NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid
     AND roles.role = 'admin'::public.app_role
 );
 
@@ -555,7 +571,7 @@ SELECT
 FROM public.custom_quotes AS quotes
 JOIN public.custom_requests AS requests ON requests.id = quotes.request_id
 JOIN public.profiles AS owners ON owners.id = requests.owner_user_id
-WHERE requests.owner_user_id = (SELECT auth.uid());
+WHERE requests.owner_user_id = NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
 
 ALTER VIEW public.customer_custom_requests_v OWNER TO localens_request_customer_rpc_owner;
 ALTER VIEW public.admin_custom_request_queue_v OWNER TO localens_request_admin_rpc_owner;
@@ -622,6 +638,7 @@ ALTER FUNCTION private.record_request_quote_audit_event(
   public.audit_event_type, uuid, public.app_role, public.audit_target_type,
   uuid, text, text, public.audit_metadata_key, text, numeric
 ) OWNER TO localens_identity_rpc_owner;
+SET LOCAL ROLE localens_identity_rpc_owner;
 REVOKE ALL ON FUNCTION private.record_request_quote_audit_event(
   public.audit_event_type, uuid, public.app_role, public.audit_target_type,
   uuid, text, text, public.audit_metadata_key, text, numeric
@@ -630,8 +647,9 @@ GRANT EXECUTE ON FUNCTION private.record_request_quote_audit_event(
   public.audit_event_type, uuid, public.app_role, public.audit_target_type,
   uuid, text, text, public.audit_metadata_key, text, numeric
 ) TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
+RESET ROLE;
 
--- Internal implementation.  The actor is always read from auth.uid(); no
+-- Internal implementation.  The actor is always read from the JWT subject; no
 -- caller-provided owner/admin identity reaches the state-changing code.
 CREATE OR REPLACE FUNCTION private.submit_custom_request(
   p_plan_id uuid,
@@ -649,7 +667,7 @@ DECLARE
   request_row public.custom_requests%ROWTYPE;
   transition_at timestamptz;
 BEGIN
-  actor_user_id := (SELECT auth.uid());
+  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles
     WHERE user_id = actor_user_id AND role = 'customer'::public.app_role
@@ -784,7 +802,7 @@ DECLARE
   transition_at timestamptz;
   event_type public.audit_event_type;
 BEGIN
-  actor_user_id := (SELECT auth.uid());
+  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles
     WHERE user_id = actor_user_id AND role = 'admin'::public.app_role
@@ -879,7 +897,7 @@ DECLARE
   selection_time timestamptz;
   authority_time timestamptz;
 BEGIN
-  actor_user_id := (SELECT auth.uid());
+  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles
     WHERE user_id = actor_user_id AND role = 'admin'::public.app_role
@@ -1052,7 +1070,6 @@ GRANT EXECUTE ON FUNCTION public.create_custom_quote(uuid, bigint, public.checko
 
 GRANT USAGE ON SCHEMA public, private TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
 GRANT USAGE ON SCHEMA public TO localens_request_guard_owner;
-GRANT USAGE ON SCHEMA auth TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
 GRANT SELECT, INSERT ON TABLE public.custom_requests TO localens_request_customer_rpc_owner;
 GRANT UPDATE (revision_id, revision_no, status, submitted_at, updated_at)
   ON TABLE public.custom_requests TO localens_request_customer_rpc_owner;
@@ -1074,10 +1091,12 @@ GRANT UPDATE (id) ON TABLE public.trip_plan_revisions TO localens_request_admin_
 GRANT UPDATE (id) ON TABLE public.fx_snapshots TO localens_request_admin_rpc_owner;
 GRANT SELECT ON TABLE private.user_roles TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
 GRANT SELECT (id, language) ON TABLE public.profiles TO localens_request_customer_rpc_owner;
-GRANT EXECUTE ON FUNCTION auth.uid() TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
 
 REVOKE ALL ON TABLE public.custom_requests, public.custom_quotes FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE private.custom_request_events FROM PUBLIC, anon, authenticated;
 REVOKE INSERT ON TABLE private.audit_events FROM localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
+
+REVOKE CREATE ON SCHEMA private FROM localens_identity_rpc_owner, localens_request_customer_rpc_owner, localens_request_admin_rpc_owner, localens_request_guard_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
 
 COMMIT;

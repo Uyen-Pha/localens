@@ -216,7 +216,22 @@ describe("Task 12 SQL contract", () => {
     expect(migration).toMatch(/private\.assert_content_admin\(\)/);
     expect(migration).toMatch(/ON CONFLICT ON CONSTRAINT content_drafts_locale_slug_key DO UPDATE/);
     expect(migration).toMatch(/RETURNING drafts\.id, drafts\.locale, drafts\.slug, drafts\.title/);
-    expect(migration).not.toMatch(/SET ROLE|service_role/i);
+    expect(migration).not.toMatch(/(?:^|\n)\s*SET\s+ROLE\b|service_role/i);
+    for (const role of [
+      "localens_content_admin_owner", "localens_content_public_owner", "localens_content_build_owner",
+      "localens_content_guard_owner", "localens_content_audit_owner",
+    ]) {
+      expect(migration).toContain(`CREATE ROLE ${role} NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS`);
+      expect(migration).toContain(`GRANT ${role} TO postgres WITH SET TRUE, INHERIT FALSE;`);
+    }
+    expect(migration).toContain("CREATE ROLE localens_content_build_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION LOGIN NOBYPASSRLS");
+    expect(migration).toContain("GRANT localens_content_build_executor TO postgres WITH SET TRUE, INHERIT FALSE;");
+    expect(migration).toContain("unsafe pre-existing LocalLens content role attributes or login class");
+    expect(migration).not.toMatch(/ALTER ROLE localens_/);
+    expect(migration).toMatch(/member\.rolname = 'postgres'[\s\S]*memberships\.set_option[\s\S]*NOT memberships\.inherit_option/);
+    expect(migration).toContain("GRANT CREATE ON SCHEMA private TO localens_content_admin_owner, localens_content_build_owner, localens_content_guard_owner, localens_content_audit_owner;");
+    expect(migration).toContain("GRANT CREATE ON SCHEMA public TO localens_content_admin_owner, localens_content_public_owner, localens_content_build_owner;");
+    expect(migration).toMatch(/ALTER FUNCTION public\.fail_seo_publish[\s\S]*OWNER TO localens_content_build_owner;[\s\S]*REVOKE CREATE ON SCHEMA private FROM localens_content_admin_owner, localens_content_build_owner, localens_content_guard_owner, localens_content_audit_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_content_admin_owner, localens_content_public_owner, localens_content_build_owner;[\s\S]*COMMIT/);
   });
 
   it("enforces source and attribution completeness and safe publish/finalize transitions", () => {
@@ -249,7 +264,7 @@ describe("Task 12 SQL contract", () => {
   it("contains executable pgTAP with an exact assertion plan and hostile path coverage", () => {
     expect(pgTap).toMatch(/BEGIN;/);
     expect(pgTap).toMatch(/SELECT plan\(\d+\);/);
-    const assertions = pgTap.match(/^SELECT (?:ok|is|isnt|like|unlike|throws_ok|lives_ok|has_table_privilege|has_function_privilege)\(/gim) ?? [];
+    const assertions = pgTap.match(/^SELECT\s+(?:extensions\.)?(?:ok|is|isnt|like|unlike|throws_ok|lives_ok|has_table_privilege|has_function_privilege)\s*\(/gim) ?? [];
     const planned = Number(pgTap.match(/SELECT plan\((\d+)\);/)?.[1]);
     expect(assertions.length).toBe(planned);
     expect(pgTap).toMatch(/search_path/i);

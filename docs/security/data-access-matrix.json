@@ -301,6 +301,7 @@
       "name": "private.checkout_idempotency",
       "policies": [
         "checkout_idempotency_owner_all",
+        "checkout_idempotency_payment_owner_lock",
         "checkout_idempotency_payment_owner_select"
       ],
       "writerOperation": "checkout RPC only",
@@ -430,6 +431,7 @@
     {
       "name": "private.stripe_test_settings",
       "policies": [
+        "stripe_test_settings_payment_owner_lock",
         "stripe_test_settings_payment_owner_select"
       ],
       "writerOperation": "Stripe Test finalizer only",
@@ -491,6 +493,7 @@
         "bookings_admin_reconciliation_update",
         "bookings_availability_owner_select",
         "bookings_checkout_owner_all",
+        "bookings_guide_assignment_owner_lock",
         "bookings_guide_assignment_owner_select",
         "bookings_payment_owner_all",
         "bookings_payment_projection_select",
@@ -601,6 +604,7 @@
         "catalog_owner_all",
         "catalog_snapshots_availability_owner_select",
         "catalog_snapshots_checkout_owner_select",
+        "catalog_snapshots_guard_lock",
         "catalog_snapshots_guard_select",
         "catalog_snapshots_plan_rpc_select",
         "catalog_snapshots_public_select",
@@ -637,6 +641,7 @@
       "name": "public.custom_requests",
       "policies": [
         "custom_requests_admin_rpc_owner_all",
+        "custom_requests_checkout_owner_lock",
         "custom_requests_checkout_owner_select",
         "custom_requests_customer_rpc_owner_all",
         "custom_requests_customer_select",
@@ -650,8 +655,10 @@
       "name": "public.departures",
       "policies": [
         "departures_availability_owner_select",
+        "departures_checkout_owner_lock",
         "departures_checkout_owner_select",
         "departures_guide_assignment_owner_select",
+        "departures_payment_owner_lock",
         "departures_payment_owner_select",
         "tour_guard_departures_select",
         "tour_owner_all"
@@ -1040,7 +1047,9 @@
         "tour_guard_versions_select",
         "tour_owner_all",
         "tour_versions_availability_owner_select",
+        "tour_versions_checkout_owner_lock",
         "tour_versions_checkout_owner_select",
+        "tour_versions_guard_lock",
         "tour_versions_public_select"
       ],
       "writerOperation": "tour lifecycle RPC only",
@@ -1053,7 +1062,9 @@
         "tour_guard_tours_select",
         "tour_owner_all",
         "tours_availability_owner_select",
+        "tours_checkout_owner_lock",
         "tours_checkout_owner_select",
+        "tours_guard_lock",
         "tours_public_select"
       ],
       "writerOperation": "tour lifecycle RPC only",
@@ -1082,7 +1093,9 @@
       "name": "public.travel_snapshots",
       "policies": [
         "travel_snapshots_catalog_owner_all",
+        "travel_snapshots_checkout_owner_lock",
         "travel_snapshots_checkout_owner_select",
+        "travel_snapshots_guard_lock",
         "travel_snapshots_guard_select",
         "travel_snapshots_plan_rpc_select"
       ],
@@ -1105,6 +1118,7 @@
     {
       "name": "public.trip_plan_revisions",
       "policies": [
+        "trip_plan_revisions_checkout_owner_lock",
         "trip_plan_revisions_checkout_owner_select",
         "trip_plan_revisions_guest_owner_all",
         "trip_plan_revisions_guide_assignment_owner_select",
@@ -1123,6 +1137,7 @@
     {
       "name": "public.trip_plans",
       "policies": [
+        "trip_plans_checkout_owner_lock",
         "trip_plans_checkout_owner_select",
         "trip_plans_claim_owner_select",
         "trip_plans_claim_owner_update",
@@ -1609,7 +1624,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 561,
+  "grantCount": 556,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }

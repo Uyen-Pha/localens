@@ -6,21 +6,28 @@ BEGIN;
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_plan_rpc_owner') THEN
-    CREATE ROLE localens_plan_rpc_owner NOLOGIN NOBYPASSRLS;
+    CREATE ROLE localens_plan_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_plan_guard_owner') THEN
-    CREATE ROLE localens_plan_guard_owner NOLOGIN NOBYPASSRLS;
+    CREATE ROLE localens_plan_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE rolname IN ('localens_plan_rpc_owner', 'localens_plan_guard_owner')
+      AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolcanlogin OR rolreplication OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'unsafe pre-existing LocalLens plan owner role attributes';
   END IF;
 END
 $roles$;
 
-ALTER ROLE localens_plan_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_plan_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
+GRANT localens_plan_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_plan_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
 
 REVOKE ALL ON SCHEMA public, private, auth FROM localens_plan_rpc_owner, localens_plan_guard_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_plan_rpc_owner, localens_plan_guard_owner;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public, private FROM localens_plan_rpc_owner, localens_plan_guard_owner;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM localens_plan_rpc_owner, localens_plan_guard_owner;
+GRANT CREATE ON SCHEMA private TO localens_plan_rpc_owner, localens_plan_guard_owner;
 
 CREATE TABLE public.trip_plans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -116,14 +123,14 @@ ALTER TABLE private.recommendation_runs FORCE ROW LEVEL SECURITY;
 -- present, and no API role receives base-table DML privileges.
 CREATE POLICY trip_plans_owner_select ON public.trip_plans
   FOR SELECT TO authenticated
-  -- Owner predicate is equivalent to auth.uid() = owner_user_id.
-  USING ((SELECT auth.uid()) = owner_user_id);
+  -- Owner predicate reads the authenticated JWT subject directly.
+  USING (NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid = owner_user_id);
 CREATE POLICY trip_plan_revisions_owner_select ON public.trip_plan_revisions
   FOR SELECT TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.trip_plans AS p
     WHERE p.id = trip_plan_revisions.plan_id
-      AND p.owner_user_id = (SELECT auth.uid())
+      AND p.owner_user_id = NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid
   ));
 CREATE POLICY trip_plan_items_owner_select ON public.trip_plan_items
   FOR SELECT TO authenticated
@@ -132,12 +139,12 @@ CREATE POLICY trip_plan_items_owner_select ON public.trip_plan_items
     FROM public.trip_plan_revisions AS r
     JOIN public.trip_plans AS p ON p.id = r.plan_id
     WHERE r.id = trip_plan_items.revision_id
-      AND p.owner_user_id = (SELECT auth.uid())
+      AND p.owner_user_id = NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid
   ));
 
 -- SECURITY DEFINER RPCs run as a named NOBYPASSRLS owner, so FORCE RLS needs
 -- explicit policies for that owner.  These policies do not grant the role any
--- capability by themselves; the function still derives and checks auth.uid().
+-- capability by themselves; the function still derives and checks the JWT subject.
 CREATE POLICY trip_plans_plan_rpc_owner_all ON public.trip_plans
   FOR ALL TO localens_plan_rpc_owner
   USING (current_user = 'localens_plan_rpc_owner')
@@ -177,7 +184,6 @@ CREATE POLICY user_roles_plan_rpc_select ON private.user_roles
 
 GRANT USAGE ON SCHEMA public, private TO localens_plan_rpc_owner;
 GRANT USAGE ON SCHEMA public TO localens_plan_guard_owner;
-GRANT USAGE ON SCHEMA auth TO localens_plan_rpc_owner;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.trip_plans TO localens_plan_rpc_owner;
 GRANT SELECT, INSERT ON TABLE public.trip_plan_revisions, public.trip_plan_items TO localens_plan_rpc_owner;
 GRANT SELECT, INSERT ON TABLE private.recommendation_runs TO localens_plan_rpc_owner;
@@ -185,7 +191,6 @@ GRANT SELECT ON TABLE public.trip_plans, public.trip_plan_revisions, public.trip
 GRANT SELECT ON TABLE private.user_roles TO localens_plan_rpc_owner;
 GRANT SELECT ON TABLE public.catalog_snapshots, public.catalog_snapshot_places TO localens_plan_rpc_owner;
 GRANT SELECT ON TABLE public.travel_snapshots, public.fx_snapshots TO localens_plan_rpc_owner;
-GRANT EXECUTE ON FUNCTION auth.uid() TO localens_plan_rpc_owner;
 
 REVOKE ALL ON TABLE public.trip_plans, public.trip_plan_revisions, public.trip_plan_items FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE private.recommendation_runs FROM PUBLIC, anon, authenticated;
@@ -342,7 +347,7 @@ DECLARE
     'transitionBufferMinutesBefore', 'travelCostVndBefore', 'placeCostVnd', 'score'
   ];
 BEGIN
-  actor_user_id := auth.uid();
+  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor_user_id IS NULL THEN
     RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
   END IF;
@@ -858,7 +863,7 @@ BEGIN
     (persistence_dto->>'totalDurationMinutes')::integer,
     COALESCE(ARRAY(SELECT value::text::uuid FROM jsonb_array_elements_text(persistence_dto->'lockedPlaceIds') AS values(value)), '{}'::uuid[]),
     actor_user_id
-  ) ON CONFLICT (plan_id, revision_no) DO NOTHING
+  ) ON CONFLICT ON CONSTRAINT trip_plan_revisions_plan_id_revision_no_key DO NOTHING
     RETURNING id INTO new_revision_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'STALE_REVISION' USING ERRCODE = 'P0001', DETAIL = 'STALE_REVISION';
@@ -910,5 +915,7 @@ ALTER FUNCTION private.advance_trip_plan_revision(uuid, integer, jsonb) OWNER TO
 REVOKE ALL ON FUNCTION private.advance_trip_plan_revision(uuid, integer, jsonb) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION private.advance_trip_plan_revision(uuid, integer, jsonb) FROM authenticated;
 GRANT EXECUTE ON FUNCTION private.advance_trip_plan_revision(uuid, integer, jsonb) TO authenticated;
+
+REVOKE CREATE ON SCHEMA private FROM localens_plan_rpc_owner, localens_plan_guard_owner;
 
 COMMIT;

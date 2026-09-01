@@ -381,13 +381,13 @@ describe("trip-plan revision migration contract", () => {
     expect(foodPersistenceMigration).toMatch(/food amount formula mismatch/);
     expect(foodPersistenceMigration).toMatch(/food_items\.available\s+IS\s+TRUE/);
     expect(foodPersistenceMigration).toMatch(/food totals material requires exact keys/);
-    expect(foodPersistenceMigration).toMatch(/ALTER FUNCTION private\.persist_trip_plan_revision[\s\S]*OWNER TO localens_plan_rpc_owner/);
+    expect(foodPersistenceMigration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.persist_trip_plan_revision[\s\S]*RESET ROLE;/);
     expect(foodPersistenceMigration).toMatch(/SECURITY DEFINER[\s\S]*SET search_path = ''/);
-    expect(foodPersistenceMigration).toMatch(/ON CONFLICT \(plan_id, revision_no\) DO NOTHING/);
+    expect(foodPersistenceMigration).toMatch(/ON CONFLICT ON CONSTRAINT trip_plan_revisions_plan_id_revision_no_key DO NOTHING/);
   });
 
   it("keeps the executable food revision fixture plan exact", () => {
-    const assertions = databaseFixture.match(/^SELECT (?:ok|is|isnt|like|unlike|throws_ok|lives_ok|has_table_privilege|has_function_privilege)\(/gim) ?? [];
+    const assertions = databaseFixture.match(/^SELECT\s+(?:extensions\.)?(?:ok|is|isnt|like|unlike|throws_ok|lives_ok|has_table_privilege|has_function_privilege)\s*\(/gim) ?? [];
     const planned = Number(databaseFixture.match(/SELECT plan\((\d+)\);/)?.[1]);
     expect(assertions.length).toBe(planned);
     expect(planned).toBe(116);
@@ -424,23 +424,29 @@ describe("trip-plan revision migration contract", () => {
 
   it("uses a locked customer-owner compare-and-swap and stable stale error", () => {
     expect(migration).toMatch(/CREATE OR REPLACE FUNCTION private\.advance_trip_plan_revision\(\s*plan_id uuid,\s*base_revision_no integer,\s*persistence_dto jsonb\s*\)/);
-    expect(migration).toMatch(/actor_user_id\s*:=\s*auth\.uid\(\)/);
+    expect(migration).toMatch(/actor_user_id\s*:=\s*NULLIF\(pg_catalog\.current_setting\('request\.jwt\.claim\.sub', true\), ''\)::uuid/);
     expect(migration).toMatch(/SELECT[\s\S]*FROM public\.trip_plans[\s\S]*FOR UPDATE/);
     expect(migration).toMatch(/STALE_REVISION/);
     expect(migration).toMatch(/RAISE EXCEPTION[\s\S]*STALE_REVISION/);
     expect(migration).toMatch(/INSERT INTO public\.trip_plan_revisions/);
     expect(migration).toMatch(/INSERT INTO public\.trip_plan_items/);
-    expect(migration).toMatch(/ON CONFLICT \(plan_id, revision_no\)/);
+    expect(migration).toMatch(/ON CONFLICT ON CONSTRAINT trip_plan_revisions_plan_id_revision_no_key/);
     expect(migration).toMatch(/REVOKE ALL ON FUNCTION private\.advance_trip_plan_revision/);
   });
 
   it("pins definer security, least-privilege grants, and owner-only RLS", () => {
-    expect(migration).toMatch(/CREATE ROLE localens_plan_rpc_owner NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/CREATE ROLE localens_plan_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/CREATE ROLE localens_plan_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/);
+    expect(migration).toMatch(/unsafe pre-existing LocalLens plan owner role attributes/);
+    expect(migration).toMatch(/GRANT localens_plan_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE/);
+    expect(migration).toMatch(/GRANT localens_plan_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE/);
+    expect(migration).toMatch(/REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_plan_rpc_owner, localens_plan_guard_owner;[\s\S]*GRANT CREATE ON SCHEMA private TO localens_plan_rpc_owner, localens_plan_guard_owner/);
+    expect(migration).toMatch(/ALTER FUNCTION private\.advance_trip_plan_revision[\s\S]*OWNER TO localens_plan_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA private FROM localens_plan_rpc_owner, localens_plan_guard_owner;[\s\S]*COMMIT/);
     expect(migration).toMatch(/SECURITY DEFINER[\s\S]*SET search_path = ''/);
     expect(migration).toMatch(/ALTER FUNCTION private\.advance_trip_plan_revision[\s\S]*OWNER TO localens_plan_rpc_owner/);
     expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION private\.advance_trip_plan_revision[\s\S]*TO authenticated/);
     expect(migration).toMatch(/REVOKE ALL ON TABLE public\.trip_plans, public\.trip_plan_revisions, public\.trip_plan_items FROM PUBLIC, anon, authenticated/);
-    expect(migration).toMatch(/trip_plans_owner_select[\s\S]*TO authenticated[\s\S]*auth\.uid\(\) = owner_user_id/);
+    expect(migration).toMatch(/trip_plans_owner_select[\s\S]*TO authenticated[\s\S]*request\.jwt\.claim\.sub[\s\S]*owner_user_id/);
     expect(migration).toMatch(/trip_plan_revisions_owner_select[\s\S]*TO authenticated/);
     expect(migration).not.toMatch(/CREATE POLICY[^\n]*TO anon[^\n]*trip_plan/);
   });

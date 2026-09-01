@@ -11,6 +11,7 @@ const CONTENT_TYPES = {
   ".js": "application/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
+  ".txt": "text/plain; charset=utf-8",
   ".xml": "application/xml; charset=utf-8",
 };
 
@@ -65,6 +66,27 @@ async function notFoundFile(rootDir) {
   }
 }
 
+function nextRscExportPath(relativePath) {
+  const fileName = path.basename(relativePath);
+  const prefix = "__next.";
+  const suffix = ".__PAGE__.txt";
+  if (!fileName.startsWith(prefix) || !fileName.endsWith(suffix)) return null;
+
+  const flattenedSegments = fileName
+    .slice(prefix.length, -suffix.length)
+    .split(".")
+    .filter(Boolean);
+  if (flattenedSegments.length === 0) return null;
+
+  const [routeParameter, ...routeSegments] = flattenedSegments;
+  return path.join(
+    path.dirname(relativePath),
+    `${prefix}${routeParameter}`,
+    ...routeSegments,
+    "__PAGE__.txt",
+  );
+}
+
 export async function resolveStaticFile(outDir, requestUrl) {
   const rootDir = await realpath(path.resolve(outDir)).catch(() =>
     path.resolve(outDir),
@@ -79,48 +101,34 @@ export async function resolveStaticFile(outDir, requestUrl) {
   }
 
   const relativePath = decodedPath.replace(/^\/+/, "") || "index.html";
-  let candidatePath = path.resolve(rootDir, relativePath);
+  const rscExportPath = nextRscExportPath(relativePath);
+  const candidatePaths = rscExportPath
+    ? [relativePath, rscExportPath]
+    : [relativePath];
 
-  if (!isContained(rootDir, candidatePath)) {
-    return {
-      filePath: await notFoundFile(rootDir),
-      status: 404,
-    };
-  }
+  for (const candidateRelativePath of candidatePaths) {
+    let candidatePath = path.resolve(rootDir, candidateRelativePath);
+    if (!isContained(rootDir, candidatePath)) continue;
 
-  try {
-    candidatePath = await realpath(candidatePath);
-    if (!isContained(rootDir, candidatePath)) {
-      return {
-        filePath: await notFoundFile(rootDir),
-        status: 404,
-      };
-    }
-
-    let details = await stat(candidatePath);
-    if (details.isDirectory()) {
-      candidatePath = path.join(candidatePath, "index.html");
-      if (!isContained(rootDir, candidatePath)) {
-        return {
-          filePath: await notFoundFile(rootDir),
-          status: 404,
-        };
-      }
+    try {
       candidatePath = await realpath(candidatePath);
-      if (!isContained(rootDir, candidatePath)) {
-        return {
-          filePath: await notFoundFile(rootDir),
-          status: 404,
-        };
-      }
-      details = await stat(candidatePath);
-    }
+      if (!isContained(rootDir, candidatePath)) continue;
 
-    if (details.isFile()) {
-      return { filePath: candidatePath, status: 200 };
+      let details = await stat(candidatePath);
+      if (details.isDirectory()) {
+        candidatePath = path.join(candidatePath, "index.html");
+        if (!isContained(rootDir, candidatePath)) continue;
+        candidatePath = await realpath(candidatePath);
+        if (!isContained(rootDir, candidatePath)) continue;
+        details = await stat(candidatePath);
+      }
+
+      if (details.isFile()) {
+        return { filePath: candidatePath, status: 200 };
+      }
+    } catch {
+      // Try the Next export mapping before falling back to the 404 artifact.
     }
-  } catch {
-    // Missing and unreadable routes use the exported 404 artifact below.
   }
 
   return {

@@ -263,7 +263,12 @@ describe("fixed-tour SQL artifact", () => {
     for (const table of ["tours", "tour_translations", "tour_versions", "tour_version_translations", "tour_version_stops", "departures"]) {
       expect(migration).toMatch(new RegExp(`ALTER TABLE public\\.${table} ENABLE ROW LEVEL SECURITY[\\s\\S]*ALTER TABLE public\\.${table} FORCE ROW LEVEL SECURITY`, "i"));
     }
-    expect(migration).toMatch(/ALTER ROLE localens_tour_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/i);
-    expect(migration).toMatch(/ALTER ROLE localens_tour_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/i);
+    expect(migration).toMatch(/CREATE ROLE localens_tour_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/i);
+    expect(migration).toMatch(/CREATE ROLE localens_tour_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS/i);
+    expect(migration).toMatch(/GRANT localens_tour_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE/i);
+    expect(migration).toMatch(/GRANT localens_tour_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE/i);
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA private TO localens_tour_rpc_owner, localens_tour_guard_owner/i);
+    expect(migration).toMatch(/REVOKE CREATE ON SCHEMA private FROM localens_tour_rpc_owner, localens_tour_guard_owner/i);
+    expect(migration.indexOf("GRANT CREATE ON SCHEMA private")).toBeGreaterThan(migration.indexOf("REVOKE ALL ON SCHEMA"));
   });
 });

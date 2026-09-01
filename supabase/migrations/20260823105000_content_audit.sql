@@ -7,32 +7,37 @@ BEGIN;
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_content_admin_owner') THEN
-    EXECUTE 'CREATE ROLE localens_content_admin_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_content_admin_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_content_public_owner') THEN
-    EXECUTE 'CREATE ROLE localens_content_public_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_content_public_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_content_build_owner') THEN
-    EXECUTE 'CREATE ROLE localens_content_build_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_content_build_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_content_guard_owner') THEN
-    EXECUTE 'CREATE ROLE localens_content_guard_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_content_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_content_audit_owner') THEN
-    EXECUTE 'CREATE ROLE localens_content_audit_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_content_audit_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_content_build_executor') THEN
-    EXECUTE 'CREATE ROLE localens_content_build_executor LOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_content_build_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION LOGIN NOBYPASSRLS';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE rolname LIKE 'localens_content_%'
+      AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolreplication OR rolbypassrls)
+  ) OR EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE rolname LIKE 'localens_content_%'
+      AND ((rolname = 'localens_content_build_executor' AND NOT rolcanlogin)
+        OR (rolname <> 'localens_content_build_executor' AND rolcanlogin))
+  ) THEN
+    RAISE EXCEPTION 'unsafe pre-existing LocalLens content role attributes or login class';
   END IF;
 END
 $roles$;
-
-ALTER ROLE localens_content_admin_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_content_public_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_content_build_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_content_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_content_audit_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_content_build_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION LOGIN NOBYPASSRLS;
 
 DO $memberships$
 DECLARE
@@ -43,7 +48,7 @@ BEGIN
     FROM pg_catalog.pg_auth_members AS memberships
     JOIN pg_catalog.pg_roles AS granted ON granted.oid = memberships.roleid
     JOIN pg_catalog.pg_roles AS member ON member.oid = memberships.member
-    WHERE granted.rolname IN (
+    WHERE (granted.rolname IN (
       'localens_content_admin_owner', 'localens_content_public_owner',
       'localens_content_build_owner', 'localens_content_guard_owner',
       'localens_content_audit_owner', 'localens_content_build_executor'
@@ -52,12 +57,24 @@ BEGIN
       'localens_content_admin_owner', 'localens_content_public_owner',
       'localens_content_build_owner', 'localens_content_guard_owner',
       'localens_content_audit_owner', 'localens_content_build_executor'
+    ))
+    AND NOT (
+      member.rolname = 'postgres'
+      AND memberships.set_option
+      AND NOT memberships.inherit_option
     )
   LOOP
     EXECUTE pg_catalog.format('REVOKE %I FROM %I', membership_record.granted_role, membership_record.member_role);
   END LOOP;
 END
 $memberships$;
+
+GRANT localens_content_admin_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_content_public_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_content_build_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_content_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_content_audit_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_content_build_executor TO postgres WITH SET TRUE, INHERIT FALSE;
 
 REVOKE ALL ON SCHEMA public, private, auth FROM
   localens_content_admin_owner, localens_content_public_owner,
@@ -71,10 +88,8 @@ REVOKE ALL ON ALL SEQUENCES IN SCHEMA public, private, auth FROM
   localens_content_admin_owner, localens_content_public_owner,
   localens_content_build_owner, localens_content_guard_owner,
   localens_content_audit_owner, localens_content_build_executor;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM
-  localens_content_admin_owner, localens_content_public_owner,
-  localens_content_build_owner, localens_content_guard_owner,
-  localens_content_audit_owner, localens_content_build_executor;
+GRANT CREATE ON SCHEMA private TO localens_content_admin_owner, localens_content_build_owner, localens_content_guard_owner, localens_content_audit_owner;
+GRANT CREATE ON SCHEMA public TO localens_content_admin_owner, localens_content_public_owner, localens_content_build_owner;
 
 -- This is a checked-in source-domain registry. Task 14 may extend it from its
 -- approved source manifest; callers cannot modify it through PostgREST.
@@ -148,12 +163,15 @@ ALTER FUNCTION private.content_url_is_allowlisted(text) OWNER TO localens_conten
 REVOKE ALL ON FUNCTION private.content_url_is_allowlisted(text) FROM PUBLIC, anon, authenticated;
 GRANT USAGE ON SCHEMA public TO localens_content_admin_owner, localens_content_public_owner,
   localens_content_build_owner, localens_content_build_executor;
+GRANT USAGE ON SCHEMA extensions TO localens_content_admin_owner, localens_content_build_owner;
 GRANT USAGE ON SCHEMA private TO localens_content_admin_owner, localens_content_public_owner,
   localens_content_build_owner, localens_content_guard_owner, localens_content_audit_owner,
   localens_content_build_executor;
 GRANT SELECT ON TABLE private.content_source_domains TO localens_content_guard_owner;
+SET LOCAL ROLE localens_content_guard_owner;
 GRANT EXECUTE ON FUNCTION private.content_url_is_safe(text), private.content_url_is_allowlisted(text)
   TO localens_content_guard_owner, localens_content_admin_owner, localens_content_build_owner;
+RESET ROLE;
 
 CREATE OR REPLACE FUNCTION private.content_provenance_is_allowlisted(
   p_source_urls jsonb,
@@ -211,9 +229,11 @@ BEGIN
 END;
 $function$;
 ALTER FUNCTION private.content_provenance_is_allowlisted(jsonb, jsonb) OWNER TO localens_content_guard_owner;
+SET LOCAL ROLE localens_content_guard_owner;
 REVOKE ALL ON FUNCTION private.content_provenance_is_allowlisted(jsonb, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.content_provenance_is_allowlisted(jsonb, jsonb)
   TO localens_content_guard_owner, localens_content_admin_owner, localens_content_build_owner;
+RESET ROLE;
 
 CREATE TABLE public.content_drafts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -298,8 +318,8 @@ ALTER TABLE private.seo_live_pointer ENABLE ROW LEVEL SECURITY;
 ALTER TABLE private.seo_live_pointer FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY content_drafts_admin_owner_all ON public.content_drafts
-  FOR ALL TO localens_content_admin_owner USING (current_user = 'localens_content_admin_owner')
-  WITH CHECK (current_user = 'localens_content_admin_owner');
+  FOR ALL TO localens_content_admin_owner USING (true)
+  WITH CHECK (true);
 CREATE POLICY seo_releases_admin_owner_all ON public.seo_releases
   FOR ALL TO localens_content_admin_owner USING (current_user = 'localens_content_admin_owner')
   WITH CHECK (current_user = 'localens_content_admin_owner');
@@ -307,8 +327,7 @@ CREATE POLICY seo_releases_build_owner_select ON public.seo_releases
   FOR SELECT TO localens_content_build_owner USING (current_user = 'localens_content_build_owner');
 CREATE POLICY content_release_copies_public_owner_select ON private.content_release_copies
   FOR SELECT TO localens_content_public_owner USING (
-    current_user = 'localens_content_public_owner'
-    AND EXISTS (
+    EXISTS (
       SELECT 1 FROM public.seo_releases AS releases
       WHERE releases.id = content_release_copies.release_id
         AND releases.status = 'published'::public.content_status
@@ -321,14 +340,14 @@ CREATE POLICY content_release_copies_public_owner_select ON private.content_rele
 CREATE POLICY content_release_copies_build_owner_select ON private.content_release_copies
   FOR SELECT TO localens_content_build_owner USING (current_user = 'localens_content_build_owner');
 CREATE POLICY content_release_copies_admin_owner_select ON private.content_release_copies
-  FOR SELECT TO localens_content_admin_owner USING (current_user = 'localens_content_admin_owner');
+  FOR SELECT TO localens_content_admin_owner USING (true);
 CREATE POLICY seo_build_capabilities_build_owner_all ON private.seo_build_capabilities
   FOR ALL TO localens_content_build_owner USING (current_user = 'localens_content_build_owner')
   WITH CHECK (current_user = 'localens_content_build_owner');
 CREATE POLICY seo_build_capabilities_admin_owner_select ON private.seo_build_capabilities
   FOR SELECT TO localens_content_admin_owner USING (current_user = 'localens_content_admin_owner');
 CREATE POLICY seo_live_pointer_public_owner_select ON private.seo_live_pointer
-  FOR SELECT TO localens_content_public_owner USING (current_user = 'localens_content_public_owner');
+  FOR SELECT TO localens_content_public_owner USING (true);
 CREATE POLICY seo_live_pointer_build_owner_all ON private.seo_live_pointer
   FOR ALL TO localens_content_build_owner USING (current_user = 'localens_content_build_owner')
   WITH CHECK (current_user = 'localens_content_build_owner');
@@ -536,7 +555,7 @@ GRANT EXECUTE ON FUNCTION private.record_content_audit_event(public.audit_event_
 CREATE POLICY audit_events_content_owner_insert ON private.audit_events
   FOR INSERT TO localens_content_audit_owner WITH CHECK (current_user = 'localens_content_audit_owner' AND target_type = 'content_release'::public.audit_target_type);
 CREATE POLICY audit_events_content_admin_owner_select ON private.audit_events
-  FOR SELECT TO localens_content_admin_owner USING (current_user = 'localens_content_admin_owner' AND target_type = 'content_release'::public.audit_target_type);
+  FOR SELECT TO localens_content_admin_owner USING (target_type = 'content_release'::public.audit_target_type);
 GRANT SELECT ON TABLE private.audit_events TO localens_content_admin_owner;
 
 CREATE OR REPLACE VIEW public.admin_content_drafts_v
@@ -548,7 +567,7 @@ SELECT d.id, d.locale, d.slug, d.title, d.description, d.body,
 FROM public.content_drafts AS d
 WHERE EXISTS (
   SELECT 1 FROM private.user_roles AS roles
-  WHERE roles.user_id = (SELECT auth.uid())
+  WHERE roles.user_id = NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid
     AND roles.role = 'admin'::public.app_role
 );
 ALTER VIEW public.admin_content_drafts_v OWNER TO localens_content_admin_owner;
@@ -568,6 +587,7 @@ WHERE r.status = 'published'::public.content_status;
 ALTER VIEW public.published_content_release_v OWNER TO localens_content_public_owner;
 REVOKE ALL ON public.published_content_release_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.published_content_release_v TO anon, authenticated;
+GRANT SELECT ON TABLE private.content_release_copies TO localens_content_public_owner;
 GRANT SELECT ON TABLE public.seo_releases TO localens_content_public_owner;
 CREATE POLICY seo_releases_public_owner_select ON public.seo_releases
   FOR SELECT TO localens_content_public_owner USING (
@@ -597,7 +617,7 @@ FROM private.audit_events AS events
 WHERE events.target_type = 'content_release'::public.audit_target_type
   AND EXISTS (
     SELECT 1 FROM private.user_roles AS roles
-    WHERE roles.user_id = (SELECT auth.uid())
+    WHERE roles.user_id = NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid
       AND roles.role = 'admin'::public.app_role
   );
 ALTER VIEW public.admin_audit_events_v OWNER TO localens_content_admin_owner;
@@ -613,7 +633,7 @@ SET search_path = ''
 AS $function$
 DECLARE actor uuid;
 BEGIN
-  actor := (SELECT auth.uid());
+  actor := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles AS roles WHERE roles.user_id = actor AND roles.role = 'admin'::public.app_role
   ) THEN
@@ -624,12 +644,10 @@ END;
 $function$;
 ALTER FUNCTION private.assert_content_admin() OWNER TO localens_content_admin_owner;
 REVOKE ALL ON FUNCTION private.assert_content_admin() FROM PUBLIC, anon, authenticated;
-GRANT USAGE ON SCHEMA auth TO localens_content_admin_owner;
-GRANT EXECUTE ON FUNCTION auth.uid() TO localens_content_admin_owner;
 GRANT SELECT ON TABLE private.user_roles TO localens_content_admin_owner;
 GRANT EXECUTE ON FUNCTION private.assert_content_admin() TO localens_content_admin_owner;
 CREATE POLICY user_roles_content_admin_select ON private.user_roles
-  FOR SELECT TO localens_content_admin_owner USING (current_user = 'localens_content_admin_owner');
+  FOR SELECT TO localens_content_admin_owner USING (true);
 
 CREATE OR REPLACE FUNCTION public.upsert_content_draft(
   p_locale public.locale,
@@ -819,10 +837,12 @@ BEGIN
      ) THEN
     RAISE EXCEPTION 'content release requires complete en/vi source copies' USING ERRCODE = '23514';
   END IF;
-  INSERT INTO public.seo_releases (status, source_commit, build_id, created_by)
+  INSERT INTO public.seo_releases AS inserted_release (status, source_commit, build_id, created_by)
   VALUES ('draft'::public.content_status, p_source_commit, p_build_id, actor)
-  RETURNING id, status, source_commit, build_id, artifact_hash, created_by, created_at,
-    publishing_at, published_at, failed_at, failure_code INTO release_row;
+  RETURNING inserted_release.id, inserted_release.status, inserted_release.source_commit,
+    inserted_release.build_id, inserted_release.artifact_hash, inserted_release.created_by,
+    inserted_release.created_at, inserted_release.publishing_at, inserted_release.published_at,
+    inserted_release.failed_at, inserted_release.failure_code INTO release_row;
   FOR draft_row IN
     SELECT locale, slug, title, description, body, source_urls, verified_at, image_attributions
     FROM public.content_drafts
@@ -835,10 +855,11 @@ BEGIN
   UPDATE public.seo_releases
   SET status = 'publishing'::public.content_status, publishing_at = pg_catalog.clock_timestamp()
   WHERE id = release_row.id;
-  nonce := pg_catalog.encode(pg_catalog.gen_random_bytes(32), 'hex');
+  nonce := pg_catalog.replace(pg_catalog.gen_random_uuid()::text, '-', '')
+    || pg_catalog.replace(pg_catalog.gen_random_uuid()::text, '-', '');
   capability_expiry := pg_catalog.clock_timestamp() + interval '15 minutes';
   INSERT INTO private.seo_build_capabilities (release_id, build_id, source_commit, artifact_hash, nonce_hash, expires_at, read_scope)
-  VALUES (release_row.id, p_build_id, p_source_commit, NULL, pg_catalog.digest(pg_catalog.convert_to(nonce, 'utf8'), 'sha256'), capability_expiry, 'published_content_release');
+  VALUES (release_row.id, p_build_id, p_source_commit, NULL, extensions.digest(pg_catalog.convert_to(nonce, 'utf8'), 'sha256'), capability_expiry, 'published_content_release');
   PERFORM private.record_content_audit_event('content_publish_started'::public.audit_event_type, actor, release_row.id, 'draft', 'publishing', 'source'::public.audit_metadata_key, 'build', NULL, NULL);
   release_id := release_row.id;
   build_id := p_build_id;
@@ -854,7 +875,9 @@ GRANT EXECUTE ON FUNCTION public.publish_seo(text, text) TO authenticated;
 GRANT INSERT, UPDATE ON TABLE public.content_drafts, public.seo_releases TO localens_content_admin_owner;
 GRANT INSERT ON TABLE private.content_release_copies, private.seo_build_capabilities TO localens_content_admin_owner;
 GRANT UPDATE ON TABLE private.seo_build_capabilities TO localens_content_admin_owner;
+SET LOCAL ROLE localens_content_audit_owner;
 GRANT EXECUTE ON FUNCTION private.record_content_audit_event(public.audit_event_type, uuid, uuid, text, text, public.audit_metadata_key, text, numeric, boolean) TO localens_content_admin_owner;
+RESET ROLE;
 CREATE POLICY content_release_copies_admin_owner_insert ON private.content_release_copies
   FOR INSERT TO localens_content_admin_owner WITH CHECK (current_user = 'localens_content_admin_owner');
 CREATE POLICY seo_build_capabilities_admin_owner_insert ON private.seo_build_capabilities
@@ -884,7 +907,7 @@ BEGIN
   FOR UPDATE OF capabilities;
   IF NOT FOUND OR capability_row.consumed_at IS NOT NULL OR capability_row.expires_at <= pg_catalog.clock_timestamp()
      OR capability_row.read_scope <> 'published_content_release'
-     OR p_capability_nonce IS NULL OR pg_catalog.digest(pg_catalog.convert_to(p_capability_nonce, 'utf8'), 'sha256') <> capability_row.nonce_hash THEN
+     OR p_capability_nonce IS NULL OR extensions.digest(pg_catalog.convert_to(p_capability_nonce, 'utf8'), 'sha256') <> capability_row.nonce_hash THEN
     RAISE EXCEPTION 'content build capability invalid' USING ERRCODE = '42501';
   END IF;
   RETURN QUERY
@@ -941,7 +964,7 @@ BEGIN
      AND release_row.source_commit = p_source_commit
      AND capability_row.source_commit = p_source_commit
      AND capability_row.artifact_hash = p_artifact_hash
-     AND capability_row.nonce_hash = pg_catalog.digest(pg_catalog.convert_to(p_capability_nonce, 'utf8'), 'sha256') THEN
+     AND capability_row.nonce_hash = extensions.digest(pg_catalog.convert_to(p_capability_nonce, 'utf8'), 'sha256') THEN
     release_id := release_row.id;
     status := release_row.status;
     published_at := release_row.published_at;
@@ -954,18 +977,18 @@ BEGIN
      OR capability_row.source_commit IS DISTINCT FROM p_source_commit
      OR release_row.source_commit IS DISTINCT FROM p_source_commit
      OR (capability_row.artifact_hash IS NOT NULL AND capability_row.artifact_hash IS DISTINCT FROM p_artifact_hash)
-     OR capability_row.nonce_hash IS DISTINCT FROM pg_catalog.digest(pg_catalog.convert_to(p_capability_nonce, 'utf8'), 'sha256') THEN
+     OR capability_row.nonce_hash IS DISTINCT FROM extensions.digest(pg_catalog.convert_to(p_capability_nonce, 'utf8'), 'sha256') THEN
     RAISE EXCEPTION 'content finalization capability invalid' USING ERRCODE = '42501';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM private.content_release_copies WHERE release_id = p_release_id)
+  IF NOT EXISTS (SELECT 1 FROM private.content_release_copies AS copies WHERE copies.release_id = p_release_id)
      OR EXISTS (
        SELECT 1
-       FROM private.content_release_copies
-       WHERE release_id = p_release_id
-       GROUP BY slug
+       FROM private.content_release_copies AS copies
+       WHERE copies.release_id = p_release_id
+       GROUP BY copies.slug
        HAVING count(*) <> 2
-          OR count(*) FILTER (WHERE locale = 'en'::public.locale) <> 1
-          OR count(*) FILTER (WHERE locale = 'vi'::public.locale) <> 1
+          OR count(*) FILTER (WHERE copies.locale = 'en'::public.locale) <> 1
+          OR count(*) FILTER (WHERE copies.locale = 'vi'::public.locale) <> 1
      )
      OR EXISTS (
        SELECT 1
@@ -1025,7 +1048,9 @@ GRANT EXECUTE ON FUNCTION public.finalize_seo_publish(uuid, text, text, text, te
 GRANT SELECT, UPDATE ON TABLE public.seo_releases TO localens_content_build_owner;
 GRANT SELECT, UPDATE ON TABLE private.seo_build_capabilities TO localens_content_build_owner;
 GRANT INSERT ON TABLE private.audit_events TO localens_content_build_owner;
+SET LOCAL ROLE localens_content_audit_owner;
 GRANT EXECUTE ON FUNCTION private.record_content_audit_event(public.audit_event_type, uuid, uuid, text, text, public.audit_metadata_key, text, numeric, boolean) TO localens_content_build_owner;
+RESET ROLE;
 CREATE POLICY seo_releases_build_owner_update ON public.seo_releases
   FOR UPDATE TO localens_content_build_owner USING (current_user = 'localens_content_build_owner')
   WITH CHECK (current_user = 'localens_content_build_owner');
@@ -1071,7 +1096,7 @@ BEGIN
   IF release_row.status = 'failed'::public.content_status
      AND capability_row.consumed_at IS NOT NULL
      AND release_row.failure_code = p_failure_code
-     AND capability_row.nonce_hash = pg_catalog.digest(pg_catalog.convert_to(p_capability_nonce, 'utf8'), 'sha256') THEN
+     AND capability_row.nonce_hash = extensions.digest(pg_catalog.convert_to(p_capability_nonce, 'utf8'), 'sha256') THEN
     release_id := release_row.id;
     status := release_row.status;
     RETURN NEXT;
@@ -1083,7 +1108,7 @@ BEGIN
      OR capability_row.consumed_at IS NOT NULL
      OR capability_row.expires_at <= authority_time
      OR capability_row.read_scope <> 'published_content_release'
-     OR capability_row.nonce_hash IS DISTINCT FROM pg_catalog.digest(pg_catalog.convert_to(p_capability_nonce, 'utf8'), 'sha256') THEN
+     OR capability_row.nonce_hash IS DISTINCT FROM extensions.digest(pg_catalog.convert_to(p_capability_nonce, 'utf8'), 'sha256') THEN
     RAISE EXCEPTION 'content failure capability invalid' USING ERRCODE = '42501';
   END IF;
   UPDATE public.seo_releases
@@ -1113,5 +1138,8 @@ $function$;
 ALTER FUNCTION public.fail_seo_publish(uuid, text, text, text) OWNER TO localens_content_build_owner;
 REVOKE ALL ON FUNCTION public.fail_seo_publish(uuid, text, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.fail_seo_publish(uuid, text, text, text) TO localens_content_build_executor;
+
+REVOKE CREATE ON SCHEMA private FROM localens_content_admin_owner, localens_content_build_owner, localens_content_guard_owner, localens_content_audit_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_content_admin_owner, localens_content_public_owner, localens_content_build_owner;
 
 COMMIT;

@@ -10,7 +10,7 @@ import { DB_GATE_STEPS, assertNoRemoteMode, runDbGate } from "@/scripts/run-db-g
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { checkGeneratedDatabaseTypes, writeGeneratedDatabaseTypes } from "@/scripts/write-generated-db-types.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
-import { REQUIRED_CONCURRENCY_SCENARIOS, runConcurrencyCheck } from "@/scripts/test-db-concurrency.mjs";
+import { CONCURRENCY_SCENARIO_IDS, REQUIRED_CONCURRENCY_SCENARIOS, runConcurrencyCheck, runConcurrencyGate } from "@/scripts/test-db-concurrency.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { requireLocalSupabaseCli, runLocalSupabase } from "@/scripts/supabase-local.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
@@ -20,17 +20,25 @@ import { resolve as resolvePath } from "node:path";
 describe("Task16 database gate", () => {
   it("runs the local gate in order and always stops after success", async () => {
     const calls: string[] = [];
+    const commands: Array<{ command: string; args: string[] }> = [];
     const result = await runDbGate({
       cwd: "C:/repo",
+      platform: "win32",
+      comSpec: "C:/Windows/System32/cmd.exe",
       cliPath: "C:/repo/node_modules/.bin/supabase.cmd",
-      runner: async (spec: { name: string }) => {
+      runner: async (spec: { name: string; command: string; args: string[] }) => {
         calls.push(spec.name);
+        commands.push({ command: spec.command, args: spec.args });
         return { status: 0, stdout: "", stderr: "" };
       },
     });
 
     expect(result.ok).toBe(true);
     expect(calls).toEqual([...DB_GATE_STEPS, "db:stop"]);
+    expect(commands).toEqual(calls.map((name) => ({
+      command: "C:/Windows/System32/cmd.exe",
+      args: ["/d", "/s", "/c", `pnpm.cmd run ${name}`],
+    })));
   });
 
   it("preserves the first step failure and still runs local stop cleanup", async () => {
@@ -263,6 +271,47 @@ describe("Task16 generated database types", () => {
 });
 
 describe("Task16 concurrency preflight", () => {
+  it("executes all six required races with two independent sessions", async () => {
+    const sessions: Array<{ id: number; connect: () => Promise<void>; end: () => Promise<void> }> = [];
+    const calls: Array<{ scenario: string; sessionIds: number[] }> = [];
+    const sessionFactory = () => {
+      const session = {
+        id: sessions.length + 1,
+        connect: async () => undefined,
+        end: async () => undefined,
+      };
+      sessions.push(session);
+      return session;
+    };
+    const scenarios = Object.fromEntries(
+      CONCURRENCY_SCENARIO_IDS.map((scenario: string) => [
+        scenario,
+        async ({ sessions: activeSessions }: { sessions: Array<{ id: number }> }) => {
+          calls.push({ scenario, sessionIds: activeSessions.map((session) => session.id) });
+        },
+      ]),
+    );
+
+    const result = await runConcurrencyGate({
+      databaseUrl: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+      sessionFactory,
+      scenarios,
+    });
+
+    expect(result).toEqual({ ok: true, scenarios: CONCURRENCY_SCENARIO_IDS });
+    expect(CONCURRENCY_SCENARIO_IDS).toEqual([
+      "cas_revision_winner",
+      "guest_claim_winner",
+      "quota_reservation_idempotency",
+      "departure_capacity_no_oversell",
+      "quote_checkout_compensation",
+      "stripe_webhook_event_race",
+    ]);
+    expect(sessions).toHaveLength(2);
+    expect(calls).toHaveLength(6);
+    for (const call of calls) expect(new Set(call.sessionIds).size).toBe(2);
+  });
+
   it("rejects a remote database URL before any harness configuration", async () => {
     const result = await runConcurrencyCheck({
       env: { LOCALENS_DB_URL: "postgresql://user:pass@project.supabase.co:5432/postgres" },

@@ -21,7 +21,12 @@ async function makeOutFixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), "localens-static-preview-"));
   temporaryDirectories.push(root);
   await mkdir(path.join(root, "en"), { recursive: true });
+  await mkdir(path.join(root, "en", "tours", "__next.$d$locale", "tours"), { recursive: true });
   await writeFile(path.join(root, "en", "index.html"), "<h1>English</h1>");
+  await writeFile(
+    path.join(root, "en", "tours", "__next.$d$locale", "tours", "__PAGE__.txt"),
+    "RSC payload",
+  );
   await writeFile(path.join(root, "404.html"), "<h1>404</h1>");
   await writeFile(path.join(root, "styles.css"), "body { color: red; }");
   return root;
@@ -51,6 +56,28 @@ describe("static preview server", () => {
     expect(await resolveStaticFile(outDir, "/%2e%2e/package.json")).toEqual({
       filePath: path.join(outDir, "404.html"),
       status: 404,
+    });
+  });
+
+  it("maps Next 16 flattened RSC request names to exported segment directories", async () => {
+    const { resolveStaticFile } = await loadStaticPreviewServer();
+    const outDir = await makeOutFixture();
+
+    expect(
+      await resolveStaticFile(
+        outDir,
+        "/en/tours/__next.$d$locale.tours.__PAGE__.txt?_rsc=fixture",
+      ),
+    ).toEqual({
+      filePath: path.join(
+        outDir,
+        "en",
+        "tours",
+        "__next.$d$locale",
+        "tours",
+        "__PAGE__.txt",
+      ),
+      status: 200,
     });
   });
 
@@ -88,6 +115,13 @@ describe("static preview server", () => {
       const styles = await fetch(`${preview.url}/styles.css`);
       expect(styles.status).toBe(200);
       expect(styles.headers.get("content-type")).toContain("text/css");
+
+      const rsc = await fetch(
+        `${preview.url}/en/tours/__next.$d$locale.tours.__PAGE__.txt?_rsc=fixture`,
+      );
+      expect(rsc.status).toBe(200);
+      expect(rsc.headers.get("content-type")).toContain("text/plain");
+      expect(await rsc.text()).toBe("RSC payload");
 
       const missing = await fetch(`${preview.url}/missing/`);
       expect(missing.status).toBe(404);

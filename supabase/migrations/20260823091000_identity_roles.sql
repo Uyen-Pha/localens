@@ -5,59 +5,50 @@ BEGIN;
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_auth_trigger_owner') THEN
-    EXECUTE 'CREATE ROLE localens_auth_trigger_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_auth_trigger_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_identity_rpc_owner') THEN
-    EXECUTE 'CREATE ROLE localens_identity_rpc_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_identity_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_admin_rpc_owner') THEN
-    EXECUTE 'CREATE ROLE localens_admin_rpc_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_admin_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_audit_guard_owner') THEN
-    EXECUTE 'CREATE ROLE localens_audit_guard_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_audit_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_roles
+    WHERE rolname IN (
+      'localens_auth_trigger_owner',
+      'localens_identity_rpc_owner',
+      'localens_admin_rpc_owner',
+      'localens_audit_guard_owner'
+    )
+      AND (
+        rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit
+        OR rolcanlogin OR rolreplication OR rolbypassrls
+      )
+  ) THEN
+    RAISE EXCEPTION 'unsafe pre-existing LocalLens identity owner role attributes';
   END IF;
 END
 $roles$;
 
-ALTER ROLE localens_auth_trigger_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_identity_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_admin_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_audit_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-
--- A pre-existing role must not retain memberships that could widen a definer's
--- reach. Identifiers are quoted by format(); no caller-controlled SQL enters this block.
-DO $memberships$
-DECLARE
-  membership_record record;
-BEGIN
-  FOR membership_record IN
-    SELECT granted.rolname AS granted_role, member.rolname AS member_role
-    FROM pg_catalog.pg_auth_members AS memberships
-    JOIN pg_catalog.pg_roles AS granted ON granted.oid = memberships.roleid
-    JOIN pg_catalog.pg_roles AS member ON member.oid = memberships.member
-    WHERE granted.rolname IN (
-      'localens_auth_trigger_owner',
-      'localens_identity_rpc_owner',
-      'localens_admin_rpc_owner',
-      'localens_audit_guard_owner'
-    )
-    OR member.rolname IN (
-      'localens_auth_trigger_owner',
-      'localens_identity_rpc_owner',
-      'localens_admin_rpc_owner',
-      'localens_audit_guard_owner'
-    )
-  LOOP
-    EXECUTE pg_catalog.format('REVOKE %I FROM %I', membership_record.granted_role, membership_record.member_role);
-  END LOOP;
-END
-$memberships$;
+-- PostgreSQL 17 gives a non-superuser role creator ADMIN but not SET access to
+-- newly created roles. The local migration/test role is already more
+-- privileged than these owners; SET access is required to assign ownership and
+-- exercise the narrow owner paths in pgTAP, while INHERIT remains disabled.
+GRANT localens_auth_trigger_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_identity_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_admin_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_audit_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
 
 -- Reset direct privileges before granting the narrow operation-specific set below.
 REVOKE ALL ON SCHEMA public, private, auth FROM localens_auth_trigger_owner, localens_identity_rpc_owner, localens_admin_rpc_owner, localens_audit_guard_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_auth_trigger_owner, localens_identity_rpc_owner, localens_admin_rpc_owner, localens_audit_guard_owner;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public, private, auth FROM localens_auth_trigger_owner, localens_identity_rpc_owner, localens_admin_rpc_owner, localens_audit_guard_owner;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM localens_auth_trigger_owner, localens_identity_rpc_owner, localens_admin_rpc_owner, localens_audit_guard_owner;
 
 CREATE TABLE public.profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -125,7 +116,7 @@ ALTER TABLE private.audit_events FORCE ROW LEVEL SECURITY;
 -- Public tables expose only owner-scoped reads. There are no client DML policies.
 CREATE POLICY profiles_customer_select ON public.profiles
   FOR SELECT TO authenticated
-  USING ((SELECT auth.uid()) = id);
+  USING (NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid = id);
 
 CREATE POLICY profiles_auth_trigger_insert ON public.profiles
   FOR INSERT TO localens_auth_trigger_owner
@@ -141,7 +132,7 @@ CREATE POLICY profiles_admin_summary_select ON public.profiles
 
 CREATE POLICY guide_profiles_guide_select ON public.guide_profiles
   FOR SELECT TO authenticated
-  USING ((SELECT auth.uid()) = user_id);
+  USING (NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid = user_id);
 
 CREATE POLICY guide_profiles_admin_summary_select ON public.guide_profiles
   FOR SELECT TO localens_admin_rpc_owner
@@ -178,7 +169,8 @@ CREATE POLICY audit_events_admin_summary_select ON private.audit_events
 
 -- Access is granted only to the non-login definer owners. API roles receive no base-table access.
 GRANT USAGE ON SCHEMA public, private TO localens_auth_trigger_owner, localens_identity_rpc_owner, localens_admin_rpc_owner;
-GRANT USAGE ON SCHEMA auth TO localens_identity_rpc_owner, localens_admin_rpc_owner;
+GRANT CREATE ON SCHEMA private TO localens_auth_trigger_owner, localens_identity_rpc_owner, localens_audit_guard_owner;
+GRANT CREATE ON SCHEMA public TO localens_admin_rpc_owner;
 GRANT SELECT ON TABLE public.profiles, public.guide_profiles TO authenticated;
 GRANT SELECT, INSERT ON TABLE public.profiles TO localens_auth_trigger_owner;
 GRANT SELECT ON TABLE public.profiles TO localens_admin_rpc_owner;
@@ -187,7 +179,6 @@ GRANT SELECT, INSERT ON TABLE private.user_roles TO localens_identity_rpc_owner;
 GRANT SELECT ON TABLE private.user_roles TO localens_admin_rpc_owner;
 GRANT INSERT ON TABLE private.audit_events TO localens_identity_rpc_owner;
 GRANT SELECT ON TABLE private.audit_events TO localens_admin_rpc_owner;
-GRANT EXECUTE ON FUNCTION auth.uid() TO localens_identity_rpc_owner, localens_admin_rpc_owner;
 
 REVOKE ALL ON SCHEMA private FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE private.user_roles, private.audit_events FROM PUBLIC, anon, authenticated;
@@ -284,7 +275,7 @@ DECLARE
   actor_user_id uuid;
   role_was_inserted boolean;
 BEGIN
-  actor_user_id := auth.uid();
+  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
 
   IF actor_user_id IS NULL THEN
     RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
@@ -351,12 +342,12 @@ AS $function$
 DECLARE
   actor_user_id uuid;
 BEGIN
-  actor_user_id := auth.uid();
+  actor_user_id := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor_user_id IS NULL OR NOT EXISTS (
     SELECT 1
-    FROM private.user_roles
-    WHERE user_id = actor_user_id
-      AND role = 'admin'::public.app_role
+    FROM private.user_roles AS actor_roles
+    WHERE actor_roles.user_id = actor_user_id
+      AND actor_roles.role = 'admin'::public.app_role
   ) THEN
     RAISE EXCEPTION 'admin role required' USING ERRCODE = '42501';
   END IF;
@@ -372,5 +363,8 @@ $function$;
 ALTER FUNCTION public.admin_user_summary() OWNER TO localens_admin_rpc_owner;
 REVOKE ALL ON FUNCTION public.admin_user_summary() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_user_summary() TO authenticated;
+
+REVOKE CREATE ON SCHEMA private FROM localens_auth_trigger_owner, localens_identity_rpc_owner, localens_audit_guard_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_admin_rpc_owner;
 
 COMMIT;

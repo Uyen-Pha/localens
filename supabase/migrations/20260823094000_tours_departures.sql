@@ -6,21 +6,29 @@ BEGIN;
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_tour_rpc_owner') THEN
-    EXECUTE 'CREATE ROLE localens_tour_rpc_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_tour_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_tour_guard_owner') THEN
-    EXECUTE 'CREATE ROLE localens_tour_guard_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_tour_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE rolname IN ('localens_tour_rpc_owner', 'localens_tour_guard_owner')
+      AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolcanlogin OR rolreplication OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'unsafe pre-existing LocalLens tour owner role attributes';
   END IF;
 END
 $roles$;
 
-ALTER ROLE localens_tour_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_tour_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
+GRANT localens_tour_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_tour_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
 
 REVOKE ALL ON SCHEMA public, private, auth FROM localens_tour_rpc_owner, localens_tour_guard_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_tour_rpc_owner, localens_tour_guard_owner;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public, private, auth FROM localens_tour_rpc_owner, localens_tour_guard_owner;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM localens_tour_rpc_owner, localens_tour_guard_owner;
+GRANT CREATE ON SCHEMA private TO localens_tour_rpc_owner, localens_tour_guard_owner;
+GRANT CREATE ON SCHEMA public TO localens_tour_rpc_owner;
 
 CREATE OR REPLACE FUNCTION private.valid_tour_copy_array(value text[])
 RETURNS boolean
@@ -216,7 +224,9 @@ GRANT SELECT ON TABLE public.tours, public.tour_translations, public.tour_versio
 GRANT SELECT ON TABLE public.catalog_snapshots, public.catalog_snapshot_places,
   public.catalog_snapshot_place_translations TO localens_tour_guard_owner;
 GRANT SELECT ON TABLE public.departures TO localens_tour_guard_owner;
+SET LOCAL ROLE localens_tour_guard_owner;
 GRANT EXECUTE ON FUNCTION private.valid_tour_copy_array(text[]) TO localens_tour_rpc_owner;
+RESET ROLE;
 
 -- The invoker view needs source privileges, but only for columns represented by
 -- its explicit public shape.  Table-level SELECT remains revoked.
@@ -500,7 +510,11 @@ SET search_path = ''
 AS $function$
 DECLARE
   parent_tour_id uuid;
+  old_row jsonb;
+  new_row jsonb;
 BEGIN
+  old_row := to_jsonb(OLD);
+  new_row := to_jsonb(NEW);
   IF TG_TABLE_NAME = 'tour_versions' THEN
     PERFORM private.lock_tour_parents(
       CASE WHEN TG_OP = 'DELETE' THEN OLD.tour_id ELSE NEW.tour_id END,
@@ -513,21 +527,21 @@ BEGIN
     PERFORM private.lock_tour_parents(parent_tour_id, parent_tour_id);
   END IF;
   IF TG_TABLE_NAME = 'tour_versions' AND TG_OP = 'UPDATE'
-     AND OLD.id = NEW.id
-     AND OLD.tour_id = NEW.tour_id
-     AND OLD.catalog_snapshot_id = NEW.catalog_snapshot_id
-     AND OLD.duration_minutes = NEW.duration_minutes
-     AND OLD.price_vnd_per_person = NEW.price_vnd_per_person
-     AND OLD.inclusions = NEW.inclusions
-     AND OLD.exclusions = NEW.exclusions
-     AND OLD.cancellation_policy = NEW.cancellation_policy
-     AND OLD.source_url = NEW.source_url
-     AND OLD.verified_at = NEW.verified_at
-     AND OLD.attribution = NEW.attribution
-     AND OLD.license = NEW.license
-     AND OLD.created_at = NEW.created_at
-     AND ((OLD.status = 'draft'::public.tour_version_status AND NEW.status = 'published'::public.tour_version_status AND OLD.published_at IS NULL AND NEW.published_at IS NOT NULL)
-       OR (OLD.status = 'published'::public.tour_version_status AND NEW.status = 'retired'::public.tour_version_status AND OLD.published_at = NEW.published_at)) THEN
+     AND old_row -> 'id' = new_row -> 'id'
+     AND old_row -> 'tour_id' = new_row -> 'tour_id'
+     AND old_row -> 'catalog_snapshot_id' = new_row -> 'catalog_snapshot_id'
+     AND old_row -> 'duration_minutes' = new_row -> 'duration_minutes'
+     AND old_row -> 'price_vnd_per_person' = new_row -> 'price_vnd_per_person'
+     AND old_row -> 'inclusions' = new_row -> 'inclusions'
+     AND old_row -> 'exclusions' = new_row -> 'exclusions'
+     AND old_row -> 'cancellation_policy' = new_row -> 'cancellation_policy'
+     AND old_row -> 'source_url' IS NOT DISTINCT FROM new_row -> 'source_url'
+     AND old_row -> 'verified_at' IS NOT DISTINCT FROM new_row -> 'verified_at'
+     AND old_row -> 'attribution' IS NOT DISTINCT FROM new_row -> 'attribution'
+     AND old_row -> 'license' IS NOT DISTINCT FROM new_row -> 'license'
+     AND old_row -> 'created_at' = new_row -> 'created_at'
+     AND ((old_row ->> 'status' = 'draft' AND new_row ->> 'status' = 'published' AND old_row -> 'published_at' = 'null'::jsonb AND new_row -> 'published_at' <> 'null'::jsonb)
+       OR (old_row ->> 'status' = 'published' AND new_row ->> 'status' = 'retired' AND old_row -> 'published_at' = new_row -> 'published_at')) THEN
     RETURN NEW;
   END IF;
   RAISE EXCEPTION 'tour version history is append-only' USING ERRCODE = '42501';
@@ -699,6 +713,8 @@ BEGIN
       RETURN NEW;
     END IF;
     target_tour_id := COALESCE(NEW.tour_id, OLD.tour_id);
+  ELSIF TG_TABLE_NAME = 'tour_versions' THEN
+    target_tour_id := COALESCE(NEW.tour_id, OLD.tour_id);
   ELSE
     SELECT tour_id INTO target_tour_id FROM public.tour_versions WHERE id = COALESCE(NEW.tour_version_id, OLD.tour_version_id);
   END IF;
@@ -760,5 +776,8 @@ ALTER VIEW public.published_tours_v OWNER TO localens_tour_rpc_owner;
 REVOKE ALL ON public.published_tours_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.published_tours_v TO anon, authenticated;
 REVOKE ALL ON TABLE public.departures FROM PUBLIC, anon, authenticated;
+
+REVOKE CREATE ON SCHEMA private FROM localens_tour_rpc_owner, localens_tour_guard_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_tour_rpc_owner;
 
 COMMIT;

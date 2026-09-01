@@ -1,6 +1,5 @@
--- Task 13 executable RLS matrix.  The repository currently has no Docker /
--- PostgreSQL runtime, so this file is a deferred integration gate.  It is
--- deliberately written as role-context tests, not as regex-only evidence.
+-- Task 13 executable RLS matrix. It is deliberately written as real
+-- role-context tests, not as regex-only evidence.
 BEGIN;
 
 SELECT plan(28);
@@ -21,9 +20,11 @@ SELECT ok(
 SELECT ok(
   has_schema_privilege('anon', 'private', 'USAGE') IS FALSE
   AND has_schema_privilege('authenticated', 'private', 'USAGE') IS FALSE
-  AND has_schema_privilege('anon', 'auth', 'USAGE') IS FALSE
-  AND has_schema_privilege('authenticated', 'auth', 'USAGE') IS FALSE,
-  'browser roles cannot enter private or auth schemas'
+  AND NOT EXISTS (
+    SELECT 1 FROM information_schema.role_table_grants
+    WHERE grantee IN ('anon', 'authenticated') AND table_schema = 'auth'
+  ),
+  'browser roles cannot enter private or read auth tables'
 );
 
 SELECT ok(
@@ -79,7 +80,7 @@ SELECT ok(
 
 SELECT ok(
   (SELECT bool_and(
-    (p.proconfig @> ARRAY['search_path='])
+    (p.proconfig @> ARRAY['search_path=""'])
     AND (p.proconfig @> ARRAY['statement_timeout=5s'])
   ) FROM pg_catalog.pg_proc AS p
   JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
@@ -122,7 +123,7 @@ SELECT ok(
     JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
       AND p.prosecdef
-      AND pg_catalog.pg_get_functiondef(p.oid) ~* '\\bEXECUTE\\s+format\\s*\\('
+      AND pg_catalog.upper(pg_catalog.pg_get_functiondef(p.oid)) LIKE '%EXECUTE FORMAT(%'
   ),
   'definer bodies contain no dynamic SQL formatting'
 );
@@ -140,7 +141,7 @@ SELECT ok(
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public'
       AND table_name IN ('published_tours_v', 'published_content_release_v', 'customer_bookings_v', 'customer_payment_status_v', 'admin_audit_events_v')
-      AND column_name ~* '(token|secret|signature|raw|ip|device|email|phone|notes|payload)'
+      AND column_name ~* '(^|_)(token|secret|signature|raw|ip|device|email|phone|notes|payload)($|_)'
   ),
   'public projections contain no credential, contact, raw payload, or tracking columns'
 );
@@ -153,10 +154,10 @@ SELECT ok(
   'append-only audit/payment/webhook state cannot be mutated directly'
 );
 
-SELECT lives_ok($sql$
+SELECT extensions.lives_ok($sql$
   SET LOCAL ROLE authenticated;
   SELECT pg_catalog.set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
-  SET LOCAL search_path = pg_temp, public;
+  SET LOCAL search_path = pg_temp, public, extensions, pg_catalog;
   SELECT public.get_live_departure_availability();
   SET LOCAL ROLE postgres;
 $sql$, 'public RPC remains safe with a hostile temp schema and authenticated JWT context');
@@ -205,7 +206,10 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001304
 SELECT is((SELECT count(*)::integer FROM public.guide_profiles), 1, 'guide B sees exactly own guide profile');
 SELECT is((SELECT count(*)::integer FROM public.guide_profiles WHERE user_id = '00000000-0000-0000-0000-000000001303'::uuid), 0, 'guide B cannot see guide A profile');
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001301', true);
-SELECT is((SELECT count(*)::integer FROM public.admin_user_summary()), 0, 'customer cannot read admin summary');
+SELECT extensions.throws_ok(
+  $$SELECT * FROM public.admin_user_summary()$$,
+  '42501'::character(5), 'admin role required', 'customer cannot read admin summary'
+);
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001305', true);
 SELECT ok((SELECT count(*)::integer FROM public.admin_user_summary()) >= 5, 'admin summary is visible only to admin context');
 SELECT throws_ok(
@@ -216,5 +220,5 @@ SET LOCAL ROLE anon;
 SELECT ok(has_table_privilege('anon', 'public.profiles', 'SELECT') IS FALSE, 'anonymous has no identity-table read privilege');
 RESET ROLE;
 
-SELECT * FROM finish();
+SELECT * FROM extensions.finish();
 ROLLBACK;

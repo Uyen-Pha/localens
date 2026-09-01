@@ -6,9 +6,23 @@ BEGIN;
 GRANT UPDATE (id) ON TABLE public.tours, public.tour_versions TO localens_tour_guard_owner;
 GRANT UPDATE (id) ON TABLE public.catalog_snapshots, public.travel_snapshots TO localens_catalog_guard_owner;
 
+-- PostgreSQL applies UPDATE RLS policies to rows selected FOR SHARE. These
+-- policies expose rows only to the named lock guard. Column grants remain
+-- limited to id, while append-only triggers reject every attempted mutation.
+CREATE POLICY catalog_snapshots_guard_lock ON public.catalog_snapshots
+  FOR UPDATE TO localens_catalog_guard_owner USING (true) WITH CHECK (true);
+CREATE POLICY travel_snapshots_guard_lock ON public.travel_snapshots
+  FOR UPDATE TO localens_catalog_guard_owner USING (true) WITH CHECK (true);
+CREATE POLICY tours_guard_lock ON public.tours
+  FOR UPDATE TO localens_tour_guard_owner USING (true) WITH CHECK (true);
+CREATE POLICY tour_versions_guard_lock ON public.tour_versions
+  FOR UPDATE TO localens_tour_guard_owner USING (true) WITH CHECK (true);
+
 -- Recreate the publication helper in the forward migration as well.  The
 -- original migration is already deployed in existing environments, so editing
 -- that source alone would leave the duplicate publication-time URL guard stale.
+GRANT USAGE, CREATE ON SCHEMA private TO localens_tour_guard_owner;
+SET LOCAL ROLE localens_tour_guard_owner;
 CREATE OR REPLACE FUNCTION private.assert_published_tour_complete(target_tour_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -109,8 +123,9 @@ BEGIN
   END LOOP;
 END;
 $function$;
-ALTER FUNCTION private.assert_published_tour_complete(uuid) OWNER TO localens_tour_guard_owner;
 REVOKE ALL ON FUNCTION private.assert_published_tour_complete(uuid) FROM PUBLIC, anon, authenticated;
+RESET ROLE;
+REVOKE CREATE ON SCHEMA private FROM localens_tour_guard_owner;
 
 -- The mapper accepts only an ASCII dotted-FQDN authority without ports,
 -- numeric-host coercion, or punycode markers. Keep the database boundary equal.

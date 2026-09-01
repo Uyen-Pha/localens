@@ -5,21 +5,27 @@ BEGIN;
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_catalog_rpc_owner') THEN
-    EXECUTE 'CREATE ROLE localens_catalog_rpc_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_catalog_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'localens_catalog_guard_owner') THEN
-    EXECUTE 'CREATE ROLE localens_catalog_guard_owner NOLOGIN NOBYPASSRLS';
+    EXECUTE 'CREATE ROLE localens_catalog_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE rolname IN ('localens_catalog_rpc_owner', 'localens_catalog_guard_owner')
+      AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolcanlogin OR rolreplication OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'unsafe pre-existing LocalLens catalog owner role attributes';
   END IF;
 END
 $roles$;
 
-ALTER ROLE localens_catalog_rpc_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
-ALTER ROLE localens_catalog_guard_owner NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOLOGIN NOBYPASSRLS;
+GRANT localens_catalog_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE;
+GRANT localens_catalog_guard_owner TO postgres WITH SET TRUE, INHERIT FALSE;
 
 REVOKE ALL ON SCHEMA public, private, auth FROM localens_catalog_rpc_owner, localens_catalog_guard_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_catalog_rpc_owner, localens_catalog_guard_owner;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public, private, auth FROM localens_catalog_rpc_owner, localens_catalog_guard_owner;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth FROM localens_catalog_rpc_owner, localens_catalog_guard_owner;
 
 CREATE TABLE public.areas (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -347,13 +353,14 @@ BEGIN
     'catalog_snapshot_place_opening_exception_windows'
   ]
   LOOP
-    EXECUTE format('CREATE POLICY catalog_owner_all ON public.%I FOR ALL TO localens_catalog_rpc_owner USING (current_user = %L) WITH CHECK (current_user = %L)', table_name, 'localens_catalog_rpc_owner', 'localens_catalog_rpc_owner');
+    EXECUTE format('CREATE POLICY catalog_owner_all ON public.%I FOR ALL TO localens_catalog_rpc_owner USING (true) WITH CHECK (true)', table_name);
   END LOOP;
 END
 $policies$;
 
 GRANT USAGE ON SCHEMA public, private TO localens_catalog_rpc_owner;
-GRANT USAGE ON SCHEMA auth TO localens_catalog_rpc_owner;
+GRANT CREATE ON SCHEMA private TO localens_catalog_rpc_owner, localens_catalog_guard_owner;
+GRANT CREATE ON SCHEMA public TO localens_catalog_rpc_owner;
 GRANT SELECT, INSERT, UPDATE ON TABLE
   public.areas, public.area_translations, public.places, public.place_translations,
   public.place_experience_types, public.place_guide_languages, public.place_supports,
@@ -366,7 +373,6 @@ GRANT SELECT, INSERT, UPDATE ON TABLE
   public.catalog_snapshot_place_opening_exception_windows
   TO localens_catalog_rpc_owner;
 GRANT SELECT ON private.user_roles TO localens_catalog_rpc_owner;
-GRANT EXECUTE ON FUNCTION auth.uid() TO localens_catalog_rpc_owner;
 -- API roles receive no direct privilege on mutable catalog facts or immutable
 -- history tables. They read the exact published projection below instead.
 REVOKE ALL ON TABLE
@@ -436,18 +442,18 @@ BEGIN
     FROM public.place_opening_hours AS existing
     CROSS JOIN LATERAL (
       SELECT NEW.weekday AS day,
-             pg_catalog.extract(epoch FROM NEW.opens_at)::integer AS start_seconds,
-             CASE WHEN NEW.closes_at > NEW.opens_at THEN pg_catalog.extract(epoch FROM NEW.closes_at)::integer ELSE 86400 END AS end_seconds
+             extract(epoch FROM NEW.opens_at)::integer AS start_seconds,
+             CASE WHEN NEW.closes_at > NEW.opens_at THEN extract(epoch FROM NEW.closes_at)::integer ELSE 86400 END AS end_seconds
       UNION ALL
-      SELECT ((NEW.weekday + 1) % 7), 0, pg_catalog.extract(epoch FROM NEW.closes_at)::integer
+      SELECT ((NEW.weekday + 1) % 7), 0, extract(epoch FROM NEW.closes_at)::integer
       WHERE NEW.closes_at < NEW.opens_at
     ) AS incoming
     CROSS JOIN LATERAL (
       SELECT existing.weekday AS day,
-             pg_catalog.extract(epoch FROM existing.opens_at)::integer AS start_seconds,
-             CASE WHEN existing.closes_at > existing.opens_at THEN pg_catalog.extract(epoch FROM existing.closes_at)::integer ELSE 86400 END AS end_seconds
+             extract(epoch FROM existing.opens_at)::integer AS start_seconds,
+             CASE WHEN existing.closes_at > existing.opens_at THEN extract(epoch FROM existing.closes_at)::integer ELSE 86400 END AS end_seconds
       UNION ALL
-      SELECT ((existing.weekday + 1) % 7), 0, pg_catalog.extract(epoch FROM existing.closes_at)::integer
+      SELECT ((existing.weekday + 1) % 7), 0, extract(epoch FROM existing.closes_at)::integer
       WHERE existing.closes_at < existing.opens_at
     ) AS stored
     WHERE existing.place_id = NEW.place_id
@@ -481,17 +487,17 @@ BEGIN
     SELECT 1
     FROM public.place_opening_exception_windows AS existing
     CROSS JOIN LATERAL (
-      SELECT pg_catalog.extract(epoch FROM NEW.opens_at)::integer AS start_seconds,
-             CASE WHEN NEW.closes_at > NEW.opens_at THEN pg_catalog.extract(epoch FROM NEW.closes_at)::integer ELSE 86400 END AS end_seconds
+      SELECT extract(epoch FROM NEW.opens_at)::integer AS start_seconds,
+             CASE WHEN NEW.closes_at > NEW.opens_at THEN extract(epoch FROM NEW.closes_at)::integer ELSE 86400 END AS end_seconds
       UNION ALL
-      SELECT 0, pg_catalog.extract(epoch FROM NEW.closes_at)::integer
+      SELECT 0, extract(epoch FROM NEW.closes_at)::integer
       WHERE NEW.closes_at < NEW.opens_at
     ) AS incoming
     CROSS JOIN LATERAL (
-      SELECT pg_catalog.extract(epoch FROM existing.opens_at)::integer AS start_seconds,
-             CASE WHEN existing.closes_at > existing.opens_at THEN pg_catalog.extract(epoch FROM existing.closes_at)::integer ELSE 86400 END AS end_seconds
+      SELECT extract(epoch FROM existing.opens_at)::integer AS start_seconds,
+             CASE WHEN existing.closes_at > existing.opens_at THEN extract(epoch FROM existing.closes_at)::integer ELSE 86400 END AS end_seconds
       UNION ALL
-      SELECT 0, pg_catalog.extract(epoch FROM existing.closes_at)::integer
+      SELECT 0, extract(epoch FROM existing.closes_at)::integer
       WHERE existing.closes_at < existing.opens_at
     ) AS stored
     WHERE existing.exception_id = NEW.exception_id
@@ -667,12 +673,12 @@ SET search_path = ''
 AS $function$
 BEGIN
   IF TG_TABLE_NAME = 'catalog_snapshots' AND TG_OP = 'UPDATE'
-     AND OLD.status = 'building'::public.snapshot_status
-     AND NEW.status = 'published'::public.snapshot_status
-     AND NEW.published_at IS NOT NULL
-     AND OLD.published_at IS NULL
-     AND NEW.id = OLD.id
-     AND NEW.created_at = OLD.created_at THEN
+     AND to_jsonb(OLD)->>'status' = 'building'
+     AND to_jsonb(NEW)->>'status' = 'published'
+     AND to_jsonb(NEW)->>'published_at' IS NOT NULL
+     AND to_jsonb(OLD)->>'published_at' IS NULL
+     AND to_jsonb(NEW)->>'id' = to_jsonb(OLD)->>'id'
+     AND to_jsonb(NEW)->>'created_at' = to_jsonb(OLD)->>'created_at' THEN
     RETURN NEW;
   END IF;
   RAISE EXCEPTION 'published catalog snapshot history is append-only' USING ERRCODE = '42501';
@@ -728,7 +734,7 @@ DECLARE
   snapshot_id uuid;
   place_row public.places%ROWTYPE;
 BEGIN
-  actor := auth.uid();
+  actor := NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
   IF actor IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles WHERE user_id = actor AND role = 'admin'::public.app_role
   ) THEN
@@ -849,6 +855,9 @@ ALTER VIEW public.catalog_snapshot_places_v OWNER TO localens_catalog_rpc_owner;
 REVOKE ALL ON public.catalog_snapshot_places_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.catalog_snapshot_places_v TO anon, authenticated;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
+
+REVOKE CREATE ON SCHEMA private FROM localens_catalog_rpc_owner, localens_catalog_guard_owner;
+REVOKE CREATE ON SCHEMA public FROM localens_catalog_rpc_owner;
 
 CREATE INDEX areas_slug_idx ON public.areas (slug);
 CREATE INDEX places_status_slug_idx ON public.places (status, slug);
