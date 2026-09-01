@@ -19,7 +19,7 @@ export async function generateMetadata({
   if (!isLocale(locale)) notFound();
 
   return {
-    title: locale === "vi" ? "Đăng nhập demo | LocalLens" : "Demo sign in | LocalLens",
+    title: locale === "vi" ? "Đăng nhập | LocalLens" : "Sign in | LocalLens",
     robots: { index: false, follow: false },
   };
 }

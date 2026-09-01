@@ -593,6 +593,82 @@
   margin-bottom: 2.25rem;
 }
 
+.signInForm {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 34rem);
+  border: 1px solid var(--portal-rule);
+  border-radius: 0.75rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  background: var(--portal-mint);
+}
+
+.signInForm .actions {
+  margin-top: 0.25rem;
+}
+
+.runtimeShell {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 52rem;
+}
+
+.runtimeShell h1 {
+  max-width: 18ch;
+  margin: 0;
+  color: var(--portal-forest);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+
+.runtimeIdentity {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.runtimeIdentity div {
+  min-width: 0;
+  border: 1px solid var(--portal-rule);
+  border-radius: 0.65rem;
+  padding: 0.9rem;
+  background: var(--portal-white);
+}
+
+.runtimeIdentity dt {
+  color: var(--portal-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.runtimeIdentity dd {
+  margin: 0.35rem 0 0;
+  overflow-wrap: anywhere;
+  color: var(--portal-ink);
+  font-weight: 700;
+}
+
+.runtimeDisclosure {
+  margin: 0;
+  border-left: 4px solid var(--portal-forest);
+  border-radius: 0.5rem;
+  padding: 0.9rem 1rem;
+  background: var(--portal-forest-soft);
+  color: var(--portal-forest-deep);
+  line-height: 1.6;
+}
+
+.correlationId {
+  margin-top: 0.75rem !important;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
 .centerState {
   display: grid;
   min-height: 45vh;
@@ -643,6 +719,10 @@
     border-left: 0;
     border-top: 3px solid var(--portal-coral);
     padding: 1rem 0 0;
+  }
+
+  .runtimeIdentity {
+    grid-template-columns: 1fr;
   }
 
   .span4,

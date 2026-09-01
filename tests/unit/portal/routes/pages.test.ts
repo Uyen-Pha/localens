@@ -34,4 +34,13 @@ describe("portal route contracts", () => {
       expect(source).toContain("notFound()");
     }
   });
+
+  it("keeps sign-in metadata generic in both locales", () => {
+    const source = readFileSync(join(process.cwd(), "app/[locale]/sign-in/page.tsx"), "utf8");
+
+    expect(source).toContain('"Sign in | LocalLens"');
+    expect(source).toContain('"Đăng nhập | LocalLens"');
+    expect(source).not.toContain("Demo sign in | LocalLens");
+    expect(source).not.toContain("Đăng nhập demo | LocalLens");
+  });
 });
