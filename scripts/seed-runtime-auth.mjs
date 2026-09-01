@@ -159,10 +159,11 @@ async function normalizeDatabaseIdentities(query, users) {
         [identity.userId, identity.role],
       );
       await query(
-        `INSERT INTO public.profiles (id, display_name)
-         VALUES ($1::uuid, $2)
-         ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name`,
-        [identity.userId, identity.displayName],
+        `INSERT INTO public.profiles (id, display_name, language)
+         VALUES ($1::uuid, $2, $3::public.locale)
+         ON CONFLICT (id) DO UPDATE
+         SET display_name = EXCLUDED.display_name, language = EXCLUDED.language`,
+        [identity.userId, identity.displayName, identity.language],
       );
 
       if (identity.role === "guide") {

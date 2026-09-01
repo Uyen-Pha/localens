@@ -76,7 +76,7 @@ function createAuthAdmin() {
 
 function createDatabaseQuery() {
   const roles = new Map<string, Set<string>>();
-  const profiles = new Map<string, string>();
+  const profiles = new Map<string, { displayName: string; language: string }>();
   const guideProfiles = new Map<string, { displayName: string; language: string }>();
   const statements: string[] = [];
 
@@ -87,7 +87,9 @@ function createDatabaseQuery() {
 
     if (normalized.startsWith("delete from private.user_roles")) roles.delete(userId);
     if (normalized.startsWith("insert into private.user_roles")) roles.set(userId, new Set([value]));
-    if (normalized.startsWith("insert into public.profiles")) profiles.set(userId, value);
+    if (normalized.startsWith("insert into public.profiles")) {
+      profiles.set(userId, { displayName: value, language });
+    }
     if (normalized.startsWith("delete from public.guide_profiles")) guideProfiles.delete(userId);
     if (normalized.startsWith("insert into public.guide_profiles")) {
       guideProfiles.set(userId, { displayName: value, language });
@@ -338,8 +340,10 @@ describe("runtime Auth seed", () => {
 
     const first = await seedRuntimeAuth(options);
     const customerId = authAdmin.users.get("customer.runtime@localens.test")?.id as string;
+    const adminId = authAdmin.users.get("admin.runtime@localens.test")?.id as string;
     database.roles.set(customerId, new Set(["customer", "admin"]));
     database.guideProfiles.set(customerId, { displayName: "Stale", language: "vi" });
+    database.guideProfiles.set(adminId, { displayName: "Stale Admin", language: "vi" });
     const second = await seedRuntimeAuth(options);
 
     expect(first).toEqual(second);
@@ -351,7 +355,10 @@ describe("runtime Auth seed", () => {
     for (const identity of RUNTIME_AUTH_IDENTITIES) {
       const userId = authAdmin.users.get(identity.email)?.id as string;
       expect([...database.roles.get(userId) ?? []]).toEqual([identity.role]);
-      expect(database.profiles.get(userId)).toBe(identity.displayName);
+      expect(database.profiles.get(userId)).toEqual({
+        displayName: identity.displayName,
+        language: identity.language,
+      });
     }
 
     const guideId = authAdmin.users.get("guide.runtime@localens.test")?.id as string;
@@ -360,6 +367,7 @@ describe("runtime Auth seed", () => {
       language: "vi",
     });
     expect(database.guideProfiles.has(customerId)).toBe(false);
+    expect(database.guideProfiles.has(adminId)).toBe(false);
 
     const sql = database.statements.join("\n");
     expect(sql).toMatch(/private\.user_roles/i);
