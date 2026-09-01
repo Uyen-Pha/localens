@@ -285,6 +285,41 @@ describe("demo portal repository", () => {
     expect(envelope.sessionUserId).toBeNull();
   });
 
+  it("initializes an absent fixture once and preserves a valid existing session envelope", async () => {
+    const { storage, repo } = repository();
+    await repo.initialize();
+    await repo.session.selectDemoIdentity("demo-user-guide");
+    const selectedRaw = storage.getItem(DEMO_PORTAL_STORAGE_KEY);
+
+    const reopened = createDemoPortalRepository({ storage, now: CLOCK });
+    await reopened.initialize();
+
+    await expect(reopened.session.getSession()).resolves.toMatchObject({
+      userId: "demo-user-guide",
+      role: "guide",
+      demo: true,
+    });
+    expect(storage.getItem(DEMO_PORTAL_STORAGE_KEY)).toBe(selectedRaw);
+  });
+
+  it("fails closed for a same-version legacy envelope without sessionUserId", async () => {
+    const { storage, repo } = repository();
+    await repo.reset();
+    const raw = storage.getItem(DEMO_PORTAL_STORAGE_KEY);
+    if (raw === null) throw new Error("Expected a seeded demo envelope.");
+    const envelope = JSON.parse(raw) as Record<string, unknown>;
+    delete envelope.sessionUserId;
+    const body = { ...envelope };
+    delete body.integrity;
+    envelope.integrity = { algorithm: "fnv1a32", digest: fnv1a32(canonical(body)) };
+    const legacyRaw = JSON.stringify(envelope);
+    storage.setItem(DEMO_PORTAL_STORAGE_KEY, legacyRaw);
+
+    const reopened = createDemoPortalRepository({ storage, now: CLOCK });
+    await expect(reopened.initialize()).rejects.toMatchObject({ code: "INVALID_STORAGE" });
+    expect(storage.getItem(DEMO_PORTAL_STORAGE_KEY)).toBe(legacyRaw);
+  });
+
   it("persists a selected seeded identity across a fresh repository instance", async () => {
     const { storage, repo } = repository();
     await repo.reset();

@@ -148,6 +148,7 @@ export interface DemoPortalRepository {
   readonly admin: AdminPortalPorts;
   readonly demoIntegration: DemoPortalIntegration;
   readonly demoQuotes: AdminPersonalizedQuotesPort;
+  initialize(): Promise<void>;
   reset(): Promise<void>;
 }
 
@@ -1720,6 +1721,21 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
   }
 
   const engine = {
+    async initialize(): Promise<void> {
+      let raw: string | null;
+      try {
+        raw = storage.getItem(PORTAL_DEMO_STORAGE_KEY);
+      } catch (error) {
+        storageUnavailable("read", error);
+      }
+      if (raw === null) {
+        await engine.reset();
+        return;
+      }
+      if (typeof raw !== "string") invalidStorage("root", "Storage returned a non-string value");
+      parseEnvelope(raw);
+    },
+
     async reset(): Promise<void> {
       const envelope = makeEnvelope(createFixtureBody());
       // Validate the generated fixture through the same fail-closed path used for reads.
@@ -2335,6 +2351,7 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
     issueDemoQuote: engine.issueDemoQuote,
   };
   return {
+    initialize: engine.initialize,
     reset: engine.reset,
     session,
     customer,

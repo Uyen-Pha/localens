@@ -184,8 +184,7 @@ export function createPortalComposition(options: CreatePortalCompositionOptions)
 
   assertDemoStorage(options.storage);
   const repository = createDemoPortalRepository({ storage: options.storage, now: options.now });
-  // Reset through the repository boundary during composition creation; callers can await this promise explicitly.
-  const initialized = repository.reset();
+  const initialized = repository.initialize();
   return withDemoCompositionMetadata({
     session: repository.session,
     customer: repository.customer,

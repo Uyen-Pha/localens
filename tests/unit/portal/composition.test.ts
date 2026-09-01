@@ -120,11 +120,8 @@ describe("portal composition", () => {
     );
   });
 
-  it("resets the injected demo storage deterministically and exposes grouped bindings", async () => {
-    const firstStorage = createMemorySessionStorage({
-      [PORTAL_DEMO_STORAGE_KEY]: "stale fixture",
-      unrelated: "preserve",
-    });
+  it("seeds absent demo storage once and exposes grouped bindings", async () => {
+    const firstStorage = createMemorySessionStorage({ unrelated: "preserve" });
     const first = createPortalComposition({ mode: "demo", storage: firstStorage });
     await first.initialized;
     const firstRaw = firstStorage.getItem(PORTAL_DEMO_STORAGE_KEY);
@@ -135,7 +132,6 @@ describe("portal composition", () => {
 
     expect(first.mode).toBe("demo");
     expect(firstRaw).not.toBeNull();
-    expect(firstRaw).not.toBe("stale fixture");
     expect(firstRaw).toBe(secondStorage.getItem(PORTAL_DEMO_STORAGE_KEY));
     expect(firstStorage.getItem("unrelated")).toBe("preserve");
     expect(first.productionGap).toBe(PORTAL_PRODUCTION_GAP);
@@ -168,6 +164,66 @@ describe("portal composition", () => {
       role: "customer",
       demo: true,
     });
+  });
+
+  it("preserves the selected identity when a second composition initializes over the same storage", async () => {
+    const storage = createMemorySessionStorage();
+    const first = createPortalComposition({ mode: "demo", storage });
+    await first.initialized;
+    await first.session.selectDemoIdentity("demo-user-guide");
+
+    const selectedRaw = storage.getItem(PORTAL_DEMO_STORAGE_KEY);
+    const second = createPortalComposition({ mode: "demo", storage });
+    await second.initialized;
+
+    await expect(second.session.getSession()).resolves.toMatchObject({
+      userId: "demo-user-guide",
+      role: "guide",
+      demo: true,
+    });
+    expect(storage.getItem(PORTAL_DEMO_STORAGE_KEY)).toBe(selectedRaw);
+  });
+
+  it.each([
+    ["corrupt JSON", () => "not-json"],
+    ["an unknown root field", (raw: string) => {
+      const envelope = JSON.parse(raw) as Record<string, unknown>;
+      envelope.unexpected = true;
+      return JSON.stringify(envelope);
+    }],
+    ["tampered fixture data", (raw: string) => {
+      const envelope = JSON.parse(raw) as Record<string, unknown>;
+      const users = envelope.users as Array<Record<string, unknown>>;
+      users[0]!.displayName = "Tampered Traveler";
+      return JSON.stringify(envelope);
+    }],
+  ] as const)("rejects %s during initialization without resetting it", async (_label, invalidate) => {
+    const storage = createMemorySessionStorage({ unrelated: "preserve" });
+    const repository = createDemoPortalRepository({ storage });
+    await repository.reset();
+    const seededRaw = storage.getItem(PORTAL_DEMO_STORAGE_KEY);
+    if (seededRaw === null) throw new Error("Expected a seeded demo envelope.");
+    const invalidRaw = invalidate(seededRaw);
+    storage.setItem(PORTAL_DEMO_STORAGE_KEY, invalidRaw);
+    const composition = createPortalComposition({ mode: "demo", storage });
+
+    await expect(composition.initialized).rejects.toMatchObject({ code: "INVALID_STORAGE" });
+    expect(storage.getItem(PORTAL_DEMO_STORAGE_KEY)).toBe(invalidRaw);
+    expect(storage.getItem("unrelated")).toBe("preserve");
+  });
+
+  it("keeps explicit repository reset deterministic and clears a composition session", async () => {
+    const storage = createMemorySessionStorage();
+    const composition = createPortalComposition({ mode: "demo", storage });
+    await composition.initialized;
+    await composition.session.selectDemoIdentity("demo-user-admin");
+
+    const repository = createDemoPortalRepository({ storage });
+    await repository.reset();
+    const reopened = createPortalComposition({ mode: "demo", storage });
+    await reopened.initialized;
+
+    await expect(reopened.session.getSession()).resolves.toBeNull();
   });
 
   it("returns the exact injected production bindings without a demo fallback", () => {
