@@ -287,6 +287,11 @@ GREEN evidence:
 - Exact `pnpm test:e2e`: 25/25 passed in 2.6 minutes in host context. Demo E2E
   owns port 3300 and excludes the separately orchestrated runtime-auth spec;
   manual port 3100 remained active.
-- Exact `pnpm db:verify` is intentionally left for the controller, which will
-  restore local Supabase with `pnpm db:start` afterward because the gate's
-  pre-existing cleanup always stops it.
+- Exact `pnpm db:verify` passed under the controller: database lint returned
+  zero findings; pgTAP passed 14 files/1,433 tests; all 6/6 two-session
+  concurrency scenarios passed; and the generated-type drift check passed. The
+  gate stopped the stack during its owned cleanup, after which local Supabase
+  was restarted and its Auth health endpoint returned HTTP 200.
+
+This is final verification evidence for B2.1 only. B2.2-B2.4, staging,
+production deployment, and whole-product completion are not complete.

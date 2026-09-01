@@ -12,7 +12,7 @@ Requirements: Node.js `>=24 <25` and pnpm `>=11 <12`.
 
 ```powershell
 pnpm install --offline --frozen-lockfile
-pnpm dev
+pnpm dev:demo
 ```
 
 Open `http://127.0.0.1:3000/en/` or `http://127.0.0.1:3000/vi/`. Demo identities
@@ -51,14 +51,14 @@ The runner captures local status/startup data rather than printing keys or
 passwords. Supabase remains running for inspection; set
 `LOCALENS_RUNTIME_STOP_DB=1` only when an explicit local stop is wanted.
 
-Round-1 verification on 2026-09-02: focused Vitest passed 6 files/45 tests;
-runtime Auth Playwright passed 3/3 tests in 31.7 seconds with one Chromium
-worker; exact `pnpm check` passed 86 files/1,024 tests and generated 24/24 demo
-routes; focused demo portal Playwright passed 4/4; and exact demo Playwright
-passed 25/25 in 2.6 minutes on its owned port 3300. These results verify the
-bounded browser/runtime slice, not B2.2-B2.4, staging, production deployment,
-or whole-product completion. The controller-owned exact `pnpm db:verify`
-remains recorded in `docs/runbooks/local-supabase.md` and the Task 6 report.
+Final B2.1 verification on 2026-09-02: exact `pnpm check` passed 86 files/1,024
+tests and generated 24/24 demo routes; exact demo Playwright passed 25/25;
+runtime Auth Playwright passed 3/3; and exact `pnpm db:verify` passed with zero
+lint findings, 14 pgTAP files/1,433 tests, all 6/6 concurrency scenarios, and
+the generated-type drift check. The database controller stopped the stack as
+part of that gate, then local Supabase was restarted and its Auth health check
+returned HTTP 200. These results verify B2.1 only; B2.2-B2.4, staging,
+production deployment, and whole-product completion remain out of scope.
 
 ## Customer visual QA
 
