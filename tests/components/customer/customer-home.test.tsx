@@ -36,7 +36,7 @@ describe("CustomerHome", () => {
     expect(screen.getByRole("img", { name: dictionary.home.heroInsetAlt })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: dictionary.home.heroImageAlt })).toHaveAttribute(
       "src",
-      expect.stringContaining("saigon-map.webp"),
+      expect.stringContaining("saigon-map-route.webp"),
     );
     expect(document.querySelector(".customer-hero__route-card")).not.toBeNull();
     expect(screen.getByRole("complementary", { name: dictionary.home.heroRoute.ariaLabel })).toHaveTextContent(
@@ -136,6 +136,7 @@ describe("CustomerHome", () => {
       "ben-thanh-market.webp",
       "independence-palace.webp",
       "saigon-map.webp",
+      "saigon-map-route.webp",
       "saigon-skyline.webp",
       "street-food.webp",
     ];
@@ -182,6 +183,21 @@ describe("CustomerHome", () => {
         `customer-hero-summary-disclosure-${locale}`,
       );
 
+      cleanup();
+    }
+  });
+
+  it("labels the current itinerary result as simulated AI in both languages", () => {
+    const expectations = {
+      en: /simulated AI/i,
+      vi: /AI mô phỏng/i,
+    } as const;
+
+    for (const locale of ["en", "vi"] as const) {
+      const dictionary = getDictionary(locale);
+      render(<CustomerHome locale={locale} dictionary={dictionary} />);
+
+      expect(dictionary.home.trustItems[1]?.title).toMatch(expectations[locale]);
       cleanup();
     }
   });

@@ -64,7 +64,7 @@ export function CustomerHome({ locale, dictionary }: CustomerHomeProps) {
           <div className="customer-hero__image-frame">
             <Image
               className="customer-hero__map"
-              src="/images/green/saigon-map.webp"
+              src="/images/green/saigon-map-route.webp"
               alt={copy.heroImageAlt}
               fill
               priority

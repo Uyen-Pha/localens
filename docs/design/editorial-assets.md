@@ -81,4 +81,12 @@ The generated source IDs below identify the original ImageGen outputs. The `*-so
 - Output: `256 x 256`, `29,474` bytes, SHA-256 `0033C4022046BCA16DFADCD4B956211B7A7E4972A4B35F8E16658F89D59AA7EC`; alpha contains both transparent and opaque pixels.
 - Alt text: decorative category mark, empty alt text (`alt=""`).
 
-No production image was downloaded from the web or cropped from the selected UI reference. The only committed image inputs are the six final WebP files; all generated and normalized PNG intermediates remain ignored scratch sources.
+No production image was downloaded from the web or cropped from a selected UI reference. Generated and normalized PNG intermediates remain outside the production asset paths; the application consumes final WebP assets only.
+
+## Green-home route map overlay
+
+- Generated source: `C:\Users\Admin\.codex\generated_images\01a024a9-db76-7981-82da-d2abc4e6f409\exec-c72b2085-5756-4c76-b8ab-ac0be04ca19e.png` (built-in ImageGen). Input 1 was the existing `public/images/green/saigon-map.webp` edit target; input 2 was the locked `docs/design/references/localens-green-home-selected.png` art-direction reference.
+- Prompt: “Use case: precise-object-edit; Asset type: LocalLens homepage map background; Preserve Image 1's map, river, roads, pale watercolor texture, landmarks, crop, and composition. Add only one clean dark forest-green itinerary route line across central District 1, with exactly three small circular waypoint nodes matching the route style visible in Image 2. The route begins around upper-central/right, bends downward through the center, and ends near lower-central; keep the right river and all landmarks visible. Use a restrained hand-drawn map overlay, smooth solid line with a short dashed final segment, dark forest green `#093d32`. Change only the route overlay; no labels, text, numbers, arrows, pins, cards, icons, UI chrome, watermark, new buildings, or altered visual density.”
+- Exact processing command: `node -e "const sharp=require('sharp'); sharp('<generated-source>').resize(1200,740,{fit:'cover',position:'centre'}).webp({quality:88}).toFile('public/images/green/saigon-map-route.webp')"`.
+- Output: `public/images/green/saigon-map-route.webp`, `1200 x 740`, `110,498` bytes, SHA-256 `C1E0EE7ECF4E78D92A52FB8A48F6C94D4EBF73504ABCF5BDB245513256569E7F`.
+- Production status: visually inspected after processing; the map remains text-free and the route overlay is baked into the bitmap rather than approximated with CSS/SVG art. Final same-viewport page QA remains blocked until the authorized Playwright capture.

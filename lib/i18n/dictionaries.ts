@@ -625,8 +625,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       },
       {
         icon: "02",
-        title: "Get your AI itinerary",
-        description: "We craft a personalized Saigon day just for you.",
+        title: "Get a simulated AI preview",
+        description: "Review an illustrative route built from approved demo places.",
       },
       {
         icon: "03",
@@ -929,8 +929,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       },
       {
         icon: "02",
-        title: "Nhận lịch trình AI",
-        description: "Chúng tôi tạo một ngày ở Sài Gòn dành riêng cho bạn.",
+        title: "Nhận bản xem trước AI mô phỏng",
+        description: "Xem một lịch trình minh họa từ các địa điểm demo đã duyệt.",
       },
       {
         icon: "03",
