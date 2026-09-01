@@ -134,7 +134,12 @@ describe("Task 13 RLS/RPC access matrix", () => {
     };
     expect(matrix.tables).toHaveLength(79);
     expect(matrix.views).toHaveLength(15);
-    expect(matrix.rpcs).toHaveLength(19);
+    expect(matrix.rpcs).toHaveLength(20);
+    expect(matrix.rpcs).toContainEqual(expect.objectContaining({
+      name: "public.get_portal_identity",
+      signature: "public.get_portal_identity()",
+      readerRoles: ["authenticated"],
+    }));
     expect(matrix.internalFunctions.every((signature) => signature.includes("("))).toBe(true);
     expect(matrix.rpcs.every((rpc) => rpc.signature.startsWith(`${rpc.name}(`))).toBe(true);
     expect(matrix.views.every((view) => view.owner.startsWith("localens_") && view.securityBarrier)).toBe(true);
