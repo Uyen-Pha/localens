@@ -10,7 +10,13 @@ import { DB_GATE_STEPS, assertNoRemoteMode, runDbGate } from "@/scripts/run-db-g
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { checkGeneratedDatabaseTypes, writeGeneratedDatabaseTypes } from "@/scripts/write-generated-db-types.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
-import { CONCURRENCY_SCENARIO_IDS, REQUIRED_CONCURRENCY_SCENARIOS, runConcurrencyCheck, runConcurrencyGate } from "@/scripts/test-db-concurrency.mjs";
+import {
+  CONCURRENCY_SCENARIO_IDS,
+  REQUIRED_CONCURRENCY_SCENARIOS,
+  beginFixedTourBookingForConcurrency,
+  runConcurrencyCheck,
+  runConcurrencyGate,
+} from "@/scripts/test-db-concurrency.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { requireLocalSupabaseCli, runLocalSupabase } from "@/scripts/supabase-local.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
@@ -292,6 +298,27 @@ describe("Task16 generated database type normalization", () => {
 });
 
 describe("Task16 concurrency preflight", () => {
+  it("uses the authenticated public fixed-tour wrapper without actor or hash authority", async () => {
+    const calls: Array<{ sql: string; parameters: string[] }> = [];
+    const expectedResult = { rowCount: 1, rows: [{ booking_id: "booking-a", state: "created" }] };
+    const session = {
+      query: async (sql: string, parameters: string[]) => {
+        calls.push({ sql, parameters });
+        return expectedResult;
+      },
+    };
+
+    await expect(beginFixedTourBookingForConcurrency(session, {
+      departureId: "departure-a",
+      idempotencyKey: "race-a",
+    })).resolves.toBe(expectedResult);
+
+    expect(calls).toEqual([{
+      sql: "SELECT * FROM public.begin_fixed_tour_booking($1::uuid, 1, 'en'::public.locale, $2)",
+      parameters: ["departure-a", "race-a"],
+    }]);
+  });
+
   it("executes all six required races with two independent sessions", async () => {
     const sessions: Array<{ id: number; connect: () => Promise<void>; end: () => Promise<void> }> = [];
     const calls: Array<{ scenario: string; sessionIds: number[] }> = [];

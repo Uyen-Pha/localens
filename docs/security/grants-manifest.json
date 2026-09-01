@@ -326,6 +326,13 @@
     },
     {
       "objectType": "function",
+      "objectName": "public.begin_fixed_tour_booking(uuid,integer,public.locale,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
       "objectName": "public.claim_guest_plan(uuid,text,smallint)",
       "privilege": "execute",
       "columns": [],

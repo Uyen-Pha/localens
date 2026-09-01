@@ -163,6 +163,7 @@ Migration owner for default privileges: postgres
 | public.admin_user_summary | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin read only | browser-jwt |
 | public.advance_trip_plan_revision | localens_plan_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner revision append | browser-jwt |
 | public.assign_guide | localens_guide_assignment_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin assigns guide | browser-jwt |
+| public.begin_fixed_tour_booking | localens_checkout_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner starts a fixed-tour capacity hold | browser-jwt |
 | public.claim_guest_plan | localens_claim_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner claims guest plan | browser-jwt |
 | public.complete_guide_assignment | localens_guide_assignment_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | guide completes own assignment | browser-jwt |
 | public.create_custom_quote | localens_request_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin creates server-priced quote | browser-jwt |
@@ -281,7 +282,7 @@ Enumerated internal functions: 94. All are non-API and must use a named NOLOGIN/
 
 ## Explicit grants
 
-Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (558 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (559 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Dynamic policy semantics
 

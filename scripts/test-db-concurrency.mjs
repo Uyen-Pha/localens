@@ -226,6 +226,12 @@ async function createPublishedDepartureFixture(session) {
 const checkoutSql = `SELECT * FROM private.start_checkout_tx($1, $2::uuid, 1, 'en'::public.locale, $3,
   pg_catalog.encode(extensions.digest(pg_catalog.convert_to(private.checkout_canonical_payload($4::uuid, $1, $2::uuid, 1, 'en'::public.locale), 'UTF8'), 'sha256'), 'hex'))`;
 
+const publicFixedTourCheckoutSql = "SELECT * FROM public.begin_fixed_tour_booking($1::uuid, 1, 'en'::public.locale, $2)";
+
+export function beginFixedTourBookingForConcurrency(session, { departureId, idempotencyKey }) {
+  return session.query(publicFixedTourCheckoutSql, [departureId, idempotencyKey]);
+}
+
 async function departureCapacityNoOversell({ sessions, context }) {
   const [winner, contender] = sessions;
   const fixture = await createPublishedDepartureFixture(winner);
@@ -237,8 +243,11 @@ async function departureCapacityNoOversell({ sessions, context }) {
   await Promise.all([winner.query("BEGIN"), contender.query("BEGIN")]);
   try {
     await winner.query("SELECT id FROM public.departures WHERE id = $1::uuid FOR UPDATE", [fixture.departure]);
-    await setRoleAndSubject(contender, "localens_checkout_rpc_owner", contenderId);
-    const contenderWork = contender.query(checkoutSql, ["departure", fixture.departure, `capacity-${randomUUID()}`, contenderId])
+    await setRoleAndSubject(contender, "authenticated", contenderId);
+    const contenderWork = beginFixedTourBookingForConcurrency(contender, {
+      departureId: fixture.departure,
+      idempotencyKey: `capacity-${randomUUID()}`,
+    })
       .then((value) => ({ value }), (error) => ({ error }));
     const barrier = await Promise.race([
       waitForLock(winner, contenderPid).then(() => ({ kind: "lock" })),
@@ -248,8 +257,11 @@ async function departureCapacityNoOversell({ sessions, context }) {
       if (barrier.outcome.error) throw barrier.outcome.error;
       throw new Error("CONCURRENCY_BARRIER_FAILED: departure checkout completed before the locked source row was released");
     }
-    await setRoleAndSubject(winner, "localens_checkout_rpc_owner", winnerId);
-    const winnerResult = await winner.query(checkoutSql, ["departure", fixture.departure, `capacity-${randomUUID()}`, winnerId]);
+    await setRoleAndSubject(winner, "authenticated", winnerId);
+    const winnerResult = await beginFixedTourBookingForConcurrency(winner, {
+      departureId: fixture.departure,
+      idempotencyKey: `capacity-${randomUUID()}`,
+    });
     await winner.query("COMMIT");
     let contenderSoldOut = false;
     const contenderOutcome = await contenderWork;
@@ -260,7 +272,22 @@ async function departureCapacityNoOversell({ sessions, context }) {
       await contender.query("COMMIT");
     }
     invariant(winnerResult.rowCount === 1 && contenderSoldOut, "capacity one must accept one checkout and reject one");
-    Object.assign(context, { catalog: fixture.catalog, travel: fixture.travel, capacityBooking: winnerResult.rows[0].booking_id, capacityAttempt: winnerResult.rows[0].attempt_id, capacityAmount: Number(winnerResult.rows[0].amount_minor) });
+    const capacityBooking = winnerResult.rows[0].booking_id;
+    const checkoutAuthority = await winner.query(
+      `SELECT attempts.id AS attempt_id, bookings.checkout_amount_minor
+       FROM private.checkout_attempts AS attempts
+       JOIN public.bookings AS bookings ON bookings.id = attempts.booking_id
+       WHERE bookings.id = $1::uuid`,
+      [capacityBooking],
+    );
+    invariant(checkoutAuthority.rowCount === 1, "public fixed-tour checkout must persist one internal attempt");
+    Object.assign(context, {
+      catalog: fixture.catalog,
+      travel: fixture.travel,
+      capacityBooking,
+      capacityAttempt: checkoutAuthority.rows[0].attempt_id,
+      capacityAmount: Number(checkoutAuthority.rows[0].checkout_amount_minor),
+    });
   } catch (error) { await Promise.all([rollbackQuietly(winner), rollbackQuietly(contender)]); throw error; }
   const row = await winner.query("SELECT count(*)::integer AS holds, COALESCE(sum(party_size), 0)::integer AS held_party FROM private.capacity_holds WHERE departure_id = $1::uuid AND status = 'active'", [fixture.departure]);
   invariant(row.rows[0]?.holds === 1 && row.rows[0]?.held_party === 1, "departure capacity oversold");

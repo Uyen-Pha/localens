@@ -3451,6 +3451,19 @@ export type Database = {
           status: Database["public"]["Enums"]["assignment_status"]
         }[]
       }
+      begin_fixed_tour_booking: {
+        Args: {
+          booking_locale: Database["public"]["Enums"]["locale"]
+          departure_id: string
+          idempotency_key: string
+          party_size: number
+        }
+        Returns: {
+          booking_id: string
+          hold_expires_at: string
+          state: string
+        }[]
+      }
       claim_guest_plan: {
         Args: {
           p_pepper_version: number

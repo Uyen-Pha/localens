@@ -1368,6 +1368,16 @@
       "credential": "browser-jwt"
     },
     {
+      "name": "public.begin_fixed_tour_booking",
+      "signature": "public.begin_fixed_tour_booking(uuid,integer,public.locale,text)",
+      "owner": "localens_checkout_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner starts a fixed-tour capacity hold",
+      "credential": "browser-jwt"
+    },
+    {
       "name": "public.claim_guest_plan",
       "signature": "public.claim_guest_plan(uuid,text,smallint)",
       "owner": "localens_claim_rpc_owner",
@@ -1635,7 +1645,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 558,
+  "grantCount": 559,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }
