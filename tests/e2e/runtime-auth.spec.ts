@@ -40,6 +40,55 @@ async function signIn(page: Page, role: keyof typeof accounts, locale: "en" | "v
   await page.getByRole("button", { name: locale === "vi" ? "Đăng nhập" : "Sign in", exact: true }).click();
 }
 
+async function expectPersistedRole(
+  page: Page,
+  context: BrowserContext,
+  options: { locale: "en" | "vi"; route: "account" | "guide" | "admin"; displayName: string },
+): Promise<void> {
+  const heading = options.locale === "vi" ? "Cổng bảo mật của bạn" : "Your secure portal";
+  const disclosure = options.locale === "vi"
+    ? "Runtime bảo mật đã kết nối. Dữ liệu nghiệp vụ của cổng sẽ được bật ở lát cắt đã kiểm chứng tiếp theo."
+    : "Secure runtime connected. Operational portal data is enabled in the next verified slice.";
+  await page.reload();
+  await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+  await expect(page.getByText(options.displayName, { exact: true })).toBeVisible();
+  await expect(page.getByText(disclosure, { exact: true })).toBeVisible();
+  await expectRuntimeIsolation(page);
+
+  const secondPage = await context.newPage();
+  await secondPage.goto(`/${options.locale}/${options.route}/`);
+  await expect(secondPage.getByRole("heading", { name: heading })).toBeVisible();
+  await expect(secondPage.getByText(options.displayName, { exact: true })).toBeVisible();
+  await expect(secondPage.getByText(disclosure, { exact: true })).toBeVisible();
+  await expectRuntimeIsolation(secondPage);
+  await secondPage.close();
+}
+
+async function expectDeniedRoutes(
+  page: Page,
+  options: {
+    locale: "en" | "vi";
+    routes: readonly ("account" | "guide" | "admin")[];
+    ownRoute: "account" | "guide" | "admin";
+    otherDisplayNames: readonly string[];
+  },
+): Promise<void> {
+  const heading = options.locale === "vi" ? "Truy cập bị từ chối" : "Access denied";
+  const linkName = options.locale === "vi" ? "Mở cổng của bạn" : "Open your portal";
+  for (const route of options.routes) {
+    await page.goto(`/${options.locale}/${route}/`);
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+    await expect(page.getByRole("link", { name: linkName, exact: true })).toHaveAttribute(
+      "href",
+      `/${options.locale}/${options.ownRoute}/`,
+    );
+    for (const displayName of options.otherDisplayNames) {
+      await expect(page.getByText(displayName, { exact: true })).toHaveCount(0);
+    }
+    await expectRuntimeIsolation(page);
+  }
+}
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("local Supabase runtime authentication", () => {
@@ -55,52 +104,58 @@ test.describe("local Supabase runtime authentication", () => {
     await context.close();
   });
 
-  test("customer session persists across reload and a new page while admin access is denied", async () => {
+  test("customer persists across reload/new page and is denied guide and admin routes", async () => {
     await signIn(page, "customer", "en");
     await expect(page).toHaveURL(/\/en\/account\/?$/);
     await expect(page.getByRole("heading", { name: "Your secure portal" })).toBeVisible();
     await expect(page.getByText("Runtime Traveler", { exact: true })).toBeVisible();
 
-    await page.reload();
-    await expect(page.getByRole("heading", { name: "Your secure portal" })).toBeVisible();
-
-    const secondPage = await context.newPage();
-    await secondPage.goto("/en/account/");
-    await expect(secondPage.getByRole("heading", { name: "Your secure portal" })).toBeVisible();
-    await expect(secondPage.getByText("Runtime Traveler", { exact: true })).toBeVisible();
-    await expectRuntimeIsolation(secondPage);
-    await secondPage.close();
-
-    await page.goto("/en/admin/");
-    await expect(page.getByRole("heading", { name: "Access denied" })).toBeVisible();
-    await expect(page.getByText("Runtime Administrator", { exact: true })).toHaveCount(0);
-    await expectRuntimeIsolation(page);
+    await expectPersistedRole(page, context, {
+      locale: "en", route: "account", displayName: "Runtime Traveler",
+    });
+    await expectDeniedRoutes(page, {
+      locale: "en",
+      routes: ["guide", "admin"],
+      ownRoute: "account",
+      otherDisplayNames: ["Runtime Guide", "Runtime Administrator"],
+    });
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page.getByRole("heading", { name: "Sign in to LocalLens" })).toBeVisible();
   });
 
-  test("guide signs in through Vietnamese runtime UI and signs out", async () => {
+  test("guide uses Vietnamese UI, persists, and is denied customer and admin routes", async () => {
     await signIn(page, "guide", "vi");
     await expect(page).toHaveURL(/\/vi\/guide\/?$/);
     await expect(page.getByRole("heading", { name: "Cổng bảo mật của bạn" })).toBeVisible();
     await expect(page.getByText("Runtime Guide", { exact: true })).toBeVisible();
-    await page.reload();
-    await expect(page.getByText("Runtime bảo mật đã kết nối. Dữ liệu nghiệp vụ của cổng sẽ được bật ở lát cắt đã kiểm chứng tiếp theo.", { exact: true })).toBeVisible();
-    await expectRuntimeIsolation(page);
+    await expectPersistedRole(page, context, {
+      locale: "vi", route: "guide", displayName: "Runtime Guide",
+    });
+    await expectDeniedRoutes(page, {
+      locale: "vi",
+      routes: ["account", "admin"],
+      ownRoute: "guide",
+      otherDisplayNames: ["Runtime Traveler", "Runtime Administrator"],
+    });
     await page.getByRole("button", { name: "Đăng xuất" }).click();
     await expect(page.getByRole("heading", { name: "Đăng nhập LocalLens" })).toBeVisible();
   });
 
-  test("administrator reaches the admin shell but is denied the customer route", async () => {
+  test("administrator persists across reload/new page and is denied customer and guide routes", async () => {
     await signIn(page, "admin", "en");
     await expect(page).toHaveURL(/\/en\/admin\/?$/);
     await expect(page.getByRole("heading", { name: "Your secure portal" })).toBeVisible();
     await expect(page.getByText("Runtime Administrator", { exact: true })).toBeVisible();
 
-    await page.goto("/en/account/");
-    await expect(page.getByRole("heading", { name: "Access denied" })).toBeVisible();
-    await expect(page.getByText("Runtime Traveler", { exact: true })).toHaveCount(0);
-    await expectRuntimeIsolation(page);
+    await expectPersistedRole(page, context, {
+      locale: "en", route: "admin", displayName: "Runtime Administrator",
+    });
+    await expectDeniedRoutes(page, {
+      locale: "en",
+      routes: ["account", "guide"],
+      ownRoute: "admin",
+      otherDisplayNames: ["Runtime Traveler", "Runtime Guide"],
+    });
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page.getByRole("heading", { name: "Sign in to LocalLens" })).toBeVisible();
   });

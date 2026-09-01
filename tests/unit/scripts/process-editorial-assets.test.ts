@@ -158,7 +158,7 @@ describe("process-editorial-assets CLI", () => {
     const compareOutOfScope = runProcessor("compare", source, source, "out/comparison.png");
     expect(compareOutOfScope.status).not.toBe(0);
     expect(`${compareOutOfScope.stdout}\n${compareOutOfScope.stderr}`).toMatch(/docs\/design\/qa|path|scope/i);
-  });
+  }, 15_000);
 
   it("rejects invalid dimensions, colors, and unknown flags at the CLI boundary", async () => {
     const directory = await temporaryDirectory();

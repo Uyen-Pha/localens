@@ -155,19 +155,26 @@ Run the complete local Auth browser orchestration with:
 pnpm test:e2e:runtime-auth
 ```
 
-On Windows, when `docker` is not already resolvable, the runner verifies and
-prepends
-`C:\Users\Admin\AppData\Local\Programs\DockerDesktop\resources\bin` to that
-process PATH. It then requires the exact project-local Supabase CLI, executes
+On Windows, the runner first accepts a working `docker` already on `PATH`.
+Otherwise it derives Docker Desktop candidates from the supplied
+`LOCALAPPDATA`, `ProgramFiles`, and `ProgramW6432` roots, requires
+`docker.exe`, verifies `docker --version`, and prepends only the working
+candidate to that process `PATH`. It then requires the exact project-local
+Supabase package and verifies that the resolved executable reports exactly
+`2.115.0`, executes
 local start/reset/runtime-auth seed, captures only the local status fields it
 needs, and rejects API or PostgreSQL endpoints outside the standard loopback
 ports. Supabase startup/status output is captured so local keys are not printed.
 
 Missing runtime Auth passwords are generated independently in memory for each
-run. Values are passed only in the seed and Playwright child environments and
-are never written to tracked files or command output. The Playwright config
-uses one Chromium worker, `reuseExistingServer: false`, a clean Supabase-mode
-Next server on `127.0.0.1:3200`, and no
+run. The runner removes every `LOCALENS_RUNTIME_*_PASSWORD` variable from the
+control environment used by start/reset/status/stop, then adds only the three
+required values to the seed and Playwright environments. Values are never
+written to tracked files or command output. The Playwright config uses one
+Chromium worker, the line reporter only, trace/screenshot/video all disabled,
+an owned temporary output directory removed in `finally`,
+`reuseExistingServer: false`, a clean Supabase-mode Next server on
+`127.0.0.1:3200`, and no
 `NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES` flag. By default, Playwright tears down only
 the Next child it started and local Supabase remains running. To request a local
 database stop explicitly:
@@ -242,6 +249,44 @@ this gate.
   test and also hung in isolation past an explicit 60-second timeout. Port 3100
   was not reused or interrupted.
 
-Because the exact check/database/demo gates above are not all green, this
-evidence does not claim complete B2.1, B2.2-B2.4, staging, production readiness,
-or whole-project completion.
+That initial evidence did not claim complete B2.1, B2.2-B2.4, staging,
+production readiness, or whole-project completion. The superseding round-1
+evidence follows.
+
+## Task 6 review fix round 1 evidence (2026-09-02)
+
+RED evidence:
+
+- Focused runner/config/process tests initially reported 10 expected failures,
+  5 passes, and one import-time suite failure, proving the missing artifact,
+  password-scope, installed-version, Docker-root, cleanup, and signal-forwarding
+  contracts.
+- Unchanged `pnpm check` passed all 83 pre-round files/1,011 tests but exited 1
+  on an unhandled planner composition rejection. The hostile editorial CLI case
+  was also confirmed to launch six real child CLIs under the shared 5-second
+  timeout.
+- Demo list reporting proved all four portal test bodies passed; the final
+  bilingual reset took 3.5 seconds, after which only Windows web-server teardown
+  remained alive. The owned process chain ended in blocking `run-next-mode`
+  `spawnSync`.
+
+GREEN evidence:
+
+- `node node_modules/vitest/vitest.mjs run tests/unit/scripts/run-runtime-auth-e2e.test.ts tests/unit/config/playwright-runtime-config.test.ts tests/unit/scripts/run-next-mode.test.ts tests/unit/config/playwright-demo-config.test.ts tests/unit/scripts/process-editorial-assets.test.ts tests/components/customer/planner-flow.test.tsx`: 6 files, 45/45 tests passed.
+- The actual resolved project-local executable reported exactly `2.115.0` in
+  host context. The sandbox-only probe failed closed on Supabase telemetry
+  `EPERM`; no global CLI fallback was attempted.
+- `pnpm test:e2e:runtime-auth`: 3/3 passed in 31.7 seconds. Every role survived
+  refresh and a second page, was denied both other-role routes with an own-shell
+  link, signed out, and showed no demo storage/UI leakage. No runtime artifact
+  directory remained.
+- Exact `pnpm check`: lint/typecheck passed, Vitest passed 86 files/1,024 tests,
+  and the demo build generated 24/24 routes. The hostile real-CLI test alone has
+  a scoped 15-second timeout; global timing and parallelism remain unchanged.
+- `pnpm test:e2e tests/e2e/portal-demo-flow.spec.ts`: 4/4 passed in 37.5 seconds.
+- Exact `pnpm test:e2e`: 25/25 passed in 2.6 minutes in host context. Demo E2E
+  owns port 3300 and excludes the separately orchestrated runtime-auth spec;
+  manual port 3100 remained active.
+- Exact `pnpm db:verify` is intentionally left for the controller, which will
+  restore local Supabase with `pnpm db:start` afterward because the gate's
+  pre-existing cleanup always stops it.

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,8 +16,6 @@ const PASSWORD_ENV = {
   guide: "LOCALENS_RUNTIME_GUIDE_PASSWORD",
   admin: "LOCALENS_RUNTIME_ADMIN_PASSWORD",
 };
-
-export const DOCKER_DESKTOP_CLI_DIR = "C:\\Users\\Admin\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin";
 
 function runtimeError(code, message, details = {}) {
   const error = new Error(`${code}: ${message}`);
@@ -102,6 +101,22 @@ function defaultDockerProbe(command, { env }) {
   });
 }
 
+export function dockerCliDirectories(env = process.env, platform = process.platform) {
+  if (platform !== "win32") return [];
+  const windowsPath = path.win32;
+  const candidates = [];
+  if (env.LOCALAPPDATA) {
+    candidates.push(
+      windowsPath.join(env.LOCALAPPDATA, "Programs", "DockerDesktop", "resources", "bin"),
+      windowsPath.join(env.LOCALAPPDATA, "Programs", "Docker", "Docker", "resources", "bin"),
+    );
+  }
+  for (const root of [env.ProgramFiles, env.ProgramW6432]) {
+    if (root) candidates.push(windowsPath.join(root, "Docker", "Docker", "resources", "bin"));
+  }
+  return [...new Set(candidates.map((candidate) => windowsPath.normalize(candidate)))];
+}
+
 export function ensureDockerCliOnPath({
   env = process.env,
   platform = process.platform,
@@ -113,24 +128,48 @@ export function ensureDockerCliOnPath({
   if (first?.error?.code !== "ENOENT") {
     throw runtimeError("RUNTIME_AUTH_DOCKER_UNAVAILABLE", "Docker CLI could not be verified");
   }
-  if (platform !== "win32" || !exists(path.join(DOCKER_DESKTOP_CLI_DIR, "docker.exe"))) {
-    throw runtimeError("RUNTIME_AUTH_DOCKER_CLI_NOT_FOUND", "the verified Docker Desktop CLI directory is unavailable");
-  }
   const key = pathKeyFor(env, platform);
-  const entries = String(env[key] ?? "").split(path.delimiter).filter(Boolean);
-  if (!entries.some((entry) => path.resolve(entry).toLowerCase() === path.resolve(DOCKER_DESKTOP_CLI_DIR).toLowerCase())) {
-    env[key] = [DOCKER_DESKTOP_CLI_DIR, ...entries].join(path.delimiter);
+  const delimiter = platform === "win32" ? ";" : path.delimiter;
+  const originalEntries = String(env[key] ?? "").split(delimiter).filter(Boolean);
+  let foundCandidate = false;
+  for (const directory of dockerCliDirectories(env, platform)) {
+    const executable = (platform === "win32" ? path.win32 : path).join(directory, platform === "win32" ? "docker.exe" : "docker");
+    if (!exists(executable)) continue;
+    foundCandidate = true;
+    const entries = originalEntries.filter((entry) => path.resolve(entry).toLowerCase() !== path.resolve(directory).toLowerCase());
+    const candidateEnv = { ...env, [key]: [directory, ...entries].join(delimiter) };
+    const candidateProbe = probe("docker", { env: candidateEnv });
+    if (candidateProbe?.status === 0) {
+      env[key] = candidateEnv[key];
+      return;
+    }
   }
-  const second = probe("docker", { env });
-  if (second?.status !== 0) {
-    throw runtimeError("RUNTIME_AUTH_DOCKER_UNAVAILABLE", "Docker CLI could not be verified after PATH setup");
-  }
+  throw runtimeError(
+    foundCandidate ? "RUNTIME_AUTH_DOCKER_UNAVAILABLE" : "RUNTIME_AUTH_DOCKER_CLI_NOT_FOUND",
+    foundCandidate ? "Docker CLI could not be verified after PATH setup" : "a verified Docker Desktop CLI directory is unavailable",
+  );
+}
+
+function defaultSupabaseVersionProbe(cliPath, { cwd, env, platform }) {
+  const command = platform === "win32" ? env.ComSpec ?? process.env.ComSpec ?? "cmd.exe" : cliPath;
+  const args = platform === "win32" ? ["/d", "/s", "/c", `""${cliPath}" --version"`] : ["--version"];
+  return spawnSync(command, args, {
+    cwd,
+    env,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+    windowsVerbatimArguments: platform === "win32",
+  });
 }
 
 export function requirePinnedLocalSupabase({
   cwd = PROJECT_ROOT,
   readPackage = () => JSON.parse(readFileSync(path.join(cwd, "package.json"), "utf8")),
   requireLocalCli = requireLocalSupabaseCli,
+  versionProbe = defaultSupabaseVersionProbe,
+  env = process.env,
+  platform = process.platform,
 } = {}) {
   let packageJson;
   try {
@@ -141,7 +180,17 @@ export function requirePinnedLocalSupabase({
   if (packageJson?.devDependencies?.supabase !== "2.115.0") {
     throw runtimeError("RUNTIME_AUTH_SUPABASE_PIN_REQUIRED", "exact project-local supabase@2.115.0 is required");
   }
-  return requireLocalCli({ cwd });
+  const cliPath = requireLocalCli({ cwd, platform });
+  let result;
+  try {
+    result = versionProbe(cliPath, { cwd, env, platform });
+  } catch {
+    throw runtimeError("RUNTIME_AUTH_SUPABASE_VERSION_MISMATCH", "project-local Supabase CLI version could not be verified");
+  }
+  if (result?.status !== 0 || !/^2\.115\.0(?:\r?\n)?$/.test(String(result?.stdout ?? ""))) {
+    throw runtimeError("RUNTIME_AUTH_SUPABASE_VERSION_MISMATCH", "project-local Supabase CLI must report exactly 2.115.0");
+  }
+  return cliPath;
 }
 
 function stepSpec(name, cwd, env) {
@@ -219,6 +268,8 @@ export async function runRuntimeAuthE2E(options = {}) {
   }));
   const prepareDocker = options.prepareDocker ?? ((dockerEnv) => ensureDockerCliOnPath({ env: dockerEnv }));
   const requireLocalCli = options.requireLocalCli ?? requireLocalSupabaseCli;
+  const createOutputDirectory = options.createOutputDirectory ?? (() => mkdtempSync(path.join(tmpdir(), "localens-runtime-auth-")));
+  const removeOutputDirectory = options.removeOutputDirectory ?? ((directory) => rmSync(directory, { recursive: true, force: true }));
   const explicitDatabaseUrl = env.LOCALENS_DB_URL;
   if (explicitDatabaseUrl) {
     requireLoopbackEndpoint(explicitDatabaseUrl, {
@@ -228,25 +279,33 @@ export async function runRuntimeAuthE2E(options = {}) {
       allowCredentials: true,
     });
   }
-  prepareDocker(env);
-  requirePinnedLocalSupabase({ cwd, requireLocalCli });
-
   const passwords = createRuntimeAuthPasswords(env, options.random ?? randomBytes);
-  const baseChildEnv = { ...env };
-  delete baseChildEnv.NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES;
-  baseChildEnv.NEXT_TELEMETRY_DISABLED = "1";
-  for (const [role, name] of Object.entries(PASSWORD_ENV)) baseChildEnv[name] = passwords[role];
+  const controlEnv = { ...env };
+  for (const name of Object.keys(controlEnv)) {
+    if (/^LOCALENS_RUNTIME_.*_PASSWORD$/.test(name)) delete controlEnv[name];
+  }
+  delete controlEnv.NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES;
+  controlEnv.NEXT_TELEMETRY_DISABLED = "1";
+  prepareDocker(controlEnv);
+  requirePinnedLocalSupabase({
+    cwd,
+    env: controlEnv,
+    requireLocalCli,
+    versionProbe: options.versionProbe,
+    platform: options.platform ?? process.platform,
+  });
 
   let databaseStarted = false;
   let primaryError;
+  let outputDirectory;
   try {
-    await runCheckedStep("db:start", { cwd, env: baseChildEnv, runStep, logger });
+    await runCheckedStep("db:start", { cwd, env: controlEnv, runStep, logger });
     databaseStarted = true;
-    await runCheckedStep("db:reset", { cwd, env: baseChildEnv, runStep, logger });
+    await runCheckedStep("db:reset", { cwd, env: controlEnv, runStep, logger });
 
     let localStatus;
     try {
-      localStatus = status(baseChildEnv);
+      localStatus = status(controlEnv);
     } catch {
       throw runtimeError("RUNTIME_AUTH_STATUS_FAILED", "capturing local Supabase status failed");
     }
@@ -254,11 +313,16 @@ export async function runRuntimeAuthE2E(options = {}) {
       throw runtimeError("RUNTIME_AUTH_STATUS_FAILED", "capturing local Supabase status failed");
     }
     const runtime = parseLocalRuntimeStatus(localStatus.stdout, { databaseUrl: explicitDatabaseUrl });
-    const seedEnv = { ...baseChildEnv, LOCALENS_DB_URL: runtime.databaseUrl };
+    const passwordEnv = Object.fromEntries(
+      Object.entries(PASSWORD_ENV).map(([role, name]) => [name, passwords[role]]),
+    );
+    const seedEnv = { ...controlEnv, ...passwordEnv, LOCALENS_DB_URL: runtime.databaseUrl };
     await runCheckedStep("db:seed:runtime-auth", { cwd, env: seedEnv, runStep, logger });
 
+    outputDirectory = createOutputDirectory();
     const playwrightEnv = {
       ...seedEnv,
+      LOCALENS_RUNTIME_PLAYWRIGHT_OUTPUT_DIR: outputDirectory,
       NEXT_PUBLIC_LOCALLENS_RUNTIME: "supabase",
       NEXT_PUBLIC_SUPABASE_URL: runtime.apiUrl,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: runtime.publishableKey,
@@ -267,9 +331,18 @@ export async function runRuntimeAuthE2E(options = {}) {
   } catch (error) {
     primaryError = error;
   } finally {
+    if (outputDirectory) {
+      try {
+        removeOutputDirectory(outputDirectory);
+      } catch {
+        const cleanupError = runtimeError("RUNTIME_AUTH_ARTIFACT_CLEANUP_FAILED", "owned Playwright output cleanup failed");
+        if (primaryError) primaryError.artifactCleanupError = cleanupError;
+        else primaryError = cleanupError;
+      }
+    }
     if (databaseStarted && env.LOCALENS_RUNTIME_STOP_DB === "1") {
       try {
-        await runCheckedStep("db:stop", { cwd, env: baseChildEnv, runStep, logger });
+        await runCheckedStep("db:stop", { cwd, env: controlEnv, runStep, logger });
       } catch (cleanupError) {
         if (primaryError) primaryError.cleanupError = cleanupError;
         else primaryError = cleanupError;
@@ -289,6 +362,7 @@ export async function runRuntimeAuthE2EMain({ run = runRuntimeAuthE2E, errorLogg
     const message = error?.code ? error.message : `${code}: local runtime Auth E2E failed`;
     errorLogger(message);
     if (error?.cleanupError) errorLogger(`RUNTIME_AUTH_CLEANUP_FAILED: ${error.cleanupError.message}`);
+    if (error?.artifactCleanupError) errorLogger(`RUNTIME_AUTH_ARTIFACT_CLEANUP_FAILED: ${error.artifactCleanupError.message}`);
     return error?.status ?? 2;
   }
 }

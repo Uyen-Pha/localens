@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PlannerFlow } from "@/components/customer/planner-flow";
 import {
@@ -21,12 +21,20 @@ import {
 import { clearCustomRequestDraft, readCustomRequestDraftState } from "@/lib/application/planner/custom-request-demo";
 import { createFoodFixturePlannerState } from "../../e2e/food-fixture";
 
+const originalRuntimeMode = process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME;
+
+beforeEach(() => {
+  process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME = "demo";
+});
+
 afterEach(() => {
   cleanup();
   clearPersonalizationRequest();
   clearCustomRequestDraft();
   window.sessionStorage.removeItem(E2E_PLANNER_STATE_SESSION_KEY);
   delete process.env.NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES;
+  if (originalRuntimeMode === undefined) delete process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME;
+  else process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME = originalRuntimeMode;
 });
 
 describe("PlannerFlow", () => {

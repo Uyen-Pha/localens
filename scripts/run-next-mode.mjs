@@ -1,34 +1,76 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const [command, mode, ...nextArguments] = process.argv.slice(2);
+const usage = "Usage: run-next-mode.mjs <dev|build> <demo|supabase> [next arguments...]";
 
-if (command !== "dev" && command !== "build") {
-  console.error("Usage: run-next-mode.mjs <dev|build> <demo|supabase> [next arguments...]");
-  process.exit(2);
+function parseArguments(argv) {
+  const [command, mode, ...nextArguments] = argv;
+  if ((command !== "dev" && command !== "build") || (mode !== "demo" && mode !== "supabase")) {
+    const error = new Error(usage);
+    error.code = "NEXT_MODE_USAGE";
+    throw error;
+  }
+  return { command, mode, nextArguments };
 }
 
-if (mode !== "demo" && mode !== "supabase") {
-  console.error("Usage: run-next-mode.mjs <dev|build> <demo|supabase> [next arguments...]");
-  process.exit(2);
+export function runNextMode({
+  argv = process.argv.slice(2),
+  cwd = fileURLToPath(new URL("..", import.meta.url)),
+  executable = process.execPath,
+  env = process.env,
+  spawn: spawnChild = spawn,
+  signals = process,
+} = {}) {
+  let parsed;
+  try {
+    parsed = parseArguments(argv);
+  } catch (error) {
+    return Promise.reject(error);
+  }
+  const nextBinary = resolve(cwd, "node_modules", "next", "dist", "bin", "next");
+  const child = spawnChild(executable, [nextBinary, parsed.command, ...parsed.nextArguments], {
+    cwd,
+    env: { ...env, NEXT_PUBLIC_LOCALLENS_RUNTIME: parsed.mode },
+    stdio: "inherit",
+    windowsHide: true,
+  });
+
+  return new Promise((resolveCompletion) => {
+    let shutdownSignal = null;
+    const cleanup = () => {
+      signals.off("SIGINT", onSigint);
+      signals.off("SIGTERM", onSigterm);
+    };
+    const forward = (signal) => {
+      if (shutdownSignal !== null) return;
+      shutdownSignal = signal;
+      child.kill(signal);
+    };
+    const onSigint = () => forward("SIGINT");
+    const onSigterm = () => forward("SIGTERM");
+    signals.once("SIGINT", onSigint);
+    signals.once("SIGTERM", onSigterm);
+    child.once("error", () => {
+      cleanup();
+      resolveCompletion(1);
+    });
+    child.once("close", (status) => {
+      cleanup();
+      resolveCompletion(shutdownSignal === null ? status ?? 1 : 0);
+    });
+  });
 }
 
-const projectRoot = fileURLToPath(new URL("..", import.meta.url));
-const nextBinary = resolve(projectRoot, "node_modules", "next", "dist", "bin", "next");
-const result = spawnSync(process.execPath, [nextBinary, command, ...nextArguments], {
-  cwd: projectRoot,
-  env: {
-    ...process.env,
-    NEXT_PUBLIC_LOCALLENS_RUNTIME: mode,
-  },
-  stdio: "inherit",
-  windowsHide: true,
-});
-
-if (result.error) {
-  console.error("Unable to start the project-local Next binary.");
-  process.exit(1);
+async function main() {
+  try {
+    process.exitCode = await runNextMode();
+  } catch (error) {
+    console.error(error?.code === "NEXT_MODE_USAGE" ? error.message : "Unable to start the project-local Next binary.");
+    process.exitCode = error?.code === "NEXT_MODE_USAGE" ? 2 : 1;
+  }
 }
 
-process.exit(result.status ?? 1);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await main();
+}

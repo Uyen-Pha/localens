@@ -37,23 +37,28 @@ demo fixture flag and never reuses the demo server:
 pnpm test:e2e:runtime-auth
 ```
 
-The runner requires the exact project-local `supabase@2.115.0`, accepts only
+The runner requires the exact project-local `supabase@2.115.0` package and
+verifies that its resolved executable reports exactly `2.115.0`. It accepts only
 the standard loopback API/database endpoints, resets and seeds only local
 Supabase, and starts a clean Supabase-mode Next child on
 `http://127.0.0.1:3200`. If runtime Auth password variables are absent, it
-creates strong per-run values in memory and passes them only to the seed and
-Playwright children. It captures local status/startup data rather than printing
-keys or passwords. Supabase remains running for inspection; set
+creates strong per-run values in memory. Control commands and status receive an
+environment with every `LOCALENS_RUNTIME_*_PASSWORD` entry removed; only the
+seed and Playwright children receive the three required passwords. Playwright
+uses only its line reporter, disables traces/screenshots/video, and writes any
+runner metadata to an owned temporary output directory removed in `finally`.
+The runner captures local status/startup data rather than printing keys or
+passwords. Supabase remains running for inspection; set
 `LOCALENS_RUNTIME_STOP_DB=1` only when an explicit local stop is wanted.
 
-Verified on 2026-09-02: runtime Auth Playwright passed 3/3 tests in 32.0 seconds
-with one Chromium worker; local pgTAP passed 14 files/1,433 tests; the two-session gate
-passed all six concurrency scenarios; the stable frontend suite passed 83
-files/1,011 tests; and the demo production build generated 24/24 routes. These
-results verify the bounded B2.1 local runtime-auth slice, not B2.2-B2.4,
-staging, production deployment, or whole-product completion. The exact
-`pnpm check`, `pnpm db:verify`, and complete demo E2E caveats are recorded in
-`docs/runbooks/local-supabase.md` and the Task 6 report.
+Round-1 verification on 2026-09-02: focused Vitest passed 6 files/45 tests;
+runtime Auth Playwright passed 3/3 tests in 31.7 seconds with one Chromium
+worker; exact `pnpm check` passed 86 files/1,024 tests and generated 24/24 demo
+routes; focused demo portal Playwright passed 4/4; and exact demo Playwright
+passed 25/25 in 2.6 minutes on its owned port 3300. These results verify the
+bounded browser/runtime slice, not B2.2-B2.4, staging, production deployment,
+or whole-product completion. The controller-owned exact `pnpm db:verify`
+remains recorded in `docs/runbooks/local-supabase.md` and the Task 6 report.
 
 ## Customer visual QA
 
