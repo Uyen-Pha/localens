@@ -22,6 +22,7 @@ describe("run-next-mode child lifecycle", () => {
       spawn,
       signals,
       env: { ORIGINAL: "kept" },
+      platform: "linux",
     });
     signals.emit("SIGTERM");
 
@@ -36,4 +37,37 @@ describe("run-next-mode child lifecycle", () => {
     expect(signals.listenerCount("SIGTERM")).toBe(0);
     expect(signals.listenerCount("SIGINT")).toBe(0);
   });
+
+  it("uses a bounded owned-tree stop on Windows instead of leaving a Next descendant alive", async () => {
+    const signals = new EventEmitter();
+    const child = new EventEmitter() as EventEmitter & {
+      kill: ReturnType<typeof vi.fn>;
+      pid: number;
+    };
+    child.pid = 4321;
+    child.kill = vi.fn(() => true);
+    const forceOwnedTree = vi.fn(() => {
+      queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+      return true;
+    });
+
+    const completion = runNextMode({
+      argv: ["dev", "demo", "--hostname", "127.0.0.1", "--port", "3300"],
+      cwd: "C:/repo",
+      executable: "C:/node/node.exe",
+      spawn: vi.fn(() => child),
+      signals,
+      env: {},
+      platform: "win32",
+      forceOwnedTree,
+      shutdownConfirmMs: 0,
+    });
+    signals.emit("SIGTERM");
+
+    await expect(completion).resolves.toBe(0);
+    expect(forceOwnedTree).toHaveBeenCalledWith(child, "win32");
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(signals.listenerCount("SIGTERM")).toBe(0);
+    expect(signals.listenerCount("SIGINT")).toBe(0);
+  }, 1_000);
 });
