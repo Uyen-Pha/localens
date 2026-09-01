@@ -124,6 +124,37 @@ describe("Task 6 runtime Auth runner", () => {
     expect(spawnChild).not.toHaveBeenCalled();
   });
 
+  it("reports startup and cleanup failure without leaking the child error", async () => {
+    const secret = `startup-${randomUUID()}`;
+    const child = Object.assign(new EventEmitter(), {
+      exitCode: null,
+      signalCode: null,
+      kill: vi.fn(() => false),
+    });
+    const startup = startOwnedRuntimeServer({ NEXT_PUBLIC_LOCALLENS_RUNTIME: "supabase" }, {
+      cwd: process.cwd(),
+      spawnChild: () => {
+        queueMicrotask(() => child.emit("error", new Error(secret)));
+        return child;
+      },
+      fetchImpl: async () => ({ ok: false, status: 503 }),
+    });
+
+    let caught: unknown;
+    try {
+      await startup;
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toMatchObject({
+      code: "RUNTIME_AUTH_SERVER_FAILED",
+      serverCleanupError: { code: "RUNTIME_AUTH_SERVER_CLEANUP_FAILED" },
+    });
+    expect(String(caught)).not.toContain(secret);
+    expect(String((caught as { serverCleanupError?: unknown }).serverCleanupError)).not.toContain(secret);
+  });
+
   it("fails closed when neither shutdown signal is accepted and no close event arrives", async () => {
     const child = Object.assign(new EventEmitter(), {
       exitCode: null,

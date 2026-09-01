@@ -333,18 +333,30 @@ export async function startOwnedRuntimeServer(serverEnv, { cwd, spawnChild = spa
   return new Promise((resolve, reject) => {
     let settled = false;
     let timer;
+    let onClose;
+    let onError;
     const deadline = Date.now() + RUNTIME_SERVER_TIMEOUT_MS;
     const fail = (error) => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
-      void stopOwnedRuntimeServer(child).finally(() => reject(error));
+      child.removeListener("close", onClose);
+      child.removeListener("error", onError);
+      const rejectStartup = (cleanupError) => {
+        if (cleanupError) error.serverCleanupError = cleanupError;
+        reject(error);
+      };
+      void stopOwnedRuntimeServer(child).then(
+        () => rejectStartup(),
+        (cleanupError) => rejectStartup(cleanupError),
+      );
     };
-    const onClose = (status) => fail(runtimeError(
+    onClose = (status) => fail(runtimeError(
       "RUNTIME_AUTH_SERVER_FAILED",
       `owned runtime server exited before readiness with status ${status ?? 1}`,
     ));
-    child.once("error", () => fail(runtimeError("RUNTIME_AUTH_SERVER_FAILED", "owned runtime server could not be started")));
+    onError = () => fail(runtimeError("RUNTIME_AUTH_SERVER_FAILED", "owned runtime server could not be started"));
+    child.once("error", onError);
     child.once("close", onClose);
 
     const poll = async () => {
