@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test, type Browser, type Page, type Request } from "@playwright/test";
 
 import type { Database } from "@/lib/infrastructure/supabase/database.types";
+import { fixedTourRuntimeCopy } from "@/lib/i18n/fixed-tour-runtime";
 
 const accounts = {
   customerA: {
@@ -225,12 +226,7 @@ async function expectAccountHold(
   const article = page.getByRole("article").filter({ hasText: options.title });
   await expect(article).toBeVisible();
   await expect(article.getByText(String(options.partySize), { exact: true })).toBeVisible();
-  await expect(page.getByText(
-    options.locale === "vi"
-      ? "Đang chờ thanh toán — đây chỉ là giữ chỗ, chưa phải thanh toán hoàn tất."
-      : "Pending payment — this is a hold, not a completed payment.",
-    { exact: true },
-  )).toBeVisible();
+  await expect(page.getByText(fixedTourRuntimeCopy(options.locale).pendingPayment, { exact: true })).toBeVisible();
   await expectNoDemoOrPaymentSuccess(page);
 }
 
