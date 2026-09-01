@@ -61,6 +61,29 @@ describe("static Supabase artifact gate", () => {
     expect(required.every((path) => existsSync(path))).toBe(true);
   });
 
+  it("requires the runtime portal identity RPC contract and generated type", () => {
+    const migrationPath = join(repoRoot, "supabase", "migrations", "20260901140000_runtime_portal_identity.sql");
+    const pgTapPath = join(repoRoot, "supabase", "tests", "database", "runtime_portal_identity_test.sql");
+    const typesPath = join(repoRoot, "lib", "infrastructure", "supabase", "database.types.ts");
+
+    expect(existsSync(migrationPath)).toBe(true);
+    expect(existsSync(pgTapPath)).toBe(true);
+
+    const migration = readFileSync(migrationPath, "utf8");
+    const types = readFileSync(typesPath, "utf8");
+    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.get_portal_identity\(\)[\s\S]*RETURNS TABLE\s*\(\s*user_id uuid,\s*display_name text,\s*role public\.app_role,\s*language public\.locale\s*\)/i);
+    expect(migration).toMatch(/SECURITY DEFINER[\s\S]*SET search_path\s*=\s*''/i);
+    expect(migration).toMatch(/current_setting\('request\.jwt\.claim\.sub', true\)/i);
+    expect(migration).toMatch(/RAISE EXCEPTION 'portal identity must have exactly one role' USING ERRCODE = '21000'/i);
+    expect(migration).toMatch(/GRANT SELECT \(id, display_name, language\)\s+ON TABLE public\.profiles TO localens_identity_rpc_owner/i);
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_identity_rpc_owner/i);
+    expect(migration).toMatch(/ALTER FUNCTION public\.get_portal_identity\(\) OWNER TO localens_identity_rpc_owner[\s\S]*SET LOCAL ROLE localens_identity_rpc_owner[\s\S]*REVOKE ALL ON FUNCTION public\.get_portal_identity\(\) FROM PUBLIC, anon, authenticated[\s\S]*GRANT EXECUTE ON FUNCTION public\.get_portal_identity\(\) TO authenticated[\s\S]*RESET ROLE[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_identity_rpc_owner/i);
+    expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.get_portal_identity\(\) FROM PUBLIC, anon/i);
+    expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.get_portal_identity\(\) TO authenticated/i);
+    expect(migration).not.toMatch(/raw_user_meta_data/i);
+    expect(types).toMatch(/get_portal_identity:\s*\{\s*Args: never\s*Returns:\s*\{[\s\S]*?display_name: string[\s\S]*?language: Database\["public"\]\["Enums"\]\["locale"\][\s\S]*?role: Database\["public"\]\["Enums"\]\["app_role"\][\s\S]*?user_id: string[\s\S]*?\}\[\]\s*\}/);
+  });
+
   it("enforces the identity SQL security contract instead of accepting marker-only migrations", () => {
     const extensionsPath = join(repoRoot, "supabase", "migrations", "20260823090000_extensions_enums.sql");
     const identityPath = join(repoRoot, "supabase", "migrations", "20260823091000_identity_roles.sql");

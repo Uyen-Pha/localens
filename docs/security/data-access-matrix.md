@@ -121,7 +121,7 @@ Migration owner for default privileges: postgres
 | public.place_supports | postgres | none |  | none | true | true | catalog_owner_all, place_supports_public_select |  | migration-owner-only |
 | public.place_translations | postgres | none |  | none | true | true | catalog_owner_all, place_translations_public_select |  | migration-owner-only |
 | public.places | postgres | none |  | none | true | true | catalog_owner_all, food_vendor_completeness_place_guard_select, places_public_select |  | migration-owner-only |
-| public.profiles | postgres | none | authenticated (login=false, bypassrls=false, browser-jwt) | none | true | true | profiles_admin_summary_select, profiles_auth_trigger_insert, profiles_auth_trigger_select, profiles_customer_select, profiles_request_customer_rpc_language_select | SELECT -> authenticated | migration-owner-only |
+| public.profiles | postgres | none | authenticated (login=false, bypassrls=false, browser-jwt) | none | true | true | profiles_admin_summary_select, profiles_auth_trigger_insert, profiles_auth_trigger_select, profiles_customer_select, profiles_portal_identity_select, profiles_request_customer_rpc_language_select | SELECT -> authenticated | migration-owner-only |
 | public.seo_releases | postgres | none |  | publication RPC only | true | true | seo_releases_admin_owner_all, seo_releases_build_owner_select, seo_releases_build_owner_update, seo_releases_public_owner_select |  | migration-owner-only |
 | public.tour_translations | postgres | none |  | none | true | true | tour_guard_translations_select, tour_owner_all, tour_translations_public_select |  | migration-owner-only |
 | public.tour_version_stops | postgres | none |  | none | true | true | tour_guard_version_stops_select, tour_owner_all, tour_version_stops_public_select |  | migration-owner-only |
@@ -171,6 +171,7 @@ Migration owner for default privileges: postgres
 | public.get_admin_food_catalog_review_queue | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin reads bounded food review queue | browser-jwt |
 | public.get_guide_assigned_bookings | localens_guide_projection_owner | authenticated (login=false, bypassrls=false, browser-jwt) | guide reads sanitized queue | browser-jwt |
 | public.get_live_departure_availability | localens_availability_rpc_owner | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | hold-aware published availability read | browser-anonymous-or-jwt |
+| public.get_portal_identity | localens_identity_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | authenticated owner identity read | browser-jwt |
 | public.publish_seo | localens_content_admin_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin creates one publishing release | browser-jwt |
 | public.read_seo_build_release | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | capability-scoped build read | edge-internal-content-build |
 | public.reconcile_payment | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | audited admin payment reconciliation | browser-jwt |
@@ -280,7 +281,7 @@ Enumerated internal functions: 94. All are non-API and must use a named NOLOGIN/
 
 ## Explicit grants
 
-Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (556 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (558 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Dynamic policy semantics
 

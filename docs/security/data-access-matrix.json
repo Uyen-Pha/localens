@@ -993,6 +993,7 @@
         "profiles_auth_trigger_insert",
         "profiles_auth_trigger_select",
         "profiles_customer_select",
+        "profiles_portal_identity_select",
         "profiles_request_customer_rpc_language_select"
       ],
       "owner": "postgres",
@@ -1448,6 +1449,16 @@
       "credential": "browser-anonymous-or-jwt"
     },
     {
+      "name": "public.get_portal_identity",
+      "signature": "public.get_portal_identity()",
+      "owner": "localens_identity_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "authenticated owner identity read",
+      "credential": "browser-jwt"
+    },
+    {
       "name": "public.publish_seo",
       "signature": "public.publish_seo(text,text)",
       "owner": "localens_content_admin_owner",
@@ -1624,7 +1635,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 556,
+  "grantCount": 558,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }

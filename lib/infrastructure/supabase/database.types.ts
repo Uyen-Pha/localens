@@ -3555,6 +3555,15 @@ export type Database = {
           tour_version_id: string
         }[]
       }
+      get_portal_identity: {
+        Args: never
+        Returns: {
+          display_name: string
+          language: Database["public"]["Enums"]["locale"]
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }[]
+      }
       publish_seo: {
         Args: { p_build_id: string; p_source_commit: string }
         Returns: {
@@ -3995,3 +4004,4 @@ export const Constants = {
     },
   },
 } as const
+

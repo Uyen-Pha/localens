@@ -389,6 +389,13 @@
     },
     {
       "objectType": "function",
+      "objectName": "public.get_portal_identity()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
       "objectName": "public.publish_seo(text,text)",
       "privilege": "execute",
       "columns": [],
@@ -3405,6 +3412,17 @@
       "privilege": "select",
       "columns": [],
       "grantee": "localens_auth_trigger_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.profiles",
+      "privilege": "select",
+      "columns": [
+        "display_name",
+        "id",
+        "language"
+      ],
+      "grantee": "localens_identity_rpc_owner"
     },
     {
       "objectType": "table",
