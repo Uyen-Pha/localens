@@ -225,10 +225,17 @@ SELECT pg_catalog.set_config(
   (SELECT user_id::text FROM private.user_roles WHERE role = 'admin'::public.app_role ORDER BY user_id LIMIT 1),
   true
 );
-SELECT private.create_catalog_snapshot();
-SELECT private.create_travel_snapshot();`;
+SET LOCAL ROLE localens_admin_rpc_owner;
+SELECT pg_catalog.set_config(
+  'localens.runtime_fixed_tour.catalog_snapshot_id',
+  private.create_catalog_snapshot()::text,
+  true
+);
+SELECT private.create_travel_snapshot();
+RESET ROLE;`;
 
 const TOUR_SQL = `
+SET LOCAL ROLE localens_tour_rpc_owner;
 INSERT INTO public.tours (id, slug, status)
 VALUES ('b2200000-0000-4000-8000-000000000041'::uuid, 'runtime-test-markets-and-street-food', 'draft');
 INSERT INTO public.tour_translations (tour_id, locale, title, summary, meeting_point) VALUES
@@ -241,7 +248,7 @@ INSERT INTO public.tour_versions (
 SELECT
   'b2200000-0000-4000-8000-000000000042'::uuid,
   'b2200000-0000-4000-8000-000000000041'::uuid,
-  id,
+  pg_catalog.current_setting('localens.runtime_fixed_tour.catalog_snapshot_id')::uuid,
   'draft'::public.tour_version_status,
   180,
   650000,
@@ -251,11 +258,7 @@ SELECT
   'https://example.com/runtime-test/fixed-tour',
   '2099-01-01',
   'LocalLens synthetic runtime-test fixture',
-  'Test-only synthetic data'
-FROM public.catalog_snapshots
-WHERE status = 'published'::public.snapshot_status
-ORDER BY published_at DESC, id DESC
-LIMIT 1;
+  'Test-only synthetic data';
 INSERT INTO public.tour_version_translations (tour_version_id, locale, title, summary, meeting_point) VALUES
   ('b2200000-0000-4000-8000-000000000042'::uuid, 'en', 'Runtime Test Markets and Street Food', 'Synthetic fixed tour for local runtime hold verification only.', 'Runtime-test meeting point'),
   ('b2200000-0000-4000-8000-000000000042'::uuid, 'vi', 'Chợ và ẩm thực đường phố kiểm thử', 'Tour cố định tổng hợp chỉ dùng xác minh giữ chỗ runtime cục bộ.', 'Điểm hẹn kiểm thử runtime');
@@ -281,7 +284,8 @@ VALUES (
   '2099-09-05T05:00:00.000Z'::timestamptz,
   'scheduled'::public.departure_status,
   8
-);`;
+);
+RESET ROLE;`;
 
 async function seedDatabase(query, userId) {
   let transactionStarted = false;

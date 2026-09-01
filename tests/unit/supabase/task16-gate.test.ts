@@ -10,13 +10,7 @@ import { DB_GATE_STEPS, assertNoRemoteMode, runDbGate } from "@/scripts/run-db-g
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { checkGeneratedDatabaseTypes, writeGeneratedDatabaseTypes } from "@/scripts/write-generated-db-types.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
-import {
-  CONCURRENCY_SCENARIO_IDS,
-  REQUIRED_CONCURRENCY_SCENARIOS,
-  beginFixedTourBookingForConcurrency,
-  runConcurrencyCheck,
-  runConcurrencyGate,
-} from "@/scripts/test-db-concurrency.mjs";
+import { CONCURRENCY_SCENARIO_IDS, REQUIRED_CONCURRENCY_SCENARIOS, beginFixedTourBookingForConcurrency, runConcurrencyCheck, runConcurrencyGate } from "@/scripts/test-db-concurrency.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { requireLocalSupabaseCli, runLocalSupabase } from "@/scripts/supabase-local.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.

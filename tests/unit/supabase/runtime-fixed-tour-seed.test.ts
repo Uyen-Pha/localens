@@ -222,6 +222,14 @@ describe("runtime fixed-tour seed", () => {
     ]) expect(sql).toContain(relation);
     expect(sql).toContain("private.create_catalog_snapshot()");
     expect(sql).toContain("private.create_travel_snapshot()");
+    expect(sql).toContain("localens.runtime_fixed_tour.catalog_snapshot_id");
+    expect(sql).not.toMatch(/FROM public\.catalog_snapshots\s+WHERE status = 'published'/);
+    expect(sql).toMatch(
+      /SET LOCAL ROLE localens_admin_rpc_owner;[\s\S]+private\.create_catalog_snapshot\(\)[\s\S]+private\.create_travel_snapshot\(\);[\s\S]+RESET ROLE;/,
+    );
+    expect(sql).toMatch(
+      /SET LOCAL ROLE localens_tour_rpc_owner;[\s\S]+INSERT INTO public\.tours[\s\S]+INSERT INTO public\.departures[\s\S]+RESET ROLE;/,
+    );
     expect(sql).toContain("2099-09-05T02:00:00.000Z");
     expect(sql).toContain("runtime-test");
     expect(sql).toContain("'en'");
