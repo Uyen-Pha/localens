@@ -40,7 +40,10 @@ function createAuthAdmin() {
 
   return {
     users,
-    listUsers: vi.fn(async () => ({
+    listUsers: vi.fn(async (): Promise<{
+      data: { users: Array<{ id: string; email: string }>; nextPage: null };
+      error: Error | null;
+    }> => ({
       data: { users: [...users.values()], nextPage: null },
       error: null,
     })),
