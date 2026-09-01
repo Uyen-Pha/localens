@@ -244,7 +244,20 @@ export function BookingFlow({
       return;
     }
     try {
-      const nextBooking = createLocalBooking({ departureId: selectedDeparture.departureId, partySize });
+      let customerId: string | undefined;
+      if (demoPortal !== undefined) {
+        await demoPortal.initialized;
+        const session = await demoPortal.session.getSession();
+        if (session === null || session.role !== "customer") {
+          throw new Error("Demo customer sign-in is required before booking.");
+        }
+        customerId = session.userId;
+      }
+      const nextBooking = createLocalBooking({
+        customerId,
+        departureId: selectedDeparture.departureId,
+        partySize,
+      });
       await syncPortalBooking(nextBooking);
       setRequest({ departureId: selectedDeparture.departureId, partySize });
       setBooking(nextBooking);
@@ -270,7 +283,11 @@ export function BookingFlow({
     setPaymentPhase("processing");
     let attempt;
     try {
-      attempt = startTestPayment({ bookingId: currentBooking.bookingId, idempotencyKey });
+      attempt = startTestPayment({
+        bookingId: currentBooking.bookingId,
+        customerId: currentBooking.customerId,
+        idempotencyKey,
+      });
     } catch (error) {
       setPaymentError(errorKeyForMessage(error instanceof Error ? error.message : ""));
       setPaymentPhase("error");
@@ -280,6 +297,7 @@ export function BookingFlow({
     if (attempt.outcome === "expired") {
       const expiredBooking = finalizeTestPayment({
         bookingId: currentBooking.bookingId,
+        customerId: currentBooking.customerId,
         idempotencyKey,
         outcome,
       });
@@ -297,6 +315,7 @@ export function BookingFlow({
         try {
           const finalizedBooking = finalizeTestPayment({
             bookingId: currentBooking.bookingId,
+            customerId: currentBooking.customerId,
             idempotencyKey,
             outcome,
           });
@@ -340,10 +359,15 @@ export function BookingFlow({
     const idempotencyKey = activePaymentKeyRef.current ?? paymentKeyFor(currentBooking);
     try {
       if (activePaymentKeyRef.current === null) {
-        startTestPayment({ bookingId: currentBooking.bookingId, idempotencyKey });
+        startTestPayment({
+          bookingId: currentBooking.bookingId,
+          customerId: currentBooking.customerId,
+          idempotencyKey,
+        });
       }
       const cancelledBooking = finalizeTestPayment({
         bookingId: currentBooking.bookingId,
+        customerId: currentBooking.customerId,
         idempotencyKey,
         outcome: "cancelled",
       });

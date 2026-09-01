@@ -1,10 +1,89 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { PORTAL_COPY } from "@/components/portals/portal-copy";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
 type Locale = "en" | "vi";
 type DemoRole = "customer" | "guide" | "admin";
+
+interface FixedTourAcceptanceCopy {
+  toursNav: string;
+  catalogHeading: string;
+  catalogDisclosure: string;
+  tourTitle: string;
+  guideTourTitle: string;
+  detailsSummary: string;
+  stopsHeading: string;
+  bookAction: string;
+  bookingHeading: string;
+  partySizeLabel: string;
+  bookingDisclosure: string;
+  continueCheckout: string;
+  checkoutHeading: string;
+  holdDuration: string;
+  unpaidStatus: string;
+  failedAction: string;
+  failureHeading: string;
+  failureMessage: string;
+  retryPayment: string;
+  successAction: string;
+  successHeading: string;
+  paidTestStatus: string;
+  referenceLabel: string;
+}
+
+const FIXED_TOUR_ACCEPTANCE_COPY: Record<Locale, FixedTourAcceptanceCopy> = {
+  en: {
+    toursNav: "Tours",
+    catalogHeading: "Fixed tours in Ho Chi Minh City",
+    catalogDisclosure: "Demo catalog: booking buttons open a local test flow only. No production booking or charge is made.",
+    tourTitle: "Markets and Street Food",
+    guideTourTitle: "Markets and Street Food",
+    detailsSummary: "View tour facts",
+    stopsHeading: "Stops",
+    bookAction: "Book Markets and Street Food",
+    bookingHeading: "Book a fixed tour",
+    partySizeLabel: "People in your party",
+    bookingDisclosure: "Local demo only: the hold and simulated payment sync to browser demo portals after customer sign-in. This is not a production booking or payment.",
+    continueCheckout: "Continue to Test Checkout",
+    checkoutHeading: "Test checkout",
+    holdDuration: "35-minute demo hold",
+    unpaidStatus: "Not paid",
+    failedAction: "Simulate failed payment",
+    failureHeading: "Demo payment failed",
+    failureMessage: "The simulated payment failed. No charge was made; you can retry this booking.",
+    retryPayment: "Retry demo payment",
+    successAction: "Simulate successful payment",
+    successHeading: "Demo payment succeeded",
+    paidTestStatus: "Paid in test mode",
+    referenceLabel: "Demo booking reference",
+  },
+  vi: {
+    toursNav: "Tour",
+    catalogHeading: "Tour cố định tại Thành phố Hồ Chí Minh",
+    catalogDisclosure: "Danh mục demo: nút đặt tour chỉ mở luồng thử nghiệm cục bộ. Chưa có đặt tour thực tế hay khoản tiền nào bị trừ.",
+    tourTitle: "Chợ địa phương và ẩm thực đường phố",
+    guideTourTitle: "Markets and Street Food",
+    detailsSummary: "Xem thông tin tour",
+    stopsHeading: "Điểm dừng",
+    bookAction: "Đặt tour Chợ địa phương và ẩm thực đường phố",
+    bookingHeading: "Đặt tour cố định",
+    partySizeLabel: "Số người trong nhóm",
+    bookingDisclosure: "Chỉ là demo cục bộ: giữ chỗ và thanh toán mô phỏng được đồng bộ sang cổng demo trong trình duyệt sau khi khách hàng đăng nhập. Đây chưa phải đặt tour hay thanh toán production.",
+    continueCheckout: "Tiếp tục đến thanh toán thử nghiệm",
+    checkoutHeading: "Thanh toán thử nghiệm",
+    holdDuration: "Giữ chỗ demo 35 phút",
+    unpaidStatus: "Chưa thanh toán",
+    failedAction: "Mô phỏng thanh toán thất bại",
+    failureHeading: "Thanh toán demo thất bại",
+    failureMessage: "Thanh toán mô phỏng thất bại. Không có khoản tiền nào bị trừ; bạn có thể thử lại booking này.",
+    retryPayment: "Thử lại thanh toán demo",
+    successAction: "Mô phỏng thanh toán thành công",
+    successHeading: "Thanh toán demo thành công",
+    paidTestStatus: "Đã thanh toán ở chế độ thử nghiệm",
+    referenceLabel: "Mã đơn demo",
+  },
+};
 
 const ROLE_SEGMENT: Record<DemoRole, string> = {
   customer: "account",
@@ -125,6 +204,108 @@ async function assertAccessDenied(
   await expect(page.getByRole("heading", { name: portalHeading, exact: true })).toHaveCount(0);
 }
 
+async function inspectFixedTourCatalog(
+  page: Page,
+  copy: FixedTourAcceptanceCopy,
+): Promise<Locator> {
+  await expect(page.getByRole("heading", { name: copy.catalogHeading, exact: true })).toBeVisible();
+  await expect(page.getByText(copy.catalogDisclosure, { exact: true })).toBeVisible();
+  const tourCard = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: copy.tourTitle, exact: true }),
+  });
+  await expect(tourCard).toHaveCount(1);
+  const tourFacts = tourCard.locator("details");
+  await expect(tourFacts).toHaveCount(1);
+  await tourCard.getByText(copy.detailsSummary, { exact: true }).click();
+  await expect(tourFacts).toHaveAttribute("open", "");
+  await expect(tourCard.getByRole("heading", { name: copy.stopsHeading, exact: true })).toBeVisible();
+  await expect(tourCard.getByRole("link", { name: copy.bookAction, exact: true })).toBeVisible();
+  return tourCard;
+}
+
+async function runFixedTourAcceptance(
+  page: Page,
+  locale: Locale,
+  diagnostics: BrowserDiagnostics,
+): Promise<void> {
+  const copy = FIXED_TOUR_ACCEPTANCE_COPY[locale];
+  const portalCopy = PORTAL_COPY[locale];
+  const departureId = "demo-departure-markets-and-street-food-2026-09-05";
+  const bookingId = `demo-booking-demo-user-customer-${departureId}-1`;
+
+  if (locale === "en") {
+    await page.goto("/en/tours/");
+    await inspectFixedTourCatalog(page, copy);
+  }
+
+  await signInAs(page, locale, "customer");
+  await page.locator("header.site-header").getByRole("link", { name: copy.toursNav, exact: true }).click();
+  const signedInTourCard = await inspectFixedTourCatalog(page, copy);
+  await signedInTourCard.getByRole("link", { name: copy.bookAction, exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/${locale}/booking/?\\?departure=${departureId}&partySize=1$`));
+  await expect(page.getByRole("heading", { name: copy.bookingHeading, exact: true })).toBeVisible();
+  await expect(page.getByLabel(copy.partySizeLabel, { exact: true })).toHaveValue("1");
+  await expect(page.getByText(copy.bookingDisclosure, { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: copy.continueCheckout, exact: true }).click();
+  await expect(page.getByRole("heading", { name: copy.checkoutHeading, exact: true })).toBeVisible();
+  await expect(page.getByText(copy.holdDuration, { exact: true })).toBeVisible();
+  await expect(page.getByText(copy.unpaidStatus, { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: copy.failedAction, exact: true }).click();
+  await expect(page.getByRole("heading", { name: copy.failureHeading, exact: true })).toBeVisible();
+  await expect(page.getByText(copy.failureMessage, { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: copy.retryPayment, exact: true }).click();
+  await page.getByRole("button", { name: copy.successAction, exact: true }).click();
+  await expect(page.getByRole("heading", { name: copy.successHeading, exact: true })).toBeVisible();
+  await expect(page.getByText(copy.paidTestStatus, { exact: true })).toBeVisible();
+  await expect(page.getByText(copy.referenceLabel, { exact: true })).toBeVisible();
+
+  await page.goto(`/${locale}/account/`);
+  await expect(page.getByRole("heading", { name: portalCopy.customerHeading, exact: true })).toBeVisible();
+  const customerBooking = page.locator(`article[aria-labelledby="customer-booking-${bookingId}"]`);
+  await expect(customerBooking).toHaveCount(1);
+  await expect(customerBooking).toContainText(copy.tourTitle);
+  await expect(customerBooking).toContainText(portalCopy.statusLabels.confirmed);
+  await expect(customerBooking).toContainText(portalCopy.paymentStatusLabels.paid);
+  await expect(customerBooking.getByText(portalCopy.simulatedPayment, { exact: true })).toBeVisible();
+
+  await switchRole(page, locale, "admin");
+  await expect(page.getByRole("heading", { name: portalCopy.adminPortal, exact: true })).toBeVisible();
+  const adminBookings = page.getByRole("region", { name: portalCopy.bookingsCancellationsHeading, exact: true });
+  const adminBooking = adminBookings.getByRole("listitem").filter({ hasText: bookingId });
+  await expect(adminBooking).toHaveCount(1);
+  await expect(adminBooking).toContainText(portalCopy.statusLabels.confirmed);
+  await expect(adminBooking).toContainText(portalCopy.paymentStatusLabels.paid);
+
+  const assignmentRegion = page.getByRole("region", { name: portalCopy.assignmentsHeading, exact: true });
+  const guideSelector = assignmentRegion.getByRole("combobox", {
+    name: `${portalCopy.assignGuide}: ${bookingId}`,
+    exact: true,
+  });
+  await expect(guideSelector).toHaveCount(1);
+  const fixedAssignment = guideSelector.locator("xpath=ancestor::li");
+  await expect(fixedAssignment).toContainText(departureId);
+  await expect(fixedAssignment).toContainText(copy.tourTitle);
+  await guideSelector.selectOption({ label: "Demo Guide" });
+  await fixedAssignment.getByRole("button", { name: portalCopy.assignGuide, exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: portalCopy.guideAssignmentSaved })).toBeVisible();
+
+  await switchRole(page, locale, "guide");
+  await expect(page.getByRole("heading", { name: portalCopy.guidePortal, exact: true })).toBeVisible();
+  const scheduleRegion = page.getByRole("region", { name: portalCopy.scheduleHeading, exact: true });
+  const guideAssignment = scheduleRegion.locator(`article[aria-labelledby="guide-assignment-${bookingId}"]`);
+  await expect(guideAssignment).toHaveCount(1);
+  await expect(guideAssignment).toContainText(departureId);
+  await expect(guideAssignment).toContainText(copy.guideTourTitle);
+  await expect(guideAssignment).toContainText(portalCopy.assignmentStatusLabels.assigned);
+  const tourLanguage = guideAssignment.getByText(portalCopy.tourLanguage, { exact: true }).locator("xpath=..");
+  await expect(tourLanguage.getByRole("definition")).toHaveText(
+    locale === "vi" ? portalCopy.vietnamese : portalCopy.english,
+  );
+  await expect(guideAssignment.getByRole("button")).toHaveCount(0);
+  await assertHealthyPage(page, diagnostics);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/en/", { waitUntil: "domcontentloaded" });
   await page.evaluate(() => {
@@ -135,61 +316,12 @@ test.beforeEach(async ({ page }) => {
 
 test("fixed tour browse, payment, admin assignment, and guide visibility stay connected", async ({ page }) => {
   const diagnostics = installDiagnostics(page);
-  const fixedTourTitle = "Markets and Street Food";
-  const departureId = "demo-departure-markets-and-street-food-2026-09-05";
+  await runFixedTourAcceptance(page, "en", diagnostics);
+});
 
-  await page.goto("/en/tours/");
-  await expect(page.getByRole("heading", { name: "Fixed tours in Ho Chi Minh City", exact: true })).toBeVisible();
-
-  const anonymousTourCard = page.getByRole("article").filter({ hasText: fixedTourTitle });
-  await expect(anonymousTourCard).toHaveCount(1);
-  const tourFacts = anonymousTourCard.locator("details");
-  await expect(tourFacts).toHaveCount(1);
-  await anonymousTourCard.locator("summary").click();
-  await expect(tourFacts).toHaveAttribute("open", "");
-  await expect(anonymousTourCard.getByRole("heading", { name: "Stops", exact: true })).toBeVisible();
-  await expect(anonymousTourCard.getByRole("link", { name: `Book ${fixedTourTitle}`, exact: true })).toBeVisible();
-
-  await signInAs(page, "en", "customer");
-  await page.locator("header.site-header").getByRole("link", { name: "Tours", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Fixed tours in Ho Chi Minh City", exact: true })).toBeVisible();
-  const signedInTourCard = page.getByRole("article").filter({ hasText: fixedTourTitle });
-  await signedInTourCard.getByRole("link", { name: `Book ${fixedTourTitle}`, exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/en/booking/?\\?departure=${departureId}&partySize=1$`));
-  await expect(page.getByRole("heading", { name: "Book a fixed tour", exact: true })).toBeVisible();
-  await expect(page.getByLabel("People in your party", { exact: true })).toHaveValue("1");
-
-  await page.getByRole("button", { name: "Continue to Test Checkout", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Test checkout", exact: true })).toBeVisible();
-  await expect(page.getByText("Not paid", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Simulate failed payment", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Demo payment failed", exact: true })).toBeVisible();
-  await expect(page.getByText("The simulated payment failed. No charge was made; you can retry this booking.", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Retry demo payment", exact: true }).click();
-  await page.getByRole("button", { name: "Simulate successful payment", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Demo payment succeeded", exact: true })).toBeVisible();
-  await expect(page.getByText("Paid in test mode", { exact: true })).toBeVisible();
-  await expect(page.getByText("Demo booking reference", { exact: true })).toBeVisible();
-
-  await switchRole(page, "en", "admin");
-  await expect(page.getByRole("heading", { name: "Admin portal", exact: true })).toBeVisible();
-  const assignmentRegion = page.getByRole("region", { name: "Fixed-departure guide assignment", exact: true });
-  const fixedAssignment = assignmentRegion.getByRole("listitem").filter({ hasText: departureId });
-  await expect(fixedAssignment).toBeVisible();
-  await expect(fixedAssignment).toContainText(fixedTourTitle);
-  await fixedAssignment.getByRole("combobox", { name: /^Assign guide:/ }).selectOption({ label: "Demo Guide" });
-  await fixedAssignment.getByRole("button", { name: "Assign guide", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Guide assignment saved in this demo session." })).toBeVisible();
-
-  await switchRole(page, "en", "guide");
-  await expect(page.getByRole("heading", { name: "Guide portal", exact: true })).toBeVisible();
-  const scheduleRegion = page.getByRole("region", { name: "Your schedule", exact: true });
-  const guideAssignment = scheduleRegion.getByRole("article").filter({ hasText: departureId });
-  await expect(guideAssignment).toBeVisible();
-  await expect(guideAssignment).toContainText(fixedTourTitle);
-  await expect(guideAssignment).toContainText("Assigned");
-  await expect(page.getByRole("button", { name: /accept|complete|cancel/i })).toHaveCount(0);
-  await assertHealthyPage(page, diagnostics);
+test("fixed tour completes hold, retry, payment, admin assignment, and guide visibility in Vietnamese", async ({ page }) => {
+  const diagnostics = installDiagnostics(page);
+  await runFixedTourAcceptance(page, "vi", diagnostics);
 });
 
 test("personalized route refinement submits for admin quote review and completes simulated checkout", async ({ page }) => {

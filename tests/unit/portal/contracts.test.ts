@@ -58,6 +58,7 @@ describe("portal contracts", () => {
     const view: CustomerBookingView = {
       ...booking,
       paymentStatus,
+      quoteAcceptedAt: null,
       cancellationRequest: null,
       review: null,
     };

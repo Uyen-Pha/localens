@@ -129,6 +129,8 @@ export function CustomRequestFlow({
         setBookingId(persistedQuote?.id ?? null);
         if (persistedRequest.status === "approved" && persistedQuote !== null && persistedQuote.status === "confirmed" && persistedQuote.paymentStatus === "paid") {
           setPhase("stripe-mock");
+        } else if (persistedRequest.status === "approved" && persistedQuote?.quoteAcceptedAt !== null && persistedQuote !== null) {
+          setPhase("accepted");
         } else if (persistedRequest.status === "approved" && persistedQuote !== null) {
           setPhase("quote");
         } else {
@@ -177,12 +179,8 @@ export function CustomRequestFlow({
       const nextRequestId = `demo-request-${draft.planId}-${draft.revision}`;
       const submission = await demoPortal.demoIntegration.submitPersonalizedRequest({
         requestId: nextRequestId,
-        planId: draft.planId,
-        revisionNo: draft.revision,
         locale,
-        partySize: draft.preferences.partySize,
-        totalVndMinor: draft.revisionSnapshot.totals.customerPayableVnd,
-        specialNeeds: draft.preferences.specialNeeds,
+        confirmedDraft: draft,
         createdAt: new Date().toISOString(),
       });
       setRequestId(submission.request.id);
@@ -225,6 +223,25 @@ export function CustomRequestFlow({
       }
     }
     setPhase("quote");
+  }
+
+  async function acceptQuote(): Promise<void> {
+    setActionMessage(null);
+    if (demoPortal !== undefined) {
+      if (bookingId === null) {
+        setActionMessage(copy.storageErrorMessage);
+        return;
+      }
+      try {
+        await requireDemoCustomer();
+        const acceptedBooking = await demoPortal.demoIntegration.acceptPersonalizedQuote({ bookingId });
+        setQuoteBooking(acceptedBooking);
+      } catch {
+        setActionMessage(copy.storageErrorMessage);
+        return;
+      }
+    }
+    setPhase("accepted");
   }
 
   async function openCheckout(): Promise<void> {
@@ -358,7 +375,7 @@ export function CustomRequestFlow({
                 <div><dt>{copy.quoteExpiresLabel}</dt><dd>{copy.quoteValidityValue}</dd></div>
                 <div><dt>{copy.quoteTotalLabel}</dt><dd>{formatVnd(quoteTotal, locale)}</dd></div>
               </dl>
-              <button className="button button--primary" type="button" onClick={() => setPhase("accepted")}>
+              <button className="button button--primary" type="button" onClick={() => void acceptQuote()}>
                 {copy.acceptQuoteLabel}
               </button>
             </section>

@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 
 import { PortalSurface, type PortalSurfaceProps } from "@/components/portals/portal-surface";
@@ -135,6 +135,28 @@ describe("PortalSurface", () => {
     window.localStorage.removeItem("other-app");
   });
 
+  it("reports an incomplete reset instead of announcing success when browser storage is blocked", async () => {
+    const composition = await createComposition();
+    window.sessionStorage.setItem("localens.custom-request.v1", "remove");
+    const storagePrototype = Object.getPrototypeOf(window.sessionStorage) as Storage;
+    const originalRemoveItem = storagePrototype.removeItem;
+    const removeSpy = vi.spyOn(storagePrototype, "removeItem").mockImplementation(function (this: Storage, key: string) {
+      if (key === "localens.custom-request.v1") throw new Error("blocked");
+      originalRemoveItem.call(this, key);
+    });
+
+    try {
+      render(<TestSurface locale="en" composition={composition} />);
+      fireEvent.click(await screen.findByRole("button", { name: /reset locallens demo/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/could not be fully reset/i);
+      expect(screen.queryByText(/demo state was reset/i)).not.toBeInTheDocument();
+    } finally {
+      removeSpy.mockRestore();
+      window.sessionStorage.removeItem("localens.custom-request.v1");
+    }
+  });
+
   it("isolates every direct cross-role portal entry", async () => {
     const composition = await createComposition();
     const cases = [
@@ -203,7 +225,7 @@ describe("PortalSurface", () => {
   it("shows a cancellation status only on the guide's own assigned booking", async () => {
     const composition = await createComposition();
     const fixedBooking = {
-      bookingId: "demo-booking-demo-departure-markets-and-street-food-2026-09-05-2",
+      bookingId: "demo-booking-demo-user-customer-demo-departure-markets-and-street-food-2026-09-05-2",
       departureId: "demo-departure-markets-and-street-food-2026-09-05",
       tourSlug: "demo-markets-and-street-food",
       date: "2026-09-05",
@@ -324,6 +346,7 @@ describe("PortalSurface", () => {
     fireEvent.click(within(requestForm as HTMLFormElement).getByRole("button", { name: /save request decision/i }));
     expect(await screen.findByText(/request decision saved/i)).toBeInTheDocument();
     expect((await composition.admin.personalizedRequests.listPersonalizedRequests()).find((request) => request.id === "demo-request-personalized")?.status).toBe("approved");
+    expect(screen.queryByRole("spinbutton", { name: /quote amount:/i })).not.toBeInTheDocument();
     const issueQuoteForm = await screen.findByRole("button", { name: /issue demo quote/i });
     fireEvent.click(issueQuoteForm);
     expect(await screen.findByText(/demo quote issued/i)).toBeInTheDocument();

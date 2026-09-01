@@ -241,7 +241,6 @@ describe("demo portal repository", () => {
     });
     await repo.demoQuotes.issueDemoQuote({
       requestId: pending.id,
-      amountVndMinor: Number(pending.requestedTotalVndMinor),
     });
 
     tamperWithValidIntegrity(storage, (envelope) => {

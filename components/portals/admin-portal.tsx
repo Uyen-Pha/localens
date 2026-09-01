@@ -51,6 +51,14 @@ function formatDateTime(value: string, locale: "en" | "vi"): string {
   }).format(new Date(value));
 }
 
+function formatMoney(value: string, locale: "en" | "vi"): string {
+  return new Intl.NumberFormat(locale === "vi" ? "vi-VN" : "en-US", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(Number(value));
+}
+
 function statusClass(status: string): string {
   if (["published", "scheduled", "completed", "confirmed", "approved", "paid", "assigned"].includes(status)) {
     return styles.status;
@@ -105,7 +113,6 @@ export function AdminPortal({
   const [roleDrafts, setRoleDrafts] = useState<Record<string, Role>>({});
   const [requestDecisions, setRequestDecisions] = useState<Record<string, AdminRequestDecision>>({});
   const [requestNotes, setRequestNotes] = useState<Record<string, string>>({});
-  const [quoteAmounts, setQuoteAmounts] = useState<Record<string, string>>({});
   const [cancellationDecisions, setCancellationDecisions] = useState<Record<string, CancellationDecision>>({});
   const [cancellationNotes, setCancellationNotes] = useState<Record<string, string>>({});
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, string>>({});
@@ -168,22 +175,12 @@ export function AdminPortal({
 
   async function issueQuote(event: FormEvent<HTMLFormElement>, request: AdminPersonalizedRequestProjection): Promise<void> {
     event.preventDefault();
-    const amount = Number(quoteAmounts[request.id] ?? request.requestedTotalVndMinor);
-    if (!Number.isSafeInteger(amount) || amount < 1) return;
-    const seededQuote = data?.bookings.find((booking) =>
-      booking.id === "demo-booking-personalized" && booking.sourceKind === "quote" && booking.quoteId === "demo-quote-personalized",
-    );
-    if (seededQuote === undefined) {
-      setActionError(copy.quoteError);
-      return;
-    }
     setActionKey(`quote:${request.id}`);
     setActionMessage(null);
     setActionError(null);
     try {
       await composition.demoQuotes.issueDemoQuote({
         requestId: request.id,
-        amountVndMinor: amount,
       });
       await refresh();
       setActionMessage(copy.quoteIssued);
@@ -462,23 +459,14 @@ export function AdminPortal({
                       {request.status === "approved" ? (
                         <>
                           <p className={styles.hint}>{copy.quoteFixtureSource}</p>
-                          <form className={styles.inlineForm} onSubmit={(event) => void issueQuote(event, request)}>
-                          <label>
-                            <span>{copy.quoteAmount}</span>
-                            <input
-                              type="number"
-                              min="1"
-                              step="1"
-                              inputMode="numeric"
-                              aria-label={`${copy.quoteAmount}: ${request.id}`}
-                              value={quoteAmounts[request.id] ?? request.requestedTotalVndMinor}
-                              onChange={(event) => setQuoteAmounts((current) => ({ ...current, [request.id]: event.target.value }))}
-                            />
-                          </label>
-                          <button className={styles.button} type="submit" disabled={actionKey === `quote:${request.id}`}>
-                            {actionKey === `quote:${request.id}` ? copy.saving : copy.issueQuote}
-                          </button>
-                          </form>
+                          {Number(request.requestedTotalVndMinor) > 0 ? (
+                            <form className={styles.inlineForm} onSubmit={(event) => void issueQuote(event, request)}>
+                              <p><span>{copy.quoteAmount}: </span><strong>{formatMoney(request.requestedTotalVndMinor, locale)}</strong></p>
+                              <button className={styles.button} type="submit" disabled={actionKey === `quote:${request.id}`}>
+                                {actionKey === `quote:${request.id}` ? copy.saving : copy.issueQuote}
+                              </button>
+                            </form>
+                          ) : null}
                         </>
                       ) : null}
                     </li>

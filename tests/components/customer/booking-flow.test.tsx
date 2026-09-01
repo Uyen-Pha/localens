@@ -272,11 +272,15 @@ describe("BookingFlow", () => {
     fireEvent.click(screen.getByRole("button", { name: copy.continueLabel }));
     await screen.findByRole("heading", { name: copy.paymentHeading });
 
+    expect(Object.keys(window.localStorage)).toEqual([
+      `locallens.demo.booking.v1:demo-user-customer:demo-booking-demo-user-customer-${validDeparture}-2`,
+    ]);
+
     await portal.session.selectDemoIdentity("demo-user-admin");
     await expect(portal.admin.bookings.listAdminBookings()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: `demo-booking-${validDeparture}-2`,
+          id: `demo-booking-demo-user-customer-${validDeparture}-2`,
           status: "pending_payment",
           paymentStatus: "pending",
           totalVndMinor: "960000",

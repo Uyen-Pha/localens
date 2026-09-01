@@ -135,6 +135,97 @@ describe("local demo booking boundary", () => {
     expect(persistedKeys).toEqual([`locallens.demo.booking.v1:${booking.bookingId}`]);
   });
 
+  it("keeps a paid booking monotonic when another pending attempt fails later", () => {
+    const storage = createStorage();
+    const booking = createLocalBooking({ departureId, partySize: 1, storage, now });
+    startTestPayment({
+      bookingId: booking.bookingId,
+      idempotencyKey: "parallel-success",
+      storage,
+      now: new Date("2026-09-01T02:05:00.000Z"),
+    });
+    startTestPayment({
+      bookingId: booking.bookingId,
+      idempotencyKey: "parallel-failure",
+      storage,
+      now: new Date("2026-09-01T02:06:00.000Z"),
+    });
+
+    const paid = finalizeTestPayment({
+      bookingId: booking.bookingId,
+      idempotencyKey: "parallel-success",
+      outcome: "succeeded",
+      storage,
+      now: new Date("2026-09-01T02:07:00.000Z"),
+    });
+    const lateFailure = finalizeTestPayment({
+      bookingId: booking.bookingId,
+      idempotencyKey: "parallel-failure",
+      outcome: "failed",
+      storage,
+      now: new Date("2026-09-01T02:08:00.000Z"),
+    });
+    const resumed = createLocalBooking({
+      departureId,
+      partySize: 1,
+      storage,
+      now: new Date("2026-09-01T02:09:00.000Z"),
+    });
+
+    expect(paid).toMatchObject({ status: "paid", paymentStatus: "succeeded" });
+    expect(lateFailure).toMatchObject({ status: "paid", paymentStatus: "succeeded" });
+    expect(lateFailure.paymentAttempts.map((attempt) => attempt.outcome)).toEqual(["succeeded", "failed"]);
+    expect(resumed).toMatchObject({ resumed: true, status: "paid", paymentStatus: "succeeded" });
+  });
+
+  it("validates the candidate state before overwriting the persisted booking", () => {
+    const storage = createStorage();
+    const booking = createLocalBooking({ departureId, partySize: 1, storage, now });
+    const key = `locallens.demo.booking.v1:${booking.bookingId}`;
+    const persistedBefore = storage.getItem(key);
+
+    expect(() => startTestPayment({
+      bookingId: booking.bookingId,
+      idempotencyKey: "before-booking-clock",
+      storage,
+      now: new Date("2026-09-01T01:59:00.000Z"),
+    })).toThrow("Invalid demo booking state");
+    expect(storage.getItem(key)).toBe(persistedBefore);
+  });
+
+  it("stores identical departure selections separately for different customers", () => {
+    const storage = createStorage();
+    const primary = createLocalBooking({
+      customerId: "demo-user-customer",
+      departureId,
+      partySize: 2,
+      storage,
+      now,
+    });
+    const secondary = createLocalBooking({
+      customerId: "demo-user-customer-secondary",
+      departureId,
+      partySize: 2,
+      storage,
+      now: new Date("2026-09-01T02:05:00.000Z"),
+    });
+    const primaryReplay = createLocalBooking({
+      customerId: "demo-user-customer",
+      departureId,
+      partySize: 2,
+      storage,
+      now: new Date("2026-09-01T02:06:00.000Z"),
+    });
+
+    expect(primary.customerId).toBe("demo-user-customer");
+    expect(secondary.customerId).toBe("demo-user-customer-secondary");
+    expect(primary.bookingId).toBe(`demo-booking-demo-user-customer-${departureId}-2`);
+    expect(secondary.bookingId).toBe(`demo-booking-demo-user-customer-secondary-${departureId}-2`);
+    expect(secondary.bookingId).not.toBe(primary.bookingId);
+    expect(secondary.resumed).toBe(false);
+    expect(primaryReplay).toMatchObject({ customerId: "demo-user-customer", resumed: true });
+  });
+
   it("records cancelled and expired attempts while keeping the booking held for a new key", () => {
     const storage = createStorage();
     const booking = createLocalBooking({ departureId, partySize: 1, storage, now });

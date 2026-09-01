@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { CustomRequestFlow } from "@/components/customer/custom-request-flow";
@@ -151,7 +151,6 @@ describe("CustomRequestFlow", () => {
     });
     await portal.demoQuotes.issueDemoQuote({
       requestId: pending.id,
-      amountVndMinor: Number(pending.requestedTotalVndMinor),
     });
     await portal.session.selectDemoIdentity("demo-user-customer");
 
@@ -159,6 +158,10 @@ describe("CustomRequestFlow", () => {
     render(<CustomRequestFlow locale="en" copy={copy} demoPortal={portal} />);
     expect(await screen.findByRole("heading", { name: copy.quoteHeading })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: copy.acceptQuoteLabel }));
+    await waitFor(async () => {
+      expect((await portal.customer.account.listCustomerBookings())
+        .find((booking) => booking.sourceKind === "quote")?.quoteAcceptedAt).not.toBeNull();
+    });
     fireEvent.click(screen.getByRole("button", { name: copy.openStripeMockLabel }));
     expect(await screen.findByRole("heading", { name: copy.stripeMockHeading })).toBeInTheDocument();
     await portal.session.selectDemoIdentity("demo-user-admin");

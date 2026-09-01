@@ -18,6 +18,20 @@ import {
 } from "@/lib/domain/data/contracts";
 import { getDemoDeparture } from "@/lib/application/booking/mock-booking";
 import {
+  localDraftFingerprint,
+  type CustomRequestDraft,
+  type CustomRequestDraftInput,
+} from "@/lib/application/planner/custom-request-demo";
+import {
+  createDemoPlannerAdapter,
+  type DemoPlannerItem,
+} from "@/lib/application/planner/demo-planner";
+import { isStrictPlannerState } from "@/lib/application/planner/e2e-planner-state-validator";
+import {
+  isPersonalizationRequest,
+  type PersonalizationRequest,
+} from "@/lib/application/planner/personalization-session";
+import {
   PortalError,
   validateCancellationDecisionInput,
   validateCancellationRequestInput,
@@ -56,6 +70,7 @@ import {
 import type {
   DemoFixedBookingInput,
   DemoPersonalizedCheckoutInput,
+  DemoPersonalizedQuoteAcceptanceInput,
   DemoPersonalizedRequestInput,
   DemoPortalIntegration,
   DemoPersonalizedRequestSubmission,
@@ -94,6 +109,7 @@ type DemoRequestRecord = CustomerCustomRequest & {
   partySize: number;
   totalVndMinor: string;
   specialNeeds: string | null;
+  confirmedDraft: CustomRequestDraft;
 };
 
 type DemoBookingRecord = CustomerBooking & {
@@ -102,6 +118,7 @@ type DemoBookingRecord = CustomerBooking & {
   assignedGuideUserId: string | null;
   cancellationRequestId: string | null;
   specialNeeds: string | null;
+  quoteAcceptedAt: string | null;
   personalizedRequest: DemoRequestRecord | null;
 };
 
@@ -168,9 +185,13 @@ const DEMO_PERSONALIZED_QUOTE_FIXTURE = Object.freeze({
   fxSnapshotId: DEMO_FX_SNAPSHOT_ID,
   fxVndPerUsd: "25000.00000000",
   meetingPoint: "To be confirmed",
-  holdExpiresAt: "2026-09-07T00:00:00.000Z",
+  holdExpiresAt: "2026-08-25T00:00:00.000Z",
   createdAt: "2026-08-23T00:00:00.000Z",
 });
+const DEMO_QUOTE_VALIDITY_MS = 48 * 60 * 60 * 1000;
+const E2E_APPROVED_FOOD_PLACE_ID = "e2e-food-approved-market";
+const E2E_APPROVED_MUSEUM_PLACE_ID = "e2e-food-museum";
+const E2E_APPROVED_PLACE_IDS = new Set([E2E_APPROVED_FOOD_PLACE_ID, E2E_APPROVED_MUSEUM_PLACE_ID]);
 const HASH_ALGORITHM = "fnv1a32" as const;
 const MAX_RECORDS = 200;
 const PORTAL_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,119}$/;
@@ -261,6 +282,7 @@ const REQUEST_FIELDS = [
   "partySize",
   "totalVndMinor",
   "specialNeeds",
+  "confirmedDraft",
 ] as const;
 const BOOKING_FIELDS = [
   "id",
@@ -290,6 +312,7 @@ const BOOKING_FIELDS = [
   "assignedGuideUserId",
   "cancellationRequestId",
   "specialNeeds",
+  "quoteAcceptedAt",
   "personalizedRequest",
 ] as const;
 const CANCELLATION_FIELDS = [
@@ -537,6 +560,117 @@ function fnv1a32(value: string): string {
   return hash.toString(16).padStart(8, "0");
 }
 
+function confirmedDraftInput(draft: CustomRequestDraft): CustomRequestDraftInput {
+  return {
+    planId: draft.planId,
+    revision: draft.revision,
+    preferences: draft.preferences,
+    revisionSnapshot: draft.revisionSnapshot,
+  };
+}
+
+function isApprovedE2EFoodSelection(
+  item: DemoPlannerItem,
+  locale: Locale,
+  partySize: number,
+): boolean {
+  if (item.foodSelection === null) {
+    return item.foodCostMinVnd === 0
+      && item.foodCostMaxVnd === 0
+      && item.payAtVendorMinVnd === 0
+      && item.payAtVendorMaxVnd === 0;
+  }
+  const selection = item.foodSelection;
+  return selection.venueTitle === (locale === "vi" ? "Chợ Bờ Sông E2E" : "E2E Riverside Market")
+    && selection.vendorTitle === (locale === "vi" ? "Quầy Bánh Mì Dì Ba" : "Aunt Ba's Banh Mi Stall")
+    && selection.locationNote === "North lane, blue awning"
+    && selection.menuTitle === (locale === "vi" ? "Bánh mì thịt nướng" : "Grilled pork banh mi")
+    && selection.servingUnit === "portion"
+    && selection.quantity === partySize
+    && selection.priceVndMin === 45_000
+    && selection.priceVndMax === 60_000
+    && selection.paymentMode === "pay_at_vendor";
+}
+
+function isApprovedE2ERevision(draft: CustomRequestDraft, locale: Locale): boolean {
+  if (process.env.NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES !== "1") return false;
+  if (draft.planId !== "demo-plan-hcmc-cultural-day") return false;
+  if (!draft.preferences.areas.every((areaId) => areaId === "e2e-food-district-1" || areaId === "e2e-food-district-3")) return false;
+  if (draft.revisionSnapshot.items.length === 0) return false;
+  return draft.revisionSnapshot.items.every((item) => {
+    if (!E2E_APPROVED_PLACE_IDS.has(item.placeId) || item.travelCostVndBefore !== 0) return false;
+    if (item.placeId === E2E_APPROVED_FOOD_PLACE_ID) {
+      return item.title === (locale === "vi" ? "Chợ Bờ Sông E2E" : "E2E Riverside Market")
+        && item.visitDurationMinutes === 60
+        && item.placeCostVnd === 0
+        && isApprovedE2EFoodSelection(item, locale, draft.preferences.partySize);
+    }
+    return item.title === (locale === "vi" ? "Bảo tàng Lịch sử E2E" : "E2E History Museum")
+      && item.visitDurationMinutes === 75
+      && item.placeCostVnd === 120_000 * draft.preferences.partySize
+      && item.foodSelection === null;
+  });
+}
+
+function isApprovedBaseRevision(draft: CustomRequestDraft, locale: Locale): boolean {
+  const planner = createDemoPlannerAdapter();
+  let state = planner.createInitial(locale, draft.preferences);
+  const planMatches = state.planId === draft.planId || draft.planId === "demo-plan-personalized";
+  if (!planMatches || state.current.items.length === 0 || state.current.revision > draft.revision) return false;
+  while (state.current.revision < draft.revision) {
+    if (draft.revisionSnapshot.feedback.length === 0) return false;
+    const refined = planner.refine(state, {
+      baseRevision: state.current.revision,
+      feedback: draft.revisionSnapshot.feedback,
+      lockedItemIds: draft.revisionSnapshot.items.filter((item) => item.locked).map((item) => item.id),
+    });
+    if (!refined.ok) return false;
+    state = refined.state;
+  }
+  return canonical(state.current) === canonical(draft.revisionSnapshot);
+}
+
+function validatedConfirmedDraft(value: unknown, locale: Locale): CustomRequestDraft | null {
+  if (!isRecord(value)) return null;
+  const fields = ["planId", "revision", "preferences", "revisionSnapshot", "integrityFingerprint"] as const;
+  if (Object.keys(value).length !== fields.length || fields.some((field) => !Object.prototype.hasOwnProperty.call(value, field))) return null;
+  if (Object.keys(value).some((key) => !fields.includes(key as (typeof fields)[number]))) return null;
+  if (typeof value.integrityFingerprint !== "string" || !/^[0-9a-f]{32}$/.test(value.integrityFingerprint)) return null;
+  if (typeof value.planId !== "string" || !PORTAL_ID_PATTERN.test(value.planId)
+    || typeof value.revision !== "number" || !Number.isSafeInteger(value.revision) || value.revision < 1 || value.revision > 100
+    || !isPersonalizationRequest(value.preferences) || !isRecord(value.revisionSnapshot)) return null;
+  try {
+    const candidate = value as unknown as CustomRequestDraft;
+    if (candidate.revision !== candidate.revisionSnapshot.revision || !Array.isArray(candidate.revisionSnapshot.items)
+      || candidate.revisionSnapshot.items.length === 0) return null;
+    if (localDraftFingerprint(confirmedDraftInput(candidate)) !== candidate.integrityFingerprint) return null;
+    const approvedBaseRevision = isApprovedBaseRevision(candidate, locale);
+    const approvedE2ERevision = isStrictPlannerState({
+      planId: candidate.planId,
+      locale,
+      preferences: candidate.preferences,
+      current: candidate.revisionSnapshot,
+      history: [],
+    }, locale) && isApprovedE2ERevision(candidate, locale);
+    if (!approvedBaseRevision && !approvedE2ERevision) return null;
+    return clone(candidate);
+  } catch {
+    return null;
+  }
+}
+
+function parseStoredConfirmedDraft(value: unknown, locale: Locale, path: string): CustomRequestDraft {
+  const draft = validatedConfirmedDraft(value, locale);
+  if (draft === null) invalidStorage(path, "Invalid confirmed planner revision");
+  return draft;
+}
+
+function readConfirmedDraftInput(value: unknown, locale: Locale): CustomRequestDraft {
+  const draft = validatedConfirmedDraft(value, locale);
+  if (draft === null) invalidInput("The confirmed planner revision is invalid or is not from the approved demo fixture.");
+  return draft;
+}
+
 function bodyForIntegrity(envelope: DemoEnvelope): DemoEnvelopeBody {
   return {
     version: envelope.version,
@@ -569,7 +703,8 @@ function requestSnapshotsMatch(
     && authoritative.submittedAt === bookingSnapshot.submittedAt
     && authoritative.updatedAt === bookingSnapshot.updatedAt
     && authoritative.status === bookingSnapshot.status
-    && authoritative.latestDecisionAt === bookingSnapshot.latestDecisionAt;
+    && authoritative.latestDecisionAt === bookingSnapshot.latestDecisionAt
+    && canonical(authoritative.confirmedDraft) === canonical(bookingSnapshot.confirmedDraft);
 }
 
 function digestBody(body: DemoEnvelopeBody): string {
@@ -602,6 +737,7 @@ function parseUser(value: unknown, path: string): DemoUserRecord {
 
 function parseRequest(value: unknown, path: string): DemoRequestRecord {
   const row = exactRecord(value, REQUEST_FIELDS, path);
+  const locale = safeLocale(row.locale, `${path}.locale`);
   return {
     id: safeId(row.id, `${path}.id`),
     planId: safeId(row.planId, `${path}.planId`),
@@ -611,10 +747,11 @@ function parseRequest(value: unknown, path: string): DemoRequestRecord {
     updatedAt: safeTimestamp(row.updatedAt, `${path}.updatedAt`),
     ownerUserId: safeId(row.ownerUserId, `${path}.ownerUserId`),
     latestDecisionAt: safeNullableTimestamp(row.latestDecisionAt, `${path}.latestDecisionAt`),
-    locale: safeLocale(row.locale, `${path}.locale`),
+    locale,
     partySize: safeInteger(row.partySize, `${path}.partySize`, 1, 20),
     totalVndMinor: safeMoney(row.totalVndMinor, `${path}.totalVndMinor`),
     specialNeeds: nullableStorageText(row.specialNeeds, `${path}.specialNeeds`, 1_000),
+    confirmedDraft: parseStoredConfirmedDraft(row.confirmedDraft, locale, `${path}.confirmedDraft`),
   };
 }
 
@@ -654,6 +791,7 @@ function parseBooking(value: unknown, path: string): DemoBookingRecord {
     assignedGuideUserId: safeNullableId(row.assignedGuideUserId, `${path}.assignedGuideUserId`),
     cancellationRequestId: safeNullableId(row.cancellationRequestId, `${path}.cancellationRequestId`),
     specialNeeds: nullableStorageText(row.specialNeeds, `${path}.specialNeeds`, 1_000),
+    quoteAcceptedAt: safeNullableTimestamp(row.quoteAcceptedAt, `${path}.quoteAcceptedAt`),
     personalizedRequest: row.personalizedRequest === null ? null : parseRequest(row.personalizedRequest, `${path}.personalizedRequest`),
   };
 }
@@ -773,6 +911,14 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
     if (request.status !== "pending_review" && request.latestDecisionAt === null) {
       invalidStorage(`requests.${request.id}.latestDecisionAt`, "Reviewed request requires a decision timestamp");
     }
+    const draft = request.confirmedDraft;
+    if (request.planId !== draft.planId
+      || request.revisionNo !== draft.revision
+      || request.partySize !== draft.preferences.partySize
+      || request.totalVndMinor !== String(draft.revisionSnapshot.totals.customerPayableVnd)
+      || request.specialNeeds !== (draft.preferences.specialNeeds.length === 0 ? null : draft.preferences.specialNeeds)) {
+      invalidStorage(`requests.${request.id}.confirmedDraft`, "Request facts must be derived from its confirmed planner revision");
+    }
   }
 
   for (const booking of envelope.bookings) {
@@ -787,6 +933,7 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
       if (booking.quoteId !== null || booking.personalizedRequest !== null) {
         invalidStorage(`bookings.${booking.id}`, "Departure booking cannot contain quote data");
       }
+      if (booking.quoteAcceptedAt !== null) invalidStorage(`bookings.${booking.id}.quoteAcceptedAt`, "Departure booking cannot contain quote acceptance");
     } else {
       if (booking.quoteId === null || booking.quoteId !== booking.sourceId || booking.tourVersionId !== null) {
         invalidStorage(`bookings.${booking.id}`, "Quote booking source reference mismatch");
@@ -798,6 +945,23 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
       const authoritativeRequest = requests.get(booking.personalizedRequest.id);
       if (!authoritativeRequest || !requestSnapshotsMatch(authoritativeRequest, booking.personalizedRequest)) {
         invalidStorage(`bookings.${booking.id}.personalizedRequest`, "Quote booking request snapshot diverges from its independent request");
+      }
+      if (booking.totalVndMinor !== authoritativeRequest.totalVndMinor || booking.checkoutAmountMinor !== authoritativeRequest.totalVndMinor) {
+        invalidStorage(`bookings.${booking.id}.totalVndMinor`, "Quote amount must equal the confirmed request payable amount");
+      }
+      const issuedAt = Date.parse(booking.createdAt);
+      const expiresAt = Date.parse(booking.holdExpiresAt);
+      if (expiresAt - issuedAt !== DEMO_QUOTE_VALIDITY_MS) {
+        invalidStorage(`bookings.${booking.id}.holdExpiresAt`, "Personalized quote must expire 48 hours after issue");
+      }
+      if (booking.quoteAcceptedAt !== null) {
+        const acceptedAt = Date.parse(booking.quoteAcceptedAt);
+        if (acceptedAt < issuedAt || acceptedAt >= expiresAt) {
+          invalidStorage(`bookings.${booking.id}.quoteAcceptedAt`, "Quote acceptance must occur before expiry");
+        }
+      }
+      if (booking.status === "confirmed" && booking.paymentStatus === "paid" && booking.quoteAcceptedAt === null) {
+        invalidStorage(`bookings.${booking.id}.quoteAcceptedAt`, "Paid personalized booking requires persisted quote acceptance");
       }
       if (booking.personalizedRequest.status === "pending_review" && booking.personalizedRequest.latestDecisionAt !== null) {
         invalidStorage(`bookings.${booking.id}.personalizedRequest.latestDecisionAt`, "Pending request cannot have a decision timestamp");
@@ -928,6 +1092,46 @@ function parseEnvelope(raw: string): DemoEnvelope {
 }
 
 function createFixtureBody(): DemoEnvelopeBody {
+  const seededPreferences: PersonalizationRequest = {
+    startAt: "2026-09-05T09:00:00+07:00",
+    durationMinutes: 360,
+    areas: ["demo-hcmc-district-1"],
+    budget: { currency: "VND", amountMinor: 2_000_000 },
+    partySize: 1,
+    guideLanguage: "en",
+    priorityWeights: { street_food: 0, history: 2, traditional_craft: 0, traditional_market: 4 },
+    pace: "active",
+    dietaryRequirements: [],
+    mobilityRequirements: [],
+    lockedStopIds: [],
+    specialNeeds: "",
+  };
+  const seededState = createDemoPlannerAdapter().createInitial("en", seededPreferences);
+  const seededDraftInput: CustomRequestDraftInput = {
+    planId: "demo-plan-personalized",
+    revision: seededState.current.revision,
+    preferences: seededPreferences,
+    revisionSnapshot: seededState.current,
+  };
+  const seededDraft: CustomRequestDraft = {
+    ...seededDraftInput,
+    integrityFingerprint: localDraftFingerprint(seededDraftInput),
+  };
+  const seededRequest: DemoRequestRecord = {
+    id: "demo-request-personalized",
+    planId: seededDraft.planId,
+    revisionNo: seededDraft.revision,
+    status: "pending_review",
+    submittedAt: DEMO_PERSONALIZED_QUOTE_FIXTURE.createdAt,
+    updatedAt: DEMO_PERSONALIZED_QUOTE_FIXTURE.createdAt,
+    ownerUserId: "demo-user-customer",
+    latestDecisionAt: null,
+    locale: "en",
+    partySize: seededDraft.preferences.partySize,
+    totalVndMinor: String(seededDraft.revisionSnapshot.totals.customerPayableVnd),
+    specialNeeds: null,
+    confirmedDraft: seededDraft,
+  };
   const users: DemoUserRecord[] = [
     {
       userId: "demo-user-customer",
@@ -1042,6 +1246,7 @@ function createFixtureBody(): DemoEnvelopeBody {
       assignedGuideUserId: "demo-user-guide",
       cancellationRequestId: null,
       specialNeeds: "Step-free route requested.",
+      quoteAcceptedAt: null,
       personalizedRequest: null,
     },
     {
@@ -1072,6 +1277,7 @@ function createFixtureBody(): DemoEnvelopeBody {
       assignedGuideUserId: "demo-user-guide",
       cancellationRequestId: null,
       specialNeeds: null,
+      quoteAcceptedAt: null,
       personalizedRequest: null,
     },
     {
@@ -1102,6 +1308,7 @@ function createFixtureBody(): DemoEnvelopeBody {
       assignedGuideUserId: null,
       cancellationRequestId: null,
       specialNeeds: null,
+      quoteAcceptedAt: null,
       personalizedRequest: null,
     },
     {
@@ -1119,9 +1326,9 @@ function createFixtureBody(): DemoEnvelopeBody {
       fxSnapshotId: DEMO_PERSONALIZED_QUOTE_FIXTURE.fxSnapshotId,
       fxVndPerUsd: DEMO_PERSONALIZED_QUOTE_FIXTURE.fxVndPerUsd,
       perPersonVndMinor: null,
-      totalVndMinor: "750000",
+      totalVndMinor: seededRequest.totalVndMinor,
       checkoutCurrency: "vnd",
-      checkoutAmountMinor: "750000",
+      checkoutAmountMinor: seededRequest.totalVndMinor,
       partySize: 1,
       language: "en",
       meetingPoint: DEMO_PERSONALIZED_QUOTE_FIXTURE.meetingPoint,
@@ -1132,38 +1339,11 @@ function createFixtureBody(): DemoEnvelopeBody {
       assignedGuideUserId: null,
       cancellationRequestId: null,
       specialNeeds: null,
-      personalizedRequest: {
-        id: "demo-request-personalized",
-        planId: "demo-plan-personalized",
-        revisionNo: 1,
-        status: "pending_review",
-        submittedAt: "2026-08-23T00:00:00.000Z",
-        updatedAt: "2026-08-23T00:00:00.000Z",
-        ownerUserId: "demo-user-customer",
-        latestDecisionAt: null,
-        locale: "en",
-        partySize: 1,
-        totalVndMinor: "750000",
-        specialNeeds: null,
-      },
+      quoteAcceptedAt: DEMO_PERSONALIZED_QUOTE_FIXTURE.createdAt,
+      personalizedRequest: clone(seededRequest),
     },
   ];
-  const requests: DemoRequestRecord[] = [
-    {
-      id: "demo-request-personalized",
-      planId: "demo-plan-personalized",
-      revisionNo: 1,
-      status: "pending_review",
-      submittedAt: "2026-08-23T00:00:00.000Z",
-      updatedAt: "2026-08-23T00:00:00.000Z",
-      ownerUserId: "demo-user-customer",
-      latestDecisionAt: null,
-      locale: "en",
-      partySize: 1,
-      totalVndMinor: "750000",
-      specialNeeds: null,
-    },
-  ];
+  const requests: DemoRequestRecord[] = [seededRequest];
   const assignments: DemoAssignmentRecord[] = [
     {
       bookingId: "demo-booking-completed",
@@ -1252,6 +1432,7 @@ function toCustomerBookingView(envelope: DemoEnvelope, booking: DemoBookingRecor
   return {
     ...toCustomerBooking(booking),
     paymentStatus: booking.paymentStatus,
+    quoteAcceptedAt: booking.quoteAcceptedAt,
     cancellationRequest: cancellationRequest === null ? null : clone(cancellationRequest),
     review: review === null ? null : clone(review),
   };
@@ -1297,13 +1478,14 @@ function toAdminBooking(envelope: DemoEnvelope, booking: DemoBookingRecord): Adm
 }
 
 function toCustomerRequest(request: DemoRequestRecord): CustomerCustomRequest {
-  const { ownerUserId, latestDecisionAt, locale, partySize, totalVndMinor, specialNeeds, ...customerRequest } = request;
+  const { ownerUserId, latestDecisionAt, locale, partySize, totalVndMinor, specialNeeds, confirmedDraft, ...customerRequest } = request;
   void ownerUserId;
   void latestDecisionAt;
   void locale;
   void partySize;
   void totalVndMinor;
   void specialNeeds;
+  void confirmedDraft;
   return customerRequest;
 }
 
@@ -1316,6 +1498,8 @@ function toAdminRequest(request: DemoRequestRecord): AdminPersonalizedRequestPro
     partySize: request.partySize,
     requestedTotalVndMinor: request.totalVndMinor,
     specialNeeds: request.specialNeeds,
+    confirmedRevisionFingerprint: request.confirmedDraft.integrityFingerprint,
+    confirmedRevisionSnapshot: clone(request.confirmedDraft.revisionSnapshot),
   };
 }
 
@@ -1450,10 +1634,6 @@ function inputMoney(value: unknown, fieldPath: string): number {
   return inputInteger(value, fieldPath, 1, Number.MAX_SAFE_INTEGER);
 }
 
-function inputNonNegativeMoney(value: unknown, fieldPath: string): number {
-  return inputInteger(value, fieldPath, 0, Number.MAX_SAFE_INTEGER);
-}
-
 function inputTimestamp(value: unknown, fieldPath: string): string {
   if (typeof value !== "string" || value.trim() !== value || CONTROL_PATTERN.test(value) ||
     !TIMESTAMP_PATTERN.test(value) || !Number.isFinite(Date.parse(value))) {
@@ -1517,8 +1697,7 @@ function readFixedBookingInput(input: unknown): DemoFixedBookingInput {
     meetingPoint !== departure.meetingPoint ||
     unitPriceMinor !== departure.unitPriceMinor ||
     totalMinor !== departure.unitPriceMinor * partySize ||
-    partySize > departure.remainingCapacity ||
-    bookingId !== `demo-booking-${departure.departureId}-${partySize}`
+    partySize > departure.remainingCapacity
   ) {
     invalidInput("The fixed booking result does not match the allowlisted departure facts.");
   }
@@ -1554,31 +1733,24 @@ function readFixedBookingInput(input: unknown): DemoFixedBookingInput {
 function readPersonalizedRequestInput(input: unknown): DemoPersonalizedRequestInput {
   const row = exactInput(input, [
     "requestId",
-    "planId",
-    "revisionNo",
     "locale",
-    "partySize",
-    "totalVndMinor",
-    "specialNeeds",
+    "confirmedDraft",
     "createdAt",
   ], "submitPersonalizedRequest");
   const requestId = inputId(row.requestId, "requestId");
-  const planId = inputId(row.planId, "planId");
-  const revisionNo = inputInteger(row.revisionNo, "revisionNo", 1, 100);
   const locale = row.locale;
   if (typeof locale !== "string" || !(LOCALE_VALUES as readonly string[]).includes(locale)) invalidInput("Invalid locale.");
-  const partySize = inputInteger(row.partySize, "partySize", 1, 20);
-  const totalVndMinor = inputNonNegativeMoney(row.totalVndMinor, "totalVndMinor");
   return {
     requestId,
-    planId,
-    revisionNo,
     locale: locale as DemoPersonalizedRequestInput["locale"],
-    partySize,
-    totalVndMinor,
-    specialNeeds: inputOptionalText(row.specialNeeds, "specialNeeds", 1_000),
+    confirmedDraft: readConfirmedDraftInput(row.confirmedDraft, locale as Locale),
     createdAt: inputTimestamp(row.createdAt, "createdAt"),
   };
+}
+
+function readPersonalizedQuoteAcceptanceInput(input: unknown): DemoPersonalizedQuoteAcceptanceInput {
+  const row = exactInput(input, ["bookingId"], "acceptPersonalizedQuote");
+  return { bookingId: inputId(row.bookingId, "bookingId") };
 }
 
 function readPersonalizedCheckoutInput(input: unknown): DemoPersonalizedCheckoutInput {
@@ -1587,13 +1759,9 @@ function readPersonalizedCheckoutInput(input: unknown): DemoPersonalizedCheckout
 }
 
 function readPersonalizedQuoteInput(input: unknown): AdminPersonalizedQuoteInput {
-  const row = exactInput(input, [
-    "requestId",
-    "amountVndMinor",
-  ], "issueDemoQuote");
+  const row = exactInput(input, ["requestId"], "issueDemoQuote");
   return {
     requestId: inputId(row.requestId, "requestId"),
-    amountVndMinor: inputMoney(row.amountVndMinor, "amountVndMinor"),
   };
 }
 
@@ -1781,6 +1949,9 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       const bookingInput = readFixedBookingInput(input);
       const envelope = readEnvelope();
       const actor = actorWithRole(envelope, "customer", "syncFixedBooking");
+      if (bookingInput.bookingId !== `demo-booking-${actor.userId}-${bookingInput.departureId}-${bookingInput.partySize}`) {
+        invalidInput("The fixed booking owner does not match the signed-in customer.");
+      }
       const tour = DEMO_HANDOFF_TOURS[bookingInput.tourSlug];
       if (tour === undefined) invalidInput("The fixed booking must reference a known demo tour.");
       ensureFixedHandoffRecords(envelope, bookingInput);
@@ -1836,6 +2007,7 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
         assignedGuideUserId: null,
         cancellationRequestId: null,
         specialNeeds: null,
+        quoteAcceptedAt: null,
         personalizedRequest: null,
       };
       envelope.bookings.push(booking);
@@ -1846,6 +2018,12 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
 
     async submitPersonalizedRequest(input: DemoPersonalizedRequestInput): Promise<DemoPersonalizedRequestSubmission> {
       const requestInput = readPersonalizedRequestInput(input);
+      const confirmedDraft = requestInput.confirmedDraft;
+      const partySize = confirmedDraft.preferences.partySize;
+      const totalVndMinor = confirmedDraft.revisionSnapshot.totals.customerPayableVnd;
+      const specialNeeds = confirmedDraft.preferences.specialNeeds.length === 0
+        ? null
+        : confirmedDraft.preferences.specialNeeds;
       const envelope = readEnvelope();
       const actor = actorWithRole(envelope, "customer", "submitPersonalizedRequest");
       const existing = envelope.requests.find((request) => request.id === requestInput.requestId)
@@ -1853,10 +2031,10 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
         ?? undefined;
       if (existing !== undefined) {
         if (existing.ownerUserId !== actor.userId) forbidden("customer", "submitPersonalizedRequest for another customer");
-        if (existing.planId !== requestInput.planId || existing.revisionNo !== requestInput.revisionNo ||
-          existing.locale !== requestInput.locale || existing.partySize !== requestInput.partySize ||
-          existing.totalVndMinor !== String(requestInput.totalVndMinor) ||
-          existing.specialNeeds !== (requestInput.specialNeeds.length === 0 ? null : requestInput.specialNeeds)) {
+        if (existing.planId !== confirmedDraft.planId || existing.revisionNo !== confirmedDraft.revision ||
+          existing.locale !== requestInput.locale || existing.partySize !== partySize ||
+          existing.totalVndMinor !== String(totalVndMinor) || existing.specialNeeds !== specialNeeds ||
+          canonical(existing.confirmedDraft) !== canonical(confirmedDraft)) {
           conflict("The personalized request facts cannot be changed.");
         }
         return { request: clone(toCustomerRequest(existing)) };
@@ -1864,17 +2042,18 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
 
       const request: DemoRequestRecord = {
         id: requestInput.requestId,
-        planId: requestInput.planId,
-        revisionNo: requestInput.revisionNo,
+        planId: confirmedDraft.planId,
+        revisionNo: confirmedDraft.revision,
         status: "pending_review",
         submittedAt: requestInput.createdAt,
         updatedAt: requestInput.createdAt,
         ownerUserId: actor.userId,
         latestDecisionAt: null,
         locale: requestInput.locale,
-        partySize: requestInput.partySize,
-        totalVndMinor: String(requestInput.totalVndMinor),
-        specialNeeds: requestInput.specialNeeds.length === 0 ? null : requestInput.specialNeeds,
+        partySize,
+        totalVndMinor: String(totalVndMinor),
+        specialNeeds,
+        confirmedDraft: clone(confirmedDraft),
       };
       envelope.requests.push(request);
       validateCrossReferences(envelope);
@@ -1893,6 +2072,10 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       const request = requestForId(envelope, quoteInput.requestId);
       if (!request) notFound("Personalized request", quoteInput.requestId);
       if (request.status !== "approved") conflict("The administrator must approve the personalized request before issuing a quote.");
+      const amountVndMinor = Number(request.totalVndMinor);
+      if (!Number.isSafeInteger(amountVndMinor) || amountVndMinor < 1) {
+        conflict("A zero-payable personalized request cannot create a demo quote or payment.");
+      }
       if (request.ownerUserId === undefined) invalidStorage(`requests.${request.id}.ownerUserId`, "Request owner is missing");
       const quoteId = `demo-quote-${request.id}`;
       const bookingId = `demo-booking-${request.id}`;
@@ -1903,12 +2086,11 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
         if (existing.sourceKind !== "quote" || existing.quoteId !== quoteId || existing.personalizedRequest?.id !== request.id) {
           conflict("The personalized quote source cannot be changed.");
         }
-        if (existing.totalVndMinor !== String(quoteInput.amountVndMinor) || existing.titleEn !== seededQuote.titleEn ||
+        if (existing.totalVndMinor !== request.totalVndMinor || existing.titleEn !== seededQuote.titleEn ||
           existing.titleVi !== seededQuote.titleVi || existing.cancellationPolicy !== seededQuote.cancellationPolicy ||
-          existing.holdExpiresAt !== seededQuote.holdExpiresAt || existing.catalogSnapshotId !== seededQuote.catalogSnapshotId ||
-          existing.travelSnapshotId !== seededQuote.travelSnapshotId || existing.fxSnapshotId !== seededQuote.fxSnapshotId ||
-          existing.fxVndPerUsd !== seededQuote.fxVndPerUsd || existing.meetingPoint !== seededQuote.meetingPoint ||
-          existing.createdAt !== seededQuote.createdAt) {
+          existing.catalogSnapshotId !== seededQuote.catalogSnapshotId || existing.travelSnapshotId !== seededQuote.travelSnapshotId ||
+          existing.fxSnapshotId !== seededQuote.fxSnapshotId || existing.fxVndPerUsd !== seededQuote.fxVndPerUsd ||
+          existing.meetingPoint !== seededQuote.meetingPoint) {
           conflict("The issued demo quote facts cannot be changed.");
         }
         return clone({
@@ -1919,9 +2101,14 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
           titleEn: existing.titleEn,
           titleVi: existing.titleVi,
           policy: existing.cancellationPolicy,
-          validUntil: existing.holdExpiresAt,
+          issuedAt: existing.createdAt,
+          expiresAt: existing.holdExpiresAt,
+          acceptedAt: existing.quoteAcceptedAt,
         });
       }
+
+      const issuedAt = timestamp();
+      const expiresAt = new Date(Date.parse(issuedAt) + DEMO_QUOTE_VALIDITY_MS).toISOString();
 
       const booking: DemoBookingRecord = {
         id: bookingId,
@@ -1938,19 +2125,20 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
         fxSnapshotId: seededQuote.fxSnapshotId,
         fxVndPerUsd: seededQuote.fxVndPerUsd,
         perPersonVndMinor: null,
-        totalVndMinor: String(quoteInput.amountVndMinor),
+        totalVndMinor: String(amountVndMinor),
         checkoutCurrency: "vnd",
-        checkoutAmountMinor: String(quoteInput.amountVndMinor),
+        checkoutAmountMinor: String(amountVndMinor),
         partySize: request.partySize,
         language: request.locale,
         meetingPoint: seededQuote.meetingPoint,
-        holdExpiresAt: seededQuote.holdExpiresAt,
-        createdAt: seededQuote.createdAt,
+        holdExpiresAt: expiresAt,
+        createdAt: issuedAt,
         ownerUserId: request.ownerUserId,
         paymentStatus: null,
         assignedGuideUserId: null,
         cancellationRequestId: null,
         specialNeeds: request.specialNeeds,
+        quoteAcceptedAt: null,
         personalizedRequest: clone(request),
       };
       envelope.bookings.push(booking);
@@ -1964,8 +2152,36 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
         titleEn: booking.titleEn,
         titleVi: booking.titleVi,
         policy: booking.cancellationPolicy,
-        validUntil: booking.holdExpiresAt,
+        issuedAt: booking.createdAt,
+        expiresAt: booking.holdExpiresAt,
+        acceptedAt: booking.quoteAcceptedAt,
       });
+    },
+
+    async acceptPersonalizedQuote(input: DemoPersonalizedQuoteAcceptanceInput): Promise<CustomerBookingView> {
+      const acceptanceInput = readPersonalizedQuoteAcceptanceInput(input);
+      const envelope = readEnvelope();
+      const actor = actorWithRole(envelope, "customer", "acceptPersonalizedQuote");
+      const booking = findBooking(envelope, acceptanceInput.bookingId);
+      if (booking.ownerUserId !== actor.userId) forbidden("customer", "acceptPersonalizedQuote for another customer");
+      if (booking.sourceKind !== "quote" || booking.personalizedRequest === null) {
+        conflict("Only a personalized quote can be accepted.");
+      }
+      const request = requestForId(envelope, booking.personalizedRequest.id);
+      if (!request || request.ownerUserId !== actor.userId || request.status !== "approved") {
+        conflict("The administrator must approve the personalized request before quote acceptance.");
+      }
+      if (booking.status !== "pending_payment" || booking.paymentStatus !== null) {
+        conflict("The personalized quote is not active for acceptance.");
+      }
+      const acceptedAt = timestamp();
+      if (Date.parse(acceptedAt) >= Date.parse(booking.holdExpiresAt)) {
+        conflict("The personalized quote has expired.");
+      }
+      if (booking.quoteAcceptedAt === null) booking.quoteAcceptedAt = acceptedAt;
+      validateCrossReferences(envelope);
+      writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
+      return clone(toCustomerBookingView(envelope, booking));
     },
 
     async completePersonalizedCheckout(input: DemoPersonalizedCheckoutInput): Promise<CustomerBookingView> {
@@ -1984,7 +2200,9 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       if (booking.status === "confirmed" && booking.paymentStatus === "paid") {
         return clone(toCustomerBookingView(envelope, booking));
       }
-      if (booking.status !== "pending_payment") conflict("The personalized quote is not ready for demo checkout.");
+      if (booking.status !== "pending_payment" || booking.paymentStatus !== null) conflict("The personalized quote is not ready for demo checkout.");
+      if (booking.quoteAcceptedAt === null) conflict("The customer must accept the personalized quote before checkout.");
+      if (Date.parse(timestamp()) >= Date.parse(booking.holdExpiresAt)) conflict("The personalized quote has expired.");
       booking.status = "confirmed";
       booking.paymentStatus = "paid";
       validateCrossReferences(envelope);
@@ -2349,6 +2567,7 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
   const demoIntegration: DemoPortalIntegration = {
     syncFixedBooking: engine.syncFixedBooking,
     submitPersonalizedRequest: engine.submitPersonalizedRequest,
+    acceptPersonalizedQuote: engine.acceptPersonalizedQuote,
     completePersonalizedCheckout: engine.completePersonalizedCheckout,
   };
   const demoQuotes: AdminPersonalizedQuotesPort = {

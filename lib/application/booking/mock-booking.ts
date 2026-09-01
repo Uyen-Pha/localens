@@ -90,6 +90,7 @@ export type BookingQuote = Readonly<{
 
 export type LocalDemoBooking = Readonly<{
   bookingId: string;
+  customerId: string;
   departureId: string;
   partySize: number;
   status: BookingStatus;
@@ -109,6 +110,7 @@ export interface BookingStorage {
 }
 
 export interface CreateLocalBookingInput {
+  customerId?: unknown;
   departureId: unknown;
   partySize: unknown;
   storage?: BookingStorage;
@@ -117,12 +119,14 @@ export interface CreateLocalBookingInput {
 
 export interface CreateTestPaymentInput {
   bookingId: unknown;
+  customerId?: unknown;
   storage?: BookingStorage;
   now?: Date;
 }
 
 export interface StartTestPaymentInput {
   bookingId: unknown;
+  customerId?: unknown;
   idempotencyKey: unknown;
   storage?: BookingStorage;
   now?: Date;
@@ -135,12 +139,18 @@ export interface FinalizeTestPaymentInput extends StartTestPaymentInput {
 const STORAGE_PREFIX = "locallens.demo.booking.v1:";
 const PAYMENT_SESSION_MINUTES = 30;
 const PAYMENT_IDEMPOTENCY_KEY = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+const CUSTOMER_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+const DEFAULT_CUSTOMER_ID = "local-demo-customer";
 const PAYMENT_OUTCOMES = new Set<DemoPaymentOutcome>(["pending", "succeeded", "failed", "cancelled", "expired"]);
 const memoryStorageValues = new Map<string, string>();
 const memoryStorage: BookingStorage = {
   getItem: (key) => memoryStorageValues.get(key) ?? null,
   setItem: (key, value) => memoryStorageValues.set(key, value),
 };
+
+export function clearDemoBookingMemoryStorage(): void {
+  memoryStorageValues.clear();
+}
 
 function getDefaultStorage(): BookingStorage {
   if (typeof window === "undefined") return memoryStorage;
@@ -155,8 +165,9 @@ function getDefaultStorage(): BookingStorage {
   }
 }
 
-function storageKey(bookingId: string): string {
-  return `${STORAGE_PREFIX}${bookingId}`;
+function storageKey(customerId: string, bookingId: string): string {
+  const scopedBookingId = customerId === DEFAULT_CUSTOMER_ID ? bookingId : `${customerId}:${bookingId}`;
+  return `${STORAGE_PREFIX}${scopedBookingId}`;
 }
 
 function validNow(now: Date | undefined): Date {
@@ -189,6 +200,12 @@ function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): b
 
 function validBookingId(value: unknown): string {
   if (typeof value !== "string" || value.length === 0) throw new Error("Unknown demo booking");
+  return value;
+}
+
+function validCustomerId(value: unknown): string {
+  if (value === undefined) return DEFAULT_CUSTOMER_ID;
+  if (typeof value !== "string" || !CUSTOMER_ID.test(value)) throw new Error("Unknown demo customer");
   return value;
 }
 
@@ -247,13 +264,15 @@ function isValidPaymentAttempts(
   return succeeded <= 1;
 }
 
-function loadBooking(storage: BookingStorage, bookingId: string): Omit<LocalDemoBooking, "resumed"> | undefined {
-  const raw = storage.getItem(storageKey(bookingId));
-  if (raw === null) return undefined;
+function validatedBooking(
+  value: unknown,
+  bookingId: string,
+  customerId: string,
+): Omit<LocalDemoBooking, "resumed"> | undefined {
   try {
-    const value: unknown = JSON.parse(raw);
     if (!isRecord(value) || !hasOnlyKeys(value, [
       "bookingId",
+      "customerId",
       "departureId",
       "partySize",
       "status",
@@ -272,13 +291,14 @@ function loadBooking(storage: BookingStorage, bookingId: string): Omit<LocalDemo
     if (
       typeof value.bookingId !== "string" ||
       value.bookingId !== bookingId ||
+      value.customerId !== customerId ||
       departure === undefined ||
       typeof partySize !== "number" ||
       !Number.isSafeInteger(partySize) ||
       partySize < 1 ||
       partySize > 20 ||
       partySize > departure.remainingCapacity ||
-      value.bookingId !== `demo-booking-${departure.departureId}-${partySize}` ||
+      value.bookingId !== `demo-booking-${customerId}-${departure.departureId}-${partySize}` ||
       (value.status !== "held" && value.status !== "paid") ||
       (value.paymentStatus !== "unpaid" && value.paymentStatus !== "succeeded") ||
       (value.status === "held" && value.paymentStatus !== "unpaid") ||
@@ -322,8 +342,25 @@ function loadBooking(storage: BookingStorage, bookingId: string): Omit<LocalDemo
   }
 }
 
+function loadBooking(
+  storage: BookingStorage,
+  bookingId: string,
+  customerId: string,
+): Omit<LocalDemoBooking, "resumed"> | undefined {
+  const raw = storage.getItem(storageKey(customerId, bookingId));
+  if (raw === null) return undefined;
+  try {
+    return validatedBooking(JSON.parse(raw) as unknown, bookingId, customerId);
+  } catch {
+    return undefined;
+  }
+}
+
 function saveBooking(storage: BookingStorage, booking: Omit<LocalDemoBooking, "resumed">): void {
-  storage.setItem(storageKey(booking.bookingId), JSON.stringify(booking));
+  if (validatedBooking(booking, booking.bookingId, booking.customerId) === undefined) {
+    throw new Error("Invalid demo booking state");
+  }
+  storage.setItem(storageKey(booking.customerId, booking.bookingId), JSON.stringify(booking));
 }
 
 export function getDemoDeparture(departureId: unknown): DemoDeparture | undefined {
@@ -344,8 +381,9 @@ export function createLocalBooking(input: CreateLocalBookingInput): LocalDemoBoo
 
   const clock = validNow(input.now);
   const storage = input.storage ?? getDefaultStorage();
-  const bookingId = `demo-booking-${departure.departureId}-${partySize}`;
-  const existing = loadBooking(storage, bookingId);
+  const customerId = validCustomerId(input.customerId);
+  const bookingId = `demo-booking-${customerId}-${departure.departureId}-${partySize}`;
+  const existing = loadBooking(storage, bookingId, customerId);
   if (existing !== undefined) {
     const holdIsActive = existing.status === "paid" || (
       new Date(existing.holdExpiresAt).getTime() > clock.getTime() &&
@@ -357,6 +395,7 @@ export function createLocalBooking(input: CreateLocalBookingInput): LocalDemoBoo
   const createdAt = clock.toISOString();
   const booking: Omit<LocalDemoBooking, "resumed"> = {
     bookingId,
+    customerId,
     departureId: departure.departureId,
     partySize,
     status: "held",
@@ -379,9 +418,10 @@ export function createLocalBooking(input: CreateLocalBookingInput): LocalDemoBoo
 
 export function startTestPayment(input: StartTestPaymentInput): DemoPaymentAttempt {
   const bookingId = validBookingId(input.bookingId);
+  const customerId = validCustomerId(input.customerId);
   const idempotencyKey = validIdempotencyKey(input.idempotencyKey);
   const storage = input.storage ?? getDefaultStorage();
-  const existing = loadBooking(storage, bookingId);
+  const existing = loadBooking(storage, bookingId, customerId);
   if (existing === undefined) throw new Error("Unknown demo booking");
 
   const clock = validNow(input.now);
@@ -431,9 +471,10 @@ export function startTestPayment(input: StartTestPaymentInput): DemoPaymentAttem
 
 export function finalizeTestPayment(input: FinalizeTestPaymentInput): LocalDemoBooking {
   const bookingId = validBookingId(input.bookingId);
+  const customerId = validCustomerId(input.customerId);
   const idempotencyKey = validIdempotencyKey(input.idempotencyKey);
   const storage = input.storage ?? getDefaultStorage();
-  const existing = loadBooking(storage, bookingId);
+  const existing = loadBooking(storage, bookingId, customerId);
   if (existing === undefined) throw new Error("Unknown demo booking");
   const prior = existing.paymentAttempts.find((attempt) => attempt.idempotencyKey === idempotencyKey);
   if (prior === undefined) throw new Error("Unknown demo payment attempt");
@@ -447,11 +488,15 @@ export function finalizeTestPayment(input: FinalizeTestPaymentInput): LocalDemoB
     ? "expired"
     : input.outcome;
   const updatedAttempt: DemoPaymentAttempt = { ...prior, outcome, updatedAt: clock.toISOString() };
+  const paymentAttempts = existing.paymentAttempts.map(
+    (attempt) => attempt.idempotencyKey === idempotencyKey ? updatedAttempt : attempt,
+  );
+  const hasSucceeded = paymentAttempts.some((attempt) => attempt.outcome === "succeeded");
   const next: Omit<LocalDemoBooking, "resumed"> = {
     ...existing,
-    status: outcome === "succeeded" ? "paid" : "held",
-    paymentStatus: outcome === "succeeded" ? "succeeded" : "unpaid",
-    paymentAttempts: existing.paymentAttempts.map((attempt) => attempt.idempotencyKey === idempotencyKey ? updatedAttempt : attempt),
+    status: hasSucceeded ? "paid" : "held",
+    paymentStatus: hasSucceeded ? "succeeded" : "unpaid",
+    paymentAttempts,
     updatedAt: clock.toISOString(),
   };
   saveBooking(storage, next);
@@ -460,13 +505,14 @@ export function finalizeTestPayment(input: FinalizeTestPaymentInput): LocalDemoB
 
 export function createTestPayment(input: CreateTestPaymentInput): LocalDemoBooking {
   const bookingId = validBookingId(input.bookingId);
+  const customerId = validCustomerId(input.customerId);
   const storage = input.storage ?? getDefaultStorage();
-  const existing = loadBooking(storage, bookingId);
+  const existing = loadBooking(storage, bookingId, customerId);
   if (existing === undefined) throw new Error("Unknown demo booking");
   if (existing.status === "paid") return { ...existing, resumed: true };
 
   const idempotencyKey = "legacy-success";
-  const attempt = startTestPayment({ bookingId, idempotencyKey, storage, now: input.now });
+  const attempt = startTestPayment({ bookingId, customerId, idempotencyKey, storage, now: input.now });
   if (attempt.outcome === "expired") throw new Error("Demo payment session expired");
-  return finalizeTestPayment({ bookingId, idempotencyKey, outcome: "succeeded", storage, now: input.now });
+  return finalizeTestPayment({ bookingId, customerId, idempotencyKey, outcome: "succeeded", storage, now: input.now });
 }

@@ -18,6 +18,7 @@ import type {
   Result,
   TourStatus,
 } from "@/lib/domain/data/contracts";
+import type { DemoPlannerRevision } from "@/lib/application/planner/demo-planner";
 
 export type PortalMode = "demo" | "production";
 
@@ -388,6 +389,8 @@ export interface TourReview {
 /** Customer-facing booking projection; private owner/assignment fields are omitted. */
 export interface CustomerBookingView extends CustomerBooking {
   paymentStatus: PaymentStatus | null;
+  /** Persisted only for personalized demo quotes; null for fixed bookings. */
+  quoteAcceptedAt: string | null;
   cancellationRequest: CancellationRequest | null;
   review: TourReview | null;
 }
@@ -520,6 +523,8 @@ export type AdminPersonalizedRequestProjection = CustomerCustomRequest & {
   partySize: number;
   requestedTotalVndMinor: string;
   specialNeeds: string | null;
+  confirmedRevisionFingerprint: string;
+  confirmedRevisionSnapshot: DemoPlannerRevision;
 };
 
 export interface AdminPersonalizedRequestsPort {
@@ -534,7 +539,6 @@ export interface AdminPersonalizedRequestsPort {
 /** Admin-only demo operation that issues a quote from the seeded demo facts. */
 export interface AdminPersonalizedQuoteInput {
   requestId: string;
-  amountVndMinor: number;
 }
 
 export interface AdminPersonalizedQuoteProjection {
@@ -545,7 +549,9 @@ export interface AdminPersonalizedQuoteProjection {
   titleEn: string;
   titleVi: string;
   policy: string;
-  validUntil: string;
+  issuedAt: string;
+  expiresAt: string;
+  acceptedAt: string | null;
 }
 
 export interface AdminPersonalizedQuotesPort {

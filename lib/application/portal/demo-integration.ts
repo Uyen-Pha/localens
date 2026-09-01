@@ -1,5 +1,6 @@
 import type { CustomerCustomRequest, Locale } from "@/lib/domain/data/contracts";
 import type { CustomerBookingView } from "@/lib/application/portal/contracts";
+import type { CustomRequestDraft } from "@/lib/application/planner/custom-request-demo";
 
 /**
  * Browser-demo ingress only. Production composition must not expose this
@@ -24,13 +25,14 @@ export interface DemoFixedBookingInput {
 
 export interface DemoPersonalizedRequestInput {
   requestId: string;
-  planId: string;
-  revisionNo: number;
   locale: Locale;
-  partySize: number;
-  totalVndMinor: number;
-  specialNeeds: string;
+  /** The exact customer-confirmed planner handoff, including its local tamper fingerprint. */
+  confirmedDraft: CustomRequestDraft;
   createdAt: string;
+}
+
+export interface DemoPersonalizedQuoteAcceptanceInput {
+  bookingId: string;
 }
 
 export interface DemoPersonalizedCheckoutInput {
@@ -53,6 +55,9 @@ export interface DemoPortalIntegration {
   submitPersonalizedRequest(
     input: DemoPersonalizedRequestInput,
   ): Promise<DemoPersonalizedRequestSubmission>;
+  acceptPersonalizedQuote(
+    input: DemoPersonalizedQuoteAcceptanceInput,
+  ): Promise<CustomerBookingView>;
   completePersonalizedCheckout(
     input: DemoPersonalizedCheckoutInput,
   ): Promise<CustomerBookingView>;

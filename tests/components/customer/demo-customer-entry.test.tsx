@@ -63,7 +63,7 @@ describe("default customer route entry", () => {
     await expect(composition.admin.bookings.listAdminBookings()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: `demo-booking-${departureId}-2`,
+          id: `demo-booking-demo-user-customer-${departureId}-2`,
           status: "pending_payment",
           paymentStatus: "pending",
         }),
@@ -133,7 +133,6 @@ describe("default customer route entry", () => {
     });
     await composition.demoQuotes.issueDemoQuote({
       requestId: pending.id,
-      amountVndMinor: Number(pending.requestedTotalVndMinor),
     });
 
     await composition.session.selectDemoIdentity("demo-user-customer");

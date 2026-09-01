@@ -1,9 +1,15 @@
+// @vitest-environment node
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
   clearLocalLensDemoStorage,
   type DemoStorageArea,
 } from "@/lib/application/demo/reset-demo";
+import {
+  createLocalBooking,
+  DEMO_DEPARTURE_IDS,
+} from "@/lib/application/booking/mock-booking";
 
 class MemoryStorage implements DemoStorageArea {
   private readonly values = new Map<string, string>();
@@ -59,7 +65,7 @@ describe("LocalLens demo storage reset", () => {
     expect(local.clear).not.toHaveBeenCalled();
   });
 
-  it("fails safely when one storage area blocks enumeration or removal", () => {
+  it("continues other cleanup but reports an incomplete reset when storage is blocked", () => {
     const blockedSession: DemoStorageArea = {
       get length(): number { throw new Error("blocked"); },
       key: () => { throw new Error("blocked"); },
@@ -68,7 +74,32 @@ describe("LocalLens demo storage reset", () => {
     const local = new MemoryStorage();
     local.setItem("locallens.demo.booking.v1:booking-1", "demo");
 
-    expect(() => clearLocalLensDemoStorage({ session: blockedSession, local })).not.toThrow();
+    expect(() => clearLocalLensDemoStorage({ session: blockedSession, local })).toThrow(
+      "LocalLens demo storage reset was incomplete",
+    );
     expect(local.getItem("locallens.demo.booking.v1:booking-1")).toBeNull();
+  });
+
+  it("clears the module-memory booking fallback", () => {
+    const session = new MemoryStorage();
+    const local = new MemoryStorage();
+    const first = createLocalBooking({
+      customerId: "memory-reset-customer",
+      departureId: DEMO_DEPARTURE_IDS[0],
+      partySize: 7,
+      now: new Date("2026-09-01T02:00:00.000Z"),
+    });
+
+    clearLocalLensDemoStorage({ session, local });
+
+    const afterReset = createLocalBooking({
+      customerId: "memory-reset-customer",
+      departureId: DEMO_DEPARTURE_IDS[0],
+      partySize: 7,
+      now: new Date("2026-09-01T02:05:00.000Z"),
+    });
+    expect(first.resumed).toBe(false);
+    expect(afterReset.resumed).toBe(false);
+    expect(afterReset.createdAt).toBe("2026-09-01T02:05:00.000Z");
   });
 });

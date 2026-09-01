@@ -1,3 +1,5 @@
+import { clearDemoBookingMemoryStorage } from "@/lib/application/booking/mock-booking";
+
 export interface DemoStorageArea {
   readonly length: number;
   key(index: number): string | null;
@@ -15,10 +17,10 @@ const DEMO_LOCAL_PREFIXES = [
   "locallens.demo.booking.v1:",
 ] as const;
 
-function matchingKeys(
+function clearMatchingKeys(
   storage: DemoStorageArea,
   matches: (key: string) => boolean,
-): string[] {
+): boolean {
   const keys: string[] = [];
   try {
     for (let index = 0; index < storage.length; index += 1) {
@@ -26,27 +28,30 @@ function matchingKeys(
       if (key !== null && matches(key)) keys.push(key);
     }
   } catch {
-    return [];
+    return false;
   }
-  return keys;
-}
-
-function removeSafely(storage: DemoStorageArea, keys: readonly string[]): void {
+  let complete = true;
   for (const key of keys) {
     try {
       storage.removeItem(key);
     } catch {
-      // A blocked browser storage area must not prevent the remaining reset.
+      complete = false;
     }
   }
+  return complete;
 }
 
 export function clearLocalLensDemoStorage(input: {
   session: DemoStorageArea;
   local: DemoStorageArea;
 }): void {
-  const sessionKeys = matchingKeys(input.session, (key) => DEMO_SESSION_KEYS.has(key));
-  const localKeys = matchingKeys(input.local, (key) => DEMO_LOCAL_PREFIXES.some((prefix) => key.startsWith(prefix)));
-  removeSafely(input.session, sessionKeys);
-  removeSafely(input.local, localKeys);
+  const sessionComplete = clearMatchingKeys(input.session, (key) => DEMO_SESSION_KEYS.has(key));
+  const localComplete = clearMatchingKeys(
+    input.local,
+    (key) => DEMO_LOCAL_PREFIXES.some((prefix) => key.startsWith(prefix)),
+  );
+  clearDemoBookingMemoryStorage();
+  if (!sessionComplete || !localComplete) {
+    throw new Error("LocalLens demo storage reset was incomplete");
+  }
 }
