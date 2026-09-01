@@ -148,6 +148,7 @@ async function createHoldThroughUi(
   options: {
     locale: "en" | "vi";
     partySize: number;
+    seatsRemaining: number;
     title: string;
     meetingPoint: string;
   },
@@ -161,7 +162,12 @@ async function createHoldThroughUi(
   await expect(page.getByRole("heading", { name: options.title, level: 2 })).toBeVisible();
   await expect(page.getByText(options.meetingPoint, { exact: true })).toBeVisible();
   await expect(page.getByText(fixture.policy, { exact: true })).toBeVisible();
-  await expect(page.getByText(options.locale === "vi" ? "Còn 8 chỗ" : "8 seats remaining", { exact: true })).toBeVisible();
+  await expect(page.getByText(
+    options.locale === "vi"
+      ? `Còn ${options.seatsRemaining} chỗ`
+      : `${options.seatsRemaining} seats remaining`,
+    { exact: true },
+  )).toBeVisible();
   await page.getByRole("link", {
     name: options.locale === "vi" ? `Đặt ${options.title}` : `Book ${options.title}`,
     exact: true,
@@ -273,6 +279,7 @@ test.describe("B2.2a local runtime fixed-tour acceptance", () => {
       const result = await createHoldThroughUi(page, {
         locale: "en",
         partySize: 1,
+        seatsRemaining: 8,
         title: fixture.enTitle,
         meetingPoint: fixture.enMeetingPoint,
       });
@@ -300,6 +307,7 @@ test.describe("B2.2a local runtime fixed-tour acceptance", () => {
       const result = await createHoldThroughUi(page, {
         locale: "vi",
         partySize: 2,
+        seatsRemaining: 7,
         title: fixture.viTitle,
         meetingPoint: fixture.viMeetingPoint,
       });
