@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 
-import type { PortalIdentity } from "@/lib/application/portal/contracts";
+import { PortalError, type PortalIdentity } from "@/lib/application/portal/contracts";
 import type { SupabasePortalShell } from "@/lib/application/portal/supabase-shell";
 import type { Locale } from "@/lib/i18n/config";
 
@@ -20,6 +20,11 @@ export interface SupabasePortalSurfaceProps {
 }
 
 type LoadState = "loading" | "ready" | "error";
+
+function isStaleRuntimeSession(error: unknown): error is PortalError {
+  return error instanceof PortalError &&
+    (error.code === "UNAUTHENTICATED" || error.code === "FORBIDDEN");
+}
 
 function createCorrelationId(): string {
   const value = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -242,19 +247,31 @@ export function SupabasePortalSurface({
     let disposed = false;
     setLoadState("loading");
     setCorrelationId("");
-    void composition.initialized
-      .then(() => composition.session.getSession())
-      .then((identity) => {
+    void (async () => {
+      try {
+        await composition.initialized;
+        let identity: PortalIdentity | null;
+        try {
+          identity = await composition.session.getSession();
+        } catch (error) {
+          if (!isStaleRuntimeSession(error)) throw error;
+          try {
+            await composition.session.signOut();
+          } catch {
+            // A revoked remote session can also reject cleanup; local recovery remains available.
+          }
+          identity = null;
+        }
         if (disposed) return;
         setSession(identity);
         setLoadState("ready");
-      })
-      .catch(() => {
+      } catch {
         if (disposed) return;
         setSession(null);
         setCorrelationId(createCorrelationId());
         setLoadState("error");
-      });
+      }
+    })();
     return () => {
       disposed = true;
     };

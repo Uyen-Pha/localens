@@ -100,10 +100,12 @@ const ACCOUNTS = [
 
 class MemoryRuntimeSession implements RuntimeSessionPort {
   private current: PortalIdentity | null = null;
+  private sessionReadError: Error | null = null;
   private signInGate: Promise<void> | null = null;
   private signOutError: Error | null = null;
   reads = 0;
   signInCalls = 0;
+  signOutCalls = 0;
 
   seed(identity: PortalIdentity): void {
     this.current = { ...identity };
@@ -113,12 +115,17 @@ class MemoryRuntimeSession implements RuntimeSessionPort {
     this.signInGate = gate;
   }
 
+  rejectSessionReadWith(error: Error): void {
+    this.sessionReadError = error;
+  }
+
   rejectSignOutWith(error: Error): void {
     this.signOutError = error;
   }
 
   async getSession(): Promise<PortalIdentity | null> {
     this.reads += 1;
+    if (this.sessionReadError) throw this.sessionReadError;
     return this.current === null ? null : { ...this.current };
   }
 
@@ -136,6 +143,7 @@ class MemoryRuntimeSession implements RuntimeSessionPort {
   }
 
   async signOut(): Promise<void> {
+    this.signOutCalls += 1;
     if (this.signOutError) throw this.signOutError;
     this.current = null;
   }
@@ -309,6 +317,42 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
 
     expect(await screen.findByRole("heading", { name: copy.heading })).toBeInTheDocument();
     expect(screen.getByLabelText(copy.password)).toBeInTheDocument();
+  });
+
+  it.each(["UNAUTHENTICATED", "FORBIDDEN"] as const)(
+    "clears a stale runtime session after a %s identity failure even when remote sign-out fails",
+    async (code) => {
+      const session = new MemoryRuntimeSession();
+      session.seed(ACCOUNTS[0].identity);
+      session.rejectSessionReadWith(new PortalError(code, "stale-session-detail-do-not-leak"));
+      session.rejectSignOutWith(new Error("remote-sign-out-detail-do-not-leak"));
+
+      renderSurface({ locale, shell: shellFor(session), expectedRole: "customer" });
+
+      expect(await screen.findByRole("heading", { name: copy.heading })).toBeInTheDocument();
+      expect(screen.getByLabelText(copy.password)).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: copy.serviceTitle })).not.toBeInTheDocument();
+      expect(session.signOutCalls).toBe(1);
+      expect(document.body.textContent).not.toContain("stale-session-detail-do-not-leak");
+      expect(document.body.textContent).not.toContain("remote-sign-out-detail-do-not-leak");
+    },
+  );
+
+  it.each([
+    ["network", new Error("network-detail-do-not-leak")],
+    ["configuration", new PortalError("PRODUCTION_CONFIGURATION", "config-detail-do-not-leak")],
+  ])("keeps %s session recovery failures retryable as service unavailable", async (_kind, error) => {
+    const session = new MemoryRuntimeSession();
+    session.seed(ACCOUNTS[0].identity);
+    session.rejectSessionReadWith(error);
+
+    renderSurface({ locale, shell: shellFor(session), expectedRole: "customer" });
+
+    expect(await screen.findByRole("heading", { name: copy.serviceTitle })).toBeInTheDocument();
+    expect(screen.getByText(copy.reference)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: copy.heading })).not.toBeInTheDocument();
+    expect(session.signOutCalls).toBe(0);
+    expect(document.body.textContent).not.toContain(error.message);
   });
 
   it("shows service unavailable with a correlation reference and retries without demo fallback", async () => {
