@@ -64,6 +64,7 @@ describe("PortalSurface", () => {
 
     expect(await screen.findByRole("heading", { name: /customer portal unavailable/i })).toBeInTheDocument();
     expect(screen.getByText(/signed in as a guide/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /open your portal/i })).toHaveAttribute("href", "/en/guide");
     expect(screen.queryByRole("heading", { name: /your bookings/i })).not.toBeInTheDocument();
     expect(screen.queryByText("traveler@example.invalid")).not.toBeInTheDocument();
   });
@@ -91,12 +92,47 @@ describe("PortalSurface", () => {
     render(<BrowserCompositionHarness />);
 
     const customerLinks = await screen.findAllByRole("link", { name: /continue as customer/i });
-    fireEvent.click(customerLinks[0]);
+    expect(customerLinks).toHaveLength(2);
+    const primaryCustomerHeading = screen.getByRole("heading", { name: "Demo Traveler" });
+    const secondaryCustomerHeading = screen.getByRole("heading", { name: "Second Demo Traveler" });
+    expect(primaryCustomerHeading).toBeInTheDocument();
+    expect(secondaryCustomerHeading).toBeInTheDocument();
+    const primaryCustomerCard = primaryCustomerHeading.closest("article");
+    const secondaryCustomerCard = secondaryCustomerHeading.closest("article");
+    expect(primaryCustomerCard).not.toBeNull();
+    expect(secondaryCustomerCard).not.toBeNull();
+    expect(customerLinks).toContain(within(primaryCustomerCard!).getByRole("link", { name: "Continue as Customer" }));
+    expect(customerLinks).toContain(within(secondaryCustomerCard!).getByRole("link", { name: "Continue as Customer" }));
+    fireEvent.click(within(primaryCustomerCard!).getByRole("link", { name: "Continue as Customer" }));
 
     expect(await screen.findByRole("heading", { name: /your customer portal/i })).toBeInTheDocument();
     expect(destinations).toEqual(["/en/account/"]);
     await expect(composition.session.getSession()).resolves.toMatchObject({ userId: "demo-user-customer" });
     expect(await screen.findByText(/markets and street food/i)).toBeInTheDocument();
+  });
+
+  it("resets only LocalLens browser keys, signs out, and returns focus to sign-in", async () => {
+    const composition = await createComposition();
+    await signIn(composition, "demo-user-customer");
+    window.sessionStorage.setItem("other-app", "keep");
+    window.localStorage.setItem("other-app", "keep");
+    window.sessionStorage.setItem("localens.custom-request.v1", "remove");
+    window.localStorage.setItem("locallens.demo.booking.v1:booking-1", "remove");
+
+    render(<TestSurface locale="en" composition={composition} />);
+    const reset = await screen.findByRole("button", { name: /reset locallens demo/i });
+    fireEvent.click(reset);
+
+    expect(await screen.findByRole("status")).toHaveTextContent(/demo state was reset/i);
+    await waitFor(() => expect(screen.getByRole("heading", { name: /sign in to your demo account/i })).toHaveFocus());
+    await expect(composition.session.getSession()).resolves.toBeNull();
+    expect(window.sessionStorage.getItem("localens.custom-request.v1")).toBeNull();
+    expect(window.localStorage.getItem("locallens.demo.booking.v1:booking-1")).toBeNull();
+    expect(window.sessionStorage.getItem("other-app")).toBe("keep");
+    expect(window.localStorage.getItem("other-app")).toBe("keep");
+
+    window.sessionStorage.removeItem("other-app");
+    window.localStorage.removeItem("other-app");
   });
 
   it("isolates every direct cross-role portal entry", async () => {

@@ -395,6 +395,13 @@ export type Dictionary = {
     unpaidStatus: string;
     payLabel: string;
     payingLabel: string;
+    simulateSuccessLabel: string;
+    simulateFailureLabel: string;
+    failureHeading: string;
+    failureMessage: string;
+    cancelledHeading: string;
+    expiredHeading: string;
+    retryPaymentLabel: string;
     successHeading: string;
     successMessage: string;
     successReferenceLabel: string;
@@ -1131,7 +1138,7 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     refreshLabel: "Refresh latest proposal",
     revisionFeedbackLabel: "Traveler feedback",
     requestQuoteLabel: "Request a quote for this revision",
-    requestQuoteDisclosure: "This opens a local custom-request demo. It does not sign you in, contact admin, or book a tour.",
+    requestQuoteDisclosure: "Only the signed-in demo customer can actively confirm this revision and open the local request step. Nothing is sent to a production backend.",
     requestQuoteStorageError: "This browser could not save the selected revision. The quote request link is unavailable.",
     backHomeLabel: "Back to LocalLens home",
   },
@@ -1210,7 +1217,7 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     refreshLabel: "Tải phiên bản mới nhất",
     revisionFeedbackLabel: "Phản hồi của khách",
     requestQuoteLabel: "Yêu cầu báo giá cho phiên bản này",
-    requestQuoteDisclosure: "Đây là demo yêu cầu cá nhân hóa cục bộ. Không đăng nhập, liên hệ admin hay đặt tour nào được thực hiện.",
+    requestQuoteDisclosure: "Chỉ khách hàng demo đang đăng nhập mới có thể chủ động xác nhận phiên bản này và mở bước gửi yêu cầu cục bộ. Không có dữ liệu nào được gửi đến backend production.",
     requestQuoteStorageError: "Trình duyệt không thể lưu phiên bản đã chọn. Liên kết yêu cầu báo giá không khả dụng.",
     backHomeLabel: "Quay lại trang chủ LocalLens",
   },

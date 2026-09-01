@@ -1,41 +1,21 @@
 import { expect, test, type Page } from "@playwright/test";
 
-type Locale = "en";
-type DemoRole = "customer" | "guide" | "admin";
+import { PORTAL_COPY } from "@/components/portals/portal-copy";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
-const PORTAL_COPY = {
-  en: {
-    signInHeading: "Sign in to your demo account",
-    continueAs: {
-      customer: "Continue as Customer",
-      guide: "Continue as Guide",
-      admin: "Continue as Administrator",
-    },
-    signOut: "Sign out",
-    accessDeniedTitle: {
-      customer: "Customer portal unavailable",
-      guide: "Guide portal unavailable",
-      admin: "Admin portal unavailable",
-    },
-    accessDeniedMessage: "This route is limited to the signed-in role.",
-    signedInAsRole: "You are signed in as a",
-    roleLabel: {
-      customer: "Customer",
-      guide: "Guide",
-      admin: "Administrator",
-    },
-    portalHeading: {
-      customer: "Your customer portal",
-      guide: "Guide portal",
-      admin: "Admin portal",
-    },
-  },
-} as const;
+type Locale = "en" | "vi";
+type DemoRole = "customer" | "guide" | "admin";
 
 const ROLE_SEGMENT: Record<DemoRole, string> = {
   customer: "account",
   guide: "guide",
   admin: "admin",
+};
+
+const IDENTITY_DISPLAY_NAME: Record<DemoRole, string> = {
+  customer: "Demo Traveler",
+  guide: "Demo Guide",
+  admin: "Demo Administrator",
 };
 
 interface BrowserDiagnostics {
@@ -76,9 +56,25 @@ async function assertHealthyPage(page: Page, diagnostics: BrowserDiagnostics): P
   ).toBe(true);
 }
 
+function identityCard(page: Page, displayName: string) {
+  return page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: displayName, exact: true }),
+  });
+}
+
+async function selectDemoIdentity(
+  page: Page,
+  displayName: string,
+  actionLabel: string,
+): Promise<void> {
+  const card = identityCard(page, displayName);
+  await expect(card).toHaveCount(1);
+  await card.getByRole("link", { name: actionLabel, exact: true }).click();
+}
+
 async function chooseIdentity(page: Page, locale: Locale, role: DemoRole): Promise<void> {
   const copy = PORTAL_COPY[locale];
-  await page.getByRole("link", { name: copy.continueAs[role], exact: true }).click();
+  await selectDemoIdentity(page, IDENTITY_DISPLAY_NAME[role], `${copy.continueAs} ${copy[role]}`);
   await expect(page).toHaveURL(new RegExp(`/${locale}/${ROLE_SEGMENT[role]}/?$`));
 }
 
@@ -97,7 +93,7 @@ async function switchRole(page: Page, locale: Locale, nextRole: DemoRole): Promi
   if (await signOut.count() > 0) {
     await signOut.click();
   } else {
-    await page.locator("header.site-header").getByRole("link", { name: "Sign in", exact: true }).click();
+    await page.locator("header.site-header").getByRole("link", { name: getDictionary(locale).navigation.signIn, exact: true }).click();
   }
   await enterDemoIdentity(page, locale, nextRole);
 }
@@ -109,14 +105,24 @@ async function assertAccessDenied(
   actualRole: DemoRole,
 ): Promise<void> {
   const copy = PORTAL_COPY[locale];
+  const accessDeniedTitle = expectedRole === "customer"
+    ? copy.accessDeniedTitle
+    : expectedRole === "guide"
+      ? copy.guideAccessDeniedTitle
+      : copy.adminAccessDeniedTitle;
+  const portalHeading = expectedRole === "customer"
+    ? copy.customerHeading
+    : expectedRole === "guide"
+      ? copy.guidePortal
+      : copy.adminPortal;
   await page.goto(`/${locale}/${ROLE_SEGMENT[expectedRole]}/`);
-  await expect(page.getByRole("heading", { name: copy.accessDeniedTitle[expectedRole], exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: accessDeniedTitle, exact: true })).toBeVisible();
   await expect(page.getByText(copy.accessDeniedMessage, { exact: true })).toBeVisible();
   await expect(page.getByText(
-    `${copy.signedInAsRole} ${copy.roleLabel[actualRole]}.`,
+    `${copy.signedInAsRole}${locale === "en" && actualRole === "admin" ? "n" : ""} ${copy[actualRole]}.`,
     { exact: true },
   )).toBeVisible();
-  await expect(page.getByRole("heading", { name: copy.portalHeading[expectedRole], exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: portalHeading, exact: true })).toHaveCount(0);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -156,7 +162,11 @@ test("fixed tour browse, payment, admin assignment, and guide visibility stay co
   await page.getByRole("button", { name: "Continue to Test Checkout", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Test checkout", exact: true })).toBeVisible();
   await expect(page.getByText("Not paid", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Pay with Stripe Test simulation", exact: true }).click();
+  await page.getByRole("button", { name: "Simulate failed payment", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Demo payment failed", exact: true })).toBeVisible();
+  await expect(page.getByText("The simulated payment failed. No charge was made; you can retry this booking.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Retry demo payment", exact: true }).click();
+  await page.getByRole("button", { name: "Simulate successful payment", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Demo payment succeeded", exact: true })).toBeVisible();
   await expect(page.getByText("Paid in test mode", { exact: true })).toBeVisible();
   await expect(page.getByText("Demo booking reference", { exact: true })).toBeVisible();
@@ -189,11 +199,13 @@ test("personalized route refinement submits for admin quote review and completes
   await page.locator("header.site-header").getByRole("link", { name: "LocalLens", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your Saigon, planned around you", exact: true })).toBeVisible();
   const personalizationForm = page.getByRole("form", { name: "Personalized route preferences", exact: true });
-  await personalizationForm.getByLabel("Preferred start date", { exact: true }).fill("2026-09-10");
+  await personalizationForm.getByLabel("Hours", { exact: true }).fill("6");
+  await personalizationForm.getByLabel("Preferred start date", { exact: true }).fill("2026-09-05");
   await personalizationForm.getByLabel("Budget for your whole group", { exact: true }).fill("2000000");
   await personalizationForm.getByLabel("People in your party", { exact: true }).fill("2");
   await personalizationForm.getByLabel("District 1 & central", { exact: true }).check();
-  await personalizationForm.getByLabel("Food & everyday flavor", { exact: true }).fill("4");
+  await personalizationForm.getByLabel("Food & everyday flavor", { exact: true }).fill("0");
+  await personalizationForm.getByLabel("Markets & neighborhood life", { exact: true }).fill("4");
   await personalizationForm.getByRole("button", { name: "Preview my route brief", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your route proposal", exact: true })).toBeVisible();
   await expect(page.getByText("Preview only: your preferences stay on this page and are not sent yet.", { exact: true })).toBeVisible();
@@ -203,18 +215,20 @@ test("personalized route refinement submits for admin quote review and completes
   await expect(page).toHaveURL(/\/en\/planner\/?$/);
   await expect(page.getByRole("heading", { name: "Your personalized route proposal", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Revision 1", exact: true })).toBeVisible();
-  await expect(page.getByText("Proposal only — no booking or confirmation has been made.", { exact: true })).toBeVisible();
+  await expect(page.getByText("This is a suggestion for discussion. It does not confirm or book a tour automatically.", { exact: true }).first()).toBeVisible();
 
   await page.getByLabel("What should we adjust?", { exact: true }).fill("Keep the market stop and slow the pace.");
   await page.getByRole("button", { name: "Create revised proposal", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "A new simulated proposal revision is ready for review." })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Revision 2", exact: true })).toBeVisible();
 
-  // The current planner has no separate itinerary-confirm button; its explicit
-  // confirmation boundary is the mock-quote acceptance asserted below.
+  // The traveler actively selects the current immutable revision before any
+  // request is submitted; admin approval and quote acceptance happen later.
   await page.getByRole("link", { name: "Request a quote for this revision", exact: true }).click();
   await expect(page).toHaveURL(/\/en\/custom-request\/?$/);
   await expect(page.getByRole("heading", { name: "Request a review and quote", exact: true })).toBeVisible();
+  const confirmedRevision = page.getByRole("region", { name: "Selected itinerary revision", exact: true });
+  await expect(confirmedRevision.getByText("Revision", { exact: true }).locator("xpath=..").getByRole("definition")).toHaveText("2");
   await expect(page.getByRole("heading", { name: "Submit for local admin review", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Submit local demo request", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Admin review pending (simulated)", exact: true })).toBeVisible();
@@ -240,9 +254,9 @@ test("personalized route refinement submits for admin quote review and completes
   await expect(requestCard).toContainText("The remaining quote facts come from the seeded demo quote fixture");
 
   await switchRole(page, "en", "customer");
-  await page.locator("header.site-header").getByRole("link", { name: "Personalized trip", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your personalized route proposal", exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Request a quote for this revision", exact: true }).click();
+  await page.goto("/en/custom-request/");
+  const selectedRevision = page.getByRole("region", { name: "Selected itinerary revision", exact: true });
+  await expect(selectedRevision.getByText("Revision", { exact: true }).locator("xpath=..").getByRole("definition")).toHaveText("2");
   await expect(page.getByRole("heading", { name: "Mock quote", exact: true })).toBeVisible();
   await expect(page.getByText("This amount is the administrator-issued demo quote and remains immutable in this local flow.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Accept this mock quote", exact: true }).click();
@@ -253,10 +267,82 @@ test("personalized route refinement submits for admin quote review and completes
 
   await page.locator("header.site-header").getByRole("link", { name: "Sign in", exact: true }).click();
   await enterDemoIdentity(page, "en", "customer");
-  const personalizedBooking = page.getByRole("article").filter({ hasText: "A Personal Saigon Day" });
+  const personalizedBooking = page.locator(`article[aria-labelledby="customer-booking-demo-booking-${requestId}"]`);
   await expect(personalizedBooking).toBeVisible();
   await expect(personalizedBooking).toContainText("Confirmed");
   await expect(personalizedBooking).toContainText("Paid");
+  await assertHealthyPage(page, diagnostics);
+});
+
+test("personalized request runs the complete customer and admin chain in Vietnamese", async ({ page }) => {
+  const locale = "vi" as const;
+  const diagnostics = installDiagnostics(page);
+  const dictionary = getDictionary(locale);
+  const home = dictionary.home;
+  const formCopy = home.personalizationForm;
+  const plannerCopy = dictionary.planner;
+  const customCopy = dictionary.customRequest;
+  const portalCopy = PORTAL_COPY[locale];
+
+  await signInAs(page, locale, "customer");
+  await page.locator("header.site-header").getByRole("link", { name: "LocalLens", exact: true }).click();
+  await expect(page.getByRole("heading", { name: home.title, exact: true })).toBeVisible();
+  const personalizationForm = page.getByRole("form", { name: formCopy.formLabel, exact: true });
+  await personalizationForm.getByLabel(formCopy.durationHoursLabel, { exact: true }).fill("6");
+  await personalizationForm.getByLabel(formCopy.startDateLabel, { exact: true }).fill("2026-09-05");
+  await personalizationForm.getByLabel(formCopy.budgetLabel, { exact: true }).fill("2000000");
+  await personalizationForm.getByLabel(formCopy.partySizeLabel, { exact: true }).fill("2");
+  await personalizationForm.getByLabel(formCopy.areaOptions.find((option) => option.value === "demo-hcmc-district-1")!.label, { exact: true }).check();
+  await personalizationForm.getByLabel(formCopy.priorities.find((priority) => priority.key === "street_food")!.label, { exact: true }).fill("0");
+  await personalizationForm.getByLabel(formCopy.priorities.find((priority) => priority.key === "traditional_market")!.label, { exact: true }).fill("4");
+  await personalizationForm.getByRole("button", { name: formCopy.submitLabel, exact: true }).click();
+  await expect(page.getByRole("heading", { name: formCopy.preview.heading, exact: true })).toBeVisible();
+  await expect(page.getByText(formCopy.previewMessage, { exact: true })).toBeVisible();
+
+  await page.getByRole("link", { name: formCopy.plannerLinkLabel, exact: true }).click();
+  await expect(page).toHaveURL(/\/vi\/planner\/?$/);
+  await expect(page.getByRole("heading", { name: plannerCopy.heading, exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `${plannerCopy.revisionLabel} 1`, exact: true })).toBeVisible();
+  await page.getByLabel(plannerCopy.feedbackLabel, { exact: true }).fill("Giữ điểm chợ và đi chậm hơn.");
+  await page.getByRole("button", { name: plannerCopy.refineLabel, exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: plannerCopy.revisionCreatedMessage })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `${plannerCopy.revisionLabel} 2`, exact: true })).toBeVisible();
+
+  await page.getByRole("link", { name: plannerCopy.requestQuoteLabel, exact: true }).click();
+  await expect(page).toHaveURL(/\/vi\/custom-request\/?$/);
+  const selectedRevision = page.getByRole("region", { name: customCopy.selectedRevisionHeading, exact: true });
+  await expect(selectedRevision.getByText(customCopy.revisionLabel, { exact: true }).locator("xpath=..").getByRole("definition")).toHaveText("2");
+  const planId = (await selectedRevision.getByText(customCopy.planIdLabel, { exact: true }).locator("xpath=..").getByRole("definition").textContent())?.trim();
+  if (!planId) throw new Error("The confirmed Vietnamese revision has no plan identifier.");
+  const requestId = `demo-request-${planId}-2`;
+  await page.getByRole("button", { name: customCopy.submitRequestLabel, exact: true }).click();
+  await expect(page.getByText(customCopy.adminReviewPendingMessage, { exact: true })).toBeVisible();
+
+  await switchRole(page, locale, "admin");
+  await expect(page.getByRole("heading", { name: portalCopy.adminPortal, exact: true })).toBeVisible();
+  const personalizedRegion = page.getByRole("region", { name: portalCopy.personalizedHeading, exact: true });
+  const requestCard = personalizedRegion.getByRole("listitem").filter({ hasText: requestId });
+  await expect(requestCard).toHaveCount(1);
+  await requestCard.getByRole("combobox", { name: `${portalCopy.decision}: ${requestId}`, exact: true }).selectOption({ label: portalCopy.approved });
+  await requestCard.getByRole("button", { name: portalCopy.saveDecision, exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: portalCopy.decisionSaved })).toBeVisible();
+  await requestCard.getByRole("button", { name: portalCopy.issueQuote, exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: portalCopy.quoteIssued })).toBeVisible();
+
+  await switchRole(page, locale, "customer");
+  await page.goto(`/${locale}/custom-request/`);
+  await expect(page.getByRole("heading", { name: customCopy.quoteHeading, exact: true })).toBeVisible();
+  await page.getByRole("button", { name: customCopy.acceptQuoteLabel, exact: true }).click();
+  await expect(page.getByText(customCopy.quoteAcceptedMessage, { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: customCopy.openStripeMockLabel, exact: true }).click();
+  await expect(page.getByRole("heading", { name: customCopy.stripeMockHeading, exact: true })).toBeVisible();
+  await expect(page.getByText(customCopy.noPaymentNetworkDisclosure, { exact: true })).toBeVisible();
+
+  await page.goto(`/${locale}/account/`);
+  const personalizedBooking = page.locator(`article[aria-labelledby="customer-booking-demo-booking-${requestId}"]`);
+  await expect(personalizedBooking).toBeVisible();
+  await expect(personalizedBooking).toContainText(portalCopy.statusLabels.confirmed);
+  await expect(personalizedBooking).toContainText(portalCopy.paymentStatusLabels.paid);
   await assertHealthyPage(page, diagnostics);
 });
 

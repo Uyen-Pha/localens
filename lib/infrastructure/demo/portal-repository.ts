@@ -1450,6 +1450,10 @@ function inputMoney(value: unknown, fieldPath: string): number {
   return inputInteger(value, fieldPath, 1, Number.MAX_SAFE_INTEGER);
 }
 
+function inputNonNegativeMoney(value: unknown, fieldPath: string): number {
+  return inputInteger(value, fieldPath, 0, Number.MAX_SAFE_INTEGER);
+}
+
 function inputTimestamp(value: unknown, fieldPath: string): string {
   if (typeof value !== "string" || value.trim() !== value || CONTROL_PATTERN.test(value) ||
     !TIMESTAMP_PATTERN.test(value) || !Number.isFinite(Date.parse(value))) {
@@ -1564,7 +1568,7 @@ function readPersonalizedRequestInput(input: unknown): DemoPersonalizedRequestIn
   const locale = row.locale;
   if (typeof locale !== "string" || !(LOCALE_VALUES as readonly string[]).includes(locale)) invalidInput("Invalid locale.");
   const partySize = inputInteger(row.partySize, "partySize", 1, 20);
-  const totalVndMinor = inputMoney(row.totalVndMinor, "totalVndMinor");
+  const totalVndMinor = inputNonNegativeMoney(row.totalVndMinor, "totalVndMinor");
   return {
     requestId,
     planId,

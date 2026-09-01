@@ -2,7 +2,7 @@ import {
   isPersonalizationRequest,
   type PersonalizationRequest,
 } from "@/lib/application/planner/personalization-session";
-import type { DemoPlannerRevision, DemoPlannerItem } from "@/lib/application/planner/demo-planner";
+import type { DemoPlannerRevision, DemoPlannerItem, DemoPlannerState } from "@/lib/application/planner/demo-planner";
 import type { ItineraryPreviewFoodSelectionDto } from "@/lib/application/api/read-only-api";
 
 export const CUSTOM_REQUEST_SESSION_KEY = "localens.custom-request.v1";
@@ -17,6 +17,21 @@ export type CustomRequestDraft = Readonly<{
 }>;
 
 export type CustomRequestDraftInput = Omit<CustomRequestDraft, "integrityFingerprint">;
+
+export function customRequestDraftFromPlanner(
+  state: DemoPlannerState,
+): CustomRequestDraftInput {
+  if (state.preferences === null || state.current.items.length === 0) {
+    throw new Error("A confirmed planner revision is required");
+  }
+
+  return {
+    planId: state.planId,
+    revision: state.current.revision,
+    preferences: state.preferences,
+    revisionSnapshot: state.current,
+  };
+}
 
 export type CustomRequestDraftReadState =
   | Readonly<{ status: "ok"; draft: CustomRequestDraft }>
@@ -108,8 +123,10 @@ function canonicalDraftMaterial(draft: CustomRequestDraftInput): string {
       items: draft.revisionSnapshot.items.map((item) => ({
         id: item.id,
         placeId: item.placeId,
+        title: item.title,
         startAt: item.startAt,
         endAt: item.endAt,
+        activity: item.activity,
         visitDurationMinutes: item.visitDurationMinutes,
         travelMinutesBefore: item.travelMinutesBefore,
         transitionBufferMinutesBefore: item.transitionBufferMinutesBefore,

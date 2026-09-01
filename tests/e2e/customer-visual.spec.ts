@@ -2,6 +2,13 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
+import {
+  CUSTOM_REQUEST_SESSION_KEY,
+  localDraftFingerprint,
+  type CustomRequestDraftInput,
+} from "@/lib/application/planner/custom-request-demo";
+import { createFoodFixturePlannerState } from "./food-fixture";
+
 const viewports = [
   { name: "desktop", width: 1488, height: 1059 },
   { name: "tablet", width: 768, height: 1024 },
@@ -127,6 +134,24 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
       return element.textContent?.trim() ?? "";
     }
 
+    function isUserVisibleText(element: HTMLElement): boolean {
+      return element.closest('[aria-hidden="true"]') === null;
+    }
+
+    const contrastFixture = document.createElement("div");
+    contrastFixture.innerHTML = `
+      <span aria-hidden="true" data-contrast-fixture="hidden">hidden-low-contrast-fixture</span>
+      <span data-contrast-fixture="visible">visible-low-contrast-fixture</span>
+    `;
+    contrastFixture.querySelectorAll<HTMLElement>("span").forEach((fixture) => {
+      fixture.style.backgroundColor = "rgb(250, 244, 235)";
+      fixture.style.color = "rgb(250, 244, 235)";
+      fixture.style.fontSize = "16px";
+      fixture.style.position = "fixed";
+      fixture.style.inset = "0 auto auto 0";
+    });
+    document.body.append(contrastFixture);
+
     const headingLevels = Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6"), (heading) => Number(heading.tagName.slice(1)));
     const controlsWithoutLabels = Array.from(document.querySelectorAll("input, select, textarea"))
       .filter((control) => {
@@ -140,8 +165,9 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
     const imagesWithoutAlt = Array.from(document.images)
       .filter((image) => !image.hasAttribute("alt"))
       .map((image) => image.currentSrc || image.src);
-    const contrastViolations = Array.from(document.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6, p, a, button, label, dt, dd, legend, summary, span, form, input, select, textarea"))
+    const collectedContrastViolations = Array.from(document.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6, p, a, button, label, dt, dd, legend, summary, span, form, input, select, textarea"))
       .flatMap((element) => {
+        if (!isUserVisibleText(element)) return [];
         const style = getComputedStyle(element);
         const rect = element.getBoundingClientRect();
         const text = controlText(element);
@@ -154,6 +180,12 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
         const ratio = contrastRatio([foreground[0], foreground[1], foreground[2]], background);
         return ratio < minimum ? [`${element.tagName.toLowerCase()}: ${text.slice(0, 80)} (${ratio.toFixed(2)} < ${minimum})`] : [];
       });
+    const contrastFixtureContract = {
+      hiddenDecorationExcluded: !collectedContrastViolations.some((violation) => violation.includes("hidden-low-contrast-fixture")),
+      visibleTextChecked: collectedContrastViolations.some((violation) => violation.includes("visible-low-contrast-fixture")),
+    };
+    const contrastViolations = collectedContrastViolations.filter((violation) => !violation.includes("-low-contrast-fixture"));
+    contrastFixture.remove();
 
     const clippedContent = Array.from(document.querySelectorAll<HTMLElement>("a, button, input, select, textarea, h1, h2, h3, p, li, img"))
       .filter((element) => {
@@ -176,6 +208,7 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
       hasLandmarks: Boolean(document.querySelector("main") && document.querySelector("nav") && document.querySelector("footer")),
       hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       contrastViolations,
+      contrastFixtureContract,
       clippedContent,
     };
   });
@@ -186,6 +219,10 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
   expect(diagnostics.hasHorizontalOverflow).toBe(false);
   expect(diagnostics.controlsWithoutLabels).toEqual([]);
   expect(diagnostics.imagesWithoutAlt).toEqual([]);
+  expect(diagnostics.contrastFixtureContract).toEqual({
+    hiddenDecorationExcluded: true,
+    visibleTextChecked: true,
+  });
   expect(diagnostics.contrastViolations).toEqual([]);
   expect(diagnostics.clippedContent).toEqual([]);
 
@@ -193,20 +230,25 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
   await expect(page.locator(".skip-link")).toBeFocused();
   await expect(page.locator(".skip-link")).toBeVisible();
   const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-  const focusableCount = await page.evaluate((selector) => Array.from(document.querySelectorAll<HTMLElement>(
-    selector,
-  )).filter((element) => {
+  const focusableCount = await page.evaluate((selector) => {
+    const focusableElements = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter((element) => {
     const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
     return !element.closest("nextjs-portal") && style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
-  }).length, focusableSelector);
+    });
+    focusableElements.forEach((element, index) => {
+      element.dataset.focusAuditId = String(index);
+    });
+    return focusableElements.length;
+  }, focusableSelector);
 
   expect(focusableCount).toBeGreaterThan(0);
-  for (let index = 0; index < focusableCount; index += 1) {
-    if (index > 0) await page.keyboard.press("Tab");
+  const visitedFocusAuditIds = new Set<string>();
+  const maximumTabStops = focusableCount * 4;
+  for (let tabStop = 0; tabStop < maximumTabStops && visitedFocusAuditIds.size < focusableCount; tabStop += 1) {
     const focusState = await page.evaluate(() => {
       const active = document.activeElement;
-      if (!(active instanceof HTMLElement)) return { valid: false, label: "", tag: "none" };
+      if (!(active instanceof HTMLElement)) return { valid: false, label: "", tag: "none", auditId: "" };
       const style = getComputedStyle(active);
       const rect = active.getBoundingClientRect();
       const labelledBy = active.getAttribute("aria-labelledby");
@@ -262,12 +304,69 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
           && style.visibility !== "hidden" && focusContrast >= 3,
         label: label.trim(),
         tag: active.tagName.toLowerCase(),
+        auditId: active.dataset.focusAuditId ?? "",
         focusContrast,
+        rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+        focusTreatment: {
+          matchesFocus: active.matches(":focus"),
+          matchesFocusVisible: active.matches(":focus-visible"),
+          outlineStyle: style.outlineStyle,
+          outlineWidth: style.outlineWidth,
+          outlineColor: style.outlineColor,
+          boxShadow: style.boxShadow,
+        },
       };
     });
-    expect(focusState.valid, `focus ${index + 1}/${focusableCount} (${focusState.tag}) must be visible, in bounds, and have a 3:1 focus treatment`).toBe(true);
-    expect(focusState.label, `focus ${index + 1}/${focusableCount} (${focusState.tag}) needs an accessible name`).not.toBe("");
+    const seenBefore = visitedFocusAuditIds.has(focusState.auditId);
+    if (!seenBefore) {
+      visitedFocusAuditIds.add(focusState.auditId);
+      expect(focusState.valid, `focus ${visitedFocusAuditIds.size}/${focusableCount} must be visible, in bounds, and have a 3:1 focus treatment: ${JSON.stringify(focusState)}`).toBe(true);
+      expect(focusState.label, `focus ${visitedFocusAuditIds.size}/${focusableCount} (${focusState.tag}) needs an accessible name`).not.toBe("");
+    }
+    await page.keyboard.press("Tab");
   }
+  expect(visitedFocusAuditIds.size, "keyboard traversal must reach every visible focusable element").toBe(focusableCount);
+}
+
+async function prepareProtectedCustomerRoute(page: Page, routeName: (typeof routes)[number]["name"]): Promise<void> {
+  if (routeName !== "custom-request-en" && routeName !== "booking-en") return;
+
+  await page.goto("/en/sign-in/");
+  const customerCard = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: "Demo Traveler", exact: true }),
+  });
+  await expect(customerCard).toHaveCount(1);
+  await customerCard.getByRole("link", { name: "Continue as Customer", exact: true }).click();
+
+  if (routeName === "booking-en") return;
+
+  const plannerState = createFoodFixturePlannerState("en");
+  if (plannerState.preferences === null) throw new Error("visual fixture requires planner preferences");
+  const draftInput: CustomRequestDraftInput = {
+    planId: plannerState.planId,
+    revision: plannerState.current.revision,
+    preferences: plannerState.preferences,
+    revisionSnapshot: plannerState.current,
+  };
+  const envelope = {
+    version: 1 as const,
+    savedAt: Date.now(),
+    draft: {
+      ...draftInput,
+      integrityFingerprint: localDraftFingerprint(draftInput),
+    },
+  };
+  await page.evaluate(({ key, value }) => {
+    window.sessionStorage.setItem(key, JSON.stringify(value));
+  }, { key: CUSTOM_REQUEST_SESSION_KEY, value: envelope });
+}
+
+async function resetCustomerDemoState(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+  await page.context().clearCookies();
 }
 
 async function assertTextZoom(page: Page): Promise<void> {
@@ -292,6 +391,7 @@ async function assertTextZoom(page: Page): Promise<void> {
 async function clearFocus(page: Page): Promise<void> {
   await page.evaluate(() => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    window.scrollTo(0, 0);
   });
 }
 
@@ -351,6 +451,7 @@ for (const viewport of viewports) {
       await mkdir(evidenceRoot, { recursive: true });
 
       for (const route of routes) {
+        await prepareProtectedCustomerRoute(page, route.name);
         const response = await page.goto(route.path, { waitUntil: "domcontentloaded" });
         expect(response?.status(), `${route.path} response`).toBe(200);
         await waitForDeterministicPage(page);
@@ -364,6 +465,7 @@ for (const viewport of viewports) {
           fullPage: true,
         });
         await assertTextZoom(page);
+        await resetCustomerDemoState(page);
       }
 
       expect(browserErrors).toEqual([]);
@@ -377,10 +479,10 @@ for (const viewport of viewports) {
       await expect(page.getByRole("heading", { level: 1, name: "Your Saigon, planned around you" })).toBeVisible();
       await assertRouteCtas(page, "home-en");
       await assertAccessibilitySmoke(page);
+      await clearFocus(page);
       if (viewport.name === "desktop") {
         await assertDesktopHomeComposition(page);
       }
-      await clearFocus(page);
 
       const outputName = viewport.name === "desktop"
         ? "home-desktop-implementation.png"

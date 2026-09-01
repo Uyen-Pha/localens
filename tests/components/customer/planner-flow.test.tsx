@@ -18,16 +18,29 @@ import {
   savePersonalizationRequest,
   readPersonalizationState,
 } from "@/lib/application/planner/personalization-session";
-import { readCustomRequestDraftState } from "@/lib/application/planner/custom-request-demo";
+import { clearCustomRequestDraft, readCustomRequestDraftState } from "@/lib/application/planner/custom-request-demo";
+import { createFoodFixturePlannerState } from "../../e2e/food-fixture";
 
 afterEach(() => {
   cleanup();
   clearPersonalizationRequest();
+  clearCustomRequestDraft();
   window.sessionStorage.removeItem(E2E_PLANNER_STATE_SESSION_KEY);
   delete process.env.NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES;
 });
 
 describe("PlannerFlow", () => {
+  const customerSession = {
+    getSession: async () => ({
+      userId: "demo-user-customer",
+      role: "customer" as const,
+      locale: "en" as const,
+      displayName: "Demo Traveler",
+      email: "traveler@example.invalid",
+      demo: true as const,
+    }),
+  };
+
   function injectedState(): DemoPlannerState {
     const state = createDemoPlannerAdapter().createInitial("en");
     return {
@@ -291,7 +304,7 @@ describe("PlannerFlow", () => {
     expect(screen.getByText(copy.localLensPayableLabel).nextElementSibling).toHaveTextContent("₫25,000");
   });
 
-  it("offers an explicit quote request CTA for the selected personalized revision", () => {
+  it("offers an explicit quote request CTA for the selected personalized revision", async () => {
     const copy = getDictionary("en").planner;
     savePersonalizationRequest({
       startAt: "2026-09-05T10:30:00+07:00",
@@ -308,13 +321,69 @@ describe("PlannerFlow", () => {
       specialNeeds: "",
     });
 
-    render(<PlannerFlow locale="en" copy={copy} />);
+    render(<PlannerFlow locale="en" copy={copy} demoSession={customerSession} />);
 
-    const quoteLink = screen.getByRole("link", { name: copy.requestQuoteLabel });
+    const quoteLink = await screen.findByRole("link", { name: copy.requestQuoteLabel });
     expect(quoteLink).toHaveAttribute("href", "/en/custom-request");
     fireEvent.click(quoteLink);
     expect(readCustomRequestDraftState().status).toBe("ok");
     expect(readPersonalizationState().status).toBe("ok");
+  });
+
+  it("stores the exact current food-bearing revision before opening the quote request", async () => {
+    const copy = getDictionary("en").planner;
+    const plannerState = createFoodFixturePlannerState("en");
+    if (plannerState.preferences === null) throw new Error("expected food fixture preferences");
+    expect(savePersonalizationRequest(plannerState.preferences)).toBe(true);
+    const adapter: PlannerAdapter = {
+      createInitial: () => plannerState,
+      getLatest: (state) => state,
+      refine: () => ({ ok: false, error: { code: "INVALID_FEEDBACK" } }),
+    };
+
+    render(<PlannerFlow locale="en" copy={copy} adapter={adapter} demoSession={customerSession} />);
+    fireEvent.click(await screen.findByRole("link", { name: copy.requestQuoteLabel }));
+
+    const stored = readCustomRequestDraftState();
+    expect(stored.status).toBe("ok");
+    if (stored.status !== "ok") throw new Error("expected a stored custom-request draft");
+    expect(stored.draft.revision).toBe(plannerState.current.revision);
+    expect(stored.draft.revisionSnapshot).toEqual(plannerState.current);
+    expect(stored.draft.revisionSnapshot.items.find((item) => item.foodSelection !== null)?.foodSelection).toMatchObject({
+      vendorTitle: "Aunt Ba's Banh Mi Stall",
+      menuTitle: "Grilled pork banh mi",
+      quantity: 3,
+    });
+  });
+
+  it("does not confirm or persist a revision for an admin session", async () => {
+    const copy = getDictionary("en").planner;
+    const plannerState = createFoodFixturePlannerState("en", "mixed");
+    if (plannerState.preferences === null) throw new Error("expected personalized fixture");
+    expect(savePersonalizationRequest(plannerState.preferences)).toBe(true);
+    const adapter: PlannerAdapter = {
+      createInitial: () => plannerState,
+      getLatest: (state) => state,
+      refine: () => ({ ok: false, error: { code: "INVALID_FEEDBACK" } }),
+    };
+    const adminSession = {
+      getSession: async () => ({
+        userId: "demo-user-admin",
+        role: "admin" as const,
+        locale: "en" as const,
+        displayName: "Demo Administrator",
+        email: "admin@example.invalid",
+        demo: true as const,
+      }),
+    };
+
+    render(<PlannerFlow locale="en" copy={copy} adapter={adapter} demoSession={adminSession} />);
+
+    const ownPortal = await screen.findByRole("link", { name: /open your portal/i });
+    expect(ownPortal.parentElement).toHaveTextContent(/you are signed in as an administrator/i);
+    expect(screen.queryByRole("link", { name: copy.requestQuoteLabel })).not.toBeInTheDocument();
+    expect(ownPortal).toHaveAttribute("href", "/en/admin");
+    expect(readCustomRequestDraftState().status).toBe("missing");
   });
 
   it("locks and unlocks a stop with an accessible pressed state", () => {

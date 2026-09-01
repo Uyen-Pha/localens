@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CUSTOM_REQUEST_SESSION_TTL_MS,
   clearCustomRequestDraft,
+  customRequestDraftFromPlanner,
   readCustomRequestDraftState,
   saveCustomRequestDraft,
   type CustomRequestDraftInput,
@@ -10,6 +11,7 @@ import {
 import { createDemoPlannerAdapter } from "@/lib/application/planner/demo-planner";
 import type { DemoPlannerItem } from "@/lib/application/planner/demo-planner";
 import type { PersonalizationRequest } from "@/lib/application/planner/personalization-session";
+import { createFoodFixturePlannerState } from "../../e2e/food-fixture";
 
 type MutableStoredEnvelope = {
   version: number;
@@ -58,6 +60,27 @@ afterEach(() => {
 });
 
 describe("custom request local handoff", () => {
+  it("preserves the exact food-bearing planner revision through the request handoff", () => {
+    const plannerState = createFoodFixturePlannerState("en");
+    const selectedFood = plannerState.current.items.find((item) => item.foodSelection !== null)?.foodSelection;
+    expect(selectedFood).not.toBeNull();
+
+    const selected = customRequestDraftFromPlanner(plannerState);
+    expect(selected.revisionSnapshot.items.find((item) => item.foodSelection !== null)?.foodSelection).toMatchObject({
+      vendorTitle: "Aunt Ba's Banh Mi Stall",
+      menuTitle: "Grilled pork banh mi",
+      quantity: 3,
+      priceVndMin: 45_000,
+      priceVndMax: 60_000,
+      paymentMode: "pay_at_vendor",
+    });
+    expect(saveCustomRequestDraft(selected)).toBe(true);
+    expect(readCustomRequestDraftState()).toMatchObject({
+      status: "ok",
+      draft: { revisionSnapshot: selected.revisionSnapshot },
+    });
+  });
+
   it("round-trips the selected revision in the current browser tab", () => {
     expect(saveCustomRequestDraft(draft())).toBe(true);
     const state = readCustomRequestDraftState();
@@ -128,6 +151,13 @@ describe("custom request local handoff", () => {
         items.reverse();
         const firstItem = items[0]!;
         items[0] = { ...firstItem, placeId: "forged-place", startAt: "2026-09-05 12:34", endAt: "2026-09-05 13:34" };
+        draft.revisionSnapshot = { ...draft.revisionSnapshot, items };
+      }],
+      ["displayed title and activity edit", (draft) => {
+        const items = [...draft.revisionSnapshot.items];
+        const firstItem = items[0];
+        if (firstItem === undefined) throw new Error("expected at least one generated stop");
+        items[0] = { ...firstItem, title: "Forged title", activity: "Forged activity" };
         draft.revisionSnapshot = { ...draft.revisionSnapshot, items };
       }],
       ["plan ID edit", (draft) => {

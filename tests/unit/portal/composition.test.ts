@@ -155,6 +155,7 @@ describe("portal composition", () => {
     expect(first.admin.cancellations).not.toBe(first.session);
     expect(first.admin.assignments).not.toBe(first.session);
     expect(first.admin.reporting).not.toBe(first.session);
+    expect(first.resetDemo).toEqual(expect.any(Function));
     expect(first.customer.account).toHaveProperty("listCustomerBookings");
     expect(first.customer.account).not.toHaveProperty("listAdminBookings");
     expect(first.customer.account).not.toHaveProperty("selectDemoIdentity");
@@ -182,6 +183,21 @@ describe("portal composition", () => {
       demo: true,
     });
     expect(storage.getItem(PORTAL_DEMO_STORAGE_KEY)).toBe(selectedRaw);
+  });
+
+  it("resets the demo fixture through the composition and signs out", async () => {
+    const storage = createMemorySessionStorage({ unrelated: "keep" });
+    const composition = createPortalComposition({ mode: "demo", storage });
+    await composition.initialized;
+    await composition.session.selectDemoIdentity("demo-user-customer");
+    await composition.customer.account.updateAccount({ displayName: "Changed traveler" });
+
+    await composition.resetDemo();
+
+    await expect(composition.session.getSession()).resolves.toBeNull();
+    expect(storage.getItem("unrelated")).toBe("keep");
+    await composition.session.selectDemoIdentity("demo-user-customer");
+    await expect(composition.customer.account.getAccount()).resolves.toMatchObject({ displayName: "Demo Traveler" });
   });
 
   it.each([
@@ -252,6 +268,7 @@ describe("portal composition", () => {
     const ports = productionBindings();
     const storage = createMemorySessionStorage();
     const composition = createPortalComposition({ mode: "production", ports });
+    expect(composition).not.toHaveProperty("resetDemo");
 
     expect(composition.mode).toBe("production");
     expect(composition.productionGap).toBe(PORTAL_PRODUCTION_GAP);

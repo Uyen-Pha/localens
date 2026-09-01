@@ -51,6 +51,13 @@ const copy: BookingCopy = {
   unpaidStatus: "Not paid",
   payLabel: "Pay with Stripe Test simulation",
   payingLabel: "Waiting for simulated webhook…",
+  simulateSuccessLabel: "Simulate success",
+  simulateFailureLabel: "Simulate failure",
+  failureHeading: "Demo payment failed",
+  failureMessage: "The simulated payment failed. No charge was made.",
+  cancelledHeading: "Demo payment cancelled",
+  expiredHeading: "Demo payment session expired",
+  retryPaymentLabel: "Retry demo payment",
   successHeading: "Demo payment succeeded",
   successMessage: "Your demo booking is recorded locally.",
   successReferenceLabel: "Demo booking reference",
@@ -112,12 +119,16 @@ describe("BookingFlow", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: copy.paymentHeading })).toHaveFocus());
     expect(screen.getByText(copy.paymentBanner)).toHaveAttribute("role", "note");
     expect(screen.getByText((_content, element) => element?.textContent === "VND 960,000")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: copy.payLabel })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: copy.simulateSuccessLabel })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: copy.simulateFailureLabel })).toBeInTheDocument();
     expect(screen.queryByText(/pay at vendor/i)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: copy.payLabel }));
-    expect(screen.getByRole("status")).toHaveTextContent(copy.payingLabel);
-    await waitFor(() => expect(screen.getByRole("status")).toHaveFocus());
+    fireEvent.click(screen.getByRole("button", { name: copy.simulateSuccessLabel }));
+    const processingStatus = screen.getByRole("status");
+    expect(processingStatus).toHaveTextContent(copy.payingLabel);
+    await waitFor(() => expect(processingStatus).toHaveFocus());
+    expect(screen.getByRole("button", { name: copy.simulateSuccessLabel })).toBeDisabled();
+    expect(screen.getByRole("button", { name: copy.simulateFailureLabel })).toBeDisabled();
     expect(await screen.findByRole("heading", { name: copy.successHeading }, { timeout: 2_000 })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("heading", { name: copy.successHeading })).toHaveFocus());
     expect(screen.getByText(/demo-booking-/)).toBeInTheDocument();
@@ -136,7 +147,7 @@ describe("BookingFlow", () => {
     expect(await screen.findByRole("heading", { name: copy.successHeading })).toBeInTheDocument();
     expect(screen.getByText(copy.paymentBanner)).toBeInTheDocument();
     expect(screen.getByText(held.bookingId)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: copy.payLabel })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: copy.simulateSuccessLabel })).not.toBeInTheDocument();
   });
 
   it("marks an invalid party size and focuses the field before creating a hold", async () => {
@@ -182,18 +193,13 @@ describe("BookingFlow", () => {
       testSessionExpiresAt: new Date(createdAt.getTime() + 30 * 60_000).toISOString(),
     }));
 
-    fireEvent.click(screen.getByRole("button", { name: copy.payLabel }));
+    fireEvent.click(screen.getByRole("button", { name: copy.simulateSuccessLabel }));
     expect(await screen.findByRole("alert", {}, { timeout: 2_000 })).toHaveTextContent(copy.sessionExpiredMessage);
-    fireEvent.click(screen.getByRole("button", { name: copy.retryLabel }));
+    expect(screen.getByRole("heading", { name: copy.expiredHeading })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: copy.retryPaymentLabel }));
 
-    expect(await screen.findByRole("heading", { name: copy.heading })).toBeInTheDocument();
-    expect(screen.getByText(copy.retryFlowMessage)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: copy.continueLabel })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: copy.payLabel })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: copy.continueLabel }));
     expect(await screen.findByRole("heading", { name: copy.paymentHeading })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: copy.payLabel }));
+    fireEvent.click(screen.getByRole("button", { name: copy.simulateSuccessLabel }));
     expect(await screen.findByRole("heading", { name: copy.successHeading }, { timeout: 2_000 })).toBeInTheDocument();
   });
 
@@ -220,12 +226,35 @@ describe("BookingFlow", () => {
     await screen.findByRole("heading", { name: copy.tourTitles["demo-markets-and-street-food"] });
     fireEvent.click(screen.getByRole("button", { name: copy.continueLabel }));
     await screen.findByRole("heading", { name: copy.paymentHeading });
-    fireEvent.click(screen.getByRole("button", { name: copy.payLabel }));
+    fireEvent.click(screen.getByRole("button", { name: copy.simulateSuccessLabel }));
     fireEvent.click(screen.getByRole("button", { name: copy.cancelLabel }));
 
     expect(await screen.findByText(copy.cancelledMessage)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: copy.cancelledHeading })).toBeInTheDocument();
     await new Promise((resolve) => window.setTimeout(resolve, 1_100));
     expect(screen.queryByRole("heading", { name: copy.successHeading })).not.toBeInTheDocument();
+  });
+
+  it("records a failed attempt, retries the same booking, and succeeds without a duplicate", async () => {
+    window.history.replaceState({}, "", `/en/booking?departure=${validDeparture}&partySize=1`);
+    render(<BookingFlow locale="en" copy={copy} />);
+
+    await screen.findByRole("heading", { name: copy.tourTitles["demo-markets-and-street-food"] });
+    fireEvent.click(screen.getByRole("button", { name: copy.continueLabel }));
+    await screen.findByRole("heading", { name: copy.paymentHeading });
+    fireEvent.click(screen.getByRole("button", { name: copy.simulateFailureLabel }));
+
+    expect(await screen.findByRole("heading", { name: copy.failureHeading }, { timeout: 2_000 })).toBeInTheDocument();
+    expect(screen.getByText(copy.failureMessage)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: copy.retryPaymentLabel })).toBeInTheDocument();
+    const keysAfterFailure = Object.keys(window.localStorage).filter((key) => key.startsWith("locallens.demo.booking.v1:"));
+    expect(keysAfterFailure).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: copy.retryPaymentLabel }));
+    fireEvent.click(screen.getByRole("button", { name: copy.simulateSuccessLabel }));
+    expect(await screen.findByRole("heading", { name: copy.successHeading }, { timeout: 2_000 })).toBeInTheDocument();
+    const keysAfterSuccess = Object.keys(window.localStorage).filter((key) => key.startsWith("locallens.demo.booking.v1:"));
+    expect(keysAfterSuccess).toEqual(keysAfterFailure);
   });
 
   it("hands the authoritative local hold to the signed-in demo customer portal", async () => {

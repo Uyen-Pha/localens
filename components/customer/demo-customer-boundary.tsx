@@ -8,7 +8,7 @@ import type { DemoPortalComposition } from "@/lib/application/portal/composition
 import type { DemoPortalIdentity } from "@/lib/application/portal/contracts";
 import type { Locale } from "@/lib/i18n/config";
 import { getDemoPortalComposition } from "@/components/portals/portal-session";
-import { portalCopy } from "@/components/portals/portal-copy";
+import { portalCopy, portalPath, signedInRoleText } from "@/components/portals/portal-copy";
 
 type BoundaryState = "loading" | "ready" | "error";
 
@@ -79,7 +79,14 @@ export function DemoCustomerBoundary({
         <p className="eyebrow">{copy.demoOnly}</p>
         <h1 id="customer-demo-boundary-heading">{copy.accessDeniedTitle}</h1>
         <p>{copy.accessDeniedMessage}</p>
-        <Link className="button button--secondary" href={`/${locale}/sign-in/`}>{copy.chooseIdentity}</Link>
+        {session === null ? (
+          <Link className="button button--secondary" href={`/${locale}/sign-in/`}>{copy.chooseIdentity}</Link>
+        ) : (
+          <>
+            <p>{signedInRoleText(locale, session.role)}</p>
+            <Link className="button button--secondary" href={portalPath(locale, session.role)}>{copy.openYourPortal}</Link>
+          </>
+        )}
       </section>
     );
   }

@@ -11,6 +11,10 @@ export const PORTAL_COPY = {
     loading: "Loading your portal…",
     loadingData: "Loading portal data…",
     retry: "Try again",
+    resetDemo: "Reset LocalLens demo",
+    resettingDemo: "Resetting demo…",
+    resetComplete: "LocalLens demo state was reset. Choose an identity to continue.",
+    resetError: "The LocalLens demo could not be fully reset. Try again.",
     errorTitle: "We could not load this portal",
     errorMessage: "The demo fixture may be unavailable or invalid. Try again to reload the seeded data.",
     chooseIdentity: "Choose a demo identity",
@@ -232,6 +236,10 @@ export const PORTAL_COPY = {
     loading: "Đang tải cổng…",
     loadingData: "Đang tải dữ liệu cổng…",
     retry: "Thử lại",
+    resetDemo: "Đặt lại demo LocalLens",
+    resettingDemo: "Đang đặt lại demo…",
+    resetComplete: "Đã đặt lại trạng thái demo LocalLens. Hãy chọn một danh tính để tiếp tục.",
+    resetError: "Không thể đặt lại đầy đủ demo LocalLens. Hãy thử lại.",
     errorTitle: "Không thể tải cổng này",
     errorMessage: "Dữ liệu mẫu có thể không khả dụng hoặc không hợp lệ. Hãy thử tải lại dữ liệu mẫu.",
     chooseIdentity: "Chọn danh tính demo",
@@ -452,6 +460,12 @@ export function portalCopy(locale: Locale): PortalCopy {
 export function roleLabel(locale: Locale, role: "customer" | "guide" | "admin"): string {
   const copy = portalCopy(locale);
   return copy[role];
+}
+
+export function signedInRoleText(locale: Locale, role: "customer" | "guide" | "admin"): string {
+  const copy = portalCopy(locale);
+  const articleSuffix = locale === "en" && role === "admin" ? "n" : "";
+  return `${copy.signedInAsRole}${articleSuffix} ${roleLabel(locale, role)}.`;
 }
 
 export function portalPath(locale: Locale, role: "customer" | "guide" | "admin"): string {

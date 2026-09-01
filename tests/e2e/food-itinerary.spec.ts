@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { E2E_PLANNER_STATE_SESSION_KEY } from "@/lib/application/planner/demo-planner";
 import { PERSONALIZATION_SESSION_KEY } from "@/lib/application/planner/personalization-session";
 import { getDictionary, type CustomRequestCopy, type PlannerCopy } from "@/lib/i18n/dictionaries";
+import { PORTAL_COPY } from "@/components/portals/portal-copy";
 import { FOOD_FIXTURE, createFoodFixturePlannerState } from "./food-fixture";
 
 const EXPECTED_FOOD_BY_LOCALE = {
@@ -63,6 +64,19 @@ async function seedPlanner(
   return state;
 }
 
+async function selectDemoRole(page: Page, locale: "en" | "vi", role: "customer" | "admin"): Promise<void> {
+  await page.goto(`/${locale}/sign-in`);
+  const displayName = role === "customer" ? "Demo Traveler" : "Demo Administrator";
+  const card = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: displayName, exact: true }),
+  });
+  await expect(card).toHaveCount(1);
+  await card.getByRole("link", {
+    name: `${PORTAL_COPY[locale].continueAs} ${role === "customer" ? PORTAL_COPY[locale].customer : PORTAL_COPY[locale].admin}`,
+    exact: true,
+  }).click();
+}
+
 function factValue(scope: Locator, label: string): Locator {
   return scope.locator("dt").filter({ hasText: label }).locator("xpath=..").locator("dd").first();
 }
@@ -84,6 +98,8 @@ async function assertApprovedFoodFlow(
   if (scenario === "mixed") {
     expect(state.current.totals.customerPayableVnd).toBeGreaterThan(0);
   }
+  await selectDemoRole(page, locale, "customer");
+  await expect(page).toHaveURL(new RegExp(`/${locale}/account/?$`));
   await page.goto(`/${locale}/planner`);
   const copy = getDictionary(locale);
   const planner = plannerRegion(page, copy.planner);
@@ -113,13 +129,38 @@ async function assertApprovedFoodFlow(
   await expect(factValue(selected, copy.customRequest.localLensPayableLabel)).toHaveText(expected.localLensPayable);
   await expect(factValue(selected, copy.customRequest.payAtVendorLabel)).toHaveText(expected.groupFoodRange);
 
-  await custom.getByRole("button", { name: copy.customRequest.continueLocalDemoLabel }).click();
   await custom.getByRole("button", { name: copy.customRequest.submitRequestLabel }).click();
-  await custom.getByRole("button", { name: copy.customRequest.simulateQuoteLabel }).click();
-  const quote = custom.getByRole("region", { name: copy.customRequest.quoteHeading });
+  await expect(custom.getByText(copy.customRequest.adminReviewPendingMessage, { exact: true })).toBeVisible();
+
+  const requestId = `demo-request-${state.planId}-${state.current.revision}`;
+  await selectDemoRole(page, locale, "admin");
+  await expect(page.getByRole("heading", { name: PORTAL_COPY[locale].adminPortal, exact: true })).toBeVisible();
+  const personalizedRegion = page.getByRole("region", { name: PORTAL_COPY[locale].personalizedHeading, exact: true });
+  const requestCard = personalizedRegion.getByRole("listitem").filter({ hasText: requestId });
+  await expect(requestCard).toHaveCount(1);
+  if (scenario !== "mixed") {
+    await expect(requestCard.getByRole("button", { name: PORTAL_COPY[locale].issueQuote, exact: true })).toHaveCount(0);
+    await selectDemoRole(page, locale, "customer");
+    await page.goto(`/${locale}/custom-request`);
+    await expect(page.getByRole("region", { name: copy.customRequest.stripeMockHeading })).toHaveCount(0);
+    return;
+  }
+
+  await requestCard.getByRole("combobox", { name: `${PORTAL_COPY[locale].decision}: ${requestId}`, exact: true }).selectOption({
+    label: PORTAL_COPY[locale].approved,
+  });
+  await requestCard.getByRole("button", { name: PORTAL_COPY[locale].saveDecision, exact: true }).click();
+  await expect(page.getByText(PORTAL_COPY[locale].decisionSaved, { exact: true })).toBeVisible();
+  await requestCard.getByRole("button", { name: PORTAL_COPY[locale].issueQuote, exact: true }).click();
+  await expect(page.getByText(PORTAL_COPY[locale].quoteIssued, { exact: true })).toBeVisible();
+
+  await selectDemoRole(page, locale, "customer");
+  await page.goto(`/${locale}/custom-request`);
+  const resumedCustom = customRequestRegion(page, copy.customRequest);
+  const quote = resumedCustom.getByRole("region", { name: copy.customRequest.quoteHeading });
   await expect(factValue(quote, copy.customRequest.quoteTotalLabel)).toHaveText(expected.localLensPayable);
-  await custom.getByRole("button", { name: copy.customRequest.acceptQuoteLabel }).click();
-  await custom.getByRole("button", { name: copy.customRequest.openStripeMockLabel }).click();
+  await resumedCustom.getByRole("button", { name: copy.customRequest.acceptQuoteLabel }).click();
+  await resumedCustom.getByRole("button", { name: copy.customRequest.openStripeMockLabel }).click();
 
   const stripe = page.getByRole("region", { name: copy.customRequest.stripeMockHeading });
   await expect(stripe).toBeVisible();
@@ -155,6 +196,17 @@ test.describe("food itinerary acceptance paths", () => {
     await expect(planner.getByText(FOOD_FIXTURE.vendor.en, { exact: true })).toHaveCount(0);
     await expect(planner.getByText(FOOD_FIXTURE.menu.en, { exact: true })).toHaveCount(0);
     await expect(planner).not.toContainText("Research-only Banh Mi Stall");
+    await expect(planner.getByRole("link", { name: copy.requestQuoteLabel, exact: true })).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => window.sessionStorage.getItem("localens.custom-request.v1"))).toBeNull();
+
+    await selectDemoRole(page, "en", "customer");
+    await page.goto("/en/custom-request");
+    const customCopy = getDictionary("en").customRequest;
+    await expect(customRequestRegion(page, customCopy).getByRole("alert")).toContainText(customCopy.missingPlanMessage);
+    await expect(page.getByRole("heading", { name: customCopy.quoteHeading, exact: true })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: customCopy.stripeMockHeading })).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => Object.keys(window.localStorage)
+      .filter((key) => key.startsWith("locallens.demo.booking.v1:")))).toEqual([]);
   });
 
   test("refinement preserves locked food snapshot while changing an unlocked stop", async ({ page }) => {

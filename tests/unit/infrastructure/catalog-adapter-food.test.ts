@@ -152,6 +152,17 @@ describe("mapCatalogSnapshot food projections", () => {
     }
   });
 
+  it("fails closed for exact research_only vendor and menu-item projections", () => {
+    expect(map([vendor({ status: "research_only" })], [])).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+    expect(map([vendor()], [item({ status: "research_only" })])).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SHAPE" },
+    });
+  });
+
   it("accepts food prices through Number.MAX_SAFE_INTEGER but rejects unsafe/non-canonical values and inverted ranges", () => {
     const safeResult = map([vendor()], [item({ price_vnd_min: "9007199254740991", price_vnd_max: "9007199254740991" })]);
     expect(safeResult).toMatchObject({ ok: true });

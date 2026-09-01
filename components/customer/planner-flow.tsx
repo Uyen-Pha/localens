@@ -11,6 +11,7 @@ import {
 } from "@/lib/application/planner/demo-planner";
 import type { ItineraryPreviewFoodSelectionDto } from "@/lib/application/api/read-only-api";
 import {
+  customRequestDraftFromPlanner,
   saveCustomRequestDraft,
 } from "@/lib/application/planner/custom-request-demo";
 import {
@@ -20,6 +21,9 @@ import {
 } from "@/lib/application/planner/personalization-session";
 import type { Locale } from "@/lib/i18n/config";
 import type { PlannerCopy } from "@/lib/i18n/dictionaries";
+import type { DemoPortalIdentity, DemoSessionPort } from "@/lib/application/portal/contracts";
+import { getDemoPortalComposition } from "@/components/portals/portal-session";
+import { portalCopy, portalPath, signedInRoleText } from "@/components/portals/portal-copy";
 
 function formatMinutes(value: number, locale: Locale): string {
   return locale === "vi" ? `${value} phút` : `${value} min`;
@@ -92,10 +96,12 @@ export function PlannerFlow({
   locale,
   copy,
   adapter = demoPlannerAdapter,
+  demoSession,
 }: {
   locale: Locale;
   copy: PlannerCopy;
   adapter?: PlannerAdapter;
+  demoSession?: Pick<DemoSessionPort, "getSession">;
 }) {
   const [state, setState] = useState<DemoPlannerState>(() => adapter.createInitial(locale, null));
   const [handoffStatus, setHandoffStatus] = useState<"pending" | PersonalizationReadState["status"]>("pending");
@@ -104,6 +110,7 @@ export function PlannerFlow({
   const [staleError, setStaleError] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isRefining, setIsRefining] = useState(false);
+  const [identity, setIdentity] = useState<DemoPortalIdentity | null | undefined>(undefined);
   const resultRef = useRef<HTMLElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
   const budgetExceeded = state.current.budgetVnd !== null && state.current.totals.groupCostMaxVnd > state.current.budgetVnd;
@@ -128,6 +135,27 @@ export function PlannerFlow({
       return adapter.createInitial(locale, null);
     });
   }, [adapter, locale]);
+
+  useEffect(() => {
+    let disposed = false;
+    let session: Pick<DemoSessionPort, "getSession">;
+    try {
+      session = demoSession ?? getDemoPortalComposition().session;
+    } catch {
+      setIdentity(null);
+      return () => undefined;
+    }
+    void session.getSession()
+      .then((nextIdentity) => {
+        if (!disposed) setIdentity(nextIdentity);
+      })
+      .catch(() => {
+        if (!disposed) setIdentity(null);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [demoSession]);
 
   useEffect(() => {
     if (statusMessage !== null) resultRef.current?.focus();
@@ -323,24 +351,30 @@ export function PlannerFlow({
 
       {handoffStatus === "ok" && state.preferences && state.current.items.length > 0 && !budgetExceeded ? (
         <div className="planner-flow__request-quote">
-          <Link
-            className="button button--primary"
-            href={`/${locale}/custom-request`}
-            onClick={(event) => {
-              const saved = saveCustomRequestDraft({
-                planId: state.planId,
-                revision: state.current.revision,
-                preferences: state.preferences!,
-                revisionSnapshot: state.current,
-              });
-              if (!saved) {
-                event.preventDefault();
-                setStatusMessage(copy.requestQuoteStorageError);
-              }
-            }}
-          >
-            {copy.requestQuoteLabel}
-          </Link>
+          {identity?.role === "customer" ? (
+            <Link
+              className="button button--primary"
+              href={`/${locale}/custom-request`}
+              onClick={(event) => {
+                const saved = saveCustomRequestDraft(customRequestDraftFromPlanner(state));
+                if (!saved) {
+                  event.preventDefault();
+                  setStatusMessage(copy.requestQuoteStorageError);
+                }
+              }}
+            >
+              {copy.requestQuoteLabel}
+            </Link>
+          ) : identity === undefined ? (
+            <p role="status">{portalCopy(locale).loading}</p>
+          ) : identity === null ? (
+            <Link className="button button--primary" href={`/${locale}/sign-in`}>{portalCopy(locale).chooseIdentity}</Link>
+          ) : (
+            <>
+              <p>{signedInRoleText(locale, identity.role)}</p>
+              <Link className="button button--primary" href={portalPath(locale, identity.role)}>{portalCopy(locale).openYourPortal}</Link>
+            </>
+          )}
           <p className="planner-flow__hint" role="note">{copy.requestQuoteDisclosure}</p>
         </div>
       ) : null}

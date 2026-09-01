@@ -1,4 +1,4 @@
-/* editorial-css-sha256: 6a122074787eed48d51df882f431a10b2fd481bbc65d2c284191ca6d787270af */
+/* editorial-css-sha256: 43e6979f7f6873af9d717613f87da5f8c3917e9d1fd87313192136206b0ea2fa */
 /* Green-white landing composition. The historical editorial-home.css remains
    intact; this route-scoped layer carries the selected visual direction. */
 .customer-home.customer-home--green {
@@ -23,7 +23,7 @@
   display: grid;
   width: 100%;
   max-width: none;
-  min-height: min(44rem, calc(100vh - 6.25rem));
+  min-height: min(42rem, calc(100vh - 6.25rem));
   grid-template-columns: minmax(21rem, 41%) minmax(0, 59%);
   align-items: stretch;
   gap: 0;
@@ -63,7 +63,7 @@
   position: relative;
   z-index: 1;
   max-width: 13ch;
-  margin: 13.4rem 0 0;
+  margin: 8.5rem 0 0;
   color: var(--color-ink);
   font-size: clamp(3rem, 4.3vw, 4rem);
   font-weight: 600;

@@ -427,6 +427,13 @@ describe("demo portal repository", () => {
     await expect(repo.customer.account.updateAccount({ role: "admin" } as never)).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(repo.customer.cancellations.requestCancellation({ bookingId: "demo-booking-secondary-customer", reason: "Not mine." })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(repo.customer.reviews.submitTourReview({ bookingId: "demo-booking-secondary-customer", rating: 5, text: "Not mine." })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const primaryBookings = await repo.customer.account.listCustomerBookings();
+    expect(primaryBookings.map((booking) => booking.id)).not.toContain("demo-booking-secondary-customer");
+
+    await repo.session.selectDemoIdentity("demo-user-secondary-customer");
+    const secondaryBookings = await repo.customer.account.listCustomerBookings();
+    expect(secondaryBookings.map((booking) => booking.id)).toEqual(["demo-booking-secondary-customer"]);
+    expect((await repo.customer.account.listCustomRequests()).map((request) => request.id)).not.toContain("demo-request-personalized");
 
     await repo.session.selectDemoIdentity("demo-user-guide");
     await expect(repo.customer.account.getAccount()).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -496,6 +503,11 @@ describe("demo portal repository", () => {
   it("limits guide visibility to assigned tours and permits only allowlisted profile changes", async () => {
     const { repo } = repository();
     await repo.reset();
+    await repo.session.selectDemoIdentity("demo-user-admin");
+    await repo.admin.assignments.assignGuideToFixedDeparture({
+      bookingId: "demo-booking-secondary-customer",
+      guideUserId: "demo-user-guide-secondary",
+    });
     await repo.session.selectDemoIdentity("demo-user-guide");
 
     const tours = await repo.guide.assignments.listAssignedTours();
@@ -504,8 +516,16 @@ describe("demo portal repository", () => {
       "demo-booking-cancellation",
     ]);
     expect(tours[0]).toHaveProperty("specialNeeds", "Step-free route requested.");
+    for (const tour of tours) {
+      expect(tour).not.toHaveProperty("paymentStatus");
+      expect(tour).not.toHaveProperty("quoteId");
+      expect(tour).not.toHaveProperty("totalVndMinor");
+      expect(tour).not.toHaveProperty("ownerUserId");
+    }
     expect(tours.map((tour) => tour.bookingId)).not.toContain("demo-booking-secondary-customer");
     await expect(repo.guide.assignments.getAssignedTour("demo-booking-secondary-customer")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(repo.admin.bookings.listAdminBookings()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(repo.admin.personalizedRequests.listPersonalizedRequests()).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     await expect(repo.guide.profile.updateGuideProfile({ bio: "A calm city guide.", language: "vi" })).resolves.toMatchObject({
       role: "guide",

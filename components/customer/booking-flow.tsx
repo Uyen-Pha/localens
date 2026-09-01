@@ -8,8 +8,9 @@ import type { Locale } from "@/lib/i18n/config";
 import type { DemoPortalComposition } from "@/lib/application/portal/composition";
 import {
   createLocalBooking,
-  createTestPayment,
+  finalizeTestPayment,
   getDemoDeparture,
+  startTestPayment,
   type LocalDemoBooking,
 } from "@/lib/application/booking/mock-booking";
 
@@ -48,6 +49,13 @@ export interface BookingCopy {
   unpaidStatus: string;
   payLabel: string;
   payingLabel: string;
+  simulateSuccessLabel: string;
+  simulateFailureLabel: string;
+  failureHeading: string;
+  failureMessage: string;
+  cancelledHeading: string;
+  expiredHeading: string;
+  retryPaymentLabel: string;
   successHeading: string;
   successMessage: string;
   successReferenceLabel: string;
@@ -69,7 +77,7 @@ export interface BookingCopy {
 
 type BookingRequest = { departureId: string; partySize: number };
 type BookingErrorKey = "invalidDeparture" | "invalidPartySize" | "soldOut" | "holdExpired" | "sessionExpired" | "generic";
-type PaymentPhase = "idle" | "processing" | "success" | "error";
+type PaymentPhase = "idle" | "processing" | "success" | "failed" | "cancelled" | "expired" | "error";
 
 function parsePartySize(value: string | null): number | undefined {
   if (value === null || !/^\d+$/.test(value)) return undefined;
@@ -133,6 +141,7 @@ export function BookingFlow({
   const queryErrorRef = useRef<HTMLParagraphElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const paymentTimerRef = useRef<number | null>(null);
+  const activePaymentKeyRef = useRef<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const setStatusRef = (node: HTMLElement | null) => {
     statusRef.current = node;
@@ -165,8 +174,10 @@ export function BookingFlow({
   }, [queryError]);
 
   useEffect(() => {
-    if (booking !== null) window.setTimeout(() => headingRef.current?.focus(), 0);
-  }, [booking]);
+    if (booking !== null && paymentPhase !== "processing") {
+      window.setTimeout(() => headingRef.current?.focus(), 0);
+    }
+  }, [booking, paymentPhase]);
 
   useEffect(() => () => {
     if (paymentTimerRef.current !== null) window.clearTimeout(paymentTimerRef.current);
@@ -246,18 +257,58 @@ export function BookingFlow({
     }
   }
 
-  function payInTestMode() {
+  function paymentKeyFor(nextBooking: LocalDemoBooking): string {
+    return `pay-${nextBooking.paymentAttempts.length + 1}`;
+  }
+
+  function runPaymentOutcome(outcome: "succeeded" | "failed") {
     if (booking === null || paymentPhase === "processing" || paymentPhase === "success") return;
+    const currentBooking = booking;
+    const idempotencyKey = paymentKeyFor(currentBooking);
+    activePaymentKeyRef.current = idempotencyKey;
     setPaymentError(null);
     setPaymentPhase("processing");
+    let attempt;
+    try {
+      attempt = startTestPayment({ bookingId: currentBooking.bookingId, idempotencyKey });
+    } catch (error) {
+      setPaymentError(errorKeyForMessage(error instanceof Error ? error.message : ""));
+      setPaymentPhase("error");
+      return;
+    }
+
+    if (attempt.outcome === "expired") {
+      const expiredBooking = finalizeTestPayment({
+        bookingId: currentBooking.bookingId,
+        idempotencyKey,
+        outcome,
+      });
+      void syncPortalBooking(expiredBooking).finally(() => {
+        setBooking(expiredBooking);
+        setPaymentError("sessionExpired");
+        setPaymentPhase("expired");
+      });
+      return;
+    }
+
     paymentTimerRef.current = window.setTimeout(() => {
       paymentTimerRef.current = null;
       void (async () => {
         try {
-          const paidBooking = createTestPayment({ bookingId: booking.bookingId });
-          await syncPortalBooking(paidBooking);
-          setBooking(paidBooking);
-          setPaymentPhase("success");
+          const finalizedBooking = finalizeTestPayment({
+            bookingId: currentBooking.bookingId,
+            idempotencyKey,
+            outcome,
+          });
+          await syncPortalBooking(finalizedBooking);
+          setBooking(finalizedBooking);
+          const terminalOutcome = finalizedBooking.paymentAttempts.find((entry) => entry.idempotencyKey === idempotencyKey)?.outcome;
+          if (terminalOutcome === "expired") {
+            setPaymentError("sessionExpired");
+            setPaymentPhase("expired");
+          } else {
+            setPaymentPhase(outcome === "succeeded" ? "success" : "failed");
+          }
         } catch (error) {
           setPaymentError(errorKeyForMessage(error instanceof Error ? error.message : ""));
           setPaymentPhase("error");
@@ -266,15 +317,17 @@ export function BookingFlow({
     }, 1_000);
   }
 
-  function handlePaymentAction() {
-    if (paymentError === "holdExpired" || paymentError === "sessionExpired") {
+  function retryPayment() {
+    if (paymentError === "holdExpired") {
       setBooking(null);
       setPaymentError(null);
       setPaymentPhase("idle");
       setNotice(copy.retryFlowMessage);
       return;
     }
-    payInTestMode();
+    activePaymentKeyRef.current = null;
+    setPaymentError(null);
+    setPaymentPhase("idle");
   }
 
   function cancelCheckout() {
@@ -282,19 +335,57 @@ export function BookingFlow({
       window.clearTimeout(paymentTimerRef.current);
       paymentTimerRef.current = null;
     }
-    setBooking(null);
-    setPaymentError(null);
-    setPaymentPhase("idle");
-    setBookingError(null);
-    setNotice(copy.cancelledMessage);
+    if (booking === null || paymentPhase === "success") return;
+    const currentBooking = booking;
+    const idempotencyKey = activePaymentKeyRef.current ?? paymentKeyFor(currentBooking);
+    try {
+      if (activePaymentKeyRef.current === null) {
+        startTestPayment({ bookingId: currentBooking.bookingId, idempotencyKey });
+      }
+      const cancelledBooking = finalizeTestPayment({
+        bookingId: currentBooking.bookingId,
+        idempotencyKey,
+        outcome: "cancelled",
+      });
+      void syncPortalBooking(cancelledBooking).finally(() => {
+        setBooking(cancelledBooking);
+        setPaymentError(null);
+        setPaymentPhase("cancelled");
+        setBookingError(null);
+        setNotice(null);
+      });
+    } catch (error) {
+      setPaymentError(errorKeyForMessage(error instanceof Error ? error.message : ""));
+      setPaymentPhase("error");
+    }
   }
 
   return (
     <section className="customer-section booking-flow booking-flow--editorial" aria-labelledby="booking-heading">
       <div className="section-heading section-heading--compact booking-flow__heading">
         <p className="eyebrow">LocalLens</p>
-        <h1 ref={headingRef} id="booking-heading" tabIndex={-1}>{booking === null ? copy.heading : paymentPhase === "success" ? copy.successHeading : copy.paymentHeading}</h1>
-        <p>{booking === null ? copy.intro : paymentPhase === "success" ? copy.successMessage : copy.paymentIntro}</p>
+        <h1 ref={headingRef} id="booking-heading" tabIndex={-1}>{booking === null
+          ? copy.heading
+          : paymentPhase === "success"
+            ? copy.successHeading
+            : paymentPhase === "failed"
+              ? copy.failureHeading
+              : paymentPhase === "cancelled"
+                ? copy.cancelledHeading
+                : paymentPhase === "expired"
+                  ? copy.expiredHeading
+                  : copy.paymentHeading}</h1>
+        <p>{booking === null
+          ? copy.intro
+          : paymentPhase === "success"
+            ? copy.successMessage
+            : paymentPhase === "failed"
+              ? copy.failureMessage
+              : paymentPhase === "cancelled"
+                ? copy.cancelledMessage
+                : paymentPhase === "expired"
+                  ? copy.sessionExpiredMessage
+                  : copy.paymentIntro}</p>
       </div>
 
       <p className="demo-disclosure" role="note">{copy.demoDisclosure}</p>
@@ -368,10 +459,21 @@ export function BookingFlow({
             {paymentError !== null ? <p ref={setStatusRef} className="booking-flow__error" role="alert" tabIndex={-1}>{errorText(copy, paymentError)}</p> : null}
             {paymentPhase === "processing" ? <p ref={setStatusRef} className="booking-flow__pending" role="status" aria-live="polite" tabIndex={-1}>{copy.payingLabel}</p> : null}
             <div className="booking-flow__actions booking-flow__actions--payment">
-              <button className="button" type="button" disabled={paymentPhase === "processing"} onClick={handlePaymentAction}>
-                {paymentPhase === "processing" ? copy.payingLabel : paymentError !== null ? copy.retryLabel : copy.payLabel}
-              </button>
-              <button className="button button--secondary" type="button" onClick={cancelCheckout}>{copy.cancelLabel}</button>
+              {paymentPhase === "failed" || paymentPhase === "cancelled" || paymentPhase === "expired" || paymentPhase === "error" ? (
+                <button className="button" type="button" onClick={retryPayment}>{copy.retryPaymentLabel}</button>
+              ) : (
+                <>
+                  <button className="button" type="button" disabled={paymentPhase === "processing"} onClick={() => runPaymentOutcome("succeeded")}>
+                    {copy.simulateSuccessLabel}
+                  </button>
+                  <button className="button button--secondary" type="button" disabled={paymentPhase === "processing"} onClick={() => runPaymentOutcome("failed")}>
+                    {copy.simulateFailureLabel}
+                  </button>
+                </>
+              )}
+              {paymentPhase !== "failed" && paymentPhase !== "cancelled" && paymentPhase !== "expired" && paymentPhase !== "error" ? (
+                <button className="button button--secondary" type="button" onClick={cancelCheckout}>{copy.cancelLabel}</button>
+              ) : null}
             </div>
           </div>
         )}

@@ -37,6 +37,9 @@ const PORTAL_COPY = {
     resetName: "Reset-check traveler",
     seededName: "Demo Traveler",
     chooseIdentity: "Choose a demo identity",
+    openYourPortal: "Open your portal",
+    resetDemo: "Reset LocalLens demo",
+    resetComplete: "LocalLens demo state was reset. Choose an identity to continue.",
     demoNotice: "Demo-only.",
     accessDeniedMessage: "This route is limited to the signed-in role.",
     customRequestUnavailable: "Customer portal unavailable",
@@ -44,6 +47,7 @@ const PORTAL_COPY = {
     directNoBooking: "Your bookings",
     signedInAsCustomer: "You are signed in as a Customer.",
     signedInAsGuide: "You are signed in as a Guide.",
+    signedInAsAdmin: "You are signed in as an Administrator.",
   },
   vi: {
     signInHeading: "Đăng nhập tài khoản demo",
@@ -78,6 +82,9 @@ const PORTAL_COPY = {
     resetName: "Hành khách kiểm tra reset",
     seededName: "Demo Traveler",
     chooseIdentity: "Chọn danh tính demo",
+    openYourPortal: "Mở cổng của bạn",
+    resetDemo: "Đặt lại demo LocalLens",
+    resetComplete: "Đã đặt lại trạng thái demo LocalLens. Hãy chọn một danh tính để tiếp tục.",
     demoNotice: "Chỉ là bản demo.",
     accessDeniedMessage: "Trang này chỉ dành cho vai trò đang đăng nhập.",
     customRequestUnavailable: "Cổng khách hàng không khả dụng",
@@ -85,6 +92,7 @@ const PORTAL_COPY = {
     directNoBooking: "Booking của bạn",
     signedInAsCustomer: "Bạn đang đăng nhập với vai trò Khách hàng.",
     signedInAsGuide: "Bạn đang đăng nhập với vai trò Hướng dẫn viên.",
+    signedInAsAdmin: "Bạn đang đăng nhập với vai trò Quản trị viên.",
   },
 } as const;
 
@@ -105,6 +113,12 @@ const IDENTITY_LABEL: Record<Locale, Record<PortalRole, string>> = {
     guide: PORTAL_COPY.vi.guideIdentity,
     admin: PORTAL_COPY.vi.adminIdentity,
   },
+};
+
+const IDENTITY_DISPLAY_NAME: Record<PortalRole, string> = {
+  customer: "Demo Traveler",
+  guide: "Demo Guide",
+  admin: "Demo Administrator",
 };
 
 interface BrowserDiagnostics {
@@ -146,7 +160,8 @@ async function assertHealthyPage(page: Page, diagnostics: BrowserDiagnostics): P
 }
 
 async function assertPortalAccessibility(page: Page): Promise<void> {
-  const portalFocusableSelector = '[data-portal-mode] a[href], [data-portal-mode] button:not([disabled]), [data-portal-mode] input:not([disabled]):not([type="hidden"]), [data-portal-mode] select:not([disabled]), [data-portal-mode] textarea:not([disabled]), [data-portal-mode] [tabindex]:not([tabindex="-1"])';
+  const portalRoot = ":is([data-portal-mode], [data-portal-role])";
+  const portalFocusableSelector = `${portalRoot} a[href], ${portalRoot} button:not([disabled]), ${portalRoot} input:not([disabled]):not([type="hidden"]), ${portalRoot} select:not([disabled]), ${portalRoot} textarea:not([disabled]), ${portalRoot} [tabindex]:not([tabindex="-1"])`;
   const audit = await page.evaluate((focusableSelector) => {
     function parseColor(value: string): [number, number, number, number] | null {
       const match = value.match(/rgba?\(\s*(\d+(?:\.\d+)?)[,\s]+(\d+(?:\.\d+)?)[,\s]+(\d+(?:\.\d+)?)(?:\s*[,/]\s*([\d.]+))?\s*\)/);
@@ -191,7 +206,7 @@ async function assertPortalAccessibility(page: Page): Promise<void> {
     }
 
     const contrastViolations = Array.from(document.querySelectorAll<HTMLElement>(
-      "[data-portal-mode] h1, [data-portal-mode] h2, [data-portal-mode] h3, [data-portal-mode] p, [data-portal-mode] a, [data-portal-mode] button, [data-portal-mode] label, [data-portal-mode] dt, [data-portal-mode] dd, [data-portal-mode] legend, [data-portal-mode] summary, [data-portal-mode] span, [data-portal-mode] form, [data-portal-mode] input, [data-portal-mode] select, [data-portal-mode] textarea",
+      ":is([data-portal-mode], [data-portal-role]) h1, :is([data-portal-mode], [data-portal-role]) h2, :is([data-portal-mode], [data-portal-role]) h3, :is([data-portal-mode], [data-portal-role]) p, :is([data-portal-mode], [data-portal-role]) a, :is([data-portal-mode], [data-portal-role]) button, :is([data-portal-mode], [data-portal-role]) label, :is([data-portal-mode], [data-portal-role]) dt, :is([data-portal-mode], [data-portal-role]) dd, :is([data-portal-mode], [data-portal-role]) legend, :is([data-portal-mode], [data-portal-role]) summary, :is([data-portal-mode], [data-portal-role]) span, :is([data-portal-mode], [data-portal-role]) form, :is([data-portal-mode], [data-portal-role]) input, :is([data-portal-mode], [data-portal-role]) select, :is([data-portal-mode], [data-portal-role]) textarea",
     )).flatMap((element) => {
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
@@ -214,19 +229,37 @@ async function assertPortalAccessibility(page: Page): Promise<void> {
 
   expect(audit.contrastViolations).toEqual([]);
   expect(audit.focusableCount).toBeGreaterThan(0);
-  await page.evaluate((focusableSelector) => {
-    const first = Array.from(document.querySelectorAll<HTMLElement>(focusableSelector)).find((element) => {
+  const taggedFocusableCounts = await page.evaluate((portalSelector) => {
+    const visible = (element: HTMLElement) => {
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
       return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const portalElements = Array.from(document.querySelectorAll<HTMLElement>(portalSelector)).filter(visible);
+    portalElements.forEach((element, index) => {
+      element.dataset.portalFocusAuditId = String(index);
     });
-    first?.focus();
+    const allFocusableElements = Array.from(document.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )).filter(visible);
+    return {
+      portalCount: portalElements.length,
+      totalCount: allFocusableElements.length,
+    };
   }, portalFocusableSelector);
-  for (let index = 0; index < audit.focusableCount; index += 1) {
-    if (index > 0) await page.keyboard.press("Tab");
+  expect(taggedFocusableCounts.portalCount).toBe(audit.focusableCount);
+
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    window.scrollTo(0, 0);
+  });
+  const visitedPortalFocusAuditIds = new Set<string>();
+  const maximumTabStops = Math.max(taggedFocusableCounts.totalCount * 2, audit.focusableCount * 4);
+  for (let tabStop = 0; tabStop < maximumTabStops && visitedPortalFocusAuditIds.size < audit.focusableCount; tabStop += 1) {
+    await page.keyboard.press("Tab");
     const state = await page.evaluate(() => {
       const active = document.activeElement;
-      if (!(active instanceof HTMLElement)) return { valid: false, name: "", tag: "none" };
+      if (!(active instanceof HTMLElement)) return { valid: false, name: "", tag: "none", auditId: "" };
       const style = getComputedStyle(active);
       const rect = active.getBoundingClientRect();
       const labelledBy = active.getAttribute("aria-labelledby");
@@ -278,22 +311,51 @@ async function assertPortalAccessibility(page: Page): Promise<void> {
             return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
           })()
         : 0;
+      const visibleWidth = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
+      const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+      const visibleRatio = rect.width > 0 && rect.height > 0
+        ? (visibleWidth * visibleHeight) / (rect.width * rect.height)
+        : 0;
       return {
-        valid: rect.width > 0 && rect.height > 0 && rect.left >= -1 && rect.right <= window.innerWidth + 1
-          && rect.top >= -1 && rect.bottom <= window.innerHeight + 1
-          && style.visibility !== "hidden" && focusContrast >= 3,
+        valid: visibleRatio >= 0.5 && style.visibility !== "hidden" && focusContrast >= 3,
         name: name.trim(),
         tag: active.tagName.toLowerCase(),
+        auditId: active.dataset.portalFocusAuditId ?? "",
         focusContrast,
+        visibleRatio,
+        rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        visibility: style.visibility,
+        outline: `${style.outlineWidth} ${style.outlineStyle} ${style.outlineColor}`,
+        boxShadow: style.boxShadow,
       };
     });
-    expect(state.valid, `portal focus ${index + 1}/${audit.focusableCount} (${state.tag}) must be visible, in bounds, and have a 3:1 focus treatment`).toBe(true);
-    expect(state.name, `portal focus ${index + 1}/${audit.focusableCount} (${state.tag}) needs an accessible name`).not.toBe("");
+    if (state.auditId === "" || visitedPortalFocusAuditIds.has(state.auditId)) continue;
+    expect(state.valid, `portal focus ${visitedPortalFocusAuditIds.size + 1}/${audit.focusableCount} (${state.tag}) must stay visibly on screen and have a 3:1 focus treatment: ${JSON.stringify(state)}`).toBe(true);
+    expect(state.name, `portal focus ${visitedPortalFocusAuditIds.size + 1}/${audit.focusableCount} (${state.tag}) needs an accessible name`).not.toBe("");
+    visitedPortalFocusAuditIds.add(state.auditId);
   }
+  expect(visitedPortalFocusAuditIds.size, "natural keyboard traversal must reach every visible portal control").toBe(audit.focusableCount);
+}
+
+function identityCard(page: Page, displayName: string) {
+  return page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: displayName, exact: true }),
+  });
+}
+
+async function selectDemoIdentity(
+  page: Page,
+  displayName: string,
+  actionLabel: string,
+): Promise<void> {
+  const card = identityCard(page, displayName);
+  await expect(card).toHaveCount(1);
+  await card.getByRole("link", { name: actionLabel, exact: true }).click();
 }
 
 async function chooseIdentity(page: Page, locale: Locale, role: PortalRole): Promise<void> {
-  await page.getByRole("link", { name: IDENTITY_LABEL[locale][role], exact: true }).click();
+  await selectDemoIdentity(page, IDENTITY_DISPLAY_NAME[role], IDENTITY_LABEL[locale][role]);
   await expect(page).toHaveURL(new RegExp(`/${locale}/${ROLE_PATH[role]}/?$`));
 }
 
@@ -349,7 +411,7 @@ test("customer cancellation reaches admin approval and only the assigned guide s
   await switchRole(page, "en", "guide");
   await expect(page.getByRole("heading", { name: copy.guidePortal })).toBeVisible();
   await expect(page.getByRole("heading", { name: copy.customerPortal })).toHaveCount(0);
-  await expect(page.getByText(copy.readOnlyAssignment)).toBeVisible();
+  await expect(page.getByRole("region", { name: copy.customerSchedule }).getByText(copy.readOnlyAssignment)).toBeVisible();
   await expect(page.getByRole("button", { name: /accept|complete|cancel/i })).toHaveCount(0);
 
   const assignedCancellation = page.getByRole("article", { name: copy.cancellationBooking });
@@ -403,13 +465,52 @@ test("Vietnamese direct entries deny the wrong role and protect the customer req
   await expect(page.getByRole("heading", { name: copy.customRequestUnavailable, exact: true })).toBeVisible();
   await expect(page.getByText(copy.accessDeniedMessage, { exact: true })).toBeVisible();
   await expect(page.getByText(copy.signedInAsGuide, { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: copy.chooseIdentity, exact: true })).toHaveAttribute("href", "/vi/sign-in/");
+  await expect(page.getByRole("link", { name: copy.openYourPortal, exact: true })).toHaveAttribute("href", "/vi/guide/");
   await expect(page.getByRole("heading", { name: copy.customerPortal, exact: true })).toHaveCount(0);
   await expect(page.getByText(copy.directNoBooking, { exact: true })).toHaveCount(0);
 
   await page.goto("/vi/guide/");
   await expect(page.getByRole("heading", { name: copy.guidePortal, exact: true })).toBeVisible();
   await assertPortalAccessibility(page);
+
+  await switchRole(page, "vi", "admin");
+  await page.evaluate(() => {
+    window.sessionStorage.removeItem("localens.custom-request.v1");
+    window.sessionStorage.setItem("localens.personalization.v1", JSON.stringify({
+      version: 1,
+      savedAt: Date.now(),
+      request: {
+        startAt: "2026-09-05T10:30:00+07:00",
+        durationMinutes: 360,
+        areas: ["demo-hcmc-district-1"],
+        budget: { currency: "VND", amountMinor: 2_000_000 },
+        partySize: 2,
+        guideLanguage: "vi",
+        priorityWeights: { street_food: 0, history: 0, traditional_craft: 0, traditional_market: 4 },
+        pace: "active",
+        dietaryRequirements: [],
+        mobilityRequirements: [],
+        lockedStopIds: [],
+        specialNeeds: "",
+      },
+    }));
+  });
+  await page.goto("/vi/planner/");
+  await expect(page.getByText(copy.signedInAsAdmin, { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Yêu cầu báo giá cho phiên bản này", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: copy.openYourPortal, exact: true })).toHaveAttribute("href", /\/vi\/admin\/?$/);
+  await expect.poll(() => page.evaluate(() => window.sessionStorage.getItem("localens.custom-request.v1"))).toBeNull();
+
+  await page.goto("/vi/custom-request/");
+  await expect(page.getByRole("heading", { name: copy.customRequestUnavailable, exact: true })).toBeVisible();
+  await expect(page.getByText(copy.signedInAsAdmin, { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: copy.openYourPortal, exact: true })).toHaveAttribute("href", /\/vi\/admin\/?$/);
+  await expect(page.getByRole("button", { name: /gửi yêu cầu|chấp nhận báo giá|stripe/i })).toHaveCount(0);
+
+  await page.goto("/vi/booking/?departure=demo-departure-markets-and-street-food-2026-09-05&partySize=1");
+  await expect(page.getByRole("heading", { name: copy.customRequestUnavailable, exact: true })).toBeVisible();
+  await expect(page.getByText(copy.signedInAsAdmin, { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /tiếp tục|thanh toán|mô phỏng/i })).toHaveCount(0);
   await assertHealthyPage(page, diagnostics);
 });
 
@@ -436,10 +537,18 @@ test("bilingual portal entry and a browser reset restore the seeded customer fix
   await page.getByRole("button", { name: vi.signOut, exact: true }).click();
   await expect(page.getByRole("heading", { name: vi.signInHeading })).toBeVisible();
   await page.evaluate(() => {
-    window.localStorage.clear();
-    window.sessionStorage.clear();
+    window.sessionStorage.setItem("other-app", "keep");
+    window.localStorage.setItem("other-app", "keep");
+    window.localStorage.setItem("locallens.demo.booking.v1:reset-check", "remove");
   });
-  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: vi.resetDemo, exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText(vi.resetComplete);
+  await expect(page.getByRole("heading", { name: vi.signInHeading })).toBeFocused();
+  await expect.poll(() => page.evaluate(() => ({
+    sessionOther: window.sessionStorage.getItem("other-app"),
+    localOther: window.localStorage.getItem("other-app"),
+    ownedBooking: window.localStorage.getItem("locallens.demo.booking.v1:reset-check"),
+  }))).toEqual({ sessionOther: "keep", localOther: "keep", ownedBooking: null });
   await enterDemoIdentity(page, "vi", "customer");
   await expect(page.getByLabel(vi.fullName, { exact: true })).toHaveValue(vi.seededName);
   await expect(page.getByText(vi.resetName, { exact: true })).toHaveCount(0);

@@ -69,6 +69,17 @@ export const DEMO_DEPARTURE_IDS = DEMO_DEPARTURES.map(({ departureId }) => depar
 
 export type BookingStatus = "held" | "paid";
 export type PaymentStatus = "unpaid" | "succeeded";
+export type DemoPaymentOutcome = "pending" | "succeeded" | "failed" | "cancelled" | "expired";
+
+export type DemoPaymentAttempt = Readonly<{
+  attemptId: string;
+  bookingId: string;
+  idempotencyKey: string;
+  outcome: DemoPaymentOutcome;
+  createdAt: string;
+  expiresAt: string;
+  updatedAt: string;
+}>;
 
 export type BookingQuote = Readonly<{
   currency: "VND";
@@ -86,6 +97,7 @@ export type LocalDemoBooking = Readonly<{
   quote: BookingQuote;
   holdExpiresAt: string;
   testSessionExpiresAt: string;
+  paymentAttempts: readonly DemoPaymentAttempt[];
   createdAt: string;
   updatedAt: string;
   resumed: boolean;
@@ -109,7 +121,21 @@ export interface CreateTestPaymentInput {
   now?: Date;
 }
 
+export interface StartTestPaymentInput {
+  bookingId: unknown;
+  idempotencyKey: unknown;
+  storage?: BookingStorage;
+  now?: Date;
+}
+
+export interface FinalizeTestPaymentInput extends StartTestPaymentInput {
+  outcome: "succeeded" | "failed" | "cancelled";
+}
+
 const STORAGE_PREFIX = "locallens.demo.booking.v1:";
+const PAYMENT_SESSION_MINUTES = 30;
+const PAYMENT_IDEMPOTENCY_KEY = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+const PAYMENT_OUTCOMES = new Set<DemoPaymentOutcome>(["pending", "succeeded", "failed", "cancelled", "expired"]);
 const memoryStorageValues = new Map<string, string>();
 const memoryStorage: BookingStorage = {
   getItem: (key) => memoryStorageValues.get(key) ?? null,
@@ -161,6 +187,66 @@ function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): b
   return Object.keys(value).length === expected.size && Object.keys(value).every((key) => expected.has(key));
 }
 
+function validBookingId(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0) throw new Error("Unknown demo booking");
+  return value;
+}
+
+function validIdempotencyKey(value: unknown): string {
+  if (typeof value !== "string" || !PAYMENT_IDEMPOTENCY_KEY.test(value)) {
+    throw new Error("Invalid payment idempotency key");
+  }
+  return value;
+}
+
+function paymentAttemptId(bookingId: string, idempotencyKey: string): string {
+  return `${bookingId}:payment:${idempotencyKey}`;
+}
+
+function isValidPaymentAttempts(
+  value: unknown,
+  bookingId: string,
+  bookingCreatedAt: number,
+  bookingUpdatedAt: number,
+  holdExpiresAt: number,
+): value is DemoPaymentAttempt[] {
+  if (!Array.isArray(value) || value.length > 20) return false;
+  const keys = new Set<string>();
+  let succeeded = 0;
+  for (const attempt of value) {
+    if (!isRecord(attempt) || !hasOnlyKeys(attempt, [
+      "attemptId", "bookingId", "idempotencyKey", "outcome", "createdAt", "expiresAt", "updatedAt",
+    ])) return false;
+    if (
+      attempt.bookingId !== bookingId ||
+      typeof attempt.idempotencyKey !== "string" ||
+      !PAYMENT_IDEMPOTENCY_KEY.test(attempt.idempotencyKey) ||
+      attempt.attemptId !== paymentAttemptId(bookingId, attempt.idempotencyKey) ||
+      keys.has(attempt.idempotencyKey) ||
+      typeof attempt.outcome !== "string" ||
+      !PAYMENT_OUTCOMES.has(attempt.outcome as DemoPaymentOutcome) ||
+      !isFiniteDateString(attempt.createdAt) ||
+      !isFiniteDateString(attempt.expiresAt) ||
+      !isFiniteDateString(attempt.updatedAt)
+    ) return false;
+    keys.add(attempt.idempotencyKey);
+    const createdAt = new Date(attempt.createdAt).getTime();
+    const expiresAt = new Date(attempt.expiresAt).getTime();
+    const updatedAt = new Date(attempt.updatedAt).getTime();
+    if (
+      createdAt < bookingCreatedAt ||
+      expiresAt <= createdAt ||
+      expiresAt > holdExpiresAt ||
+      updatedAt < createdAt ||
+      updatedAt > bookingUpdatedAt ||
+      (attempt.outcome === "pending" && updatedAt !== createdAt) ||
+      (attempt.outcome === "expired" && updatedAt < expiresAt)
+    ) return false;
+    if (attempt.outcome === "succeeded") succeeded += 1;
+  }
+  return succeeded <= 1;
+}
+
 function loadBooking(storage: BookingStorage, bookingId: string): Omit<LocalDemoBooking, "resumed"> | undefined {
   const raw = storage.getItem(storageKey(bookingId));
   if (raw === null) return undefined;
@@ -175,6 +261,7 @@ function loadBooking(storage: BookingStorage, bookingId: string): Omit<LocalDemo
       "quote",
       "holdExpiresAt",
       "testSessionExpiresAt",
+      "paymentAttempts",
       "createdAt",
       "updatedAt",
     ])) return undefined;
@@ -215,10 +302,18 @@ function loadBooking(storage: BookingStorage, bookingId: string): Omit<LocalDemo
     const updatedAt = new Date(value.updatedAt).getTime();
     const holdExpiresAt = new Date(value.holdExpiresAt).getTime();
     const testSessionExpiresAt = new Date(value.testSessionExpiresAt).getTime();
+    if (!isValidPaymentAttempts(value.paymentAttempts, bookingId, createdAt, updatedAt, holdExpiresAt)) return undefined;
+    const paymentAttempts = value.paymentAttempts;
+    const successfulAttempts = paymentAttempts.filter((attempt) => attempt.outcome === "succeeded");
     if (
       updatedAt < createdAt ||
       holdExpiresAt !== createdAt + 35 * 60_000 ||
-      testSessionExpiresAt !== createdAt + 30 * 60_000
+      testSessionExpiresAt <= createdAt ||
+      testSessionExpiresAt > holdExpiresAt ||
+      (paymentAttempts.length === 0 && testSessionExpiresAt !== createdAt + PAYMENT_SESSION_MINUTES * 60_000) ||
+      (paymentAttempts.length > 0 && testSessionExpiresAt !== new Date(paymentAttempts.at(-1)!.expiresAt).getTime()) ||
+      (value.status === "paid" && successfulAttempts.length !== 1) ||
+      (value.status === "held" && successfulAttempts.length !== 0)
     ) return undefined;
 
     return value as Omit<LocalDemoBooking, "resumed">;
@@ -274,6 +369,7 @@ export function createLocalBooking(input: CreateLocalBookingInput): LocalDemoBoo
     },
     holdExpiresAt: new Date(clock.getTime() + 35 * 60_000).toISOString(),
     testSessionExpiresAt: new Date(clock.getTime() + 30 * 60_000).toISOString(),
+    paymentAttempts: [],
     createdAt,
     updatedAt: createdAt,
   };
@@ -281,29 +377,96 @@ export function createLocalBooking(input: CreateLocalBookingInput): LocalDemoBoo
   return { ...booking, resumed: false };
 }
 
-export function createTestPayment(input: CreateTestPaymentInput): LocalDemoBooking {
-  if (typeof input.bookingId !== "string" || input.bookingId.length === 0) {
-    throw new Error("Unknown demo booking");
-  }
+export function startTestPayment(input: StartTestPaymentInput): DemoPaymentAttempt {
+  const bookingId = validBookingId(input.bookingId);
+  const idempotencyKey = validIdempotencyKey(input.idempotencyKey);
   const storage = input.storage ?? getDefaultStorage();
-  const existing = loadBooking(storage, input.bookingId);
+  const existing = loadBooking(storage, bookingId);
   if (existing === undefined) throw new Error("Unknown demo booking");
 
   const clock = validNow(input.now);
-  if (existing.status === "paid") return { ...existing, resumed: true };
-  if (clock.getTime() >= new Date(existing.testSessionExpiresAt).getTime()) {
-    throw new Error("Demo payment session expired");
+  const prior = existing.paymentAttempts.find((attempt) => attempt.idempotencyKey === idempotencyKey);
+  if (prior !== undefined) {
+    if (prior.outcome !== "pending" || clock.getTime() < new Date(prior.expiresAt).getTime()) return prior;
+    const expiredAttempt: DemoPaymentAttempt = { ...prior, outcome: "expired", updatedAt: clock.toISOString() };
+    const expiredBooking: Omit<LocalDemoBooking, "resumed"> = {
+      ...existing,
+      paymentAttempts: existing.paymentAttempts.map((attempt) => attempt.idempotencyKey === idempotencyKey ? expiredAttempt : attempt),
+      updatedAt: clock.toISOString(),
+    };
+    saveBooking(storage, expiredBooking);
+    return expiredAttempt;
   }
   if (clock.getTime() >= new Date(existing.holdExpiresAt).getTime()) {
     throw new Error("Demo booking hold expired");
   }
+  if (existing.status === "paid") throw new Error("Demo booking already paid");
+  if (existing.paymentAttempts.length >= 20) throw new Error("Too many demo payment attempts");
 
-  const paid: Omit<LocalDemoBooking, "resumed"> = {
-    ...existing,
-    status: "paid",
-    paymentStatus: "succeeded",
+  const currentSessionExpiresAt = new Date(existing.testSessionExpiresAt).getTime();
+  const holdExpiresAt = new Date(existing.holdExpiresAt).getTime();
+  const expiresAt = existing.paymentAttempts.length === 0 || clock.getTime() < currentSessionExpiresAt
+    ? currentSessionExpiresAt
+    : Math.min(clock.getTime() + PAYMENT_SESSION_MINUTES * 60_000, holdExpiresAt);
+  const expiredAtStart = clock.getTime() >= expiresAt;
+  const createdAt = expiredAtStart ? existing.createdAt : clock.toISOString();
+  const attempt: DemoPaymentAttempt = {
+    attemptId: paymentAttemptId(bookingId, idempotencyKey),
+    bookingId,
+    idempotencyKey,
+    outcome: expiredAtStart ? "expired" : "pending",
+    createdAt,
+    expiresAt: new Date(expiresAt).toISOString(),
     updatedAt: clock.toISOString(),
   };
-  saveBooking(storage, paid);
-  return { ...paid, resumed: false };
+  const nextBooking: Omit<LocalDemoBooking, "resumed"> = {
+    ...existing,
+    testSessionExpiresAt: attempt.expiresAt,
+    paymentAttempts: [...existing.paymentAttempts, attempt],
+    updatedAt: clock.toISOString(),
+  };
+  saveBooking(storage, nextBooking);
+  return attempt;
+}
+
+export function finalizeTestPayment(input: FinalizeTestPaymentInput): LocalDemoBooking {
+  const bookingId = validBookingId(input.bookingId);
+  const idempotencyKey = validIdempotencyKey(input.idempotencyKey);
+  const storage = input.storage ?? getDefaultStorage();
+  const existing = loadBooking(storage, bookingId);
+  if (existing === undefined) throw new Error("Unknown demo booking");
+  const prior = existing.paymentAttempts.find((attempt) => attempt.idempotencyKey === idempotencyKey);
+  if (prior === undefined) throw new Error("Unknown demo payment attempt");
+  if (prior.outcome !== "pending") return { ...existing, resumed: true };
+
+  const clock = validNow(input.now);
+  if (clock.getTime() >= new Date(existing.holdExpiresAt).getTime()) {
+    throw new Error("Demo booking hold expired");
+  }
+  const outcome: DemoPaymentOutcome = clock.getTime() >= new Date(prior.expiresAt).getTime()
+    ? "expired"
+    : input.outcome;
+  const updatedAttempt: DemoPaymentAttempt = { ...prior, outcome, updatedAt: clock.toISOString() };
+  const next: Omit<LocalDemoBooking, "resumed"> = {
+    ...existing,
+    status: outcome === "succeeded" ? "paid" : "held",
+    paymentStatus: outcome === "succeeded" ? "succeeded" : "unpaid",
+    paymentAttempts: existing.paymentAttempts.map((attempt) => attempt.idempotencyKey === idempotencyKey ? updatedAttempt : attempt),
+    updatedAt: clock.toISOString(),
+  };
+  saveBooking(storage, next);
+  return { ...next, resumed: false };
+}
+
+export function createTestPayment(input: CreateTestPaymentInput): LocalDemoBooking {
+  const bookingId = validBookingId(input.bookingId);
+  const storage = input.storage ?? getDefaultStorage();
+  const existing = loadBooking(storage, bookingId);
+  if (existing === undefined) throw new Error("Unknown demo booking");
+  if (existing.status === "paid") return { ...existing, resumed: true };
+
+  const idempotencyKey = "legacy-success";
+  const attempt = startTestPayment({ bookingId, idempotencyKey, storage, now: input.now });
+  if (attempt.outcome === "expired") throw new Error("Demo payment session expired");
+  return finalizeTestPayment({ bookingId, idempotencyKey, outcome: "succeeded", storage, now: input.now });
 }

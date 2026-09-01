@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 
 import {
@@ -11,12 +11,13 @@ import {
 } from "@/lib/application/portal/contracts";
 import type { Locale } from "@/lib/i18n/config";
 import type { DemoPortalComposition } from "@/lib/application/portal/composition";
+import { clearLocalLensDemoStorage } from "@/lib/application/demo/reset-demo";
 
 import { AdminPortal } from "@/components/portals/admin-portal";
 import { CustomerPortal } from "@/components/portals/customer-portal";
 import { GuidePortal } from "@/components/portals/guide-portal";
 import { getDemoPortalComposition } from "@/components/portals/portal-session";
-import { portalCopy, portalPath, roleLabel } from "@/components/portals/portal-copy";
+import { portalCopy, portalPath, roleLabel, signedInRoleText } from "@/components/portals/portal-copy";
 import { PortalNav, PortalNotice } from "@/components/portals/portal-chrome";
 import styles from "@/components/portals/portal.module.css";
 
@@ -138,11 +139,14 @@ export function SignInPortal({
   composition: DemoPortalComposition;
   session: DemoPortalIdentity | null;
   navigate: PortalNavigate;
-  onSessionSelected: (session: DemoPortalIdentity) => void;
+  onSessionSelected: (session: DemoPortalIdentity | null) => void;
 }) {
   const copy = portalCopy(locale);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetStatus, setResetStatus] = useState<string | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   async function selectIdentity(event: MouseEvent<HTMLAnchorElement>, userId: string, role: PortalRole): Promise<void> {
     event.preventDefault();
@@ -159,18 +163,42 @@ export function SignInPortal({
     }
   }
 
+  async function resetDemo(): Promise<void> {
+    if (resetting || selectedId !== null) return;
+    setResetting(true);
+    setError(null);
+    setResetStatus(null);
+    try {
+      clearLocalLensDemoStorage({
+        session: window.sessionStorage,
+        local: window.localStorage,
+      });
+      await composition.resetDemo();
+      onSessionSelected(null);
+      setResetStatus(copy.resetComplete);
+    } catch {
+      setError(copy.resetError);
+    } finally {
+      setResetting(false);
+      window.setTimeout(() => headingRef.current?.focus(), 0);
+    }
+  }
+
   return (
     <PortalFrame locale={locale} session={session} onSignOut={() => undefined}>
       <PortalNotice locale={locale} />
       <section className={styles.signInHero} aria-labelledby="portal-sign-in-heading">
         <p className={styles.eyebrow}>{copy.chooseIdentity}</p>
-        <h1 id="portal-sign-in-heading">{copy.signInHeading}</h1>
+        <h1 id="portal-sign-in-heading" ref={headingRef} tabIndex={-1}>{copy.signInHeading}</h1>
         <p>{copy.signInIntro}</p>
         <p className={styles.hint}>{copy.signInDisclosure}</p>
         <div className={styles.actions}>
           <Link className={`${styles.button} ${styles.buttonSecondary}`} href={`/${locale}/sign-in/`}>
             {copy.chooseIdentity}
           </Link>
+          <button className={`${styles.button} ${styles.buttonSecondary}`} type="button" disabled={resetting || selectedId !== null} onClick={() => void resetDemo()}>
+            {resetting ? copy.resettingDemo : copy.resetDemo}
+          </button>
         </div>
       </section>
 
@@ -179,6 +207,7 @@ export function SignInPortal({
           {error}
         </p>
       ) : null}
+      {resetStatus ? <p className={styles.srStatus} role="status">{resetStatus}</p> : null}
 
       <div className={styles.identityGrid}>
         {DEMO_IDENTITIES.map((identity) => (
@@ -224,7 +253,7 @@ function AccessDeniedPortal({
         <p className={styles.eyebrow}>{copy.demoOnly}</p>
         <h1>{heading}</h1>
         <p>{copy.accessDeniedMessage}</p>
-        <p>{copy.signedInAsRole} {roleLabel(locale, session.role)}.</p>
+        <p>{signedInRoleText(locale, session.role)}</p>
         <div className={styles.actions}>
           <Link className={styles.button} href={rolePathFor(session, locale)}>
             {copy.openYourPortal}

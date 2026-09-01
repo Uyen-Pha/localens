@@ -58,20 +58,25 @@ describe("demo portal integration boundary", () => {
       paymentStatus: "pending",
       totalVndMinor: "960000",
     });
+    expect(held.filter((booking) => booking.id === fixedBookingInput().bookingId)).toHaveLength(1);
+
+    // Failed, cancelled, expired and retried browser attempts all resync the
+    // same held booking projection until one attempt succeeds.
+    await value.demoIntegration.syncFixedBooking(fixedBookingInput("held"));
+    await value.demoIntegration.syncFixedBooking(fixedBookingInput("held"));
+    const retried = await value.customer.account.listCustomerBookings();
+    expect(retried.filter((booking) => booking.id === fixedBookingInput().bookingId)).toHaveLength(1);
 
     await value.demoIntegration.syncFixedBooking(fixedBookingInput("paid"));
     const admin = value.admin;
     await value.session.selectDemoIdentity("demo-user-admin");
-    await expect(admin.bookings.listAdminBookings()).resolves.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: fixedBookingInput().bookingId,
-          status: "confirmed",
-          paymentStatus: "paid",
-          totalVndMinor: "960000",
-        }),
-      ]),
-    );
+    const adminBookings = await admin.bookings.listAdminBookings();
+    expect(adminBookings.filter((booking) => booking.id === fixedBookingInput().bookingId)).toHaveLength(1);
+    expect(adminBookings.find((booking) => booking.id === fixedBookingInput().bookingId)).toMatchObject({
+      status: "confirmed",
+      paymentStatus: "paid",
+      totalVndMinor: "960000",
+    });
   });
 
   it("runs fixed assignment and keeps a guide cancellation notice scoped to that assignment", async () => {
@@ -174,6 +179,33 @@ describe("demo portal integration boundary", () => {
     })).rejects.toMatchObject({ code: "CONFLICT" });
   });
 
+  it("accepts a zero-payable food request without fabricating a booking or payment", async () => {
+    const value = await composition();
+    await value.session.selectDemoIdentity("demo-user-customer");
+
+    await expect(value.demoIntegration.submitPersonalizedRequest({
+      requestId: "demo-request-food-only-1",
+      planId: "demo-plan-food-only",
+      revisionNo: 1,
+      locale: "vi",
+      partySize: 3,
+      totalVndMinor: 0,
+      specialNeeds: "",
+      createdAt: "2026-09-05T12:00:00.000Z",
+    })).resolves.toMatchObject({
+      request: { id: "demo-request-food-only-1", status: "pending_review" },
+    });
+    expect((await value.customer.account.listCustomerBookings())
+      .some((booking) => booking.id === "demo-booking-demo-request-food-only-1")).toBe(false);
+
+    await value.session.selectDemoIdentity("demo-user-admin");
+    expect((await value.admin.personalizedRequests.listPersonalizedRequests())
+      .find((request) => request.id === "demo-request-food-only-1")).toMatchObject({
+        requestedTotalVndMinor: "0",
+        status: "pending_review",
+      });
+  });
+
   it("fails closed when a non-customer tries to use the customer ingress", async () => {
     const value = await composition();
     await value.session.selectDemoIdentity("demo-user-admin");
@@ -181,5 +213,30 @@ describe("demo portal integration boundary", () => {
     await expect(value.demoIntegration.syncFixedBooking(fixedBookingInput())).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
+    await expect(value.demoIntegration.submitPersonalizedRequest({
+      requestId: "demo-request-forged-admin",
+      planId: "demo-plan-forged-admin",
+      revisionNo: 1,
+      locale: "en",
+      partySize: 1,
+      totalVndMinor: 100_000,
+      specialNeeds: "",
+      createdAt: NOW,
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(value.demoIntegration.completePersonalizedCheckout({
+      bookingId: "demo-booking-personalized",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await value.session.selectDemoIdentity("demo-user-customer");
+    await expect(value.admin.personalizedRequests.listPersonalizedRequests()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(value.admin.personalizedRequests.reviewPersonalizedRequest({
+      requestId: "demo-request-personalized",
+      decision: "approved",
+      note: null,
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(value.demoQuotes.issueDemoQuote({
+      requestId: "demo-request-personalized",
+      amountVndMinor: 1_250_000,
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
