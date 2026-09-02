@@ -1,10 +1,16 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
+  parseCompleteSimulatedPaymentInput,
+  parseCompleteSimulatedPaymentResult,
+  parseFixedTourPaymentStatus,
   parseFixedTourBeginBookingInput,
   parseFixedTourBeginBookingResult,
+  type CompleteSimulatedPaymentInput,
+  type CompleteSimulatedPaymentResult,
   type FixedTourBeginBookingInput,
   type FixedTourBeginBookingResult,
+  type FixedTourPaymentStatus,
   type FixedTourRuntimePort,
 } from "@/lib/application/fixed-tour/contracts";
 import type {
@@ -30,12 +36,36 @@ const validResult = {
   state: "created",
 } as const;
 
+const validPaymentInput = {
+  bookingId,
+  idempotencyKey: "fixed-tour-payment:customer-b:1",
+} as const;
+
+const validPaymentResult = {
+  bookingId,
+  bookingStatus: "confirmed",
+  paymentStatus: "paid",
+  simulatedAt: "2026-09-05T08:05:00.000Z",
+  state: "completed",
+} as const;
+
+const validPaymentStatus = {
+  bookingId,
+  bookingStatus: "confirmed",
+  paymentStatus: "paid",
+  amountMinor: "1500000",
+  currency: "vnd",
+  simulatedAt: "2026-09-05T08:05:00.000Z",
+} as const;
+
 describe("fixed-tour runtime contracts", () => {
-  it("reuses the domain projections in the four browser-safe port operations", async () => {
+  it("reuses the domain projections in the six browser-safe port operations", async () => {
     const tours: PublishedTour[] = [];
     const availability: LiveDepartureAvailability[] = [];
     const bookings: CustomerBooking[] = [];
+    const payments: FixedTourPaymentStatus[] = [];
     const result: FixedTourBeginBookingResult = validResult;
+    const paymentResult: CompleteSimulatedPaymentResult = validPaymentResult;
 
     const port: FixedTourRuntimePort = {
       async listPublishedTours(locale) {
@@ -52,18 +82,29 @@ describe("fixed-tour runtime contracts", () => {
       async listOwnBookings() {
         return bookings;
       },
+      async listOwnPaymentStatuses() {
+        return payments;
+      },
+      async completeSimulatedPayment(input) {
+        expectTypeOf(input).toEqualTypeOf<CompleteSimulatedPaymentInput>();
+        return paymentResult;
+      },
     };
 
     expect(Object.keys(port).sort()).toEqual([
       "beginBooking",
+      "completeSimulatedPayment",
       "listAvailability",
       "listOwnBookings",
+      "listOwnPaymentStatuses",
       "listPublishedTours",
     ]);
     await expect(port.listPublishedTours("en")).resolves.toBe(tours);
     await expect(port.listAvailability()).resolves.toBe(availability);
     await expect(port.beginBooking(validInput)).resolves.toBe(result);
     await expect(port.listOwnBookings()).resolves.toBe(bookings);
+    await expect(port.listOwnPaymentStatuses()).resolves.toBe(payments);
+    await expect(port.completeSimulatedPayment(validPaymentInput)).resolves.toBe(paymentResult);
 
     expectTypeOf<ReturnType<FixedTourRuntimePort["listPublishedTours"]>>()
       .toEqualTypeOf<Promise<PublishedTour[]>>();
@@ -73,6 +114,10 @@ describe("fixed-tour runtime contracts", () => {
       .toEqualTypeOf<Promise<FixedTourBeginBookingResult>>();
     expectTypeOf<ReturnType<FixedTourRuntimePort["listOwnBookings"]>>()
       .toEqualTypeOf<Promise<CustomerBooking[]>>();
+    expectTypeOf<ReturnType<FixedTourRuntimePort["listOwnPaymentStatuses"]>>()
+      .toEqualTypeOf<Promise<FixedTourPaymentStatus[]>>();
+    expectTypeOf<ReturnType<FixedTourRuntimePort["completeSimulatedPayment"]>>()
+      .toEqualTypeOf<Promise<CompleteSimulatedPaymentResult>>();
   });
 
   it("accepts only the exact browser-authored begin-booking input", () => {
@@ -172,5 +217,92 @@ describe("fixed-tour runtime contracts", () => {
       ok: true,
       value: { ...validResult, state: "resumed" },
     });
+  });
+
+  it("accepts only booking identity and idempotency for simulated payment", () => {
+    expect(parseCompleteSimulatedPaymentInput(validPaymentInput)).toEqual({
+      ok: true,
+      value: validPaymentInput,
+    });
+
+    for (const forbiddenField of [
+      "actorId",
+      "ownerUserId",
+      "amountMinor",
+      "currency",
+      "outcome",
+      "paymentStatus",
+      "simulatedAt",
+      "providerSessionId",
+      "card",
+    ]) {
+      expect(parseCompleteSimulatedPaymentInput({
+        ...validPaymentInput,
+        [forbiddenField]: "server-owned",
+      })).toMatchObject({
+        ok: false,
+        error: { code: "UNKNOWN_FIELD", fieldPath: `input.${forbiddenField}` },
+      });
+    }
+
+    for (const malformed of [
+      null,
+      { ...validPaymentInput, bookingId: "not-a-uuid" },
+      { ...validPaymentInput, idempotencyKey: " contains spaces " },
+      { bookingId },
+    ]) {
+      expect(parseCompleteSimulatedPaymentInput(malformed)).toMatchObject({ ok: false });
+    }
+  });
+
+  it("strictly validates completed, expired, and replayed mutation results", () => {
+    expect(parseCompleteSimulatedPaymentResult(validPaymentResult)).toEqual({
+      ok: true,
+      value: validPaymentResult,
+    });
+    expect(parseCompleteSimulatedPaymentResult({
+      ...validPaymentResult,
+      bookingStatus: "expired",
+      paymentStatus: null,
+      state: "expired",
+    })).toMatchObject({ ok: true });
+    expect(parseCompleteSimulatedPaymentResult({
+      ...validPaymentResult,
+      state: "replayed",
+    })).toMatchObject({ ok: true });
+
+    for (const malformed of [
+      { ...validPaymentResult, paymentStatus: "failed" },
+      { ...validPaymentResult, simulatedAt: "2026-02-30T08:05:00.000Z" },
+      { ...validPaymentResult, state: "created" },
+      { ...validPaymentResult, amountMinor: "1500000" },
+      { bookingId, bookingStatus: "confirmed", paymentStatus: "paid", simulatedAt: validPaymentResult.simulatedAt },
+    ]) {
+      expect(parseCompleteSimulatedPaymentResult(malformed)).toMatchObject({ ok: false });
+    }
+  });
+
+  it("strictly validates owner-scoped simulated payment projection rows", () => {
+    expect(parseFixedTourPaymentStatus(validPaymentStatus)).toEqual({
+      ok: true,
+      value: validPaymentStatus,
+    });
+    expect(parseFixedTourPaymentStatus({
+      ...validPaymentStatus,
+      bookingStatus: "expired",
+      paymentStatus: null,
+    })).toMatchObject({ ok: true });
+
+    for (const malformed of [
+      { ...validPaymentStatus, amountMinor: "9007199254740992" },
+      { ...validPaymentStatus, currency: "eur" },
+      { ...validPaymentStatus, paymentStatus: "failed" },
+      { ...validPaymentStatus, paymentStatus: null },
+      { ...validPaymentStatus, bookingStatus: "expired", paymentStatus: "paid" },
+      { ...validPaymentStatus, ownerUserId: "leak" },
+      { ...validPaymentStatus, simulatedAt: null },
+    ]) {
+      expect(parseFixedTourPaymentStatus(malformed)).toMatchObject({ ok: false });
+    }
   });
 });

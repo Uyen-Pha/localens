@@ -132,13 +132,19 @@ describe("Task 13 RLS/RPC access matrix", () => {
       rpcs: Array<{ name: string; signature: string; owner: string; readerRoles: string[] }>;
       internalFunctions: string[];
     };
-    expect(matrix.tables).toHaveLength(79);
-    expect(matrix.views).toHaveLength(15);
-    expect(matrix.rpcs).toHaveLength(21);
+    expect(matrix.tables).toHaveLength(80);
+    expect(matrix.views).toHaveLength(16);
+    expect(matrix.rpcs).toHaveLength(22);
     expect(matrix.rpcs).toContainEqual(expect.objectContaining({
       name: "public.begin_fixed_tour_booking",
       signature: "public.begin_fixed_tour_booking(uuid,integer,public.locale,text)",
       owner: "localens_checkout_rpc_owner",
+      readerRoles: ["authenticated"],
+    }));
+    expect(matrix.rpcs).toContainEqual(expect.objectContaining({
+      name: "public.complete_simulated_fixed_tour_payment",
+      signature: "public.complete_simulated_fixed_tour_payment(uuid,text)",
+      owner: "localens_simulated_payment_rpc_owner",
       readerRoles: ["authenticated"],
     }));
     expect(matrix.rpcs).toContainEqual(expect.objectContaining({

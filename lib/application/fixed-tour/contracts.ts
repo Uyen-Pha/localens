@@ -1,9 +1,12 @@
 import { LOCALE_VALUES } from "@/lib/domain/data/contracts";
 import type {
+  BookingStatus,
+  CheckoutCurrency,
   CustomerBooking,
   DataAdapterError,
   LiveDepartureAvailability,
   Locale,
+  PaymentStatus,
   PublishedTour,
   Result,
 } from "@/lib/domain/data/contracts";
@@ -21,11 +24,35 @@ export interface FixedTourBeginBookingResult {
   state: "created" | "resumed";
 }
 
+export interface CompleteSimulatedPaymentInput {
+  bookingId: string;
+  idempotencyKey: string;
+}
+
+export interface CompleteSimulatedPaymentResult {
+  bookingId: string;
+  bookingStatus: BookingStatus;
+  paymentStatus: Extract<PaymentStatus, "paid"> | null;
+  simulatedAt: string;
+  state: "completed" | "expired" | "replayed";
+}
+
+export interface FixedTourPaymentStatus {
+  bookingId: string;
+  bookingStatus: BookingStatus;
+  paymentStatus: Extract<PaymentStatus, "paid"> | null;
+  amountMinor: string;
+  currency: CheckoutCurrency;
+  simulatedAt: string;
+}
+
 export interface FixedTourRuntimePort {
   listPublishedTours(locale: Locale): Promise<PublishedTour[]>;
   listAvailability(): Promise<LiveDepartureAvailability[]>;
   beginBooking(input: FixedTourBeginBookingInput): Promise<FixedTourBeginBookingResult>;
   listOwnBookings(): Promise<CustomerBooking[]>;
+  listOwnPaymentStatuses(): Promise<FixedTourPaymentStatus[]>;
+  completeSimulatedPayment(input: CompleteSimulatedPaymentInput): Promise<CompleteSimulatedPaymentResult>;
 }
 
 export type FixedTourRuntimeErrorCode =
@@ -71,9 +98,38 @@ const BEGIN_BOOKING_RESULT_FIELDS = [
   "holdExpiresAt",
   "state",
 ] as const;
+const COMPLETE_PAYMENT_INPUT_FIELDS = ["bookingId", "idempotencyKey"] as const;
+const COMPLETE_PAYMENT_RESULT_FIELDS = [
+  "bookingId",
+  "bookingStatus",
+  "paymentStatus",
+  "simulatedAt",
+  "state",
+] as const;
+const PAYMENT_STATUS_FIELDS = [
+  "bookingId",
+  "bookingStatus",
+  "paymentStatus",
+  "amountMinor",
+  "currency",
+  "simulatedAt",
+] as const;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/;
 const TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/;
+const BOOKING_STATUSES = new Set<BookingStatus>([
+  "pending_payment",
+  "payment_processing",
+  "confirmed",
+  "payment_failed",
+  "payment_review",
+  "expired",
+  "cancelled",
+  "completed",
+]);
+const PAYMENT_STATES = new Set(["completed", "expired", "replayed"] as const);
+const CURRENCIES = new Set<CheckoutCurrency>(["vnd", "usd"]);
+const MAX_SAFE_MONEY = BigInt(Number.MAX_SAFE_INTEGER);
 
 type UnknownRecord = Record<string, unknown>;
 type FixedTourContractResult<T> = Result<T, DataAdapterError>;
@@ -135,6 +191,24 @@ function isCanonicalTimestamp(value: unknown): value is string {
     calendar.getUTCDate() === day &&
     Number.isFinite(Date.parse(value))
   );
+}
+
+function isBookingStatus(value: unknown): value is BookingStatus {
+  return typeof value === "string" && BOOKING_STATUSES.has(value as BookingStatus);
+}
+
+function isPaidOrNull(value: unknown): value is "paid" | null {
+  return value === "paid" || value === null;
+}
+
+function isSafeMoney(value: unknown): value is string {
+  if (typeof value !== "string" || !/^(?:0|[1-9]\d*)$/.test(value)) return false;
+  try {
+    const amount = BigInt(value);
+    return amount > BigInt(0) && amount <= MAX_SAFE_MONEY;
+  } catch {
+    return false;
+  }
 }
 
 export function parseFixedTourBeginBookingInput(
@@ -200,6 +274,117 @@ export function parseFixedTourBeginBookingResult(
       bookingId: fields.value.bookingId,
       holdExpiresAt: fields.value.holdExpiresAt,
       state: fields.value.state,
+    },
+  };
+}
+
+export function parseCompleteSimulatedPaymentInput(
+  value: unknown,
+): FixedTourContractResult<CompleteSimulatedPaymentInput> {
+  const fields = exactFields(value, COMPLETE_PAYMENT_INPUT_FIELDS, "input");
+  if (!fields.ok) return fields;
+  if (!isCanonicalUuid(fields.value.bookingId)) {
+    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "input.bookingId");
+  }
+  if (
+    typeof fields.value.idempotencyKey !== "string" ||
+    !IDEMPOTENCY_KEY_PATTERN.test(fields.value.idempotencyKey)
+  ) {
+    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "input.idempotencyKey");
+  }
+  return {
+    ok: true,
+    value: {
+      bookingId: fields.value.bookingId,
+      idempotencyKey: fields.value.idempotencyKey,
+    },
+  };
+}
+
+export function parseCompleteSimulatedPaymentResult(
+  value: unknown,
+): FixedTourContractResult<CompleteSimulatedPaymentResult> {
+  const fields = exactFields(value, COMPLETE_PAYMENT_RESULT_FIELDS, "result");
+  if (!fields.ok) return fields;
+  if (!isCanonicalUuid(fields.value.bookingId)) {
+    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.bookingId");
+  }
+  if (!isBookingStatus(fields.value.bookingStatus)) {
+    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.bookingStatus");
+  }
+  if (!isPaidOrNull(fields.value.paymentStatus)) {
+    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.paymentStatus");
+  }
+  if (!isCanonicalTimestamp(fields.value.simulatedAt)) {
+    return invalid("INVALID_TIMESTAMP", "data.timestamp.invalid", "result.simulatedAt");
+  }
+  if (
+    typeof fields.value.state !== "string" ||
+    !PAYMENT_STATES.has(fields.value.state as CompleteSimulatedPaymentResult["state"])
+  ) {
+    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.state");
+  }
+  const completedFacts = fields.value.bookingStatus === "confirmed" && fields.value.paymentStatus === "paid";
+  const expiredFacts = fields.value.bookingStatus === "expired" && fields.value.paymentStatus === null;
+  if (
+    (fields.value.state === "completed" && !completedFacts) ||
+    (fields.value.state === "expired" && !expiredFacts) ||
+    (fields.value.state === "replayed" && !completedFacts && !expiredFacts)
+  ) {
+    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.state");
+  }
+  return {
+    ok: true,
+    value: {
+      bookingId: fields.value.bookingId,
+      bookingStatus: fields.value.bookingStatus,
+      paymentStatus: fields.value.paymentStatus,
+      simulatedAt: fields.value.simulatedAt,
+      state: fields.value.state as CompleteSimulatedPaymentResult["state"],
+    },
+  };
+}
+
+export function parseFixedTourPaymentStatus(
+  value: unknown,
+): FixedTourContractResult<FixedTourPaymentStatus> {
+  const fields = exactFields(value, PAYMENT_STATUS_FIELDS, "row");
+  if (!fields.ok) return fields;
+  if (!isCanonicalUuid(fields.value.bookingId)) {
+    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "row.bookingId");
+  }
+  if (!isBookingStatus(fields.value.bookingStatus)) {
+    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "row.bookingStatus");
+  }
+  if (!isPaidOrNull(fields.value.paymentStatus)) {
+    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "row.paymentStatus");
+  }
+  if (
+    !(
+      (fields.value.bookingStatus === "confirmed" && fields.value.paymentStatus === "paid") ||
+      (fields.value.bookingStatus === "expired" && fields.value.paymentStatus === null)
+    )
+  ) {
+    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "row.paymentStatus");
+  }
+  if (!isSafeMoney(fields.value.amountMinor)) {
+    return invalid("INVALID_DB_DECIMAL", "data.money.invalid", "row.amountMinor");
+  }
+  if (typeof fields.value.currency !== "string" || !CURRENCIES.has(fields.value.currency as CheckoutCurrency)) {
+    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "row.currency");
+  }
+  if (!isCanonicalTimestamp(fields.value.simulatedAt)) {
+    return invalid("INVALID_TIMESTAMP", "data.timestamp.invalid", "row.simulatedAt");
+  }
+  return {
+    ok: true,
+    value: {
+      bookingId: fields.value.bookingId,
+      bookingStatus: fields.value.bookingStatus,
+      paymentStatus: fields.value.paymentStatus,
+      amountMinor: fields.value.amountMinor,
+      currency: fields.value.currency as CheckoutCurrency,
+      simulatedAt: fields.value.simulatedAt,
     },
   };
 }

@@ -2,8 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   FixedTourRuntimeError,
+  parseCompleteSimulatedPaymentInput,
+  parseCompleteSimulatedPaymentResult,
   parseFixedTourBeginBookingInput,
   parseFixedTourBeginBookingResult,
+  parseFixedTourPaymentStatus,
+  type FixedTourPaymentStatus,
   type FixedTourRuntimeErrorCode,
   type FixedTourRuntimePort,
 } from "@/lib/application/fixed-tour/contracts";
@@ -71,6 +75,29 @@ const CUSTOMER_BOOKING_COLUMNS = [
 ].join(",");
 
 const HOLD_RESULT_FIELDS = ["booking_id", "hold_expires_at", "state"] as const;
+const PAYMENT_STATUS_COLUMNS = [
+  "booking_id",
+  "booking_status",
+  "payment_status",
+  "amount_minor",
+  "currency",
+  "simulated_at",
+].join(",");
+const PAYMENT_STATUS_FIELDS = [
+  "booking_id",
+  "booking_status",
+  "payment_status",
+  "amount_minor",
+  "currency",
+  "simulated_at",
+] as const;
+const PAYMENT_RESULT_FIELDS = [
+  "booking_id",
+  "booking_status",
+  "payment_status",
+  "simulated_at",
+  "state",
+] as const;
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -141,17 +168,37 @@ function mappedRows<T>(
   return result;
 }
 
-function exactHoldRow(value: unknown): UnknownRecord {
+function exactRow(value: unknown, fields: readonly string[]): UnknownRecord {
   if (!isRecord(value)) fail("INVALID_RESPONSE");
   const keys = Object.keys(value);
   if (
-    keys.length !== HOLD_RESULT_FIELDS.length ||
-    HOLD_RESULT_FIELDS.some((field) => !Object.prototype.hasOwnProperty.call(value, field)) ||
-    keys.some((field) => !(HOLD_RESULT_FIELDS as readonly string[]).includes(field))
+    keys.length !== fields.length ||
+    fields.some((field) => !Object.prototype.hasOwnProperty.call(value, field)) ||
+    keys.some((field) => !fields.includes(field))
   ) {
     fail("INVALID_RESPONSE");
   }
   return value;
+}
+
+function mapPaymentStatusRow(row: unknown): Result<FixedTourPaymentStatus, DataAdapterError> {
+  let fields: UnknownRecord;
+  try {
+    fields = exactRow(row, PAYMENT_STATUS_FIELDS);
+  } catch {
+    return {
+      ok: false,
+      error: { code: "INVALID_SHAPE", messageKey: "fixedTour.contract.invalid_shape", fieldPath: "row" },
+    };
+  }
+  return parseFixedTourPaymentStatus({
+    bookingId: fields.booking_id,
+    bookingStatus: fields.booking_status,
+    paymentStatus: fields.payment_status,
+    amountMinor: fields.amount_minor,
+    currency: fields.currency,
+    simulatedAt: fields.simulated_at,
+  });
 }
 
 async function requireSession(client: FixedTourSupabaseClient): Promise<void> {
@@ -209,7 +256,7 @@ export function createSupabaseFixedTourRuntimeAdapter(
       }));
       const resultRows = rows(data);
       if (resultRows.length !== 1) fail("INVALID_RESPONSE");
-      const row = exactHoldRow(resultRows[0]);
+      const row = exactRow(resultRows[0], HOLD_RESULT_FIELDS);
       const result = parseFixedTourBeginBookingResult({
         bookingId: row.booking_id,
         holdExpiresAt: row.hold_expires_at,
@@ -229,6 +276,39 @@ export function createSupabaseFixedTourRuntimeAdapter(
           .order("id", { ascending: false }),
       );
       return mappedRows(data, mapCustomerBooking);
+    },
+
+    async listOwnPaymentStatuses(): Promise<FixedTourPaymentStatus[]> {
+      await requireSession(client);
+      const data = await responseData(
+        client
+          .from("customer_simulated_payment_status_v")
+          .select(PAYMENT_STATUS_COLUMNS)
+          .order("simulated_at", { ascending: false }),
+      );
+      return mappedRows(data, mapPaymentStatusRow);
+    },
+
+    async completeSimulatedPayment(input) {
+      const parsed = parseCompleteSimulatedPaymentInput(input);
+      if (!parsed.ok) fail("INVALID_INPUT");
+      await requireSession(client);
+      const data = await responseData(client.rpc("complete_simulated_fixed_tour_payment", {
+        booking_id: parsed.value.bookingId,
+        idempotency_key: parsed.value.idempotencyKey,
+      }));
+      const resultRows = rows(data);
+      if (resultRows.length !== 1) fail("INVALID_RESPONSE");
+      const row = exactRow(resultRows[0], PAYMENT_RESULT_FIELDS);
+      const result = parseCompleteSimulatedPaymentResult({
+        bookingId: row.booking_id,
+        bookingStatus: row.booking_status,
+        paymentStatus: row.payment_status,
+        simulatedAt: row.simulated_at,
+        state: row.state,
+      });
+      if (!result.ok) fail("INVALID_RESPONSE");
+      return result.value;
     },
   };
 }

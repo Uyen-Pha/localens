@@ -34,6 +34,8 @@ const shell: SupabasePortalShell = {
       throw new Error("not used by the import-boundary test");
     },
     listOwnBookings: async () => [],
+    listOwnPaymentStatuses: async () => [],
+    completeSimulatedPayment: async () => { throw new Error("not used"); },
   },
   session: {
     getSession: async () => null,

@@ -13,6 +13,7 @@ export const REQUIRED_CONCURRENCY_SCENARIOS = [
   "departure capacity without oversell",
   "quote checkout compensation",
   "Stripe webhook event race",
+  "simulated payment single terminalization",
 ];
 
 export const CONCURRENCY_SCENARIO_IDS = [
@@ -22,6 +23,7 @@ export const CONCURRENCY_SCENARIO_IDS = [
   "departure_capacity_no_oversell",
   "quote_checkout_compensation",
   "stripe_webhook_event_race",
+  "simulated_payment_terminalization",
 ];
 
 const LOCAL_SUPABASE_DB_PORT = "54322";
@@ -370,6 +372,79 @@ async function stripeWebhookEventRace({ sessions, context }) {
   invariant(row.rows[0]?.event_count === 1 && row.rows[0]?.payment_count === 1 && row.rows[0]?.booking_status === "confirmed" && row.rows[0]?.payment_status === "paid" && row.rows[0]?.hold_status === "consumed", "Stripe race authoritative state is inconsistent");
 }
 
+async function simulatedPaymentTerminalization({ sessions }) {
+  const [winner, contender] = sessions;
+  const fixture = await createPublishedDepartureFixture(winner);
+  const ownerId = randomUUID();
+  const bookingKey = `simulated-booking-${randomUUID()}`;
+  const paymentKey = `simulated-payment-${randomUUID()}`;
+  await ensureCustomer(winner, ownerId, "simulated-payment-owner");
+  await winner.query("BEGIN");
+  try {
+    await setRoleAndSubject(winner, "authenticated", ownerId);
+    const checkout = await beginFixedTourBookingForConcurrency(winner, {
+      departureId: fixture.departure,
+      idempotencyKey: bookingKey,
+    });
+    await winner.query("COMMIT");
+    invariant(checkout.rowCount === 1, "simulated payment fixture did not create one booking");
+    const bookingId = checkout.rows[0].booking_id;
+    const contenderPid = await backendPid(contender);
+
+    await Promise.all([winner.query("BEGIN"), contender.query("BEGIN")]);
+    try {
+      await winner.query(
+        "SELECT id FROM private.checkout_idempotency WHERE booking_id = $1::uuid FOR UPDATE",
+        [bookingId],
+      );
+      await setRoleAndSubject(contender, "authenticated", ownerId);
+      const contenderWork = contender.query(
+        "SELECT * FROM public.complete_simulated_fixed_tour_payment($1::uuid, $2)",
+        [bookingId, paymentKey],
+      ).then((value) => ({ value }), (error) => ({ error }));
+      await waitForLock(winner, contenderPid);
+      await setRoleAndSubject(winner, "authenticated", ownerId);
+      const winnerResult = await winner.query(
+        "SELECT * FROM public.complete_simulated_fixed_tour_payment($1::uuid, $2)",
+        [bookingId, paymentKey],
+      );
+      await winner.query("COMMIT");
+      const contenderOutcome = await contenderWork;
+      if (contenderOutcome.error) throw contenderOutcome.error;
+      await contender.query("COMMIT");
+      const states = [winnerResult.rows[0]?.state, contenderOutcome.value.rows[0]?.state].sort();
+      invariant(
+        states.length === 2 && states[0] === "completed" && states[1] === "replayed",
+        "simulated payment must complete once and replay once",
+      );
+    } catch (error) {
+      await Promise.all([rollbackQuietly(winner), rollbackQuietly(contender)]);
+      throw error;
+    }
+
+    const row = await winner.query(
+      `SELECT
+        (SELECT count(*)::integer FROM private.simulated_payment_receipts WHERE booking_id = $1::uuid) AS receipt_count,
+        (SELECT count(*)::integer FROM public.payments WHERE booking_id = $1::uuid) AS real_payment_count,
+        (SELECT status FROM public.bookings WHERE id = $1::uuid) AS booking_status,
+        (SELECT status FROM private.capacity_holds WHERE booking_id = $1::uuid) AS hold_status,
+        (SELECT result_payment_status FROM private.simulated_payment_receipts WHERE booking_id = $1::uuid) AS payment_status`,
+      [bookingId],
+    );
+    invariant(
+      row.rows[0]?.receipt_count === 1
+        && row.rows[0]?.real_payment_count === 0
+        && row.rows[0]?.booking_status === "confirmed"
+        && row.rows[0]?.hold_status === "consumed"
+        && row.rows[0]?.payment_status === "paid",
+      "simulated payment terminal state is inconsistent",
+    );
+  } catch (error) {
+    await rollbackQuietly(winner);
+    throw error;
+  }
+}
+
 const DEFAULT_SCENARIOS = {
   cas_revision_winner: casRevisionWinner,
   guest_claim_winner: guestClaimWinner,
@@ -377,6 +452,7 @@ const DEFAULT_SCENARIOS = {
   departure_capacity_no_oversell: departureCapacityNoOversell,
   quote_checkout_compensation: quoteCheckoutCompensation,
   stripe_webhook_event_race: stripeWebhookEventRace,
+  simulated_payment_terminalization: simulatedPaymentTerminalization,
 };
 
 export async function runConcurrencyGate({ databaseUrl, sessionFactory = () => new Client({ connectionString: databaseUrl, application_name: "localens-concurrency" }), scenarios = DEFAULT_SCENARIOS, logger = () => {} } = {}) {

@@ -41,10 +41,20 @@ type HoldPayload = {
   idempotency_key: string;
 };
 type HoldRow = { booking_id: string; hold_expires_at: string; state: "created" | "resumed" };
+type PaymentPayload = { booking_id: string; idempotency_key: string };
+type PaymentRow = {
+  booking_id: string;
+  booking_status: "confirmed" | "expired";
+  payment_status: "paid" | null;
+  simulated_at: string;
+  state: "completed" | "expired" | "replayed";
+};
 
 let customerAPayload: HoldPayload;
 let customerABooking: HoldRow;
 let customerBBooking: HoldRow;
+let customerAPaymentPayload: PaymentPayload;
+let customerAPayment: PaymentRow;
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -88,13 +98,12 @@ async function signIn(page: Page, account: Account, locale: "en" | "vi"): Promis
   await expect(page).toHaveURL(new RegExp(`/${locale}/account/?(?:\\?.*)?$`));
 }
 
-async function expectNoDemoOrPaymentSuccess(page: Page): Promise<void> {
+async function expectNoDemoStorage(page: Page): Promise<void> {
   const demoStorage = await page.evaluate(() => ({
     local: Object.keys(localStorage).filter((key) => key.startsWith("localens.portal.demo")),
     session: Object.keys(sessionStorage).filter((key) => key.startsWith("localens.portal.demo")),
   }));
   expect(demoStorage).toEqual({ local: [], session: [] });
-  await expect(page.getByText(/payment succeeded|demo payment|thanh toán thành công|thanh toán mô phỏng/i)).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Reset LocalLens demo|Đặt lại bản demo LocalLens/i })).toHaveCount(0);
 }
 
@@ -144,6 +153,53 @@ function expectNoAuthorityLeak(value: unknown): void {
   }
 }
 
+function expectNoPaymentAuthorityLeak(value: unknown): void {
+  const serialized = JSON.stringify(value).toLowerCase();
+  for (const forbidden of [
+    "actor_id",
+    "owner_user_id",
+    "user_role",
+    "amount_minor",
+    "currency",
+    "outcome",
+    "provider_",
+    "card",
+    "service_role",
+    "database_url",
+    "postgresql://",
+  ]) {
+    expect(serialized).not.toContain(forbidden);
+  }
+}
+
+function expectExactPaymentPayload(value: unknown): asserts value is PaymentPayload {
+  expect(value).toEqual(expect.objectContaining({
+    booking_id: expect.any(String),
+    idempotency_key: expect.any(String),
+  }));
+  expect(Object.keys(value as Record<string, unknown>).sort()).toEqual([
+    "booking_id",
+    "idempotency_key",
+  ]);
+}
+
+function expectExactPaymentResponse(value: unknown, expectedState?: PaymentRow["state"]): asserts value is PaymentRow {
+  expect(value).toEqual(expect.objectContaining({
+    booking_id: expect.any(String),
+    booking_status: expect.stringMatching(/^(?:confirmed|expired)$/),
+    simulated_at: expect.any(String),
+    state: expectedState ?? expect.stringMatching(/^(?:completed|expired|replayed)$/),
+  }));
+  expect(Object.keys(value as Record<string, unknown>).sort()).toEqual([
+    "booking_id",
+    "booking_status",
+    "payment_status",
+    "simulated_at",
+    "state",
+  ]);
+  expect(["paid", null]).toContain((value as Record<string, unknown>).payment_status);
+}
+
 async function createHoldThroughUi(
   page: Page,
   options: {
@@ -176,7 +232,7 @@ async function createHoldThroughUi(
 
   await expect(page.getByRole("heading", {
     name: options.locale === "vi" ? "Giữ chỗ cho tour cố định" : "Hold a fixed-tour departure",
-  })).toBeVisible();
+  })).toBeVisible({ timeout: 15_000 });
   const party = page.getByRole("spinbutton", {
     name: options.locale === "vi" ? "Số người" : "Party size",
   });
@@ -218,9 +274,14 @@ async function createHoldThroughUi(
   return { payload, row };
 }
 
-async function expectAccountHold(
+async function expectAccountBooking(
   page: Page,
-  options: { locale: "en" | "vi"; title: string; partySize: number },
+  options: {
+    locale: "en" | "vi";
+    title: string;
+    partySize: number;
+    state: "pending" | "paid";
+  },
 ): Promise<void> {
   const accountHeading = options.locale === "vi"
     ? "Các giữ chỗ tour cố định của bạn"
@@ -229,8 +290,64 @@ async function expectAccountHold(
   const article = page.getByRole("article").filter({ hasText: options.title });
   await expect(article).toBeVisible();
   await expect(article.getByText(String(options.partySize), { exact: true })).toBeVisible();
-  await expect(page.getByText(fixedTourRuntimeCopy(options.locale).pendingPayment, { exact: true })).toBeVisible();
-  await expectNoDemoOrPaymentSuccess(page);
+  const copy = fixedTourRuntimeCopy(options.locale);
+  const expectDefinitionValue = async (label: string, value: string): Promise<void> => {
+    const labelNode = article.getByText(label, { exact: true });
+    await expect(labelNode).toHaveCount(1);
+    await expect(labelNode.locator("xpath=following-sibling::dd[1]")).toHaveText(value);
+  };
+  if (options.state === "pending") {
+    await expectDefinitionValue(copy.bookingStatus, copy.bookingStatusLabels.pending_payment);
+    await expectDefinitionValue(copy.paymentStatus, copy.paymentPending);
+    await expect(article.getByRole("note")).toHaveText(copy.simulationDisclosure);
+    await expect(article.getByRole("button", { name: copy.completePayment, exact: true })).toBeVisible();
+  } else {
+    await expectDefinitionValue(copy.bookingStatus, copy.bookingStatusLabels.confirmed);
+    await expectDefinitionValue(copy.paymentStatus, copy.paymentPaid);
+    await expect(article.getByText(copy.simulatedAt, { exact: true })).toBeVisible();
+    await expect(article.getByRole("note")).toHaveText(copy.simulationDisclosure);
+    await expect(article.getByRole("button", { name: copy.completePayment, exact: true })).toHaveCount(0);
+  }
+  await expectNoDemoStorage(page);
+}
+
+async function completePaymentThroughUi(
+  page: Page,
+  options: { locale: "en" | "vi"; bookingId: string; title: string; partySize: number },
+): Promise<{ payload: PaymentPayload; row: PaymentRow }> {
+  await expectAccountBooking(page, { ...options, state: "pending" });
+  const copy = fixedTourRuntimeCopy(options.locale);
+  const requests: Request[] = [];
+  const onRequest = (request: Request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/rest/v1/rpc/complete_simulated_fixed_tour_payment"
+    ) requests.push(request);
+  };
+  page.on("request", onRequest);
+  const responsePromise = page.waitForResponse((response) =>
+    response.request().method() === "POST" &&
+    new URL(response.url()).pathname === "/rest/v1/rpc/complete_simulated_fixed_tour_payment");
+  await page.getByRole("button", { name: copy.completePayment, exact: true }).click();
+  const response = await responsePromise;
+  page.off("request", onRequest);
+
+  expect(requests).toHaveLength(1);
+  const payload = requests[0]?.postDataJSON();
+  expectExactPaymentPayload(payload);
+  expect(payload.booking_id).toBe(options.bookingId);
+  expect(response.status()).toBe(200);
+  const responseBody: unknown = await response.json();
+  expect(Array.isArray(responseBody)).toBe(true);
+  expect(responseBody).toHaveLength(1);
+  const row = (responseBody as unknown[])[0];
+  expectExactPaymentResponse(row, "completed");
+  expect(row.booking_id).toBe(options.bookingId);
+  expect(row.booking_status).toBe("confirmed");
+  expect(row.payment_status).toBe("paid");
+  expectNoPaymentAuthorityLeak({ payload, row });
+  await expectAccountBooking(page, { ...options, state: "paid" });
+  return { payload, row };
 }
 
 async function expectNewContextPersistence(
@@ -241,7 +358,7 @@ async function expectNewContextPersistence(
   try {
     const page = await context.newPage();
     await signIn(page, options.account, options.locale);
-    await expectAccountHold(page, options);
+    await expectAccountBooking(page, { ...options, state: "paid" });
   } finally {
     await context.close();
   }
@@ -258,7 +375,7 @@ async function expectConflict(client: RuntimeClient, payload: HoldPayload): Prom
 
 test.describe.configure({ mode: "serial" });
 
-test.describe("B2.2a local runtime fixed-tour acceptance", () => {
+test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment acceptance", () => {
   test.beforeAll(() => {
     for (const forbiddenEnv of [
       "LOCALENS_DB_URL",
@@ -284,9 +401,16 @@ test.describe("B2.2a local runtime fixed-tour acceptance", () => {
       });
       customerAPayload = result.payload;
       customerABooking = result.row;
-      await expectAccountHold(page, { locale: "en", title: fixture.enTitle, partySize: 1 });
+      const payment = await completePaymentThroughUi(page, {
+        locale: "en",
+        bookingId: customerABooking.booking_id,
+        title: fixture.enTitle,
+        partySize: 1,
+      });
+      customerAPaymentPayload = payment.payload;
+      customerAPayment = payment.row;
       await page.reload();
-      await expectAccountHold(page, { locale: "en", title: fixture.enTitle, partySize: 1 });
+      await expectAccountBooking(page, { locale: "en", title: fixture.enTitle, partySize: 1, state: "paid" });
     } finally {
       await context.close();
     }
@@ -311,9 +435,14 @@ test.describe("B2.2a local runtime fixed-tour acceptance", () => {
         meetingPoint: fixture.viMeetingPoint,
       });
       customerBBooking = result.row;
-      await expectAccountHold(page, { locale: "vi", title: fixture.viTitle, partySize: 2 });
+      await completePaymentThroughUi(page, {
+        locale: "vi",
+        bookingId: customerBBooking.booking_id,
+        title: fixture.viTitle,
+        partySize: 2,
+      });
       await page.reload();
-      await expectAccountHold(page, { locale: "vi", title: fixture.viTitle, partySize: 2 });
+      await expectAccountBooking(page, { locale: "vi", title: fixture.viTitle, partySize: 2, state: "paid" });
     } finally {
       await context.close();
     }
@@ -334,6 +463,24 @@ test.describe("B2.2a local runtime fixed-tour acceptance", () => {
     expect(bRows.error).toBeNull();
     expect(aRows.data).toEqual([{ id: customerABooking.booking_id, party_size: 1, language: "en" }]);
     expect(bRows.data).toEqual([{ id: customerBBooking.booking_id, party_size: 2, language: "vi" }]);
+    const aPayments = await customerA
+      .from("customer_simulated_payment_status_v")
+      .select("booking_id,booking_status,payment_status");
+    const bPayments = await customerB
+      .from("customer_simulated_payment_status_v")
+      .select("booking_id,booking_status,payment_status");
+    expect(aPayments.error).toBeNull();
+    expect(bPayments.error).toBeNull();
+    expect(aPayments.data).toEqual([{
+      booking_id: customerABooking.booking_id,
+      booking_status: "confirmed",
+      payment_status: "paid",
+    }]);
+    expect(bPayments.data).toEqual([{
+      booking_id: customerBBooking.booking_id,
+      booking_status: "confirmed",
+      payment_status: "paid",
+    }]);
 
     const deniedPayload: HoldPayload = {
       departure_id: fixture.departureId,
@@ -354,6 +501,27 @@ test.describe("B2.2a local runtime fixed-tour acceptance", () => {
       );
       expectNoAuthorityLeak(error);
     }
+
+    const deniedPayment: PaymentPayload = {
+      booking_id: customerABooking.booking_id,
+      idempotency_key: "runtime-payment-denied-role-check",
+    };
+    for (const account of [null, "guide", "admin"] as const) {
+      const client = account === null ? publicClient() : await authenticatedClient(account);
+      const { data, error } = await client.rpc("complete_simulated_fixed_tour_payment", deniedPayment);
+      expect(data).toBeNull();
+      expect(error).not.toBeNull();
+      expect(error?.code).toBe("42501");
+      expectNoAuthorityLeak(error);
+    }
+
+    const crossOwner = await customerB.rpc("complete_simulated_fixed_tour_payment", {
+      booking_id: customerABooking.booking_id,
+      idempotency_key: "runtime-payment-cross-owner-check",
+    });
+    expect(crossOwner.data).toBeNull();
+    expect(crossOwner.error?.code).toBe("42501");
+    expectNoAuthorityLeak(crossOwner.error);
   });
 
   test("public RPC resumes exact replay and conflicts on each changed payload field", async () => {
@@ -372,5 +540,26 @@ test.describe("B2.2a local runtime fixed-tour acceptance", () => {
       ...customerAPayload,
       departure_id: "b2200000-0000-4000-8000-000000000099",
     });
+
+    const paymentReplay = await customerA.rpc(
+      "complete_simulated_fixed_tour_payment",
+      customerAPaymentPayload,
+    );
+    expect(paymentReplay.error).toBeNull();
+    expect(paymentReplay.data).toHaveLength(1);
+    const paymentReplayRow = (paymentReplay.data as unknown[])[0];
+    expectExactPaymentResponse(paymentReplayRow, "replayed");
+    expect(paymentReplayRow.booking_id).toBe(customerAPayment.booking_id);
+    expect(paymentReplayRow.simulated_at).toBe(customerAPayment.simulated_at);
+    expectNoPaymentAuthorityLeak({ payload: customerAPaymentPayload, row: paymentReplayRow });
+
+    const paymentConflict = await customerA.rpc("complete_simulated_fixed_tour_payment", {
+      ...customerAPaymentPayload,
+      idempotency_key: "runtime-payment-conflicting-key",
+    });
+    expect(paymentConflict.data).toBeNull();
+    expect(paymentConflict.error?.code).toBe("P0001");
+    expect(paymentConflict.error?.message).toContain("IDEMPOTENCY_CONFLICT");
+    expectNoAuthorityLeak(paymentConflict.error);
   });
 });

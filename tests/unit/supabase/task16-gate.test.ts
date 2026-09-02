@@ -313,7 +313,7 @@ describe("Task16 concurrency preflight", () => {
     }]);
   });
 
-  it("executes all six required races with two independent sessions", async () => {
+  it("executes all seven required races with two independent sessions", async () => {
     const sessions: Array<{ id: number; connect: () => Promise<void>; end: () => Promise<void> }> = [];
     const calls: Array<{ scenario: string; sessionIds: number[] }> = [];
     const sessionFactory = () => {
@@ -348,9 +348,10 @@ describe("Task16 concurrency preflight", () => {
       "departure_capacity_no_oversell",
       "quote_checkout_compensation",
       "stripe_webhook_event_race",
+      "simulated_payment_terminalization",
     ]);
     expect(sessions).toHaveLength(2);
-    expect(calls).toHaveLength(6);
+    expect(calls).toHaveLength(7);
     for (const call of calls) expect(new Set(call.sessionIds).size).toBe(2);
   });
 

@@ -76,6 +76,29 @@ function bookingRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function paymentStatusRow(overrides: Record<string, unknown> = {}) {
+  return {
+    booking_id: ids.booking,
+    booking_status: "confirmed",
+    payment_status: "paid",
+    amount_minor: "1500000",
+    currency: "vnd",
+    simulated_at: "2099-09-05T01:05:00.000Z",
+    ...overrides,
+  };
+}
+
+function paymentResultRow(overrides: Record<string, unknown> = {}) {
+  return {
+    booking_id: ids.booking,
+    booking_status: "confirmed",
+    payment_status: "paid",
+    simulated_at: "2099-09-05T01:05:00.000Z",
+    state: "completed",
+    ...overrides,
+  };
+}
+
 type QueryResponse = { data: unknown; error: unknown };
 
 function queryDouble(response: QueryResponse) {
@@ -95,22 +118,31 @@ function queryDouble(response: QueryResponse) {
 function clientDouble({
   tours = { data: [tourRow()], error: null },
   bookings = { data: [bookingRow()], error: null },
+  payments = { data: [paymentStatusRow()], error: null },
   rpc = {},
   session = { data: { session: { user: { id: "customer-a" } } }, error: null },
 }: {
   tours?: QueryResponse;
   bookings?: QueryResponse;
+  payments?: QueryResponse;
   rpc?: Record<string, QueryResponse>;
   session?: QueryResponse;
 } = {}) {
   const tourQuery = queryDouble(tours);
   const bookingQuery = queryDouble(bookings);
+  const paymentQuery = queryDouble(payments);
   const client = {
     auth: { getSession: vi.fn().mockResolvedValue(session) },
-    from: vi.fn((relation: string) => relation === "published_tours_v" ? tourQuery : bookingQuery),
+    from: vi.fn((relation: string) => {
+      if (relation === "published_tours_v") return tourQuery;
+      if (relation === "customer_simulated_payment_status_v") return paymentQuery;
+      return bookingQuery;
+    }),
     rpc: vi.fn((name: string) => Promise.resolve(
       rpc[name] ?? (name === "get_live_departure_availability"
         ? { data: [availabilityRow()], error: null }
+        : name === "complete_simulated_fixed_tour_payment"
+          ? { data: [paymentResultRow()], error: null }
         : {
             data: [{
               booking_id: ids.booking,
@@ -121,7 +153,7 @@ function clientDouble({
           }),
     )),
   };
-  return { client, tourQuery, bookingQuery };
+  return { client, tourQuery, bookingQuery, paymentQuery };
 }
 
 function expectCode(error: unknown, code: FixedTourRuntimeError["code"]): void {
@@ -292,6 +324,118 @@ describe("Supabase fixed-tour runtime adapter", () => {
         "INVALID_RESPONSE",
       );
     }
+  });
+
+  it("reads the exact owner-scoped simulated-payment projection without an owner filter", async () => {
+    const { client, paymentQuery } = clientDouble();
+    const adapter = createSupabaseFixedTourRuntimeAdapter(client as never);
+
+    await expect(adapter.listOwnPaymentStatuses()).resolves.toEqual([{
+      bookingId: ids.booking,
+      bookingStatus: "confirmed",
+      paymentStatus: "paid",
+      amountMinor: "1500000",
+      currency: "vnd",
+      simulatedAt: "2099-09-05T01:05:00.000Z",
+    }]);
+    expect(client.from).toHaveBeenCalledWith("customer_simulated_payment_status_v");
+    expect(paymentQuery.select).toHaveBeenCalledWith(
+      "booking_id,booking_status,payment_status,amount_minor,currency,simulated_at",
+    );
+    expect(paymentQuery.eq).not.toHaveBeenCalled();
+    expect(paymentQuery.order).toHaveBeenCalledWith("simulated_at", { ascending: false });
+  });
+
+  it("rejects malformed, sparse, or authority-leaking simulated-payment rows", async () => {
+    const sparse: unknown[] = [];
+    sparse.length = 1;
+    for (const payments of [
+      sparse,
+      [paymentStatusRow({ amount_minor: "9007199254740992" })],
+      [paymentStatusRow({ owner_user_id: "leak" })],
+      [paymentStatusRow({ payment_status: "failed" })],
+    ]) {
+      const { client } = clientDouble({ payments: { data: payments, error: null } });
+      await expectRejectCode(
+        createSupabaseFixedTourRuntimeAdapter(client as never).listOwnPaymentStatuses(),
+        "INVALID_RESPONSE",
+      );
+    }
+  });
+
+  it("sends only booking identity and idempotency to simulated-payment RPC", async () => {
+    const { client } = clientDouble();
+    const adapter = createSupabaseFixedTourRuntimeAdapter(client as never);
+
+    await expect(adapter.completeSimulatedPayment({
+      bookingId: ids.booking,
+      idempotencyKey: "payment-attempt-1",
+    })).resolves.toEqual({
+      bookingId: ids.booking,
+      bookingStatus: "confirmed",
+      paymentStatus: "paid",
+      simulatedAt: "2099-09-05T01:05:00.000Z",
+      state: "completed",
+    });
+    expect(client.rpc).toHaveBeenCalledWith("complete_simulated_fixed_tour_payment", {
+      booking_id: ids.booking,
+      idempotency_key: "payment-attempt-1",
+    });
+    expect(JSON.stringify(client.rpc.mock.calls.at(-1))).not.toMatch(
+      /actor|owner|user_id|role|amount|currency|outcome|status|provider|card/i,
+    );
+  });
+
+  it("accepts one nullable expired payment result and rejects malformed result cardinality", async () => {
+    const expired = paymentResultRow({
+      booking_status: "expired",
+      payment_status: null,
+      state: "expired",
+    });
+    const good = clientDouble({ rpc: { complete_simulated_fixed_tour_payment: { data: [expired], error: null } } });
+    await expect(createSupabaseFixedTourRuntimeAdapter(good.client as never).completeSimulatedPayment({
+      bookingId: ids.booking,
+      idempotencyKey: "payment-attempt-expired",
+    })).resolves.toMatchObject({ bookingStatus: "expired", paymentStatus: null, state: "expired" });
+
+    for (const data of [
+      [],
+      [paymentResultRow(), paymentResultRow()],
+      [paymentResultRow({ state: "created" })],
+      [paymentResultRow({ provider_session_id: "secret" })],
+    ]) {
+      const { client } = clientDouble({ rpc: { complete_simulated_fixed_tour_payment: { data, error: null } } });
+      await expectRejectCode(
+        createSupabaseFixedTourRuntimeAdapter(client as never).completeSimulatedPayment({
+          bookingId: ids.booking,
+          idempotencyKey: "payment-attempt-malformed",
+        }),
+        "INVALID_RESPONSE",
+      );
+    }
+  });
+
+  it("requires auth and validates simulated-payment input before issuing an RPC", async () => {
+    const unauthenticated = clientDouble({ session: { data: { session: null }, error: null } });
+    await expectRejectCode(
+      createSupabaseFixedTourRuntimeAdapter(unauthenticated.client as never).completeSimulatedPayment({
+        bookingId: ids.booking,
+        idempotencyKey: "payment-attempt-auth",
+      }),
+      "UNAUTHENTICATED",
+    );
+    expect(unauthenticated.client.rpc).not.toHaveBeenCalled();
+
+    const invalid = clientDouble();
+    await expectRejectCode(
+      createSupabaseFixedTourRuntimeAdapter(invalid.client as never).completeSimulatedPayment({
+        bookingId: "not-a-uuid",
+        idempotencyKey: "bad key",
+      }),
+      "INVALID_INPUT",
+    );
+    expect(invalid.client.auth.getSession).not.toHaveBeenCalled();
+    expect(invalid.client.rpc).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -1,3 +1,4 @@
+import type { BookingStatus } from "@/lib/domain/data/contracts";
 import type { Locale } from "@/lib/i18n/config";
 
 export interface FixedTourRuntimeCopy {
@@ -36,6 +37,22 @@ export interface FixedTourRuntimeCopy {
   total: string;
   createdAt: string;
   holdExpiresAt: string;
+  bookingStatus: string;
+  bookingStatusLabels: Record<BookingStatus, string>;
+  paymentHeading: string;
+  paymentStatus: string;
+  paymentPending: string;
+  paymentPaid: string;
+  noSimulatedPayment: string;
+  simulatedAt: string;
+  simulationDisclosure: string;
+  completePayment: string;
+  completingPayment: string;
+  paymentRecorded: string;
+  paymentExpired: string;
+  paymentConflict: string;
+  paymentDenied: string;
+  paymentUnavailable: string;
 }
 
 const copy: Record<Locale, FixedTourRuntimeCopy> = {
@@ -75,6 +92,31 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     total: "Total",
     createdAt: "Created",
     holdExpiresAt: "Hold expires",
+    bookingStatus: "Booking status",
+    bookingStatusLabels: {
+      pending_payment: "Pending payment",
+      payment_processing: "Payment processing",
+      confirmed: "Confirmed",
+      payment_failed: "Payment failed",
+      payment_review: "Payment review",
+      expired: "Expired",
+      cancelled: "Cancelled",
+      completed: "Completed",
+    },
+    paymentHeading: "Payment",
+    paymentStatus: "Payment status",
+    paymentPending: "Pending payment",
+    paymentPaid: "Paid",
+    noSimulatedPayment: "No simulated payment",
+    simulatedAt: "Payment simulated",
+    simulationDisclosure: "Thesis simulation only. No card details are requested and no real charge occurs.",
+    completePayment: "Complete simulated payment",
+    completingPayment: "Recording simulated payment…",
+    paymentRecorded: "The local server recorded the simulated payment.",
+    paymentExpired: "The hold expired; no simulated payment was recorded.",
+    paymentConflict: "This payment conflicts with an earlier payment request. Reload and try again.",
+    paymentDenied: "This payment operation is not permitted.",
+    paymentUnavailable: "The simulated payment could not be completed. Try again.",
   },
   vi: {
     catalogEyebrow: "Runtime cục bộ đã kiểm chứng",
@@ -112,6 +154,31 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     total: "Tổng tiền",
     createdAt: "Ngày tạo",
     holdExpiresAt: "Giữ chỗ đến",
+    bookingStatus: "Trạng thái booking",
+    bookingStatusLabels: {
+      pending_payment: "Chờ thanh toán",
+      payment_processing: "Đang xử lý thanh toán",
+      confirmed: "Đã xác nhận",
+      payment_failed: "Thanh toán thất bại",
+      payment_review: "Đang rà soát thanh toán",
+      expired: "Đã hết hạn",
+      cancelled: "Đã hủy",
+      completed: "Đã hoàn thành",
+    },
+    paymentHeading: "Thanh toán",
+    paymentStatus: "Trạng thái thanh toán",
+    paymentPending: "Chờ thanh toán",
+    paymentPaid: "Đã thanh toán",
+    noSimulatedPayment: "Không có thanh toán mô phỏng",
+    simulatedAt: "Thời điểm mô phỏng thanh toán",
+    simulationDisclosure: "Chỉ mô phỏng trong phạm vi luận văn. Không yêu cầu thông tin thẻ và không phát sinh giao dịch thật.",
+    completePayment: "Hoàn tất thanh toán mô phỏng",
+    completingPayment: "Đang ghi nhận thanh toán mô phỏng…",
+    paymentRecorded: "Máy chủ cục bộ đã ghi nhận thanh toán mô phỏng.",
+    paymentExpired: "Giữ chỗ đã hết hạn; không có thanh toán mô phỏng nào được ghi nhận.",
+    paymentConflict: "Thanh toán này xung đột với một yêu cầu trước đó. Hãy tải lại và thử lại.",
+    paymentDenied: "Thao tác thanh toán này không được phép.",
+    paymentUnavailable: "Không thể hoàn tất thanh toán mô phỏng. Hãy thử lại.",
   },
 };
 

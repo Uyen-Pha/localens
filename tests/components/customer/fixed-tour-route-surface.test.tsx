@@ -33,6 +33,8 @@ describe("fixed-tour route surface", () => {
         listAvailability: vi.fn(async () => []),
         beginBooking: vi.fn(),
         listOwnBookings: vi.fn(async () => []),
+        listOwnPaymentStatuses: vi.fn(async () => []),
+        completeSimulatedPayment: vi.fn(),
       },
     } as unknown as SupabasePortalShell;
     mocks.loadPortalSurfaceComposition.mockResolvedValue(composition);
@@ -74,6 +76,8 @@ describe("fixed-tour route surface", () => {
         }]),
         beginBooking: vi.fn(),
         listOwnBookings: vi.fn(async () => []),
+        listOwnPaymentStatuses: vi.fn(async () => []),
+        completeSimulatedPayment: vi.fn(),
       },
     } as unknown as SupabasePortalShell;
     mocks.loadPortalSurfaceComposition.mockResolvedValue(composition);

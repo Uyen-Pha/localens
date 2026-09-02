@@ -167,6 +167,18 @@
       "credential": "database-definer-owner",
       "bypassJustification": "payment and webhook guards"
     },
+    "localens_simulated_payment_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "fixed-tour thesis payment simulation"
+    },
+    "localens_simulated_payment_projection_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "customer simulated-payment projection"
+    },
     "localens_guide_assignment_rpc_owner": {
       "rolcanlogin": false,
       "rolbypassrls": false,
@@ -281,9 +293,22 @@
       "policies": [
         "capacity_holds_availability_owner_select",
         "capacity_holds_owner_all",
-        "capacity_holds_payment_owner_all"
+        "capacity_holds_payment_owner_all",
+        "capacity_holds_simulated_payment_owner_all"
       ],
       "writerOperation": "checkout/availability RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "private.simulated_payment_receipts",
+      "policies": [
+        "simulated_payment_receipts_checkout_owner_select",
+        "simulated_payment_receipts_payment_guard_select",
+        "simulated_payment_receipts_projection_owner_select",
+        "simulated_payment_receipts_rpc_owner_all"
+      ],
+      "writerOperation": "fixed-tour simulated-payment RPC only",
       "owner": "postgres",
       "forceRls": true
     },
@@ -291,7 +316,8 @@
       "name": "private.checkout_attempts",
       "policies": [
         "checkout_attempts_owner_all",
-        "checkout_attempts_payment_owner_all"
+        "checkout_attempts_payment_owner_all",
+        "checkout_attempts_simulated_payment_owner_all"
       ],
       "writerOperation": "checkout RPC only",
       "owner": "postgres",
@@ -302,7 +328,10 @@
       "policies": [
         "checkout_idempotency_owner_all",
         "checkout_idempotency_payment_owner_lock",
-        "checkout_idempotency_payment_owner_select"
+        "checkout_idempotency_payment_owner_select",
+        "checkout_idempotency_simulated_payment_guard_lock",
+        "checkout_idempotency_simulated_payment_guard_select",
+        "checkout_idempotency_simulated_payment_owner_all"
       ],
       "writerOperation": "checkout RPC only",
       "owner": "postgres",
@@ -453,7 +482,8 @@
         "user_roles_identity_rpc_select",
         "user_roles_plan_rpc_select",
         "user_roles_request_admin_rpc_select",
-        "user_roles_request_customer_rpc_select"
+        "user_roles_request_customer_rpc_select",
+        "user_roles_simulated_payment_owner_select"
       ],
       "writerOperation": "provision_role RPC only",
       "owner": "postgres",
@@ -497,7 +527,9 @@
         "bookings_guide_assignment_owner_select",
         "bookings_payment_owner_all",
         "bookings_payment_projection_select",
-        "bookings_projection_owner_select"
+        "bookings_projection_owner_select",
+        "bookings_simulated_payment_owner_all",
+        "bookings_simulated_payment_projection_select"
       ],
       "writerOperation": "checkout/payment/admin RPC only",
       "owner": "postgres",
@@ -660,6 +692,7 @@
         "departures_guide_assignment_owner_select",
         "departures_payment_owner_lock",
         "departures_payment_owner_select",
+        "departures_simulated_payment_owner_all",
         "tour_guard_departures_select",
         "tour_owner_all"
       ],
@@ -901,7 +934,8 @@
         "payments_admin_select",
         "payments_checkout_owner_select",
         "payments_payment_owner_all",
-        "payments_projection_owner_select"
+        "payments_projection_owner_select",
+        "payments_simulated_payment_owner_select"
       ],
       "writerOperation": "payment/admin RPC only",
       "owner": "postgres",
@@ -1272,6 +1306,16 @@
       "securityBarrier": true
     },
     {
+      "name": "public.customer_simulated_payment_status_v",
+      "owner": "localens_simulated_payment_projection_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "owner-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
       "name": "public.latest_fx_snapshot_v",
       "owner": "localens_catalog_rpc_owner",
       "readerRoles": [
@@ -1499,6 +1543,16 @@
       "credential": "browser-jwt"
     },
     {
+      "name": "public.complete_simulated_fixed_tour_payment",
+      "signature": "public.complete_simulated_fixed_tour_payment(uuid,text)",
+      "owner": "localens_simulated_payment_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner completes fixed-tour thesis payment simulation",
+      "credential": "browser-jwt"
+    },
+    {
       "name": "public.review_custom_request",
       "signature": "public.review_custom_request(uuid,public.request_status,text)",
       "owner": "localens_request_admin_rpc_owner",
@@ -1620,6 +1674,7 @@
     "private.reject_published_snapshot_insert()",
     "private.reject_published_tour_child_insert()",
     "private.reject_quota_reservation_mutation()",
+    "private.reject_real_payment_after_simulation()",
     "private.reject_tour_append_only_change()",
     "private.reject_travel_fx_append_only_change()",
     "private.reject_trip_plan_history_mutation()",
@@ -1645,7 +1700,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 559,
+  "grantCount": 588,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }

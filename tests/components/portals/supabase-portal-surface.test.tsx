@@ -160,6 +160,10 @@ function shellFor(session = new MemoryRuntimeSession()): SupabasePortalShell {
         throw new Error("not used by the portal shell test");
       },
       listOwnBookings: async () => [],
+      listOwnPaymentStatuses: async () => [],
+      completeSimulatedPayment: async () => {
+        throw new Error("not used by the portal shell test");
+      },
     },
     initialized: Promise.resolve(),
   };

@@ -74,6 +74,14 @@ function fixedTour(overrides: Partial<FixedTourRuntimePort> = {}): FixedTourRunt
       state: "created" as const,
     })),
     listOwnBookings: vi.fn(async () => []),
+    listOwnPaymentStatuses: vi.fn(async () => []),
+    completeSimulatedPayment: vi.fn(async () => ({
+      bookingId: "55555555-5555-4555-8555-555555555555",
+      bookingStatus: "confirmed" as const,
+      paymentStatus: "paid" as const,
+      simulatedAt: "2099-09-05T02:05:00.000Z",
+      state: "completed" as const,
+    })),
     ...overrides,
   };
 }

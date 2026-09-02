@@ -1811,6 +1811,13 @@ export type Database = {
             referencedRelation: "customer_bookings_v"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "guide_assignments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "customer_simulated_payment_status_v"
+            referencedColumns: ["booking_id"]
+          },
         ]
       }
       guide_profiles: {
@@ -1903,6 +1910,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "customer_bookings_v"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "customer_simulated_payment_status_v"
+            referencedColumns: ["booking_id"]
           },
         ]
       }
@@ -3341,7 +3355,25 @@ export type Database = {
             referencedRelation: "customer_bookings_v"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "payments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "customer_simulated_payment_status_v"
+            referencedColumns: ["booking_id"]
+          },
         ]
+      }
+      customer_simulated_payment_status_v: {
+        Row: {
+          amount_minor: string | null
+          booking_id: string | null
+          booking_status: Database["public"]["Enums"]["booking_status"] | null
+          currency: Database["public"]["Enums"]["checkout_currency"] | null
+          payment_status: Database["public"]["Enums"]["payment_status"] | null
+          simulated_at: string | null
+        }
+        Relationships: []
       }
       latest_fx_snapshot_v: {
         Row: {
@@ -3481,6 +3513,16 @@ export type Database = {
           assignment_id: string
           status: Database["public"]["Enums"]["assignment_status"]
         }[]
+      }
+      complete_simulated_fixed_tour_payment: {
+        Args: { booking_id: string; idempotency_key: string }
+        Returns: Database["public"]["CompositeTypes"]["simulated_payment_result"][]
+        SetofOptions: {
+          from: "*"
+          to: "simulated_payment_result"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       create_custom_quote: {
         Args: {
@@ -3780,7 +3822,13 @@ export type Database = {
         | "conflict"
     }
     CompositeTypes: {
-      [_ in never]: never
+      simulated_payment_result: {
+        booking_id: string | null
+        booking_status: Database["public"]["Enums"]["booking_status"] | null
+        payment_status: Database["public"]["Enums"]["payment_status"] | null
+        simulated_at: string | null
+        state: string | null
+      }
     }
   }
 }

@@ -12,6 +12,8 @@ const REQUIRED_METHODS = [
   "listAvailability",
   "beginBooking",
   "listOwnBookings",
+  "listOwnPaymentStatuses",
+  "completeSimulatedPayment",
 ] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -347,6 +347,13 @@
     },
     {
       "objectType": "function",
+      "objectName": "public.complete_simulated_fixed_tour_payment(uuid,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
       "objectName": "public.create_custom_quote(uuid,bigint,public.checkout_currency,text,text,text)",
       "privilege": "execute",
       "columns": [],
@@ -477,6 +484,20 @@
       "privilege": "usage",
       "columns": [],
       "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_simulated_payment_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_simulated_payment_rpc_owner"
     },
     {
       "objectType": "schema",
@@ -637,6 +658,13 @@
       "objectName": "private",
       "privilege": "usage",
       "columns": [],
+      "grantee": "localens_payment_guard_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
       "grantee": "localens_payment_projection_owner"
     },
     {
@@ -680,6 +708,20 @@
       "privilege": "usage",
       "columns": [],
       "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_simulated_payment_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_simulated_payment_rpc_owner"
     },
     {
       "objectType": "schema",
@@ -903,6 +945,20 @@
       "objectName": "public",
       "privilege": "usage",
       "columns": [],
+      "grantee": "localens_simulated_payment_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_simulated_payment_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
       "grantee": "localens_tour_guard_owner"
     },
     {
@@ -999,6 +1055,13 @@
     {
       "objectType": "table",
       "objectName": "private.capacity_holds",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_simulated_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.capacity_holds",
       "privilege": "update",
       "columns": [
         "consumed_at",
@@ -1020,6 +1083,17 @@
     },
     {
       "objectType": "table",
+      "objectName": "private.capacity_holds",
+      "privilege": "update",
+      "columns": [
+        "consumed_at",
+        "released_at",
+        "status"
+      ],
+      "grantee": "localens_simulated_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
       "objectName": "private.checkout_attempts",
       "privilege": "insert",
       "columns": [],
@@ -1038,6 +1112,22 @@
       "privilege": "select",
       "columns": [],
       "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_attempts",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_simulated_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_attempts",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_simulated_payment_rpc_owner"
     },
     {
       "objectType": "table",
@@ -1082,7 +1172,21 @@
       "objectName": "private.checkout_idempotency",
       "privilege": "select",
       "columns": [],
+      "grantee": "localens_payment_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_idempotency",
+      "privilege": "select",
+      "columns": [],
       "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_idempotency",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_simulated_payment_rpc_owner"
     },
     {
       "objectType": "table",
@@ -1100,7 +1204,25 @@
       "columns": [
         "id"
       ],
+      "grantee": "localens_payment_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_idempotency",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
       "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.checkout_idempotency",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_simulated_payment_rpc_owner"
     },
     {
       "objectType": "table",
@@ -1407,6 +1529,46 @@
     },
     {
       "objectType": "table",
+      "objectName": "private.simulated_payment_receipts",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_simulated_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.simulated_payment_receipts",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.simulated_payment_receipts",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_payment_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.simulated_payment_receipts",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_simulated_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.simulated_payment_receipts",
+      "privilege": "select",
+      "columns": [
+        "booking_id",
+        "owner_user_id",
+        "result_payment_status",
+        "simulated_at"
+      ],
+      "grantee": "localens_simulated_payment_projection_owner"
+    },
+    {
+      "objectType": "table",
       "objectName": "private.stripe_test_settings",
       "privilege": "select",
       "columns": [],
@@ -1504,6 +1666,13 @@
       "privilege": "select",
       "columns": [],
       "grantee": "localens_request_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_simulated_payment_rpc_owner"
     },
     {
       "objectType": "table",
@@ -1681,6 +1850,13 @@
       "objectType": "table",
       "objectName": "public.bookings",
       "privilege": "select",
+      "columns": [],
+      "grantee": "localens_simulated_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "select",
       "columns": [
         "cancellation_policy",
         "catalog_snapshot_id",
@@ -1706,6 +1882,20 @@
         "travel_snapshot_id"
       ],
       "grantee": "localens_booking_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "select",
+      "columns": [
+        "checkout_amount_minor",
+        "checkout_currency",
+        "id",
+        "owner_user_id",
+        "source_kind",
+        "status"
+      ],
+      "grantee": "localens_simulated_payment_projection_owner"
     },
     {
       "objectType": "table",
@@ -1790,6 +1980,15 @@
         "status"
       ],
       "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "update",
+      "columns": [
+        "status"
+      ],
+      "grantee": "localens_simulated_payment_rpc_owner"
     },
     {
       "objectType": "table",
@@ -2613,6 +2812,13 @@
     },
     {
       "objectType": "table",
+      "objectName": "public.customer_simulated_payment_status_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
       "objectName": "public.departures",
       "privilege": "insert",
       "columns": [],
@@ -2638,6 +2844,13 @@
       "privilege": "select",
       "columns": [],
       "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_simulated_payment_rpc_owner"
     },
     {
       "objectType": "table",
@@ -2703,6 +2916,15 @@
         "id"
       ],
       "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_simulated_payment_rpc_owner"
     },
     {
       "objectType": "table",
@@ -3170,6 +3392,13 @@
       "privilege": "select",
       "columns": [],
       "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.payments",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_simulated_payment_rpc_owner"
     },
     {
       "objectType": "table",
