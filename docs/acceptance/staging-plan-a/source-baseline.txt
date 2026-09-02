@@ -1,0 +1,52 @@
+LocalLens Plan A source baseline
+Recorded: 2026-09-02 (Asia/Saigon)
+
+Release branch: codex/staging-plan-a
+Source baseline SHA: b35e45692321f1bb3661cb509960aae482947007
+Linked worktree: C:\Users\Admin\Documents\Project\localens\.worktrees\localens-mvp
+Common repository: C:\Users\Admin\Documents\Project\localens
+Git remote: none configured
+
+Isolation ruling:
+- The active checkout was already a linked Git worktree, so no nested or duplicate
+  worktree was created.
+- The approved source was committed first, then this existing linked worktree was
+  switched from codex/localens-mvp to codex/staging-plan-a.
+- codex/localens-mvp remains preserved at the same source commit.
+
+Approved source disposition:
+- Commit b35e45692321f1bb3661cb509960aae482947007 preserves the reviewed Plan A
+  planning/spec changes and six reviewed Product Design QA images.
+- No credential value or generated runtime log was included in that commit.
+- The following runtime logs remain untracked and untouched:
+  demo-final.stderr.log
+  demo-final.stdout.log
+  dev-status.stderr.log
+  dev-status.stdout.log
+
+Toolchain evidence:
+- Container API client: Docker CLI 29.7.2
+- Container API server: Podman 5.8.6, Docker-compatible API 1.44
+- Podman machine: podman-machine-default, WSL, rootful, 4 CPUs, 8 GiB memory
+- GitHub CLI: 2.98.0
+- Node.js: v24.14.1
+- Exact release package manager available: pnpm 10.17.1 via Corepack
+- Pre-Task-1 repository packageManager selection: pnpm 11.19.0
+- Vercel CLI: 59.11.2
+
+Container-runtime recovery:
+- Docker Desktop 4.89.0 could not initialize sailor-ingest.sock on Windows build
+  26200, including after recreating its run directory.
+- No factory reset, Docker data deletion, or Windows restart was performed.
+- The original Docker run directory was moved recoverably to
+  C:\Users\Admin\AppData\Local\Docker\run.codex-stale-20260902.
+- Docker CLI context default now reaches the isolated Podman server. Supabase lists
+  Podman as a supported Docker-compatible local runtime.
+
+Fresh source baseline verification:
+- pnpm test:run --no-file-parallelism --testTimeout=30000
+- Result: 104/104 test files passed; 1264/1264 tests passed.
+- Known non-failing output: Vite warnings and two jsdom navigation-not-implemented
+  messages. These are recorded as warnings, not represented as pristine output.
+
+Task 1 must make pnpm 10.17.1 the repository and CI default before G1 can pass.
