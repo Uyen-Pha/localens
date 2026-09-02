@@ -5,9 +5,28 @@ export type PortalRole = "customer" | "guide" | "admin";
 const MAX_RETURN_TO_LENGTH = 2048;
 const RETURN_TO_BASE = "https://localens.invalid";
 
+function hasUnsafePathSegment(candidate: string): boolean {
+  const rawPath = candidate.split("?", 1)[0];
+  return rawPath.split("/").some((rawSegment) => {
+    let decoded = rawSegment;
+    try {
+      while (decoded.includes("%")) {
+        const next = decodeURIComponent(decoded);
+        if (next === decoded) break;
+        decoded = next;
+      }
+    } catch {
+      return true;
+    }
+    return decoded === "." || decoded === ".." || decoded.includes("/") || decoded.includes("\\");
+  });
+}
+
 export function parseSafeReturnTo(locale: Locale, candidate: string | null): string | null {
   if (candidate === null || candidate.length > MAX_RETURN_TO_LENGTH) return null;
-  if (/[\\\p{Cc}]/u.test(candidate)) return null;
+  if (/[\\\p{Cc}]/u.test(candidate) || candidate.includes("#") || hasUnsafePathSegment(candidate)) {
+    return null;
+  }
   const bookingPrefix = `/${locale}/booking/`;
   if (!candidate.startsWith(bookingPrefix)) return null;
 

@@ -49,7 +49,6 @@ describe("fixed-tour route surface", () => {
 
   it("reads the static booking route query at the client boundary", async () => {
     const departureId = "11111111-1111-4111-8111-111111111111";
-    window.history.replaceState({}, "", `/en/booking?departure=${departureId}&partySize=2`);
     const composition = {
       mode: "supabase",
       initialized: Promise.resolve(),
@@ -82,7 +81,17 @@ describe("fixed-tour route surface", () => {
     } as unknown as SupabasePortalShell;
     mocks.loadPortalSurfaceComposition.mockResolvedValue(composition);
 
-    render(<FixedTourRouteSurface locale="en" route="booking" navigate={() => undefined} />);
+    render(
+      <FixedTourRouteSurface
+        locale="en"
+        route="booking"
+        routeLocation={{
+          pathname: "/en/booking/",
+          search: `?departure=${departureId}&partySize=2`,
+        }}
+        navigate={() => undefined}
+      />,
+    );
 
     expect(await screen.findByRole("spinbutton", { name: "Party size" })).toHaveValue(2);
   });

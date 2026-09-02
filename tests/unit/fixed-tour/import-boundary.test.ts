@@ -47,4 +47,13 @@ describe("fixed-tour runtime import boundary", () => {
       expect(page).not.toMatch(/createReadOnlyApi|TourCatalogExplorer|DemoBookingEntry/);
     }
   });
+
+  it("reads booking pathname and query from the Next router under Suspense", () => {
+    const surface = source("components/customer/fixed-tour-route-surface.tsx");
+
+    expect(surface).toContain("usePathname");
+    expect(surface).toContain("useSearchParams");
+    expect(surface).toContain("<Suspense");
+    expect(surface).not.toContain("window.location");
+  });
 });

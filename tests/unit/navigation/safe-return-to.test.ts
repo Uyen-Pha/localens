@@ -26,7 +26,9 @@ describe("safe return-to navigation", () => {
     "/en/account/",
     "/en/booking/../admin/",
     "/en/booking/%2e%2e/admin/",
+    "/en/booking/a/../?departure=departure-1",
     "/en/booking/#identity",
+    "/en/booking/#",
   ])("rejects unsafe or out-of-scope candidate %j", (candidate) => {
     expect(parseSafeReturnTo("en", candidate)).toBeNull();
   });

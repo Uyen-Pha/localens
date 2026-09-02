@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import type { ComponentType } from "react";
 
 import type { BookingCopy } from "@/components/customer/booking-flow";
@@ -14,6 +14,11 @@ import { fixedTourRuntimeCopy } from "@/lib/i18n/fixed-tour-runtime";
 type Composition = DemoPortalComposition | SupabasePortalShell;
 type RouteKind = "tours" | "booking";
 type Navigate = (path: string) => void;
+
+export interface FixedTourRouteLocation {
+  pathname: string;
+  search: string;
+}
 
 type LoadedSurface =
   | { kind: "demo-tours"; Surface: ComponentType<{ locale: Locale }> }
@@ -34,6 +39,8 @@ export interface FixedTourRouteSurfaceProps {
   initialPartySize?: string;
   composition?: Composition;
   navigate?: Navigate;
+  /** Explicit route-state seam for component tests; app routes use Next navigation hooks. */
+  routeLocation?: FixedTourRouteLocation;
 }
 
 async function loadSelectedSurface(composition: Composition, route: RouteKind): Promise<LoadedSurface> {
@@ -84,39 +91,63 @@ function SurfaceContent(props: FixedTourRouteSurfaceProps & { navigate: Navigate
   if (selected === null) return <p role="status" aria-live="polite">{copy.loading}</p>;
 
   const { composition, surface } = selected;
-  const browserReturnTo = typeof window === "undefined"
+  const routeReturnTo = props.routeLocation === undefined
     ? null
-    : `${window.location.pathname}${window.location.search}`;
+    : `${props.routeLocation.pathname}${props.routeLocation.search}`;
   if (surface.kind === "demo-tours") return <surface.Surface locale={props.locale} />;
   if (surface.kind === "demo-booking") {
     if (!props.demoBookingCopy) return <div role="alert">{copy.serviceUnavailable}</div>;
-    return <surface.Surface locale={props.locale} copy={props.demoBookingCopy} returnTo={browserReturnTo} />;
+    return <surface.Surface locale={props.locale} copy={props.demoBookingCopy} returnTo={routeReturnTo} />;
   }
   if (surface.kind === "runtime-tours") {
     if (!composition || composition.mode !== "supabase") return <div role="alert">{copy.serviceUnavailable}</div>;
     return <surface.Surface locale={props.locale} fixedTour={composition.fixedTour} initialized={composition.initialized} />;
   }
   if (!composition || composition.mode !== "supabase") return <div role="alert">{copy.serviceUnavailable}</div>;
-  const browserQuery = typeof window === "undefined" ? null : new URLSearchParams(window.location.search);
-  const departureId = props.departureId ?? browserQuery?.get("departure") ?? "";
-  const initialPartySize = props.initialPartySize ?? browserQuery?.get("partySize") ?? "1";
+  const routeQuery = props.routeLocation === undefined
+    ? null
+    : new URLSearchParams(props.routeLocation.search);
+  const departureId = props.departureId ?? routeQuery?.get("departure") ?? "";
+  const initialPartySize = props.initialPartySize ?? routeQuery?.get("partySize") ?? "1";
   return <surface.Surface
     locale={props.locale}
     composition={composition}
     departureId={departureId}
     initialPartySize={initialPartySize}
-    returnTo={browserReturnTo}
+    returnTo={routeReturnTo}
     navigate={props.navigate}
   />;
 }
 
 function RouterSurface(props: FixedTourRouteSurfaceProps) {
   const router = useRouter();
-  return <SurfaceContent {...props} navigate={(path) => router.push(path)} />;
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const query = searchParams.toString();
+  const routeLocation: FixedTourRouteLocation = {
+    pathname: pathname ?? `/${props.locale}/booking/`,
+    search: query ? `?${query}` : "",
+  };
+  return (
+    <SurfaceContent
+      {...props}
+      routeLocation={routeLocation}
+      navigate={(path) => router.push(path)}
+    />
+  );
+}
+
+function RouterSurfaceFallback({ locale }: { locale: Locale }) {
+  const copy = fixedTourRuntimeCopy(locale);
+  return <p role="status" aria-live="polite">{copy.loading}</p>;
 }
 
 export function FixedTourRouteSurface(props: FixedTourRouteSurfaceProps) {
   if (props.navigate) return <SurfaceContent {...props} navigate={props.navigate} />;
   if (props.route === "tours") return <SurfaceContent {...props} navigate={() => undefined} />;
-  return <RouterSurface {...props} />;
+  return (
+    <Suspense fallback={<RouterSurfaceFallback locale={props.locale} />}>
+      <RouterSurface {...props} />
+    </Suspense>
+  );
 }
