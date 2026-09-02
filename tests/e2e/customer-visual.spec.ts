@@ -204,7 +204,7 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
         if (element.closest("nextjs-portal")) return false;
         const scrollContainer = element.closest<HTMLElement>("[class*='localNavLinks']");
         if (scrollContainer && ["auto", "scroll"].includes(getComputedStyle(scrollContainer).overflowX)) return false;
-        return rect.left < -1 || rect.right > window.innerWidth + 1;
+        return rect.left < -1 || rect.right > document.documentElement.clientWidth + 1;
       })
       .map((element) => `${element.tagName.toLowerCase()}: ${(element.textContent || element.getAttribute("alt") || "").trim().slice(0, 80)}`);
 
@@ -294,9 +294,13 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
       const focusTreatment = style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0
         ? style.outlineColor.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:\s*[,/]\s*([\d.]+))?\s*\)/)
         : style.boxShadow !== "none" ? style.boxShadow.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:\s*[,/]\s*([\d.]+))?\s*\)/) : null;
-      const horizontalFocusExtent = style.outlineStyle !== "none"
+      const outlineExtent = style.outlineStyle !== "none"
         ? Math.max(0, Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset))
         : 0;
+      const viewport = {
+        width: document.documentElement.clientWidth,
+        height: document.documentElement.clientHeight,
+      };
       const focusContrast = background && focusTreatment
         ? (() => {
             const alpha = Number(focusTreatment[4] ?? 1);
@@ -312,8 +316,8 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
         : 0;
       return {
         valid: rect.width > 0 && rect.height > 0
-          && rect.left - horizontalFocusExtent >= -1 && rect.right + horizontalFocusExtent <= window.innerWidth + 1
-          && rect.top >= -1 && rect.bottom <= window.innerHeight + 1
+          && rect.left - outlineExtent >= -1 && rect.right + outlineExtent <= viewport.width + 1
+          && rect.top - outlineExtent >= -1 && rect.bottom + outlineExtent <= viewport.height + 1
           && style.visibility !== "hidden" && focusContrast >= 3,
         label: label.trim(),
         tag: active.tagName.toLowerCase(),
@@ -328,7 +332,8 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
           outlineOffset: style.outlineOffset,
           outlineColor: style.outlineColor,
           boxShadow: style.boxShadow,
-          horizontalFocusExtent,
+          outlineExtent,
+          viewport,
         },
       };
     });
