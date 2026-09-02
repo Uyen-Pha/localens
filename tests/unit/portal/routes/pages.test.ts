@@ -21,7 +21,7 @@ describe("portal route contracts", () => {
       expect(source).toContain("generateStaticParams");
       expect(source).toContain('{ locale: "en" }');
       expect(source).toContain('{ locale: "vi" }');
-      expect(source).toContain("PortalSurface");
+      expect(source).toContain(route === "sign-in" ? "SignInRouteSurface" : "PortalSurface");
     }
   });
 
@@ -42,5 +42,20 @@ describe("portal route contracts", () => {
     expect(source).toContain('"Đăng nhập | LocalLens"');
     expect(source).not.toContain("Demo sign in | LocalLens");
     expect(source).not.toContain("Đăng nhập demo | LocalLens");
+  });
+
+  it("keeps sign-in statically exportable and reads return-to at the client boundary", () => {
+    const source = readFileSync(join(process.cwd(), "app/[locale]/sign-in/page.tsx"), "utf8");
+    const boundarySource = readFileSync(
+      join(process.cwd(), "components/portals/sign-in-route-surface.tsx"),
+      "utf8",
+    );
+
+    expect(source).not.toContain("searchParams");
+    expect(source).toContain("SignInRouteSurface");
+    expect(boundarySource).toContain("useSearchParams");
+    expect(boundarySource).toContain("<Suspense");
+    expect(boundarySource).toContain('get("returnTo")');
+    expect(boundarySource).toContain("<PortalSurface");
   });
 });

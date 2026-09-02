@@ -17,9 +17,9 @@ type Navigate = (path: string) => void;
 
 type LoadedSurface =
   | { kind: "demo-tours"; Surface: ComponentType<{ locale: Locale }> }
-  | { kind: "demo-booking"; Surface: ComponentType<{ locale: Locale; copy: BookingCopy }> }
+  | { kind: "demo-booking"; Surface: ComponentType<{ locale: Locale; copy: BookingCopy; returnTo?: string | null }> }
   | { kind: "runtime-tours"; Surface: ComponentType<{ locale: Locale; fixedTour: SupabasePortalShell["fixedTour"]; initialized: Promise<void> }> }
-  | { kind: "runtime-booking"; Surface: ComponentType<{ locale: Locale; composition: SupabasePortalShell; departureId: string; initialPartySize: string; navigate: Navigate }> };
+  | { kind: "runtime-booking"; Surface: ComponentType<{ locale: Locale; composition: SupabasePortalShell; departureId: string; initialPartySize: string; returnTo?: string | null; navigate: Navigate }> };
 
 interface SelectedSurface {
   composition: Composition;
@@ -84,10 +84,13 @@ function SurfaceContent(props: FixedTourRouteSurfaceProps & { navigate: Navigate
   if (selected === null) return <p role="status" aria-live="polite">{copy.loading}</p>;
 
   const { composition, surface } = selected;
+  const browserReturnTo = typeof window === "undefined"
+    ? null
+    : `${window.location.pathname}${window.location.search}`;
   if (surface.kind === "demo-tours") return <surface.Surface locale={props.locale} />;
   if (surface.kind === "demo-booking") {
     if (!props.demoBookingCopy) return <div role="alert">{copy.serviceUnavailable}</div>;
-    return <surface.Surface locale={props.locale} copy={props.demoBookingCopy} />;
+    return <surface.Surface locale={props.locale} copy={props.demoBookingCopy} returnTo={browserReturnTo} />;
   }
   if (surface.kind === "runtime-tours") {
     if (!composition || composition.mode !== "supabase") return <div role="alert">{copy.serviceUnavailable}</div>;
@@ -102,6 +105,7 @@ function SurfaceContent(props: FixedTourRouteSurfaceProps & { navigate: Navigate
     composition={composition}
     departureId={departureId}
     initialPartySize={initialPartySize}
+    returnTo={browserReturnTo}
     navigate={props.navigate}
   />;
 }

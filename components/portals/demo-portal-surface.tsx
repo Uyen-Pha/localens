@@ -8,6 +8,7 @@ import { clearLocalLensDemoStorage } from "@/lib/application/demo/reset-demo";
 import type { DemoPortalComposition } from "@/lib/application/portal/composition";
 import type { DemoPortalIdentity } from "@/lib/application/portal/contracts";
 import type { Locale } from "@/lib/i18n/config";
+import { destinationAfterSignIn } from "@/lib/navigation/safe-return-to";
 
 import { AdminPortal } from "@/components/portals/admin-portal";
 import { CustomerPortal } from "@/components/portals/customer-portal";
@@ -20,6 +21,7 @@ import styles from "@/components/portals/portal.module.css";
 export interface DemoPortalSurfaceProps {
   locale: Locale;
   expectedRole?: PortalRole;
+  returnTo?: string | null;
   composition: DemoPortalComposition;
   navigate: PortalNavigate;
 }
@@ -91,12 +93,14 @@ function SignInPortal({
   locale,
   composition,
   session,
+  returnTo,
   navigate,
   onSessionSelected,
 }: {
   locale: Locale;
   composition: DemoPortalComposition;
   session: DemoPortalIdentity | null;
+  returnTo?: string | null;
   navigate: PortalNavigate;
   onSessionSelected: (session: DemoPortalIdentity | null) => void;
 }) {
@@ -115,7 +119,7 @@ function SignInPortal({
     try {
       const nextSession = await composition.session.selectDemoIdentity(userId);
       onSessionSelected(nextSession);
-      navigate(portalPath(locale, role));
+      navigate(destinationAfterSignIn({ locale, role, returnTo }));
     } catch {
       setSelectedId(null);
       setError(copy.errorMessage);
@@ -167,7 +171,7 @@ function SignInPortal({
             <p>{identity.email}</p>
             <Link
               className={styles.button}
-              href={portalPath(locale, identity.role)}
+              href={destinationAfterSignIn({ locale, role: identity.role, returnTo })}
               aria-disabled={selectedId !== null}
               onClick={(event) => void selectIdentity(event, identity.userId, identity.role)}
             >
@@ -212,7 +216,7 @@ function AccessDeniedPortal({
   );
 }
 
-export function DemoPortalSurface({ locale, expectedRole, composition, navigate }: DemoPortalSurfaceProps) {
+export function DemoPortalSurface({ locale, expectedRole, returnTo, composition, navigate }: DemoPortalSurfaceProps) {
   const [session, setSession] = useState<DemoPortalIdentity | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [retryKey, setRetryKey] = useState(0);
@@ -245,7 +249,7 @@ export function DemoPortalSurface({ locale, expectedRole, composition, navigate 
   }
 
   if (expectedRole === undefined || session === null) {
-    return <SignInPortal locale={locale} composition={composition} session={session} navigate={navigate} onSessionSelected={setSession} />;
+    return <SignInPortal locale={locale} composition={composition} session={session} returnTo={returnTo} navigate={navigate} onSessionSelected={setSession} />;
   }
   if (session.role !== expectedRole) {
     return <AccessDeniedPortal locale={locale} session={session} expectedRole={expectedRole} onSignOut={signOut} />;

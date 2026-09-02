@@ -314,6 +314,29 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+test("customer sign-in restores fixed-tour booking intent and rejects an external return-to", async ({ page }) => {
+  const diagnostics = installDiagnostics(page);
+  const returnTo = "/en/booking/?departure=demo-departure-markets-and-street-food-2026-09-05&partySize=2";
+
+  await page.goto(returnTo);
+  await page.getByRole("link", { name: PORTAL_COPY.en.chooseIdentity, exact: true }).click();
+  await expect(page).toHaveURL(/\/en\/sign-in\/\?returnTo=/);
+  const signInUrl = new URL(page.url());
+  expect(signInUrl.pathname).toBe("/en/sign-in/");
+  expect(signInUrl.searchParams.get("returnTo")).toBe(returnTo);
+  await selectDemoIdentity(page, "Demo Traveler", "Continue as Customer");
+
+  await expect(page).toHaveURL(new RegExp(`${returnTo.replace(/[?]/g, "\\?")}$`));
+  await expect(page.getByLabel(FIXED_TOUR_ACCEPTANCE_COPY.en.partySizeLabel, { exact: true })).toHaveValue("2");
+
+  const localOrigin = new URL(page.url()).origin;
+  await page.goto("/en/sign-in/?returnTo=https%3A%2F%2Fexample.com");
+  await selectDemoIdentity(page, "Demo Traveler", "Continue as Customer");
+  await expect(page).toHaveURL(/\/en\/account\/?$/);
+  expect(new URL(page.url()).origin).toBe(localOrigin);
+  await assertHealthyPage(page, diagnostics);
+});
+
 test("fixed tour browse, payment, admin assignment, and guide visibility stay connected", async ({ page }) => {
   const diagnostics = installDiagnostics(page);
   await runFixedTourAcceptance(page, "en", diagnostics);

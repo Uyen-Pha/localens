@@ -195,11 +195,13 @@ function renderSurface({
   locale,
   shell,
   expectedRole,
+  returnTo,
   destinations = [],
 }: {
   locale: Locale;
   shell: SupabasePortalShell;
   expectedRole?: "customer" | "guide" | "admin";
+  returnTo?: string | null;
   destinations?: string[];
 }) {
   return render(
@@ -207,6 +209,7 @@ function renderSurface({
       locale={locale}
       expectedRole={expectedRole}
       composition={shell}
+      returnTo={returnTo}
       navigate={(path) => destinations.push(path)}
     />,
   );
@@ -243,7 +246,13 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
   it("maps invalid credentials to a generic localized error and clears the password", async () => {
     const email = "private.person@example.com";
     const password = "do-not-echo-this";
-    renderSurface({ locale, shell: shellFor() });
+    const destinations: string[] = [];
+    renderSurface({
+      locale,
+      shell: shellFor(),
+      returnTo: `/${locale}/booking/?departure=departure-1&partySize=2`,
+      destinations,
+    });
 
     await submitCredentials(locale, email, password);
 
@@ -252,6 +261,7 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
     expect(document.body.textContent).not.toContain(email);
     expect(document.body.textContent).not.toContain(password);
     expect(document.body.textContent).not.toContain("Adapter detail");
+    expect(destinations).toEqual([]);
   });
 
   it("disables duplicate password submissions while authentication is pending", async () => {
@@ -296,6 +306,34 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
     await waitFor(() => expect(destinations).toEqual([`/${locale}${suffix}`]));
     fireEvent.click(screen.getByRole("button", { name: copy.signOut }));
     expect(await screen.findByLabelText(copy.password)).toHaveValue("");
+  });
+
+  it.each([
+    ["customer", "/booking/?departure=departure-1&partySize=2"],
+    ["guide", "/guide/"],
+    ["admin", "/admin/"],
+  ] as const)("applies safe customer-only return-to rules for a signed-in %s", async (role, expectedSuffix) => {
+    const destinations: string[] = [];
+    const account = ACCOUNTS.find((candidate) => candidate.identity.role === role)!;
+    const returnTo = `/${locale}/booking/?departure=departure-1&partySize=2`;
+    renderSurface({ locale, shell: shellFor(), returnTo, destinations });
+
+    await submitCredentials(locale, account.email, account.password);
+
+    const expected = role === "customer" ? returnTo : `/${locale}${expectedSuffix}`;
+    await waitFor(() => expect(destinations).toEqual([expected]));
+  });
+
+  it.each([
+    ["https://example.com"],
+    [`/${locale}/booking/?departure=${"a".repeat(2048)}`],
+  ])("falls back from invalid customer return-to %j", async (returnTo) => {
+    const destinations: string[] = [];
+    renderSurface({ locale, shell: shellFor(), returnTo, destinations });
+
+    await submitCredentials(locale, ACCOUNTS[0].email, ACCOUNTS[0].password);
+
+    await waitFor(() => expect(destinations).toEqual([`/${locale}/account/`]));
   });
 
   it("restores the database-backed identity after a refresh-style remount", async () => {

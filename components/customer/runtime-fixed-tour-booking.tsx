@@ -12,6 +12,7 @@ import type { SupabasePortalShell } from "@/lib/application/portal/supabase-shel
 import type { LiveDepartureAvailability } from "@/lib/domain/data/contracts";
 import type { Locale } from "@/lib/i18n/config";
 import { fixedTourRuntimeCopy } from "@/lib/i18n/fixed-tour-runtime";
+import { signInPath } from "@/lib/navigation/safe-return-to";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 type ReadyState = "loading" | "ready" | FixedTourRuntimeErrorCode;
@@ -36,12 +37,14 @@ export function RuntimeFixedTourBooking({
   composition,
   departureId,
   initialPartySize,
+  returnTo,
   navigate,
 }: {
   locale: Locale;
   composition: SupabasePortalShell;
   departureId: string;
   initialPartySize: string;
+  returnTo?: string | null;
   navigate: (path: string) => void;
 }) {
   const copy = fixedTourRuntimeCopy(locale);
@@ -149,6 +152,8 @@ export function RuntimeFixedTourBooking({
             <p>{copy.partySizeHint}</p>
             <button type="submit">{copy.hold}</button>
           </form>
+        ) : state === "UNAUTHENTICATED" ? (
+          <Link href={signInPath(locale, returnTo)}>{copy.signInRequired}</Link>
         ) : <Link href={`/${locale}/tours/`}>{copy.catalogHeading}</Link>}
       </section>
     );

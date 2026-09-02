@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { PortalSurface } from "@/components/portals/portal-surface";
+import { SignInRouteSurface } from "@/components/portals/sign-in-route-surface";
 import { isLocale } from "@/lib/i18n/config";
 
 export const dynamicParams = false;
@@ -32,5 +32,5 @@ export default async function SignInPage({
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
 
-  return <PortalSurface locale={locale} />;
+  return <SignInRouteSurface locale={locale} />;
 }

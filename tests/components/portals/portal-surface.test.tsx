@@ -41,6 +41,7 @@ afterEach(async () => {
     await signOutTrackedCompositions(compositions);
   } finally {
     compositions.length = 0;
+    window.history.replaceState({}, "", "/");
   }
 });
 
@@ -109,6 +110,67 @@ describe("PortalSurface", () => {
     expect(destinations).toEqual(["/en/account/"]);
     await expect(composition.session.getSession()).resolves.toMatchObject({ userId: "demo-user-customer" });
     expect(await screen.findByText(/markets and street food/i)).toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      name: "returns a customer to the exact valid booking URL",
+      userId: "demo-user-customer",
+      linkName: "Continue as Customer",
+      returnTo: "/en/booking/?departure=departure-1&partySize=2",
+      expected: "/en/booking/?departure=departure-1&partySize=2",
+    },
+    {
+      name: "falls back for an invalid customer return-to",
+      userId: "demo-user-customer",
+      linkName: "Continue as Customer",
+      returnTo: "https://example.com",
+      expected: "/en/account/",
+    },
+    {
+      name: "falls back for an oversized customer return-to",
+      userId: "demo-user-customer",
+      linkName: "Continue as Customer",
+      returnTo: `/en/booking/?departure=${"a".repeat(2048)}`,
+      expected: "/en/account/",
+    },
+    {
+      name: "ignores a booking return-to for a guide",
+      userId: "demo-user-guide",
+      linkName: "Continue as Guide",
+      returnTo: "/en/booking/?departure=departure-1&partySize=2",
+      expected: "/en/guide/",
+    },
+    {
+      name: "ignores a booking return-to for an administrator",
+      userId: "demo-user-admin",
+      linkName: "Continue as Administrator",
+      returnTo: "/en/booking/?departure=departure-1&partySize=2",
+      expected: "/en/admin/",
+    },
+  ])("$name", async ({ userId, linkName, returnTo, expected }) => {
+    const composition = await createComposition();
+    const destinations: string[] = [];
+
+    render(
+      <PortalSurface
+        locale="en"
+        composition={composition}
+        returnTo={returnTo}
+        navigate={(path) => destinations.push(path)}
+      />,
+    );
+
+    const identity = userId === "demo-user-customer"
+      ? screen.findByRole("heading", { name: "Demo Traveler" })
+      : screen.findByRole("heading", {
+        name: userId === "demo-user-guide" ? "Demo Guide" : "Demo Administrator",
+      });
+    const card = (await identity).closest("article");
+    expect(card).not.toBeNull();
+    fireEvent.click(within(card!).getByRole("link", { name: linkName }));
+
+    await waitFor(() => expect(destinations).toEqual([expected]));
   });
 
   it("resets only LocalLens browser keys, signs out, and returns focus to sign-in", async () => {

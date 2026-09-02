@@ -7,6 +7,7 @@ import type { FormEvent, ReactNode } from "react";
 import { PortalError, type PortalIdentity } from "@/lib/application/portal/contracts";
 import type { SupabasePortalShell } from "@/lib/application/portal/supabase-shell";
 import type { Locale } from "@/lib/i18n/config";
+import { destinationAfterSignIn } from "@/lib/navigation/safe-return-to";
 
 import { portalCopy, portalPath, roleLabel, signedInRoleText } from "@/components/portals/portal-copy";
 import type { PortalNavigate, PortalRole } from "@/components/portals/portal-surface";
@@ -15,6 +16,7 @@ import styles from "@/components/portals/portal.module.css";
 export interface SupabasePortalSurfaceProps {
   locale: Locale;
   expectedRole?: PortalRole;
+  returnTo?: string | null;
   composition: SupabasePortalShell;
   navigate: PortalNavigate;
 }
@@ -121,11 +123,13 @@ function RuntimeUnavailable({
 function RuntimeSignIn({
   locale,
   session,
+  returnTo,
   navigate,
   onSession,
 }: {
   locale: Locale;
   session: SupabasePortalShell["session"];
+  returnTo?: string | null;
   navigate: PortalNavigate;
   onSession: (identity: PortalIdentity) => void;
 }) {
@@ -143,7 +147,7 @@ function RuntimeSignIn({
     try {
       const identity = await session.signInWithPassword({ email, password });
       onSession(identity);
-      navigate(portalPath(locale, identity.role));
+      navigate(destinationAfterSignIn({ locale, role: identity.role, returnTo }));
     } catch {
       setError(copy.runtimeAuthError);
     } finally {
@@ -275,6 +279,7 @@ function RuntimeRoleShell({
 export function SupabasePortalSurface({
   locale,
   expectedRole,
+  returnTo,
   composition,
   navigate,
 }: SupabasePortalSurfaceProps) {
@@ -334,7 +339,7 @@ export function SupabasePortalSurface({
     return <RuntimeUnavailable locale={locale} correlationId={correlationId} onRetry={() => setRetryKey((key) => key + 1)} />;
   }
   if (session === null) {
-    return <RuntimeSignIn locale={locale} session={composition.session} navigate={navigate} onSession={setSession} />;
+    return <RuntimeSignIn locale={locale} session={composition.session} returnTo={returnTo} navigate={navigate} onSession={setSession} />;
   }
   if (expectedRole !== undefined && session.role !== expectedRole) {
     return <RuntimeAccessDenied locale={locale} session={session} onSignOut={() => void signOut()} actionError={actionError} />;

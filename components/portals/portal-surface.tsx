@@ -7,23 +7,26 @@ import type { ComponentType } from "react";
 import type { DemoPortalComposition } from "@/lib/application/portal/composition";
 import type { SupabasePortalShell } from "@/lib/application/portal/supabase-shell";
 import type { Locale } from "@/lib/i18n/config";
+import type { PortalRole } from "@/lib/navigation/safe-return-to";
 
 import { portalCopy } from "@/components/portals/portal-copy";
 import { loadPortalSurfaceComposition } from "@/components/portals/portal-session";
 import styles from "@/components/portals/portal.module.css";
 
-export type PortalRole = "customer" | "guide" | "admin";
+export type { PortalRole } from "@/lib/navigation/safe-return-to";
 export type PortalNavigate = (path: string) => void;
 type PortalSurfaceComposition = DemoPortalComposition | SupabasePortalShell;
 type DemoSurface = ComponentType<{
   locale: Locale;
   expectedRole?: PortalRole;
+  returnTo?: string | null;
   composition: DemoPortalComposition;
   navigate: PortalNavigate;
 }>;
 type SupabaseSurface = ComponentType<{
   locale: Locale;
   expectedRole?: PortalRole;
+  returnTo?: string | null;
   composition: SupabasePortalShell;
   navigate: PortalNavigate;
 }>;
@@ -34,6 +37,7 @@ type LoadedSurface =
 export interface PortalSurfaceProps {
   locale: Locale;
   expectedRole?: PortalRole;
+  returnTo?: string | null;
   /** Tests may inject one explicit mode; routes use the Task 4 browser singleton loader. */
   composition?: PortalSurfaceComposition;
   /** Optional navigation seam for browser-composition tests; routes use Next soft navigation by default. */
@@ -100,6 +104,7 @@ function NeutralState({
 function PortalSurfaceContent({
   locale,
   expectedRole,
+  returnTo,
   composition: injectedComposition,
   navigate,
 }: PortalSurfaceProps & { navigate: PortalNavigate }) {
@@ -148,10 +153,10 @@ function PortalSurfaceContent({
 
   if (loadedSurface.mode === "demo") {
     const { Surface, composition } = loadedSurface;
-    return <Surface locale={locale} expectedRole={expectedRole} composition={composition} navigate={navigate} />;
+    return <Surface locale={locale} expectedRole={expectedRole} returnTo={returnTo} composition={composition} navigate={navigate} />;
   }
   const { Surface, composition } = loadedSurface;
-  return <Surface locale={locale} expectedRole={expectedRole} composition={composition} navigate={navigate} />;
+  return <Surface locale={locale} expectedRole={expectedRole} returnTo={returnTo} composition={composition} navigate={navigate} />;
 }
 
 function RouterPortalSurface(props: PortalSurfaceProps) {

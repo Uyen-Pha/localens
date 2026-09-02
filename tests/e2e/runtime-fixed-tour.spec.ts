@@ -524,6 +524,34 @@ test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment accept
     }
   });
 
+  test("seeded customer sign-in restores the fixed-tour departure and party size", async ({ browser }) => {
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage();
+      const locale = "en" as const;
+      const returnTo = `/${locale}/booking/?departure=${fixture.departureId}&partySize=2`;
+      const copy = fixedTourRuntimeCopy(locale);
+
+      await page.goto(returnTo);
+      await page.getByRole("link", { name: copy.signInRequired, exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`/${locale}/sign-in/\\?returnTo=`));
+      const signInUrl = new URL(page.url());
+      expect(signInUrl.pathname).toBe(`/${locale}/sign-in/`);
+      expect(signInUrl.searchParams.get("returnTo")).toBe(returnTo);
+
+      await page.getByRole("textbox", { name: "Email" }).fill(accounts.customerA.email);
+      await page.getByLabel("Password").fill(passwordFor("customerA"));
+      await page.getByRole("button", { name: "Sign in", exact: true }).click();
+
+      await expect(page).toHaveURL(new RegExp(`/${locale}/booking/\\?departure=${fixture.departureId}&partySize=2$`));
+      await expect(page.getByRole("spinbutton", { name: copy.partySize })).toHaveValue("2");
+      await expect(page.getByRole("heading", { name: copy.bookingHeading })).toBeVisible();
+      await expectNoDemoStorage(page);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("English customer A creates party-one hold and persists after reload and relogin", async ({ browser }) => {
     const context = await browser.newContext();
     try {

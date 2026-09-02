@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import type { DemoPortalComposition } from "@/lib/application/portal/composition";
 import type { DemoPortalIdentity } from "@/lib/application/portal/contracts";
 import type { Locale } from "@/lib/i18n/config";
+import { signInPath } from "@/lib/navigation/safe-return-to";
 import { getDemoPortalComposition } from "@/components/portals/portal-session";
 import { portalCopy, portalPath, signedInRoleText } from "@/components/portals/portal-copy";
 
@@ -14,9 +15,11 @@ type BoundaryState = "loading" | "ready" | "error";
 
 export function DemoCustomerBoundary({
   locale,
+  returnTo,
   children,
 }: {
   locale: Locale;
+  returnTo?: string | null;
   children: (composition: DemoPortalComposition) => ReactNode;
 }) {
   const copy = portalCopy(locale);
@@ -58,7 +61,7 @@ export function DemoCustomerBoundary({
         <p className="eyebrow">{copy.demoOnly}</p>
         <h1 id="customer-demo-boundary-heading">{copy.errorTitle}</h1>
         <p role="alert">{copy.errorMessage}</p>
-        <Link className="button button--secondary" href={`/${locale}/sign-in/`}>{copy.chooseIdentity}</Link>
+        <Link className="button button--secondary" href={signInPath(locale, returnTo)}>{copy.chooseIdentity}</Link>
       </section>
     );
   }
@@ -80,7 +83,7 @@ export function DemoCustomerBoundary({
         <h1 id="customer-demo-boundary-heading">{copy.accessDeniedTitle}</h1>
         <p>{copy.accessDeniedMessage}</p>
         {session === null ? (
-          <Link className="button button--secondary" href={`/${locale}/sign-in/`}>{copy.chooseIdentity}</Link>
+          <Link className="button button--secondary" href={signInPath(locale, returnTo)}>{copy.chooseIdentity}</Link>
         ) : (
           <>
             <p>{signedInRoleText(locale, session.role)}</p>
