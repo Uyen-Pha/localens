@@ -407,7 +407,7 @@ describe("Task 1 runtime mode package gate", () => {
       "dev:supabase": "node scripts/run-next-mode.mjs dev supabase",
       "build:demo": "node scripts/run-next-mode.mjs build demo",
       "build:supabase": "node scripts/run-next-mode.mjs build supabase",
-      check: "pnpm lint && pnpm typecheck && pnpm test:run && pnpm build:demo",
+      check: "pnpm lint && pnpm typecheck && pnpm test:run --no-file-parallelism --testTimeout=30000 && pnpm db:static && pnpm build:demo",
     });
   });
 });

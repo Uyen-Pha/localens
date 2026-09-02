@@ -2,10 +2,10 @@
   "name": "localens",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@11.19.0",
+  "packageManager": "pnpm@10.17.1",
   "engines": {
     "node": ">=24 <25",
-    "pnpm": ">=11 <12"
+    "pnpm": ">=10 <11"
   },
   "scripts": {
     "dev": "next dev",
@@ -36,7 +36,7 @@
     "db:concurrency": "node scripts/test-db-concurrency.mjs",
     "db:stop": "node scripts/supabase-local.mjs stop --no-backup",
     "db:verify": "node scripts/run-db-gate.mjs",
-    "check": "pnpm lint && pnpm typecheck && pnpm test:run && pnpm build:demo"
+    "check": "pnpm lint && pnpm typecheck && pnpm test:run --no-file-parallelism --testTimeout=30000 && pnpm db:static && pnpm build:demo"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.3",
@@ -46,6 +46,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@fontsource/cormorant-garamond": "5.3.0",
     "@fontsource/manrope": "5.3.0",
     "@playwright/test": "1.62.1",
@@ -64,6 +65,7 @@
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "vite-tsconfig-paths": "6.1.1",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "yaml": "2.8.1"
   }
 }

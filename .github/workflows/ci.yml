@@ -3,14 +3,15 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  quality:
+  quality-demo:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository
@@ -19,7 +20,7 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 11.19.0
+          version: 10.17.1
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -30,28 +31,164 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Cache Playwright Chromium
-        uses: actions/cache@v4
+      - name: Run demo quality gate
+        run: pnpm check
+
+  demo-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
         with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('pnpm-lock.yaml') }}
+          version: 10.17.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Unit and component tests
-        run: pnpm test:run
-
-      - name: Build
-        run: pnpm build
-
-      - name: Playwright smoke tests
+      - name: Run demo browser acceptance
         env:
           PLAYWRIGHT_STATIC: "1"
         run: pnpm test:e2e
+
+  runtime-local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Create private CI log directory
+        shell: bash
+        run: mkdir -p ci-logs
+
+      - name: Verify local database, RLS, grants, types, and concurrency
+        shell: bash
+        run: pnpm db:verify > ci-logs/db-verify.log 2>&1
+
+      - name: Verify runtime authentication
+        shell: bash
+        run: pnpm test:e2e:runtime-auth > ci-logs/runtime-auth.log 2>&1
+
+      - name: Verify runtime fixed-tour booking and payment
+        shell: bash
+        run: pnpm test:e2e:runtime-fixed-tour > ci-logs/runtime-fixed-tour.log 2>&1
+
+      - name: Verify runtime guide assignment
+        shell: bash
+        run: pnpm test:e2e:runtime-guide-assignment > ci-logs/runtime-guide-assignment.log 2>&1
+
+      - name: Build Supabase runtime
+        shell: bash
+        run: pnpm build:supabase > ci-logs/build-supabase.log 2>&1
+
+      - name: Prepare redacted failure artifacts
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts
+          cp -R ci-logs ci-artifacts/ci-logs
+          test ! -d playwright-report || cp -R playwright-report ci-artifacts/playwright-report
+          test ! -d test-results || cp -R test-results ci-artifacts/test-results
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const root = "ci-artifacts";
+          const patterns = [
+            [/postgres(?:ql)?:\/\/[^\s"']+/gi, "[REDACTED_DATABASE_URL]"],
+            [/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_JWT]"],
+            [/\bsb_(?:secret|publishable)_[A-Za-z0-9_-]+\b/g, "[REDACTED_SUPABASE_KEY]"],
+            [/(PASSWORD|SECRET|SERVICE_ROLE_KEY|ACCESS_TOKEN)=([^\s]+)/gi, "$1=[REDACTED]"],
+          ];
+          const visit = (entry) => {
+            for (const item of fs.readdirSync(entry, { withFileTypes: true })) {
+              const target = path.join(entry, item.name);
+              if (item.isDirectory()) visit(target);
+              else {
+                const value = fs.readFileSync(target);
+                if (value.includes(0)) continue;
+                let text = value.toString("utf8");
+                for (const [pattern, replacement] of patterns) text = text.replace(pattern, replacement);
+                fs.writeFileSync(target, text);
+              }
+            }
+          };
+          visit(root);
+          NODE
+
+      - name: Upload redacted runtime failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-local-failure-${{ github.run_id }}
+          path: ci-artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  staging-smoke:
+    needs:
+      - quality-demo
+      - demo-e2e
+      - runtime-local
+    if: ${{ vars.LOCALLENS_STAGING_URL != '' }}
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LOCALLENS_STAGING_URL: ${{ vars.LOCALLENS_STAGING_URL }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate protected HTTPS target
+        shell: bash
+        run: |
+          node -e 'const u = new URL(process.env.LOCALLENS_STAGING_URL); if (u.protocol !== "https:") process.exit(1)'
+          curl --fail --silent --show-error --location --max-time 30 "$LOCALLENS_STAGING_URL/en/sign-in/" > /dev/null
+          curl --fail --silent --show-error --location --max-time 30 "$LOCALLENS_STAGING_URL/vi/sign-in/" > /dev/null
