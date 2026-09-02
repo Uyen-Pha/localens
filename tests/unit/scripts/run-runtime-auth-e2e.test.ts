@@ -1,5 +1,7 @@
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
+import { createServer } from "node:net";
 import path from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
@@ -129,6 +131,7 @@ describe("Task 6 runtime Auth runner", () => {
       exitCode: null,
       signalCode: null,
       kill: vi.fn(() => {
+        child.exitCode = 0;
         queueMicrotask(() => child.emit("close", 0));
         return true;
       }),
@@ -138,16 +141,27 @@ describe("Task 6 runtime Auth runner", () => {
     const server = await startOwnedRuntimeServer({ NEXT_PUBLIC_LOCALLENS_RUNTIME: "demo" }, {
       cwd: "C:/repo",
       spawnChild,
-      fetchImpl: async () => ({ ok: probe++ > 0, status: probe > 1 ? 200 : 503 }),
+      fetchImpl: async () => {
+        if (child.exitCode !== null) throw new Error("endpoint closed");
+        return { ok: probe++ > 0, status: probe > 1 ? 200 : 503 };
+      },
       mode: "demo",
       port: 3300,
       serverUrl: "http://127.0.0.1:3300/en/",
+      platform: "linux",
     });
 
     expect(spawnChild).toHaveBeenCalledWith(
       process.execPath,
-      expect.arrayContaining(["dev", "demo", "--port", "3300"]),
-      expect.any(Object),
+      expect.arrayContaining([
+        expect.stringMatching(/node_modules[\\/]next[\\/]dist[\\/]bin[\\/]next$/),
+        "dev",
+        "--port",
+        "3300",
+      ]),
+      expect.objectContaining({
+        env: expect.objectContaining({ NEXT_PUBLIC_LOCALLENS_RUNTIME: "demo" }),
+      }),
     );
     await server.stop();
   });
@@ -166,6 +180,7 @@ describe("Task 6 runtime Auth runner", () => {
         return child;
       },
       fetchImpl: async () => ({ ok: false, status: 503 }),
+      platform: "linux",
     });
 
     let caught: unknown;
@@ -190,7 +205,7 @@ describe("Task 6 runtime Auth runner", () => {
       kill: vi.fn(() => false),
     });
 
-    await expect(stopOwnedRuntimeServer(child, { graceMs: 1, forceConfirmMs: 1 }))
+    await expect(stopOwnedRuntimeServer(child, { graceMs: 1, forceConfirmMs: 1, platform: "linux" }))
       .rejects.toThrow(/RUNTIME_AUTH_SERVER_CLEANUP_FAILED/);
     expect(child.kill).toHaveBeenNthCalledWith(1, "SIGTERM");
     expect(child.kill).toHaveBeenNthCalledWith(2, "SIGKILL");
@@ -203,7 +218,7 @@ describe("Task 6 runtime Auth runner", () => {
       kill: vi.fn(() => true),
     });
 
-    await expect(stopOwnedRuntimeServer(child, { graceMs: 1, forceConfirmMs: 1 }))
+    await expect(stopOwnedRuntimeServer(child, { graceMs: 1, forceConfirmMs: 1, platform: "linux" }))
       .rejects.toThrow(/RUNTIME_AUTH_SERVER_CLEANUP_FAILED/);
     expect(child.kill).toHaveBeenNthCalledWith(1, "SIGTERM");
     expect(child.kill).toHaveBeenNthCalledWith(2, "SIGKILL");
@@ -219,7 +234,7 @@ describe("Task 6 runtime Auth runner", () => {
 
     let caught: unknown;
     try {
-      await stopOwnedRuntimeServer(child, { graceMs: 1, forceConfirmMs: 1 });
+      await stopOwnedRuntimeServer(child, { graceMs: 1, forceConfirmMs: 1, platform: "linux" });
     } catch (error) {
       caught = error;
     }
@@ -229,6 +244,77 @@ describe("Task 6 runtime Auth runner", () => {
     expect(child.kill).toHaveBeenNthCalledWith(1, "SIGTERM");
     expect(child.kill).toHaveBeenNthCalledWith(2, "SIGKILL");
   });
+
+  it("uses the owning controller to stop and confirm a Windows process tree", async () => {
+    const child = Object.assign(new EventEmitter(), {
+      exitCode: null,
+      signalCode: null,
+      pid: 4321,
+      kill: vi.fn(),
+    });
+    const forceOwnedTree = vi.fn(() => {
+      child.exitCode = 1;
+      queueMicrotask(() => child.emit("close", 1));
+      return true;
+    });
+    const fetchImpl = vi.fn(async () => {
+      throw new Error("endpoint closed");
+    });
+
+    await stopOwnedRuntimeServer(child, {
+      platform: "win32",
+      forceOwnedTree,
+      fetchImpl,
+      serverUrl: "http://127.0.0.1:3300/en/",
+      forceConfirmMs: 100,
+    });
+
+    expect(forceOwnedTree).toHaveBeenCalledWith(child);
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledWith("http://127.0.0.1:3300/en/", { redirect: "manual" });
+  });
+
+  it.skipIf(process.platform !== "win32")(
+    "kills a real directly-owned Windows server and confirms its endpoint is closed",
+    async () => {
+      const reservation = createServer();
+      await new Promise<void>((resolve) => reservation.listen(0, "127.0.0.1", resolve));
+      const address = reservation.address();
+      if (!address || typeof address === "string") throw new Error("test port unavailable");
+      const port = address.port;
+      await new Promise<void>((resolve, reject) => reservation.close((error) => error ? reject(error) : resolve()));
+
+      const serverSource = [
+        "const http = require('node:http')",
+        `http.createServer((_req, res) => res.end('ok')).listen(${port}, '127.0.0.1')`,
+        "setInterval(() => {}, 1000)",
+      ].join(";");
+      const server = spawn(process.execPath, ["-e", serverSource], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      const url = `http://127.0.0.1:${port}/`;
+
+      try {
+        const deadline = Date.now() + 5_000;
+        while (true) {
+          try {
+            const response = await fetch(url);
+            if (response.ok) break;
+          } catch {
+            if (Date.now() >= deadline) throw new Error("descendant server did not start");
+          }
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+
+        await stopOwnedRuntimeServer(server, { serverUrl: url, forceConfirmMs: 3_000 });
+        await expect(fetch(url)).rejects.toThrow();
+      } finally {
+        if (server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
+      }
+    },
+    15_000,
+  );
 
   it.each([
     ["stale", { status: 0, stdout: "2.114.0\n", stderr: "" }],
@@ -404,5 +490,39 @@ describe("Task 6 runtime Auth runner", () => {
 
     expect(String(capturedError)).toMatch(/RUNTIME_AUTH_STEP_FAILED/);
     expect(String(capturedError)).not.toContain(password);
+  });
+
+  it("preserves a stable cleanup marker when runtime-server startup cleanup cannot be confirmed", async () => {
+    const cleanupSecret = `cleanup-${randomUUID()}`;
+    let capturedError: unknown;
+
+    try {
+      await runRuntimeAuthE2E({
+        cwd: process.cwd(),
+        env: {},
+        requireLocalCli: () => "C:/repo/node_modules/.bin/supabase.cmd",
+        versionProbe: () => ({ status: 0, stdout: "2.115.0\n", stderr: "" }),
+        prepareDocker: () => undefined,
+        status: () => ({ status: 0, stdout: LOCAL_STATUS, stderr: "" }),
+        createOutputDirectory: () => "C:/temp/localens-runtime-auth-owned",
+        removeOutputDirectory: vi.fn(),
+        startServer: async () => {
+          throw Object.assign(new Error("startup-secret"), {
+            serverCleanupError: new Error(cleanupSecret),
+          });
+        },
+        runStep: async () => ({ status: 0 }),
+        logger: vi.fn(),
+      });
+    } catch (error) {
+      capturedError = error;
+    }
+
+    expect(capturedError).toMatchObject({
+      code: "RUNTIME_AUTH_SERVER_FAILED",
+      serverCleanupError: { code: "RUNTIME_AUTH_SERVER_CLEANUP_FAILED" },
+    });
+    expect(String(capturedError)).not.toMatch(/startup-secret|cleanup-/);
+    expect(String((capturedError as { serverCleanupError?: unknown }).serverCleanupError)).not.toContain(cleanupSecret);
   });
 });

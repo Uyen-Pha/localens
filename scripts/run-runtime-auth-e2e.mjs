@@ -250,7 +250,49 @@ function signalOwnedRuntimeServer(child, signal) {
   }
 }
 
-export function stopOwnedRuntimeServer(child, { graceMs = 5_000, forceConfirmMs = 1_000 } = {}) {
+function forceOwnedRuntimeProcessTree(child) {
+  if (!Number.isInteger(child.pid) || child.pid <= 0) return false;
+  const result = spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  if (result.status === 0) return true;
+  return signalOwnedRuntimeServer(child, "SIGKILL");
+}
+
+function waitForOwnedRuntimeServerClose(child, confirmMs) {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const deadlineTimer = setTimeout(() => {
+      child.removeListener("close", finish);
+      reject(runtimeError(
+        "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
+        "owned runtime server could not be confirmed stopped",
+      ));
+    }, confirmMs);
+    const finish = () => {
+      clearTimeout(deadlineTimer);
+      resolve();
+    };
+    child.once("close", finish);
+  });
+}
+
+async function confirmRuntimeServerEndpointStopped(fetchImpl, serverUrl, confirmMs) {
+  if (!serverUrl) return;
+  const deadline = Date.now() + confirmMs;
+  while (await runtimeServerResponds(fetchImpl, serverUrl)) {
+    if (Date.now() >= deadline) {
+      throw runtimeError(
+        "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
+        "owned runtime server endpoint remained available after cleanup",
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+function stopOwnedRuntimeServerPosix(child, { graceMs, forceConfirmMs }) {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -302,6 +344,29 @@ export function stopOwnedRuntimeServer(child, { graceMs = 5_000, forceConfirmMs 
   });
 }
 
+export async function stopOwnedRuntimeServer(child, {
+  graceMs = 5_000,
+  forceConfirmMs = 1_000,
+  platform = process.platform,
+  forceOwnedTree = forceOwnedRuntimeProcessTree,
+  fetchImpl = fetch,
+  serverUrl,
+} = {}) {
+  if (platform === "win32" && child.exitCode === null && child.signalCode === null) {
+    const treeStopAccepted = forceOwnedTree(child);
+    if (!treeStopAccepted && !serverUrl) {
+      throw runtimeError(
+        "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
+        "owned runtime server process tree could not be stopped",
+      );
+    }
+    await waitForOwnedRuntimeServerClose(child, forceConfirmMs);
+  } else {
+    await stopOwnedRuntimeServerPosix(child, { graceMs, forceConfirmMs });
+  }
+  await confirmRuntimeServerEndpointStopped(fetchImpl, serverUrl, forceConfirmMs);
+}
+
 async function runtimeServerResponds(fetchImpl, serverUrl = RUNTIME_SERVER_URL) {
   try {
     const response = await fetchImpl(serverUrl, { redirect: "manual" });
@@ -318,6 +383,8 @@ export async function startOwnedRuntimeServer(serverEnv, {
   mode = "supabase",
   port = 3200,
   serverUrl = RUNTIME_SERVER_URL,
+  platform = process.platform,
+  forceOwnedTree = forceOwnedRuntimeProcessTree,
 } = {}) {
   if (!["demo", "supabase"].includes(mode) || !Number.isInteger(port) || port < 1 || port > 65_535) {
     throw runtimeError("RUNTIME_AUTH_SERVER_CONFIG_INVALID", "owned runtime server configuration is invalid");
@@ -330,16 +397,15 @@ export async function startOwnedRuntimeServer(serverEnv, {
     throw runtimeError("RUNTIME_AUTH_SERVER_PORT_IN_USE", "runtime server endpoint is already occupied");
   }
   const child = spawnChild(process.execPath, [
-    path.join(cwd, "scripts", "run-next-mode.mjs"),
+    path.join(cwd, "node_modules", "next", "dist", "bin", "next"),
     "dev",
-    mode,
     "--hostname",
     "127.0.0.1",
     "--port",
     String(port),
   ], {
     cwd,
-    env: serverEnv,
+    env: { ...serverEnv, NEXT_PUBLIC_LOCALLENS_RUNTIME: mode },
     stdio: "inherit",
     windowsHide: true,
   });
@@ -360,7 +426,7 @@ export async function startOwnedRuntimeServer(serverEnv, {
         if (cleanupError) error.serverCleanupError = cleanupError;
         reject(error);
       };
-      void stopOwnedRuntimeServer(child).then(
+      void stopOwnedRuntimeServer(child, { fetchImpl, serverUrl, platform, forceOwnedTree }).then(
         () => rejectStartup(),
         (cleanupError) => rejectStartup(cleanupError),
       );
@@ -378,7 +444,12 @@ export async function startOwnedRuntimeServer(serverEnv, {
         if (await runtimeServerResponds(fetchImpl, serverUrl)) {
           settled = true;
           child.removeListener("close", onClose);
-          resolve({ stop: () => stopOwnedRuntimeServer(child) });
+          resolve({ stop: () => stopOwnedRuntimeServer(child, {
+            fetchImpl,
+            serverUrl,
+            platform,
+            forceOwnedTree,
+          }) });
           return;
         }
       } catch {
@@ -485,8 +556,15 @@ export async function runRuntimeAuthE2E(options = {}) {
     logger("[runtime-auth] runtime:server:start");
     try {
       runtimeServer = await startServer(serverEnv);
-    } catch {
-      throw runtimeError("RUNTIME_AUTH_SERVER_FAILED", "owned runtime server could not be started");
+    } catch (error) {
+      const startupError = runtimeError("RUNTIME_AUTH_SERVER_FAILED", "owned runtime server could not be started");
+      if (error?.serverCleanupError) {
+        startupError.serverCleanupError = runtimeError(
+          "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
+          "owned runtime server cleanup could not be confirmed",
+        );
+      }
+      throw startupError;
     }
     const playwrightEnv = {
       ...controlEnv,

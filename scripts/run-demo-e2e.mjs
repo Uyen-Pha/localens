@@ -25,7 +25,7 @@ function demoError(code, message, details = {}) {
 function stableError(error) {
   if (error?.[DEMO_E2E_ERROR] === true) return error;
   const stable = demoError("DEMO_E2E_FAILED", "demo browser acceptance failed");
-  if (error?.cleanupFailed) stable.cleanupFailed = true;
+  if (error?.cleanupFailed || error?.serverCleanupError) stable.cleanupFailed = true;
   return stable;
 }
 

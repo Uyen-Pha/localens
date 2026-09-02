@@ -61,4 +61,24 @@ describe("owned demo E2E runner", () => {
     expect(errorLogger).toHaveBeenCalledWith("DEMO_E2E_FAILED: demo browser acceptance failed");
     expect(errorLogger.mock.calls.flat().join(" ")).not.toContain("parent-secret");
   });
+
+  it("main preserves the stable cleanup marker when startup and owned-server cleanup both fail", async () => {
+    const errorLogger = vi.fn();
+    const startupError = Object.assign(new Error("startup-secret"), {
+      serverCleanupError: new Error("cleanup-secret"),
+    });
+
+    const status = await runDemoE2EMain({
+      run: async () => { throw startupError; },
+      errorLogger,
+    });
+
+    expect(status).toBe(2);
+    expect(errorLogger).toHaveBeenNthCalledWith(1, "DEMO_E2E_FAILED: demo browser acceptance failed");
+    expect(errorLogger).toHaveBeenNthCalledWith(
+      2,
+      "DEMO_E2E_CLEANUP_FAILED: owned demo server cleanup could not be confirmed",
+    );
+    expect(errorLogger.mock.calls.flat().join(" ")).not.toMatch(/startup-secret|cleanup-secret/);
+  });
 });
