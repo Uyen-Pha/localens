@@ -16,6 +16,10 @@ export const DB_GATE_STEPS = [
 ];
 
 const LOCAL_SUPABASE_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+const CONTROLLED_DATABASE_ENVIRONMENT_KEYS = new Set([
+  "LOCALENS_DB_URL",
+  "LOCALENS_DB_CONCURRENCY",
+]);
 
 function gateError(code, message, details = {}) {
   const error = new Error(`${code}: ${message}`);
@@ -37,9 +41,12 @@ function packageScriptSpec(
 ) {
   const env = { ...baseEnv };
   for (const key of Object.keys(env)) {
-    if (key.toUpperCase() === "LOCALENS_DB_URL") delete env[key];
+    if (CONTROLLED_DATABASE_ENVIRONMENT_KEYS.has(key.toUpperCase())) delete env[key];
   }
-  if (name === "db:concurrency") env.LOCALENS_DB_URL = LOCAL_SUPABASE_DATABASE_URL;
+  if (name === "db:concurrency") {
+    env.LOCALENS_DB_URL = LOCAL_SUPABASE_DATABASE_URL;
+    env.LOCALENS_DB_CONCURRENCY = "1";
+  }
   if (platform === "win32") {
     return {
       name,

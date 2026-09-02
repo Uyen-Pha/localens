@@ -20,7 +20,14 @@ import { resolve as resolvePath } from "node:path";
 describe("Task16 database gate", () => {
   it("runs the local gate in order and always stops after success", async () => {
     const calls: string[] = [];
-    const commands: Array<{ command: string; args: string[]; databaseUrl?: string; lowercaseDatabaseUrl?: string }> = [];
+    const commands: Array<{
+      command: string;
+      args: string[];
+      databaseUrl?: string;
+      lowercaseDatabaseUrl?: string;
+      concurrencyFlag?: string;
+      lowercaseConcurrencyFlag?: string;
+    }> = [];
     const result = await runDbGate({
       cwd: "C:/repo",
       platform: "win32",
@@ -29,6 +36,8 @@ describe("Task16 database gate", () => {
       env: {
         LOCALENS_DB_URL: "postgresql://remote-uppercase.invalid:5432/postgres",
         localens_db_url: "postgresql://remote-lowercase.invalid:5432/postgres",
+        LOCALENS_DB_CONCURRENCY: "0",
+        localens_db_concurrency: "leaked",
       },
       runner: async (spec: { name: string; command: string; args: string[]; env: Record<string, string> }) => {
         calls.push(spec.name);
@@ -37,6 +46,8 @@ describe("Task16 database gate", () => {
           args: spec.args,
           databaseUrl: spec.env.LOCALENS_DB_URL,
           lowercaseDatabaseUrl: spec.env.localens_db_url,
+          concurrencyFlag: spec.env.LOCALENS_DB_CONCURRENCY,
+          lowercaseConcurrencyFlag: spec.env.localens_db_concurrency,
         });
         return { status: 0, stdout: "", stderr: "" };
       },
@@ -51,6 +62,8 @@ describe("Task16 database gate", () => {
         ? "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
         : undefined,
       lowercaseDatabaseUrl: undefined,
+      concurrencyFlag: name === "db:concurrency" ? "1" : undefined,
+      lowercaseConcurrencyFlag: undefined,
     })));
   });
 
