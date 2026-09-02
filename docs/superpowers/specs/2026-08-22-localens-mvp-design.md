@@ -303,9 +303,19 @@ the old reference files and history remain until the new design passes QA.
 
 ## Agent and delivery policy
 
-The root controller is PM/Architecture Lead on GPT-5.6 Sol high. Task-scoped
-Product/UX/SEO, Frontend, Backend/Data/Security, AI/Optimization, and QA/DevOps
-agents use GPT-5.6 Luna xhigh. Implementation is task-sequential to avoid file
-conflicts. Each task uses test-first development, an independent task review,
-and a final whole-branch review. Publishing, pushing, or merging requires an
-explicit user-authorized handoff.
+All project-agent turns use Fast mode (`service_tier = "priority"`). The root
+controller, PM/Architecture Lead, coordinator, and every independent spec,
+code, security, data/RLS, design-fidelity, UX, accessibility, or final
+approval reviewer use `gpt-5.6-sol` at reasoning `high`. All research,
+implementation, visual/asset build, test-authoring, evidence, fix, and
+integration workers use `gpt-5.6-luna` at reasoning `max`.
+
+Role classification follows the assigned action rather than the job title: a
+QA agent writing tests or fixes and a Product Design agent building UI/assets
+are Luna Max workers; QA, design-fidelity, source-comparison, UX, or
+accessibility approval are separate Sol High reviewer tasks. Every dispatch
+sets model and reasoning effort explicitly, and no maker may approve its own
+work. Implementation remains task-sequential where file ownership overlaps;
+each task uses test-first development, an independent task review, and a final
+whole-branch review. Publishing, pushing, or merging requires an explicit
+user-authorized handoff.

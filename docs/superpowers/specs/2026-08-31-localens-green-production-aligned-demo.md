@@ -18,6 +18,22 @@ green-white source. The old reference file, its specification, QA artifacts,
 and history remain in place until the new design passes visual QA; this task
 does not delete, overwrite, or archive them.
 
+## Agent orchestration lock
+
+The linked implementation plan is the canonical execution policy. All
+project-agent turns use Fast mode (`service_tier = "priority"`). The root
+controller, PM/Architecture Lead, coordinator, and every independent spec,
+code, security, data/RLS, design-fidelity, UX, accessibility, or final
+approval reviewer use `gpt-5.6-sol` at reasoning `high`. All research,
+implementation, visual/asset build, test-authoring, evidence, fix, and
+integration workers use `gpt-5.6-luna` at reasoning `max`.
+
+Role classification follows the assigned action rather than the agent title.
+In particular, a Product Design builder is a Luna Max worker, while Product
+Design source-comparison, UX, design, and accessibility approval are separate
+Sol High reviewer tasks. Every dispatch sets model and reasoning effort
+explicitly, and no maker may approve its own work.
+
 ## Selected visual source
 
 | Field | Locked value |

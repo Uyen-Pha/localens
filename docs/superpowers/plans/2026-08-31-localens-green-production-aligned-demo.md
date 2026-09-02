@@ -1,6 +1,6 @@
 # LocalLens Green Production-Aligned Demo Implementation Plan
 
-> **Execution rule:** implementation and fixes use `gpt-5.6-luna` at `max`; every spec, code, security, and design review uses `gpt-5.6-sol` at `high`. Every behavior change follows TDD. Do not merge, push, publish, reset, stash, delete worktrees, or discard user files.
+> **Agent routing and speed:** all project-agent turns use Fast mode (`service_tier = "priority"`). The root controller, PM/Architecture Lead, coordinator, and every approval/review role use `gpt-5.6-sol` at `high`. All makers, implementers, fixers, integrators, researchers, test-automation agents, and Product Design builders use `gpt-5.6-luna` at `max`. Every dispatch sets both model and reasoning effort explicitly. Every behavior change follows TDD. Do not merge, push, publish, reset, stash, delete worktrees, or discard user files.
 
 **Goal:** Deliver a bilingual LocalLens thesis demo for customer, guide, and administrator roles using the user-selected green-white design while preserving replaceable boundaries for later Supabase/Edge/Stripe/Gemini production work.
 
@@ -18,6 +18,20 @@
 - Preserve all existing untracked files and unrelated worktrees.
 - The selected green-white source is the external PNG with SHA-256 `4CE3DA5E08635D2B7F2F2BF3417B34878A029B0D8547964D5E7518082D75447D`; it supersedes the old editorial source only after Task 1 commits the new reference/spec.
 - `pnpm db:static:seed` may remain blocked by human approval. `pnpm db:types:check`/`db:verify` remain blocked by `SUPABASE_CLI_NOT_FOUND` until the pinned runtime exists; never convert those blockers into passing claims.
+
+## Agent Routing and Dispatch Contract
+
+| Role class | Included work | Required profile |
+| --- | --- | --- |
+| Management | Root controller, project manager, Architecture Lead, coordinator, work allocator, and gate owner | Fast, `gpt-5.6-sol`, reasoning `high` |
+| Review and approval | Spec, code, security, data/RLS, design-fidelity, accessibility, and final whole-branch review | Fast, `gpt-5.6-sol`, reasoning `high` |
+| Delivery workers | Research, implementation, visual/asset build, test authoring, evidence gathering, fixes, and integration | Fast, `gpt-5.6-luna`, reasoning `max` |
+
+- Classify an agent by the action it performs, not by its title. A QA agent that writes tests or fixes defects is a delivery worker; a QA agent that decides whether a gate passes is a reviewer.
+- Under Product Design, a visual/code/asset builder is a Luna Max worker. Design-fidelity, source-comparison, UX, and accessibility approval are separate Sol High review tasks.
+- The root execution task must be launched or confirmed as Sol High before it coordinates work. Every child dispatch must set `model` and `reasoning_effort`; do not rely on inherited defaults.
+- Fast mode is the shared `priority` service tier for both model classes. Do not substitute `ultrafast` or reduce reasoning effort.
+- An agent may not implement and approve the same task. Split combined maker/reviewer assignments into independent tasks, and treat any platform-owned guardian as supplementary rather than a replacement for a Sol High review.
 
 ## Task 1: Lock scope delta and the green-white design source
 
@@ -110,6 +124,6 @@
 
 - Task 1 then Task 2 are sequential and each requires Sol High approval.
 - After Task 2 commits, freeze `PARALLEL_BASE_SHA`.
-- Tasks 3A and 3B may run concurrently in separate worktrees because their file ownership is disjoint. With four slots: coordinator + two Luna Max implementers + one rolling Sol High reviewer.
+- Tasks 3A and 3B may run concurrently in separate worktrees because their file ownership is disjoint. With four slots: one Sol High Fast coordinator + two Luna Max Fast implementers + one rolling Sol High Fast reviewer.
 - Task 4 is sequential after both branches pass review.
-- Task 5 uses one Luna Max fixer/integrator and up to two Sol High reviewers.
+- Task 5 uses one Luna Max Fast fixer/integrator and up to two Sol High Fast reviewers.
