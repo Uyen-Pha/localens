@@ -179,6 +179,7 @@ describe("Next runtime security header configuration", () => {
   it.each([
     { name: "missing", vercelEnvironment: undefined },
     { name: "unknown", vercelEnvironment: "self-hosted" },
+    { name: "development marker", vercelEnvironment: "development" },
     { name: "preview", vercelEnvironment: "preview" },
     { name: "production", vercelEnvironment: "production" },
   ])("omits unsafe-eval from $name production builds", async ({ vercelEnvironment }) => {

@@ -20,7 +20,7 @@ export default function nextConfig(phase: string): NextConfig {
   const distDir = parseOwnedDistDir(process.env.LOCALLENS_NEXT_DIST_DIR);
   const vercelEnvironment = phase === PHASE_DEVELOPMENT_SERVER
     ? "development"
-    : parseVercelEnvironment(process.env.VERCEL_ENV);
+    : parseVercelDeploymentEnvironment(process.env.VERCEL_ENV);
 
   return {
     ...(mode === "demo" && phase === PHASE_PRODUCTION_BUILD ? { output: "export" } : {}),
@@ -41,10 +41,10 @@ export default function nextConfig(phase: string): NextConfig {
   };
 }
 
-function parseVercelEnvironment(
+function parseVercelDeploymentEnvironment(
   value: string | undefined,
 ): SecurityHeaderInput["vercelEnvironment"] {
-  if (value === "development" || value === "preview" || value === "production") {
+  if (value === "preview" || value === "production") {
     return value;
   }
   return undefined;
