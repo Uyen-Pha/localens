@@ -557,7 +557,12 @@ export async function runRuntimeAuthE2E(options = {}) {
   let outputDirectory;
   let runtimeServer;
   try {
-    await runCheckedStep("db:start", { cwd, env: controlEnv, runStep, logger });
+    try {
+      await runCheckedStep("db:start", { cwd, env: controlEnv, runStep, logger });
+    } catch {
+      logger("[runtime-auth] db:start:retry");
+      await runCheckedStep("db:start", { cwd, env: controlEnv, runStep, logger });
+    }
     databaseStarted = true;
     await runCheckedStep("db:reset", { cwd, env: controlEnv, runStep, logger });
 

@@ -440,6 +440,37 @@ describe("Task 6 runtime Auth runner", () => {
     }
   });
 
+  it("retries one failed cold local database start before continuing", async () => {
+    const calls: string[] = [];
+    let startAttempts = 0;
+
+    await runRuntimeAuthE2E({
+      cwd: process.cwd(),
+      env: {},
+      requireLocalCli: () => "C:/repo/node_modules/.bin/supabase.cmd",
+      versionProbe: () => ({ status: 0, stdout: "2.115.0\n", stderr: "" }),
+      prepareDocker: () => undefined,
+      status: () => ({ status: 0, stdout: LOCAL_STATUS, stderr: "" }),
+      createOutputDirectory: () => "C:/temp/localens-runtime-auth-retry",
+      removeOutputDirectory: vi.fn(),
+      startServer: async () => ({ stop: async () => undefined }),
+      runStep: async (spec: { name: string }) => {
+        calls.push(spec.name);
+        if (spec.name === "db:start" && startAttempts++ === 0) return { status: 2 };
+        return { status: 0 };
+      },
+      logger: vi.fn(),
+    });
+
+    expect(calls).toEqual([
+      "db:start",
+      "db:start",
+      "db:reset",
+      "db:seed:runtime-auth",
+      "test:e2e:runtime-auth:playwright",
+    ]);
+  });
+
   it("stops local Supabase only when the explicit stop flag is supplied", async () => {
     const calls: Array<{ name: string; env: Record<string, string | undefined> }> = [];
     await runRuntimeAuthE2E({
