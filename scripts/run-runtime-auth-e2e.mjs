@@ -281,7 +281,34 @@ function waitForOwnedRuntimeServerClose(child, confirmMs) {
 async function confirmRuntimeServerEndpointStopped(fetchImpl, serverUrl, confirmMs) {
   if (!serverUrl) return;
   const deadline = Date.now() + confirmMs;
-  while (await runtimeServerResponds(fetchImpl, serverUrl)) {
+  while (true) {
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      throw runtimeError(
+        "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
+        "owned runtime server endpoint cleanup timed out",
+      );
+    }
+    const controller = new AbortController();
+    let timeoutTimer;
+    const endpointProbe = Promise.resolve()
+      .then(() => fetchImpl(serverUrl, { redirect: "manual", signal: controller.signal }))
+      .then(() => "responding", () => "closed");
+    const timeoutProbe = new Promise((resolve) => {
+      timeoutTimer = setTimeout(() => {
+        controller.abort();
+        resolve("timeout");
+      }, remainingMs);
+    });
+    const state = await Promise.race([endpointProbe, timeoutProbe]);
+    if (timeoutTimer) clearTimeout(timeoutTimer);
+    if (state === "closed") return;
+    if (state === "timeout") {
+      throw runtimeError(
+        "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
+        "owned runtime server endpoint cleanup timed out",
+      );
+    }
     if (Date.now() >= deadline) {
       throw runtimeError(
         "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",

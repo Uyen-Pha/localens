@@ -271,7 +271,30 @@ describe("Task 6 runtime Auth runner", () => {
 
     expect(forceOwnedTree).toHaveBeenCalledWith(child);
     expect(child.kill).not.toHaveBeenCalled();
-    expect(fetchImpl).toHaveBeenCalledWith("http://127.0.0.1:3300/en/", { redirect: "manual" });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:3300/en/",
+      expect.objectContaining({ redirect: "manual", signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("bounds endpoint confirmation when a listener accepts but never answers", async () => {
+    const child = Object.assign(new EventEmitter(), {
+      exitCode: 0,
+      signalCode: null,
+      kill: vi.fn(),
+    });
+    const fetchImpl = vi.fn(() => new Promise(() => {}));
+    const startedAt = Date.now();
+
+    await expect(stopOwnedRuntimeServer(child, {
+      platform: "win32",
+      fetchImpl,
+      serverUrl: "http://127.0.0.1:3300/en/",
+      forceConfirmMs: 20,
+    })).rejects.toThrow(/RUNTIME_AUTH_SERVER_CLEANUP_FAILED/);
+
+    expect(Date.now() - startedAt).toBeLessThan(500);
+    expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
   it.skipIf(process.platform !== "win32")(
