@@ -209,7 +209,7 @@ const NATIONALITY_PATTERN = /^\p{L}(?:[\p{L} .'-]*\p{L})?$/u;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})$/;
 const CONTROL_PATTERN = /[\u0000-\u001F\u007F-\u009F]/;
-const CANCELLABLE_BOOKING_STATUSES = ["pending_payment", "payment_processing", "payment_review", "confirmed"] as const;
+const CANCELLABLE_BOOKING_STATUSES = ["pending_payment"] as const;
 
 const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
   id: string;
@@ -1251,7 +1251,7 @@ function createFixtureBody(): DemoEnvelopeBody {
     },
     {
       id: "demo-booking-cancellation",
-      status: "confirmed",
+      status: "pending_payment",
       sourceKind: "departure",
       sourceId: "demo-departure-cancellation",
       tourVersionId: "demo-tour-version-history",
@@ -1273,8 +1273,8 @@ function createFixtureBody(): DemoEnvelopeBody {
       holdExpiresAt: "2026-09-04T00:00:00.000Z",
       createdAt: "2026-08-21T00:00:00.000Z",
       ownerUserId: "demo-user-customer",
-      paymentStatus: "paid",
-      assignedGuideUserId: "demo-user-guide",
+      paymentStatus: null,
+      assignedGuideUserId: null,
       cancellationRequestId: null,
       specialNeeds: null,
       quoteAcceptedAt: null,
@@ -1350,12 +1350,6 @@ function createFixtureBody(): DemoEnvelopeBody {
       assignedGuideUserId: "demo-user-guide",
       assignmentStatus: "assigned",
       specialNeeds: "Step-free route requested.",
-    },
-    {
-      bookingId: "demo-booking-cancellation",
-      assignedGuideUserId: "demo-user-guide",
-      assignmentStatus: "assigned",
-      specialNeeds: null,
     },
   ];
 
@@ -2250,8 +2244,8 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       const actor = actorWithRole(envelope, "customer", "requestCancellation");
       const booking = findBooking(envelope, requestInput.bookingId);
       if (booking.ownerUserId !== actor.userId) forbidden("customer", "requestCancellation for another customer");
-      const hasPendingRequest = envelope.cancellations.some((request) => request.bookingId === booking.id && request.status === "pending");
-      if (hasPendingRequest) conflict("A pending cancellation request already exists for this booking.");
+      const hasRequest = envelope.cancellations.some((request) => request.bookingId === booking.id);
+      if (hasRequest) conflict("A cancellation request already exists for this booking.");
       if (!isCancellableBookingStatus(booking.status)) {
         conflict("This booking cannot request cancellation in its current state.");
       }

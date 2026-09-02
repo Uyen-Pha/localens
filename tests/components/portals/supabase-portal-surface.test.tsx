@@ -149,7 +149,10 @@ class MemoryRuntimeSession implements RuntimeSessionPort {
   }
 }
 
-function shellFor(session = new MemoryRuntimeSession()): SupabasePortalShell {
+function shellFor(
+  session = new MemoryRuntimeSession(),
+  fixedTourOverrides: Partial<SupabasePortalShell["fixedTour"]> = {},
+): SupabasePortalShell {
   return {
     mode: "supabase",
     session,
@@ -164,6 +167,15 @@ function shellFor(session = new MemoryRuntimeSession()): SupabasePortalShell {
       completeSimulatedPayment: async () => {
         throw new Error("not used by the portal shell test");
       },
+      listOwnCancellationRequests: async () => [],
+      requestCancellation: async () => {
+        throw new Error("not used by the portal shell test");
+      },
+      listCancellationQueue: async () => [],
+      decideCancellation: async () => {
+        throw new Error("not used by the portal shell test");
+      },
+      ...fixedTourOverrides,
     },
     initialized: Promise.resolve(),
   };
@@ -329,6 +341,38 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
 
     expect(await screen.findByRole("heading", { name: copy.heading })).toBeInTheDocument();
     expect(screen.getByLabelText(copy.password)).toBeInTheDocument();
+  });
+
+  it("mounts the runtime cancellation queue only for an administrator", async () => {
+    const session = new MemoryRuntimeSession();
+    session.seed(ACCOUNTS[2].identity);
+    const listCancellationQueue = vi.fn(async () => [{
+      requestId: "77777777-7777-4777-8777-777777777777",
+      bookingId: "11111111-1111-4111-8111-111111111111",
+      bookingStatus: "pending_payment" as const,
+      customerDisplayName: "Runtime Traveler",
+      titleEn: "Runtime Saigon walk",
+      titleVi: "Dạo Sài Gòn runtime",
+      status: "pending" as const,
+      reason: "My schedule changed.",
+      requestedAt: "2099-09-05T02:06:00.000Z",
+      decisionNote: null,
+      decidedAt: null,
+    }]);
+    renderSurface({
+      locale,
+      shell: shellFor(session, { listCancellationQueue }),
+      expectedRole: "admin",
+    });
+
+    expect(await screen.findByRole("heading", {
+      name: locale === "vi" ? "Yêu cầu hủy booking" : "Cancellation requests",
+    })).toBeInTheDocument();
+    expect(screen.getByText(locale === "vi" ? "Dạo Sài Gòn runtime" : "Runtime Saigon walk")).toBeInTheDocument();
+    expect(listCancellationQueue).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("heading", {
+      name: locale === "vi" ? "Các giữ chỗ tour cố định của bạn" : "Your fixed-tour holds",
+    })).not.toBeInTheDocument();
   });
 
   it.each(["UNAUTHENTICATED", "FORBIDDEN"] as const)(

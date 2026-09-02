@@ -211,7 +211,11 @@ describe("portal contracts", () => {
     expect(canSubmitTourReview({ actorUserId: "customer", bookingOwnerUserId: "other", bookingStatus: "completed", hasExistingReview: false })).toBe(false);
     expect(isTourReviewEligible({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus: "confirmed", hasExistingReview: false })).toBe(false);
     expect(canSubmitTourReview({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus: "completed", hasExistingReview: true })).toBe(false);
-    expect(canRequestCancellation({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus: "confirmed", hasPendingRequest: false })).toBe(true);
+    expect(canRequestCancellation({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus: "pending_payment", hasPendingRequest: false })).toBe(true);
+    for (const bookingStatus of ["payment_processing", "payment_review", "confirmed"] as const) {
+      expect(canRequestCancellation({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus, hasPendingRequest: false })).toBe(false);
+    }
+    expect(canRequestCancellation({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus: "pending_payment", hasPendingRequest: true })).toBe(false);
     expect(canRequestCancellation({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus: "completed", hasPendingRequest: false })).toBe(false);
     expect(canViewGuideAssignment({ actorRole: "guide", actorUserId: "guide-1", assignedGuideUserId: "guide-1" })).toBe(true);
     expect(canViewGuideAssignment({ actorRole: "guide", actorUserId: "guide-1", assignedGuideUserId: "guide-2" })).toBe(false);

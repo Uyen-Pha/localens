@@ -179,6 +179,36 @@
       "credential": "database-definer-owner",
       "bypassJustification": "customer simulated-payment projection"
     },
+    "localens_cancellation_customer_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "customer fixed-tour cancellation requests"
+    },
+    "localens_cancellation_admin_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "administrator fixed-tour cancellation decisions"
+    },
+    "localens_cancellation_customer_projection_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "customer cancellation projection"
+    },
+    "localens_cancellation_admin_projection_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "administrator cancellation queue"
+    },
+    "localens_cancellation_guard_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "cancellation immutability and payment exclusion guards"
+    },
     "localens_guide_assignment_rpc_owner": {
       "rolcanlogin": false,
       "rolbypassrls": false,
@@ -294,7 +324,11 @@
         "capacity_holds_availability_owner_select",
         "capacity_holds_owner_all",
         "capacity_holds_payment_owner_all",
-        "capacity_holds_simulated_payment_owner_all"
+        "capacity_holds_simulated_payment_owner_all",
+        "holds_cancellation_admin_select",
+        "holds_cancellation_admin_update",
+        "holds_cancellation_customer_lock",
+        "holds_cancellation_customer_select"
       ],
       "writerOperation": "checkout/availability RPC only",
       "owner": "postgres",
@@ -306,15 +340,37 @@
         "simulated_payment_receipts_checkout_owner_select",
         "simulated_payment_receipts_payment_guard_select",
         "simulated_payment_receipts_projection_owner_select",
-        "simulated_payment_receipts_rpc_owner_all"
+        "simulated_payment_receipts_rpc_owner_all",
+        "simulated_receipts_cancellation_admin_select",
+        "simulated_receipts_cancellation_customer_select"
       ],
       "writerOperation": "fixed-tour simulated-payment RPC only",
       "owner": "postgres",
       "forceRls": true
     },
     {
+      "name": "private.fixed_tour_cancellation_requests",
+      "policies": [
+        "cancellation_requests_admin_projection_select",
+        "cancellation_requests_admin_rpc_select",
+        "cancellation_requests_admin_rpc_update",
+        "cancellation_requests_customer_projection_select",
+        "cancellation_requests_customer_rpc_insert",
+        "cancellation_requests_customer_rpc_lock",
+        "cancellation_requests_customer_rpc_select",
+        "cancellation_requests_guard_select"
+      ],
+      "writerOperation": "role-scoped fixed-tour cancellation RPCs only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
       "name": "private.checkout_attempts",
       "policies": [
+        "attempts_cancellation_admin_select",
+        "attempts_cancellation_admin_update",
+        "attempts_cancellation_customer_lock",
+        "attempts_cancellation_customer_select",
         "checkout_attempts_owner_all",
         "checkout_attempts_payment_owner_all",
         "checkout_attempts_simulated_payment_owner_all"
@@ -326,6 +382,12 @@
     {
       "name": "private.checkout_idempotency",
       "policies": [
+        "checkout_idempotency_cancellation_admin_lock",
+        "checkout_idempotency_cancellation_admin_select",
+        "checkout_idempotency_cancellation_customer_lock",
+        "checkout_idempotency_cancellation_customer_select",
+        "checkout_idempotency_cancellation_guard_lock",
+        "checkout_idempotency_cancellation_guard_select",
         "checkout_idempotency_owner_all",
         "checkout_idempotency_payment_owner_lock",
         "checkout_idempotency_payment_owner_select",
@@ -473,6 +535,10 @@
         "user_roles_admin_summary_select",
         "user_roles_auth_trigger_insert",
         "user_roles_auth_trigger_select",
+        "user_roles_cancellation_admin_projection_select",
+        "user_roles_cancellation_admin_rpc_select",
+        "user_roles_cancellation_customer_projection_select",
+        "user_roles_cancellation_customer_rpc_select",
         "user_roles_catalog_rpc_select",
         "user_roles_checkout_owner_select",
         "user_roles_claim_rpc_select",
@@ -522,6 +588,11 @@
         "bookings_admin_reconciliation",
         "bookings_admin_reconciliation_update",
         "bookings_availability_owner_select",
+        "bookings_cancellation_admin_projection_select",
+        "bookings_cancellation_admin_select",
+        "bookings_cancellation_admin_update",
+        "bookings_cancellation_customer_lock",
+        "bookings_cancellation_customer_select",
         "bookings_checkout_owner_all",
         "bookings_guide_assignment_owner_lock",
         "bookings_guide_assignment_owner_select",
@@ -687,6 +758,10 @@
       "name": "public.departures",
       "policies": [
         "departures_availability_owner_select",
+        "departures_cancellation_admin_lock",
+        "departures_cancellation_admin_select",
+        "departures_cancellation_customer_lock",
+        "departures_cancellation_customer_select",
         "departures_checkout_owner_lock",
         "departures_checkout_owner_select",
         "departures_guide_assignment_owner_select",
@@ -932,6 +1007,8 @@
       "policies": [
         "payments_admin_reconciliation_update",
         "payments_admin_select",
+        "payments_cancellation_admin_select",
+        "payments_cancellation_customer_select",
         "payments_checkout_owner_select",
         "payments_payment_owner_all",
         "payments_projection_owner_select",
@@ -1026,6 +1103,7 @@
         "profiles_admin_summary_select",
         "profiles_auth_trigger_insert",
         "profiles_auth_trigger_select",
+        "profiles_cancellation_admin_projection_select",
         "profiles_customer_select",
         "profiles_portal_identity_select",
         "profiles_request_customer_rpc_language_select"
@@ -1316,6 +1394,26 @@
       "securityBarrier": true
     },
     {
+      "name": "public.customer_fixed_tour_cancellation_requests_v",
+      "owner": "localens_cancellation_customer_projection_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "owner-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.admin_fixed_tour_cancellation_queue_v",
+      "owner": "localens_cancellation_admin_projection_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "admin-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
       "name": "public.latest_fx_snapshot_v",
       "owner": "localens_catalog_rpc_owner",
       "readerRoles": [
@@ -1553,6 +1651,26 @@
       "credential": "browser-jwt"
     },
     {
+      "name": "public.request_fixed_tour_cancellation",
+      "signature": "public.request_fixed_tour_cancellation(uuid,text,text)",
+      "owner": "localens_cancellation_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner requests fixed-tour cancellation",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.decide_fixed_tour_cancellation",
+      "signature": "public.decide_fixed_tour_cancellation(uuid,text,text,text)",
+      "owner": "localens_cancellation_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "administrator decides fixed-tour cancellation",
+      "credential": "browser-jwt"
+    },
+    {
       "name": "public.review_custom_request",
       "signature": "public.review_custom_request(uuid,public.request_status,text)",
       "owner": "localens_request_admin_rpc_owner",
@@ -1599,6 +1717,7 @@
     "private.advance_trip_plan_revision(uuid,integer,jsonb)",
     "private.assert_checkout_attempt_mutation()",
     "private.assert_checkout_transition()",
+    "private.assert_fixed_tour_cancellation_request_mutation()",
     "private.assert_catalog_review_admin()",
     "private.assert_content_admin()",
     "private.assert_content_json_safe()",
@@ -1671,6 +1790,8 @@
     "private.reject_custom_quote_mutation()",
     "private.reject_custom_quote_truncate()",
     "private.reject_custom_request_event_mutation()",
+    "private.reject_fixed_tour_cancellation_truncate()",
+    "private.reject_payment_after_approved_cancellation()",
     "private.reject_published_snapshot_insert()",
     "private.reject_published_tour_child_insert()",
     "private.reject_quota_reservation_mutation()",
@@ -1700,7 +1821,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 588,
+  "grantCount": 647,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }

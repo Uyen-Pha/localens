@@ -53,6 +53,36 @@ export interface FixedTourRuntimeCopy {
   paymentConflict: string;
   paymentDenied: string;
   paymentUnavailable: string;
+  cancellationHeading: string;
+  cancellationWorkflowLabel: string;
+  cancellationDisclosure: string;
+  requestCancellation: string;
+  cancellationReason: string;
+  cancellationReasonHint: string;
+  sendCancellation: string;
+  closeCancellation: string;
+  sendingCancellation: string;
+  cancellationSent: string;
+  cancellationStatus: string;
+  cancellationStatusLabels: Record<"pending" | "approved" | "rejected", string>;
+  cancellationDecisionNote: string;
+  cancellationConflict: string;
+  cancellationIdempotencyConflict: string;
+  cancellationDenied: string;
+  cancellationUnavailable: string;
+  adminCancellationHeading: string;
+  emptyCancellationQueue: string;
+  customer: string;
+  reason: string;
+  decisionNote: string;
+  approveCancellation: string;
+  rejectCancellation: string;
+  savingCancellationDecision: string;
+  cancellationDecisionSaved: string;
+  cancellationDecisionConflict: string;
+  cancellationDecisionIdempotencyConflict: string;
+  cancellationDecisionDenied: string;
+  cancellationDecisionUnavailable: string;
 }
 
 const copy: Record<Locale, FixedTourRuntimeCopy> = {
@@ -94,7 +124,7 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     holdExpiresAt: "Hold expires",
     bookingStatus: "Booking status",
     bookingStatusLabels: {
-      pending_payment: "Pending payment",
+      pending_payment: "Awaiting confirmation",
       payment_processing: "Payment processing",
       confirmed: "Confirmed",
       payment_failed: "Payment failed",
@@ -117,6 +147,40 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     paymentConflict: "This payment conflicts with an earlier payment request. Reload and try again.",
     paymentDenied: "This payment operation is not permitted.",
     paymentUnavailable: "The simulated payment could not be completed. Try again.",
+    cancellationHeading: "Cancellation",
+    cancellationWorkflowLabel: "Cancellation workflow",
+    cancellationDisclosure: "This sends a request only. An administrator reviews and decides it; your booking is not cancelled now.",
+    requestCancellation: "Request cancellation",
+    cancellationReason: "Cancellation reason",
+    cancellationReasonHint: "Explain why you are requesting cancellation (maximum 1,000 characters).",
+    sendCancellation: "Send cancellation request",
+    closeCancellation: "Keep booking",
+    sendingCancellation: "Sending cancellation request…",
+    cancellationSent: "Cancellation request sent for administrator review.",
+    cancellationStatus: "Cancellation status",
+    cancellationStatusLabels: {
+      pending: "Pending administrator decision",
+      approved: "Approved by administrator",
+      rejected: "Rejected by administrator",
+    },
+    cancellationDecisionNote: "Administrator note",
+    cancellationConflict: "The booking state changed, so this cancellation request cannot continue. Reload and review the booking.",
+    cancellationIdempotencyConflict: "This conflicts with an earlier cancellation request. Reload and try again.",
+    cancellationDenied: "This cancellation operation is not permitted.",
+    cancellationUnavailable: "The cancellation request could not be completed. Try again.",
+    adminCancellationHeading: "Cancellation requests",
+    emptyCancellationQueue: "There are no cancellation requests.",
+    customer: "Customer",
+    reason: "Reason",
+    decisionNote: "Decision note",
+    approveCancellation: "Approve cancellation",
+    rejectCancellation: "Reject cancellation",
+    savingCancellationDecision: "Saving cancellation decision…",
+    cancellationDecisionSaved: "Cancellation decision saved from authoritative data.",
+    cancellationDecisionConflict: "The cancellation or booking state changed. Reload and review the request.",
+    cancellationDecisionIdempotencyConflict: "This conflicts with an earlier decision. Reload and try again.",
+    cancellationDecisionDenied: "This cancellation decision is not permitted.",
+    cancellationDecisionUnavailable: "The cancellation decision could not be completed. Try again.",
   },
   vi: {
     catalogEyebrow: "Runtime cục bộ đã kiểm chứng",
@@ -156,7 +220,7 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     holdExpiresAt: "Giữ chỗ đến",
     bookingStatus: "Trạng thái booking",
     bookingStatusLabels: {
-      pending_payment: "Chờ thanh toán",
+      pending_payment: "Chờ xác nhận",
       payment_processing: "Đang xử lý thanh toán",
       confirmed: "Đã xác nhận",
       payment_failed: "Thanh toán thất bại",
@@ -179,6 +243,40 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     paymentConflict: "Thanh toán này xung đột với một yêu cầu trước đó. Hãy tải lại và thử lại.",
     paymentDenied: "Thao tác thanh toán này không được phép.",
     paymentUnavailable: "Không thể hoàn tất thanh toán mô phỏng. Hãy thử lại.",
+    cancellationHeading: "Hủy booking",
+    cancellationWorkflowLabel: "Quy trình hủy",
+    cancellationDisclosure: "Thao tác này chỉ gửi yêu cầu. Quản trị viên xem xét và quyết định; booking chưa bị hủy ngay.",
+    requestCancellation: "Yêu cầu hủy booking",
+    cancellationReason: "Lý do hủy",
+    cancellationReasonHint: "Nêu lý do yêu cầu hủy (tối đa 1.000 ký tự).",
+    sendCancellation: "Gửi yêu cầu hủy",
+    closeCancellation: "Giữ booking",
+    sendingCancellation: "Đang gửi yêu cầu hủy…",
+    cancellationSent: "Đã gửi yêu cầu hủy để quản trị viên xem xét.",
+    cancellationStatus: "Trạng thái yêu cầu hủy",
+    cancellationStatusLabels: {
+      pending: "Chờ quản trị viên quyết định",
+      approved: "Quản trị viên đã duyệt",
+      rejected: "Quản trị viên đã từ chối",
+    },
+    cancellationDecisionNote: "Ghi chú của quản trị viên",
+    cancellationConflict: "Trạng thái booking đã thay đổi nên không thể tiếp tục yêu cầu hủy. Hãy tải lại và kiểm tra booking.",
+    cancellationIdempotencyConflict: "Yêu cầu này xung đột với một yêu cầu hủy trước đó. Hãy tải lại và thử lại.",
+    cancellationDenied: "Thao tác hủy này không được phép.",
+    cancellationUnavailable: "Không thể hoàn tất yêu cầu hủy. Hãy thử lại.",
+    adminCancellationHeading: "Yêu cầu hủy booking",
+    emptyCancellationQueue: "Không có yêu cầu hủy booking nào.",
+    customer: "Khách hàng",
+    reason: "Lý do",
+    decisionNote: "Ghi chú quyết định",
+    approveCancellation: "Duyệt yêu cầu hủy",
+    rejectCancellation: "Từ chối yêu cầu hủy",
+    savingCancellationDecision: "Đang lưu quyết định hủy…",
+    cancellationDecisionSaved: "Đã lưu quyết định hủy và tải lại dữ liệu mới nhất.",
+    cancellationDecisionConflict: "Trạng thái yêu cầu hủy hoặc booking đã thay đổi. Hãy tải lại và kiểm tra.",
+    cancellationDecisionIdempotencyConflict: "Quyết định này xung đột với một quyết định trước đó. Hãy tải lại và thử lại.",
+    cancellationDecisionDenied: "Quyết định hủy này không được phép.",
+    cancellationDecisionUnavailable: "Không thể hoàn tất quyết định hủy. Hãy thử lại.",
   },
 };
 

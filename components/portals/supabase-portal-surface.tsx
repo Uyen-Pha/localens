@@ -26,6 +26,11 @@ const RuntimeFixedTourAccount = lazy(async () => {
   return { default: module.RuntimeFixedTourAccount };
 });
 
+const RuntimeCancellationQueue = lazy(async () => {
+  const module = await import("@/components/admin/runtime-cancellation-queue");
+  return { default: module.RuntimeCancellationQueue };
+});
+
 function isStaleRuntimeSession(error: unknown): error is PortalError {
   return error instanceof PortalError &&
     (error.code === "UNAUTHENTICATED" || error.code === "FORBIDDEN");
@@ -235,6 +240,11 @@ function RuntimeRoleShell({
         {session.role === "customer" ? (
           <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
             <RuntimeFixedTourAccount locale={locale} fixedTour={composition.fixedTour} />
+          </Suspense>
+        ) : null}
+        {session.role === "admin" ? (
+          <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
+            <RuntimeCancellationQueue locale={locale} fixedTour={composition.fixedTour} />
           </Suspense>
         ) : null}
       </section>

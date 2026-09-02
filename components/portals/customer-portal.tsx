@@ -300,7 +300,7 @@ export function CustomerPortal({
                     const cancellation = booking.cancellationRequest;
                     const cancellationOpen = openCancellation === booking.id;
                     const reviewDraft = reviewDrafts[booking.id] ?? { rating: "5", text: "" };
-                    const canCancel = ["pending_payment", "payment_processing", "payment_review", "confirmed"].includes(booking.status) && cancellation === null;
+                    const canCancel = booking.status === "pending_payment" && cancellation === null;
                     return (
                       <article className={styles.bookingCard} key={booking.id} aria-labelledby={`customer-booking-${booking.id}`}>
                         <div className={styles.cardTitleLine}>

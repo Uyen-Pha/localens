@@ -132,9 +132,9 @@ describe("Task 13 RLS/RPC access matrix", () => {
       rpcs: Array<{ name: string; signature: string; owner: string; readerRoles: string[] }>;
       internalFunctions: string[];
     };
-    expect(matrix.tables).toHaveLength(80);
-    expect(matrix.views).toHaveLength(16);
-    expect(matrix.rpcs).toHaveLength(22);
+    expect(matrix.tables).toHaveLength(81);
+    expect(matrix.views).toHaveLength(18);
+    expect(matrix.rpcs).toHaveLength(24);
     expect(matrix.rpcs).toContainEqual(expect.objectContaining({
       name: "public.begin_fixed_tour_booking",
       signature: "public.begin_fixed_tour_booking(uuid,integer,public.locale,text)",
@@ -145,6 +145,18 @@ describe("Task 13 RLS/RPC access matrix", () => {
       name: "public.complete_simulated_fixed_tour_payment",
       signature: "public.complete_simulated_fixed_tour_payment(uuid,text)",
       owner: "localens_simulated_payment_rpc_owner",
+      readerRoles: ["authenticated"],
+    }));
+    expect(matrix.rpcs).toContainEqual(expect.objectContaining({
+      name: "public.request_fixed_tour_cancellation",
+      signature: "public.request_fixed_tour_cancellation(uuid,text,text)",
+      owner: "localens_cancellation_customer_rpc_owner",
+      readerRoles: ["authenticated"],
+    }));
+    expect(matrix.rpcs).toContainEqual(expect.objectContaining({
+      name: "public.decide_fixed_tour_cancellation",
+      signature: "public.decide_fixed_tour_cancellation(uuid,text,text,text)",
+      owner: "localens_cancellation_admin_rpc_owner",
       readerRoles: ["authenticated"],
     }));
     expect(matrix.rpcs).toContainEqual(expect.objectContaining({

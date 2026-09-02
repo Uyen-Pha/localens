@@ -36,6 +36,10 @@ const shell: SupabasePortalShell = {
     listOwnBookings: async () => [],
     listOwnPaymentStatuses: async () => [],
     completeSimulatedPayment: async () => { throw new Error("not used"); },
+    listOwnCancellationRequests: async () => [],
+    requestCancellation: async () => { throw new Error("not used"); },
+    listCancellationQueue: async () => [],
+    decideCancellation: async () => { throw new Error("not used"); },
   },
   session: {
     getSession: async () => null,

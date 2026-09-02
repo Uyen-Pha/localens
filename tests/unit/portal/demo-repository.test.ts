@@ -183,7 +183,7 @@ describe("demo portal repository", () => {
       note: null,
     })).resolves.toMatchObject({
       request: { status: "rejected", decisionNote: null },
-      booking: { status: "confirmed" },
+      booking: { status: "pending_payment" },
     });
   });
 
@@ -444,7 +444,13 @@ describe("demo portal repository", () => {
     await repo.reset();
     await repo.session.selectDemoIdentity("demo-user-customer");
 
+    await expect(repo.customer.cancellations.requestCancellation({
+      bookingId: "demo-booking-personalized",
+      reason: "Confirmed bookings are outside the cancellation-request window.",
+    })).rejects.toMatchObject({ code: "CONFLICT" });
+
     const before = (await repo.customer.account.listCustomerBookings()).find((booking) => booking.id === "demo-booking-cancellation");
+    expect(before).toMatchObject({ status: "pending_payment", paymentStatus: null });
     const request = await repo.customer.cancellations.requestCancellation({ bookingId: "demo-booking-cancellation", reason: "Plans changed." });
     expect(request).toMatchObject({ status: "pending", bookingId: "demo-booking-cancellation" });
     expect((await repo.customer.account.listCustomerBookings()).find((booking) => booking.id === request.bookingId)).toMatchObject({
@@ -457,10 +463,10 @@ describe("demo portal repository", () => {
     await repo.session.selectDemoIdentity("demo-user-admin");
     const rejected = await repo.admin.cancellations.decideCancellation({ requestId: request.id, decision: "rejected", note: "Policy keeps this booking." });
     expect(rejected.request.status).toBe("rejected");
-    expect(rejected.booking).toMatchObject({ status: "confirmed", paymentStatus: "paid" });
+    expect(rejected.booking).toMatchObject({ status: "pending_payment", paymentStatus: null });
   });
 
-  it("projects the linked latest cancellation after a rejection and second request", async () => {
+  it("keeps a rejected cancellation linked and rejects a second request", async () => {
     const { repo } = repository();
     await repo.reset();
     await repo.session.selectDemoIdentity("demo-user-customer");
@@ -472,19 +478,18 @@ describe("demo portal repository", () => {
     await repo.admin.cancellations.decideCancellation({ requestId: first.id, decision: "rejected", note: null });
 
     await repo.session.selectDemoIdentity("demo-user-customer");
-    const second = await repo.customer.cancellations.requestCancellation({
+    await expect(repo.customer.cancellations.requestCancellation({
       bookingId: "demo-booking-cancellation",
       reason: "Second plan change.",
-    });
-    await repo.session.selectDemoIdentity("demo-user-admin");
-    await repo.admin.cancellations.decideCancellation({ requestId: second.id, decision: "approved", note: null });
-
-    await repo.session.selectDemoIdentity("demo-user-guide");
-    await expect(repo.guide.assignments.getAssignedTour("demo-booking-cancellation")).resolves.toMatchObject({
-      cancellationStatus: "approved",
-      startAt: "2026-09-05T09:30:00+07:00",
-      endAt: null,
-    });
+    })).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(repo.customer.account.listCustomerBookings()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "demo-booking-cancellation",
+          cancellationRequest: expect.objectContaining({ id: first.id, status: "rejected" }),
+        }),
+      ]),
+    );
   });
 
   it("allows exactly one review only for an owned completed booking", async () => {
@@ -510,10 +515,7 @@ describe("demo portal repository", () => {
     await repo.session.selectDemoIdentity("demo-user-guide");
 
     const tours = await repo.guide.assignments.listAssignedTours();
-    expect(tours.map((tour) => tour.bookingId)).toEqual([
-      "demo-booking-completed",
-      "demo-booking-cancellation",
-    ]);
+    expect(tours.map((tour) => tour.bookingId)).toEqual(["demo-booking-completed"]);
     expect(tours[0]).toHaveProperty("specialNeeds", "Step-free route requested.");
     for (const tour of tours) {
       expect(tour).not.toHaveProperty("paymentStatus");
@@ -550,8 +552,8 @@ describe("demo portal repository", () => {
     const reviewed = await repo.admin.personalizedRequests.reviewPersonalizedRequest({ requestId: request.id, decision: "approved", note: null });
     expect(reviewed.status).toBe("approved");
 
-    const assigned = await repo.admin.assignments.assignGuideToFixedDeparture({ bookingId: "demo-booking-cancellation", guideUserId: "demo-user-guide-secondary" });
-    expect(assigned).toMatchObject({ bookingId: "demo-booking-cancellation", assignmentStatus: "assigned" });
+    const assigned = await repo.admin.assignments.assignGuideToFixedDeparture({ bookingId: "demo-booking-secondary-customer", guideUserId: "demo-user-guide-secondary" });
+    expect(assigned).toMatchObject({ bookingId: "demo-booking-secondary-customer", assignmentStatus: "assigned" });
     await expect(repo.admin.assignments.assignGuideToFixedDeparture({ bookingId: "demo-booking-personalized", guideUserId: "demo-user-guide" })).rejects.toMatchObject({ code: "CONFLICT" });
 
     const report = await repo.admin.reporting.getReport();

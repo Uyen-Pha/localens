@@ -14,6 +14,10 @@ function completePort(): FixedTourRuntimePort {
     listOwnBookings: vi.fn().mockResolvedValue([]),
     listOwnPaymentStatuses: vi.fn().mockResolvedValue([]),
     completeSimulatedPayment: vi.fn(),
+    listOwnCancellationRequests: vi.fn().mockResolvedValue([]),
+    requestCancellation: vi.fn(),
+    listCancellationQueue: vi.fn().mockResolvedValue([]),
+    decideCancellation: vi.fn(),
   };
 }
 
@@ -31,6 +35,10 @@ describe("fixed-tour runtime composition", () => {
     "listOwnBookings",
     "listOwnPaymentStatuses",
     "completeSimulatedPayment",
+    "listOwnCancellationRequests",
+    "requestCancellation",
+    "listCancellationQueue",
+    "decideCancellation",
   ] as const)("fails closed when %s is missing", (method) => {
     const fixedTour = completePort() as unknown as Record<string, unknown>;
     delete fixedTour[method];

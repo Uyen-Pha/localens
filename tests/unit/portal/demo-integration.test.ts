@@ -194,7 +194,7 @@ describe("demo portal integration boundary", () => {
     expect(primaryIds).not.toContain(secondary.bookingId);
   });
 
-  it("runs fixed assignment and keeps a guide cancellation notice scoped to that assignment", async () => {
+  it("keeps an assigned paid booking visible to its guide but outside the cancellation-request window", async () => {
     const value = await composition();
     await value.session.selectDemoIdentity("demo-user-customer");
     await value.demoIntegration.syncFixedBooking(fixedBookingInput("paid"));
@@ -208,24 +208,17 @@ describe("demo portal integration boundary", () => {
     expect(bookings.find((booking) => booking.id === fixedBookingInput().bookingId)?.assignedGuideUserId).toBe("demo-user-guide");
 
     await value.session.selectDemoIdentity("demo-user-customer");
-    const cancellation = await value.customer.cancellations.requestCancellation({
+    await expect(value.customer.cancellations.requestCancellation({
       bookingId: fixedBookingInput().bookingId,
       reason: "Plans changed.",
-    });
-    expect(cancellation.status).toBe("pending");
+    })).rejects.toMatchObject({ code: "CONFLICT" });
 
-    await value.session.selectDemoIdentity("demo-user-admin");
-    await value.admin.cancellations.decideCancellation({
-      requestId: cancellation.id,
-      decision: "approved",
-      note: null,
-    });
     await value.session.selectDemoIdentity("demo-user-guide");
     await expect(value.guide.assignments.listAssignedTours()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           bookingId: fixedBookingInput().bookingId,
-          cancellationStatus: "approved",
+          cancellationStatus: null,
           startAt: "2026-09-05T09:00:00+07:00",
           endAt: null,
         }),

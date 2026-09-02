@@ -173,21 +173,15 @@ describe("PortalSurface", () => {
     }
   });
 
-  it("lets a customer request cancellation and reports the pending state", async () => {
+  it("does not offer demo cancellation for a confirmed booking", async () => {
     const composition = await createComposition();
     await signIn(composition, "demo-user-customer");
 
     render(<TestSurface locale="en" expectedRole="customer" composition={composition} />);
 
-    const booking = await screen.findByRole("article", { name: /history and memory/i });
-    fireEvent.click(within(booking).getByRole("button", { name: /request cancellation/i }));
-    fireEvent.change(within(booking).getByRole("textbox", { name: /cancellation reason/i }), {
-      target: { value: "Plans changed." },
-    });
-    fireEvent.click(within(booking).getByRole("button", { name: /send cancellation request/i }));
-
-    expect(await within(booking).findByRole("status")).toHaveTextContent(/pending/i);
-    await expect(composition.customer.cancellations.listOwnCancellationRequests()).resolves.toHaveLength(1);
+    const booking = await screen.findByRole("article", { name: /a personal saigon day/i });
+    expect(within(booking).queryByRole("button", { name: /request cancellation/i })).not.toBeInTheDocument();
+    expect(within(booking).getByText(/no cancellation request has been submitted/i)).toBeInTheDocument();
   });
 
   it("allows exactly one completed-booking review and then replaces the form with success copy", async () => {
@@ -216,55 +210,24 @@ describe("PortalSurface", () => {
 
     expect(await screen.findByRole("heading", { name: /guide portal/i })).toBeInTheDocument();
     expect(await screen.findByText(/markets and street food/i)).toBeInTheDocument();
-    expect(screen.getByText(/history and memory/i)).toBeInTheDocument();
+    expect(screen.queryByText(/history and memory/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/markets and street food/i, { selector: "[data-unassigned-tour]" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /accept|complete|cancel/i })).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /short bio/i })).toBeInTheDocument();
   });
 
-  it("shows a cancellation status only on the guide's own assigned booking", async () => {
+  it("does not expose an unconfirmed cancellation booking to the guide", async () => {
     const composition = await createComposition();
-    const fixedBooking = {
-      bookingId: "demo-booking-demo-user-customer-demo-departure-markets-and-street-food-2026-09-05-2",
-      departureId: "demo-departure-markets-and-street-food-2026-09-05",
-      tourSlug: "demo-markets-and-street-food",
-      date: "2026-09-05",
-      startsAt: "09:00",
-      meetingPoint: "Ben Thanh Market north gate",
-      partySize: 2,
-      locale: "en" as const,
-      unitPriceMinor: 480_000,
-      totalMinor: 960_000,
-      holdExpiresAt: "2026-09-05T12:35:00.000Z",
-      createdAt: "2026-09-05T12:00:00.000Z",
-      status: "paid" as const,
-      paymentStatus: "succeeded" as const,
-    };
     await signIn(composition, "demo-user-customer");
-    await composition.demoIntegration.syncFixedBooking(fixedBooking);
-    await signIn(composition, "demo-user-admin");
-    await composition.admin.assignments.assignGuideToFixedDeparture({
-      bookingId: fixedBooking.bookingId,
-      guideUserId: "demo-user-guide",
-    });
-    await signIn(composition, "demo-user-customer");
-    const cancellation = await composition.customer.cancellations.requestCancellation({
-      bookingId: fixedBooking.bookingId,
+    await composition.customer.cancellations.requestCancellation({
+      bookingId: "demo-booking-cancellation",
       reason: "Plans changed.",
-    });
-    await signIn(composition, "demo-user-admin");
-    await composition.admin.cancellations.decideCancellation({
-      requestId: cancellation.id,
-      decision: "approved",
-      note: null,
     });
     await signIn(composition, "demo-user-guide");
 
     render(<TestSurface locale="en" expectedRole="guide" composition={composition} />);
-    const departure = await screen.findByText(fixedBooking.departureId);
-    const assignment = departure.closest("article");
-    expect(assignment).not.toBeNull();
-    expect(within(assignment as HTMLElement).getByRole("status")).toHaveTextContent(/cancellation status: approved/i);
+    expect(await screen.findByText("Markets and Street Food")).toBeInTheDocument();
+    expect(screen.queryByText("History and Memory")).not.toBeInTheDocument();
   });
 
   it("renders Vietnamese portal copy and demo disclosure", async () => {

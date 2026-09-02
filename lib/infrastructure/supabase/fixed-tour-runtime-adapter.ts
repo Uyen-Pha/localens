@@ -4,10 +4,18 @@ import {
   FixedTourRuntimeError,
   parseCompleteSimulatedPaymentInput,
   parseCompleteSimulatedPaymentResult,
+  parseFixedTourCancellationDecisionInput,
+  parseFixedTourCancellationDecisionResult,
+  parseFixedTourCancellationQueueItem,
+  parseFixedTourCancellationRequest,
+  parseFixedTourCancellationRequestInput,
+  parseFixedTourCancellationRequestResult,
   parseFixedTourBeginBookingInput,
   parseFixedTourBeginBookingResult,
   parseFixedTourPaymentStatus,
   type FixedTourPaymentStatus,
+  type FixedTourCancellationQueueItem,
+  type FixedTourCancellationRequest,
   type FixedTourRuntimeErrorCode,
   type FixedTourRuntimePort,
 } from "@/lib/application/fixed-tour/contracts";
@@ -98,6 +106,26 @@ const PAYMENT_RESULT_FIELDS = [
   "simulated_at",
   "state",
 ] as const;
+const CUSTOMER_CANCELLATION_COLUMNS = [
+  "request_id", "booking_id", "status", "reason", "requested_at", "decision_note", "decided_at",
+].join(",");
+const CUSTOMER_CANCELLATION_FIELDS = [
+  "request_id", "booking_id", "status", "reason", "requested_at", "decision_note", "decided_at",
+] as const;
+const ADMIN_CANCELLATION_COLUMNS = [
+  "request_id", "booking_id", "booking_status", "customer_display_name", "title_en", "title_vi",
+  "status", "reason", "requested_at", "decision_note", "decided_at",
+].join(",");
+const ADMIN_CANCELLATION_FIELDS = [
+  "request_id", "booking_id", "booking_status", "customer_display_name", "title_en", "title_vi",
+  "status", "reason", "requested_at", "decision_note", "decided_at",
+] as const;
+const CANCELLATION_REQUEST_RESULT_FIELDS = [
+  "request_id", "booking_id", "status", "reason", "requested_at", "state",
+] as const;
+const CANCELLATION_DECISION_RESULT_FIELDS = [
+  "request_id", "booking_id", "request_status", "booking_status", "decision_note", "decided_at", "state",
+] as const;
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -138,6 +166,9 @@ function mapServiceError(error: unknown): FixedTourRuntimeError {
       message.includes("travel snapshot unavailable")
     ) {
       return new FixedTourRuntimeError("NOT_FOUND");
+    }
+    if (message.includes("cancellation") || message.includes("booking not pending")) {
+      return new FixedTourRuntimeError("CONFLICT");
     }
   }
 
@@ -198,6 +229,46 @@ function mapPaymentStatusRow(row: unknown): Result<FixedTourPaymentStatus, DataA
     amountMinor: fields.amount_minor,
     currency: fields.currency,
     simulatedAt: fields.simulated_at,
+  });
+}
+
+function mapCancellationRequestRow(row: unknown): Result<FixedTourCancellationRequest, DataAdapterError> {
+  let fields: UnknownRecord;
+  try {
+    fields = exactRow(row, CUSTOMER_CANCELLATION_FIELDS);
+  } catch {
+    return { ok: false, error: { code: "INVALID_SHAPE", messageKey: "fixedTour.contract.invalid_shape", fieldPath: "row" } };
+  }
+  return parseFixedTourCancellationRequest({
+    requestId: fields.request_id,
+    bookingId: fields.booking_id,
+    status: fields.status,
+    reason: fields.reason,
+    requestedAt: fields.requested_at,
+    decisionNote: fields.decision_note,
+    decidedAt: fields.decided_at,
+  });
+}
+
+function mapCancellationQueueRow(row: unknown): Result<FixedTourCancellationQueueItem, DataAdapterError> {
+  let fields: UnknownRecord;
+  try {
+    fields = exactRow(row, ADMIN_CANCELLATION_FIELDS);
+  } catch {
+    return { ok: false, error: { code: "INVALID_SHAPE", messageKey: "fixedTour.contract.invalid_shape", fieldPath: "row" } };
+  }
+  return parseFixedTourCancellationQueueItem({
+    requestId: fields.request_id,
+    bookingId: fields.booking_id,
+    bookingStatus: fields.booking_status,
+    customerDisplayName: fields.customer_display_name,
+    titleEn: fields.title_en,
+    titleVi: fields.title_vi,
+    status: fields.status,
+    reason: fields.reason,
+    requestedAt: fields.requested_at,
+    decisionNote: fields.decision_note,
+    decidedAt: fields.decided_at,
   });
 }
 
@@ -305,6 +376,80 @@ export function createSupabaseFixedTourRuntimeAdapter(
         bookingStatus: row.booking_status,
         paymentStatus: row.payment_status,
         simulatedAt: row.simulated_at,
+        state: row.state,
+      });
+      if (!result.ok) fail("INVALID_RESPONSE");
+      return result.value;
+    },
+
+    async listOwnCancellationRequests(): Promise<FixedTourCancellationRequest[]> {
+      await requireSession(client);
+      const data = await responseData(
+        client
+          .from("customer_fixed_tour_cancellation_requests_v")
+          .select(CUSTOMER_CANCELLATION_COLUMNS)
+          .order("requested_at", { ascending: false })
+          .order("request_id", { ascending: false }),
+      );
+      return mappedRows(data, mapCancellationRequestRow);
+    },
+
+    async requestCancellation(input) {
+      const parsed = parseFixedTourCancellationRequestInput(input);
+      if (!parsed.ok) fail("INVALID_INPUT");
+      await requireSession(client);
+      const data = await responseData(client.rpc("request_fixed_tour_cancellation", {
+        booking_id: parsed.value.bookingId,
+        reason: parsed.value.reason,
+        idempotency_key: parsed.value.idempotencyKey,
+      }));
+      const resultRows = rows(data);
+      if (resultRows.length !== 1) fail("INVALID_RESPONSE");
+      const row = exactRow(resultRows[0], CANCELLATION_REQUEST_RESULT_FIELDS);
+      const result = parseFixedTourCancellationRequestResult({
+        requestId: row.request_id,
+        bookingId: row.booking_id,
+        status: row.status,
+        reason: row.reason,
+        requestedAt: row.requested_at,
+        state: row.state,
+      });
+      if (!result.ok) fail("INVALID_RESPONSE");
+      return result.value;
+    },
+
+    async listCancellationQueue(): Promise<FixedTourCancellationQueueItem[]> {
+      await requireSession(client);
+      const data = await responseData(
+        client
+          .from("admin_fixed_tour_cancellation_queue_v")
+          .select(ADMIN_CANCELLATION_COLUMNS)
+          .order("requested_at", { ascending: true })
+          .order("request_id", { ascending: true }),
+      );
+      return mappedRows(data, mapCancellationQueueRow);
+    },
+
+    async decideCancellation(input) {
+      const parsed = parseFixedTourCancellationDecisionInput(input);
+      if (!parsed.ok) fail("INVALID_INPUT");
+      await requireSession(client);
+      const data = await responseData(client.rpc("decide_fixed_tour_cancellation", {
+        request_id: parsed.value.requestId,
+        decision: parsed.value.decision,
+        note: parsed.value.note ?? "",
+        idempotency_key: parsed.value.idempotencyKey,
+      }));
+      const resultRows = rows(data);
+      if (resultRows.length !== 1) fail("INVALID_RESPONSE");
+      const row = exactRow(resultRows[0], CANCELLATION_DECISION_RESULT_FIELDS);
+      const result = parseFixedTourCancellationDecisionResult({
+        requestId: row.request_id,
+        bookingId: row.booking_id,
+        requestStatus: row.request_status,
+        bookingStatus: row.booking_status,
+        decisionNote: row.decision_note,
+        decidedAt: row.decided_at,
         state: row.state,
       });
       if (!result.ok) fail("INVALID_RESPONSE");

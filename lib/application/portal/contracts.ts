@@ -294,7 +294,7 @@ export function canRequestCancellation(input: unknown): input is CancellationEli
   return typeof input.actorUserId === "string" && typeof input.bookingOwnerUserId === "string" &&
     input.actorUserId.length > 0 && input.actorUserId === input.bookingOwnerUserId &&
     (BOOKING_STATUS_VALUES as readonly string[]).includes(input.bookingStatus as string) &&
-    ["pending_payment", "payment_processing", "payment_review", "confirmed"].includes(input.bookingStatus as string) &&
+    input.bookingStatus === "pending_payment" &&
     input.hasPendingRequest === false;
 }
 

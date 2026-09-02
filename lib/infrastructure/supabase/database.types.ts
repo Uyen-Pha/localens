@@ -2982,6 +2982,44 @@ export type Database = {
           },
         ]
       }
+      admin_fixed_tour_cancellation_queue_v: {
+        Row: {
+          booking_id: string | null
+          booking_status: Database["public"]["Enums"]["booking_status"] | null
+          customer_display_name: string | null
+          decided_at: string | null
+          decision_note: string | null
+          reason: string | null
+          request_id: string | null
+          requested_at: string | null
+          status: string | null
+          title_en: string | null
+          title_vi: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fixed_tour_cancellation_requests_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fixed_tour_cancellation_requests_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "customer_bookings_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fixed_tour_cancellation_requests_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "customer_simulated_payment_status_v"
+            referencedColumns: ["booking_id"]
+          },
+        ]
+      }
       admin_food_catalog_review_v: {
         Row: {
           audit_history: Json | null
@@ -3331,6 +3369,58 @@ export type Database = {
           },
         ]
       }
+      customer_fixed_tour_cancellation_requests_v: {
+        Row: {
+          booking_id: string | null
+          decided_at: string | null
+          decision_note: string | null
+          reason: string | null
+          request_id: string | null
+          requested_at: string | null
+          status: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          decided_at?: string | null
+          decision_note?: string | null
+          reason?: string | null
+          request_id?: string | null
+          requested_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          decided_at?: string | null
+          decision_note?: string | null
+          reason?: string | null
+          request_id?: string | null
+          requested_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fixed_tour_cancellation_requests_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fixed_tour_cancellation_requests_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "customer_bookings_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fixed_tour_cancellation_requests_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "customer_simulated_payment_status_v"
+            referencedColumns: ["booking_id"]
+          },
+        ]
+      }
       customer_payment_status_v: {
         Row: {
           amount_minor: string | null
@@ -3539,6 +3629,21 @@ export type Database = {
           valid_until: string
         }[]
       }
+      decide_fixed_tour_cancellation: {
+        Args: {
+          decision: string
+          idempotency_key: string
+          note: string
+          request_id: string
+        }
+        Returns: Database["public"]["CompositeTypes"]["fixed_tour_cancellation_decision_result"][]
+        SetofOptions: {
+          from: "*"
+          to: "fixed_tour_cancellation_decision_result"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       fail_seo_publish: {
         Args: {
           p_build_id: string
@@ -3652,6 +3757,16 @@ export type Database = {
           p_resolution: Database["public"]["Enums"]["booking_status"]
         }
         Returns: Database["public"]["Enums"]["booking_status"]
+      }
+      request_fixed_tour_cancellation: {
+        Args: { booking_id: string; idempotency_key: string; reason: string }
+        Returns: Database["public"]["CompositeTypes"]["fixed_tour_cancellation_request_result"][]
+        SetofOptions: {
+          from: "*"
+          to: "fixed_tour_cancellation_request_result"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       review_custom_request: {
         Args: {
@@ -3822,6 +3937,23 @@ export type Database = {
         | "conflict"
     }
     CompositeTypes: {
+      fixed_tour_cancellation_decision_result: {
+        request_id: string | null
+        booking_id: string | null
+        request_status: string | null
+        booking_status: Database["public"]["Enums"]["booking_status"] | null
+        decision_note: string | null
+        decided_at: string | null
+        state: string | null
+      }
+      fixed_tour_cancellation_request_result: {
+        request_id: string | null
+        booking_id: string | null
+        status: string | null
+        reason: string | null
+        requested_at: string | null
+        state: string | null
+      }
       simulated_payment_result: {
         booking_id: string | null
         booking_status: Database["public"]["Enums"]["booking_status"] | null

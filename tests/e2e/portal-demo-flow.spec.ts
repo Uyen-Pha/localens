@@ -378,7 +378,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("customer cancellation reaches admin approval and only the assigned guide sees the notice", async ({ page }) => {
+test("customer cancellation reaches admin approval without exposing the unconfirmed booking to a guide", async ({ page }) => {
   const diagnostics = installDiagnostics(page);
   const copy = PORTAL_COPY.en;
 
@@ -414,8 +414,7 @@ test("customer cancellation reaches admin approval and only the assigned guide s
   await expect(page.getByRole("region", { name: copy.customerSchedule }).getByText(copy.readOnlyAssignment)).toBeVisible();
   await expect(page.getByRole("button", { name: /accept|complete|cancel/i })).toHaveCount(0);
 
-  const assignedCancellation = page.getByRole("article", { name: copy.cancellationBooking });
-  await expect(assignedCancellation.getByRole("status")).toHaveText(copy.cancellationApproved);
+  await expect(page.getByRole("article", { name: copy.cancellationBooking })).toHaveCount(0);
   const completedAssignment = page.getByRole("article", { name: copy.completedBooking });
   await expect(completedAssignment.getByText(/Cancellation status:/i)).toHaveCount(0);
   await assertPortalAccessibility(page);

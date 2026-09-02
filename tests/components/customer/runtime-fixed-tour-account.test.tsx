@@ -6,6 +6,9 @@ import {
   FixedTourRuntimeError,
   type CompleteSimulatedPaymentInput,
   type CompleteSimulatedPaymentResult,
+  type FixedTourCancellationRequest,
+  type FixedTourCancellationRequestInput,
+  type FixedTourCancellationRequestResult,
   type FixedTourPaymentStatus,
   type FixedTourRuntimePort,
 } from "@/lib/application/fixed-tour/contracts";
@@ -53,14 +56,34 @@ const completed: CompleteSimulatedPaymentResult = {
   state: "completed",
 };
 
+const cancellationRequest: FixedTourCancellationRequest = {
+  requestId: "77777777-7777-4777-8777-777777777777",
+  bookingId: booking.id,
+  status: "pending",
+  reason: "My schedule changed.",
+  requestedAt: "2099-09-05T02:06:00.000Z",
+  decisionNote: null,
+  decidedAt: null,
+};
+
+const requestedCancellation: FixedTourCancellationRequestResult = {
+  ...cancellationRequest,
+  status: "pending",
+  state: "created",
+};
+
 function port({
   bookings = vi.fn(async () => [booking]),
   payments = vi.fn(async () => [] as FixedTourPaymentStatus[]),
   complete = vi.fn(async () => completed),
+  cancellations = vi.fn(async () => [] as FixedTourCancellationRequest[]),
+  requestCancellation = vi.fn(async () => requestedCancellation),
 }: {
   bookings?: FixedTourRuntimePort["listOwnBookings"];
   payments?: FixedTourRuntimePort["listOwnPaymentStatuses"];
   complete?: FixedTourRuntimePort["completeSimulatedPayment"];
+  cancellations?: FixedTourRuntimePort["listOwnCancellationRequests"];
+  requestCancellation?: FixedTourRuntimePort["requestCancellation"];
 } = {}): FixedTourRuntimePort {
   return {
     listPublishedTours: async () => [],
@@ -69,6 +92,10 @@ function port({
     listOwnBookings: bookings,
     listOwnPaymentStatuses: payments,
     completeSimulatedPayment: complete,
+    listOwnCancellationRequests: cancellations,
+    requestCancellation,
+    listCancellationQueue: async () => [],
+    decideCancellation: async () => { throw new Error("not used"); },
   };
 }
 
@@ -78,6 +105,153 @@ afterEach(() => {
 });
 
 describe("runtime fixed-tour account", () => {
+  it.each([
+    {
+      locale: "en" as const,
+      bookingState: "Awaiting confirmation",
+      action: "Request cancellation",
+      disclosure: /administrator reviews and decides/i,
+      reason: "Cancellation reason",
+      submit: "Send cancellation request",
+    },
+    {
+      locale: "vi" as const,
+      bookingState: "Chờ xác nhận",
+      action: "Yêu cầu hủy booking",
+      disclosure: /quản trị viên xem xét và quyết định/i,
+      reason: "Lý do hủy",
+      submit: "Gửi yêu cầu hủy",
+    },
+  ])("offers an explicit administrator-decided cancellation request in $locale", async ({
+    locale,
+    bookingState,
+    action,
+    disclosure,
+    reason,
+    submit,
+  }) => {
+    render(<RuntimeFixedTourAccount locale={locale} fixedTour={port()} />);
+
+    expect(await screen.findByText(bookingState, { exact: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: action }));
+    expect(screen.getByRole("note", { name: /cancellation|hủy/i })).toHaveTextContent(disclosure);
+    expect(screen.getByRole("textbox", { name: reason })).toHaveFocus();
+    expect(screen.getByRole("button", { name: submit })).toBeDisabled();
+  });
+
+  it("sends only booking, reason and idempotency, then reloads all authoritative account data", async () => {
+    const bookings = vi.fn(async () => [booking]);
+    const payments = vi.fn(async () => [] as FixedTourPaymentStatus[]);
+    const cancellations = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([cancellationRequest]);
+    const requestCancellation = vi.fn<
+      (input: FixedTourCancellationRequestInput) => Promise<FixedTourCancellationRequestResult>
+    >(async () => requestedCancellation);
+    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({
+      bookings,
+      payments,
+      cancellations,
+      requestCancellation,
+    })} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Request cancellation" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Cancellation reason" }), {
+      target: { value: "  My schedule changed.  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send cancellation request" }));
+
+    await waitFor(() => expect(requestCancellation).toHaveBeenCalledTimes(1));
+    const input = requestCancellation.mock.calls[0]?.[0];
+    expect(Object.keys(input ?? {}).sort()).toEqual(["bookingId", "idempotencyKey", "reason"]);
+    expect(input).toMatchObject({
+      bookingId: booking.id,
+      reason: "My schedule changed.",
+      idempotencyKey: expect.any(String),
+    });
+    expect(await screen.findByText("Pending administrator decision", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Cancellation request sent for administrator review.");
+    expect(screen.getByRole("status")).toHaveFocus();
+    expect(bookings).toHaveBeenCalledTimes(2);
+    expect(payments).toHaveBeenCalledTimes(2);
+    expect(cancellations).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: "Request cancellation" })).not.toBeInTheDocument();
+  });
+
+  it("disables payment and cancellation mutations together while a cancellation request is pending", async () => {
+    const pending = new Promise<FixedTourCancellationRequestResult>(() => undefined);
+    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({
+      requestCancellation: vi.fn(() => pending),
+    })} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Request cancellation" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Cancellation reason" }), {
+      target: { value: "Schedule changed" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send cancellation request" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Sending cancellation request");
+    expect(screen.getByRole("button", { name: "Send cancellation request" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Complete simulated payment" })).toBeDisabled();
+  });
+
+  it.each([
+    ["CONFLICT", /booking state changed/i],
+    ["IDEMPOTENCY_CONFLICT", /conflicts with an earlier cancellation request/i],
+    ["FORBIDDEN", /not permitted/i],
+  ] as const)("shows a stable browser-safe %s cancellation error", async (code, message) => {
+    const requestCancellation = vi.fn(async () => { throw new FixedTourRuntimeError(code); });
+    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({ requestCancellation })} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Request cancellation" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Cancellation reason" }), {
+      target: { value: "Schedule changed" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send cancellation request" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(document.body).not.toHaveTextContent("P0001");
+  });
+
+  it.each([
+    "payment_processing",
+    "confirmed",
+    "payment_failed",
+    "payment_review",
+    "expired",
+    "cancelled",
+    "completed",
+  ] as const)("never offers cancellation outside pending_payment: %s", async (status) => {
+    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({
+      bookings: vi.fn(async () => [{ ...booking, status }]),
+    })} />);
+
+    await screen.findByRole("heading", { name: booking.titleEn });
+    expect(screen.queryByRole("button", { name: "Request cancellation" })).not.toBeInTheDocument();
+  });
+
+  it.each(["pending", "approved", "rejected"] as const)(
+    "renders authoritative cancellation state %s and never duplicates the request action",
+    async (status) => {
+      render(<RuntimeFixedTourAccount locale="en" fixedTour={port({
+        cancellations: vi.fn(async () => [{
+          ...cancellationRequest,
+          status,
+          decisionNote: status === "pending" ? null : "Reviewed.",
+          decidedAt: status === "pending" ? null : "2099-09-05T02:10:00.000Z",
+        }]),
+      })} />);
+
+      expect(await screen.findByText({
+        pending: "Pending administrator decision",
+        approved: "Approved by administrator",
+        rejected: "Rejected by administrator",
+      }[status], { exact: true })).toBeInTheDocument();
+      expect(screen.getByText(cancellationRequest.reason, { exact: true })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Request cancellation" })).not.toBeInTheDocument();
+    },
+  );
+
   it.each([
     {
       locale: "en" as const,

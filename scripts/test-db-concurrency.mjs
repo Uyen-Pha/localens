@@ -14,6 +14,7 @@ export const REQUIRED_CONCURRENCY_SCENARIOS = [
   "quote checkout compensation",
   "Stripe webhook event race",
   "simulated payment single terminalization",
+  "cancellation approval versus simulated payment",
 ];
 
 export const CONCURRENCY_SCENARIO_IDS = [
@@ -24,6 +25,7 @@ export const CONCURRENCY_SCENARIO_IDS = [
   "quote_checkout_compensation",
   "stripe_webhook_event_race",
   "simulated_payment_terminalization",
+  "cancellation_approval_payment_race",
 ];
 
 const LOCAL_SUPABASE_DB_PORT = "54322";
@@ -232,6 +234,14 @@ const publicFixedTourCheckoutSql = "SELECT * FROM public.begin_fixed_tour_bookin
 
 export function beginFixedTourBookingForConcurrency(session, { departureId, idempotencyKey }) {
   return session.query(publicFixedTourCheckoutSql, [departureId, idempotencyKey]);
+}
+
+async function ensureAdmin(session, userId, label) {
+  await ensureCustomer(session, userId, label);
+  await session.query(
+    "INSERT INTO private.user_roles (user_id, role) VALUES ($1::uuid, 'admin'::public.app_role) ON CONFLICT (user_id, role) DO NOTHING",
+    [userId],
+  );
 }
 
 async function departureCapacityNoOversell({ sessions, context }) {
@@ -445,6 +455,140 @@ async function simulatedPaymentTerminalization({ sessions }) {
   }
 }
 
+async function cancellationApprovalPaymentRace({ sessions }) {
+  const [winner, contender] = sessions;
+  const customerId = randomUUID();
+  const adminId = randomUUID();
+  await ensureCustomer(winner, customerId, "cancellation-customer");
+  await ensureAdmin(winner, adminId, "cancellation-admin");
+
+  async function createCancellationFixture(label) {
+    const fixture = await createPublishedDepartureFixture(winner);
+    await winner.query("BEGIN");
+    try {
+      await setRoleAndSubject(winner, "authenticated", customerId);
+      const checkout = await beginFixedTourBookingForConcurrency(winner, {
+        departureId: fixture.departure,
+        idempotencyKey: `cancellation-booking-${label}-${randomUUID()}`,
+      });
+      const bookingId = checkout.rows[0]?.booking_id;
+      const request = await winner.query(
+        "SELECT * FROM public.request_fixed_tour_cancellation($1::uuid, $2, $3)",
+        [bookingId, `Cancellation race ${label}`, `cancellation-request-${label}-${randomUUID()}`],
+      );
+      await winner.query("COMMIT");
+      invariant(checkout.rowCount === 1 && request.rowCount === 1, `cancellation ${label} fixture was not created`);
+      return { bookingId, requestId: request.rows[0].request_id };
+    } catch (error) {
+      await rollbackQuietly(winner);
+      throw error;
+    }
+  }
+
+  const approvalWins = await createCancellationFixture("approval-wins");
+  let contenderPid = await backendPid(contender);
+  await Promise.all([winner.query("BEGIN"), contender.query("BEGIN")]);
+  try {
+    await winner.query(
+      "SELECT id FROM private.checkout_idempotency WHERE booking_id = $1::uuid FOR UPDATE",
+      [approvalWins.bookingId],
+    );
+    await setRoleAndSubject(contender, "authenticated", customerId);
+    const paymentWork = contender.query(
+      "SELECT * FROM public.complete_simulated_fixed_tour_payment($1::uuid, $2)",
+      [approvalWins.bookingId, `cancellation-payment-loser-${randomUUID()}`],
+    ).then((value) => ({ value }), (error) => ({ error }));
+    await waitForLock(winner, contenderPid);
+    await setRoleAndSubject(winner, "authenticated", adminId);
+    const approval = await winner.query(
+      "SELECT * FROM public.decide_fixed_tour_cancellation($1::uuid, 'approved', $2, $3)",
+      [approvalWins.requestId, "Approval wins payment race", `cancellation-decision-winner-${randomUUID()}`],
+    );
+    await winner.query("COMMIT");
+    const paymentOutcome = await paymentWork;
+    const paymentLost = paymentOutcome.error?.code === "P0001"
+      && /simulated payment unavailable/i.test(paymentOutcome.error.message);
+    await rollbackQuietly(contender);
+    invariant(approval.rows[0]?.state === "approved" && paymentLost, "approval-first race must approve and reject simulated payment");
+  } catch (error) {
+    await Promise.all([rollbackQuietly(winner), rollbackQuietly(contender)]);
+    throw error;
+  }
+  let state = await winner.query(
+    `SELECT bookings.status AS booking_status,
+      holds.status AS hold_status,
+      attempts.status AS attempt_status,
+      requests.status AS request_status,
+      (SELECT count(*)::integer FROM private.simulated_payment_receipts WHERE booking_id = $1::uuid) AS receipt_count,
+      (SELECT count(*)::integer FROM public.payments WHERE booking_id = $1::uuid) AS payment_count
+     FROM public.bookings AS bookings
+     JOIN private.capacity_holds AS holds ON holds.booking_id = bookings.id
+     JOIN private.checkout_attempts AS attempts ON attempts.booking_id = bookings.id
+     JOIN private.fixed_tour_cancellation_requests AS requests ON requests.booking_id = bookings.id
+     WHERE bookings.id = $1::uuid`,
+    [approvalWins.bookingId],
+  );
+  invariant(
+    state.rows[0]?.booking_status === "cancelled"
+      && state.rows[0]?.hold_status === "released"
+      && state.rows[0]?.attempt_status === "compensated"
+      && state.rows[0]?.request_status === "approved"
+      && state.rows[0]?.receipt_count === 0
+      && state.rows[0]?.payment_count === 0,
+    "approval-first race authoritative state is inconsistent",
+  );
+
+  const paymentWins = await createCancellationFixture("payment-wins");
+  contenderPid = await backendPid(contender);
+  await Promise.all([winner.query("BEGIN"), contender.query("BEGIN")]);
+  try {
+    await winner.query(
+      "SELECT id FROM private.checkout_idempotency WHERE booking_id = $1::uuid FOR UPDATE",
+      [paymentWins.bookingId],
+    );
+    await setRoleAndSubject(contender, "authenticated", adminId);
+    const approvalWork = contender.query(
+      "SELECT * FROM public.decide_fixed_tour_cancellation($1::uuid, 'approved', $2, $3)",
+      [paymentWins.requestId, "Payment wins approval race", `cancellation-decision-loser-${randomUUID()}`],
+    ).then((value) => ({ value }), (error) => ({ error }));
+    await waitForLock(winner, contenderPid);
+    await setRoleAndSubject(winner, "authenticated", customerId);
+    const payment = await winner.query(
+      "SELECT * FROM public.complete_simulated_fixed_tour_payment($1::uuid, $2)",
+      [paymentWins.bookingId, `cancellation-payment-winner-${randomUUID()}`],
+    );
+    await winner.query("COMMIT");
+    const approvalOutcome = await approvalWork;
+    const approvalLost = approvalOutcome.error?.code === "P0001"
+      && /cancellation approval unavailable/i.test(approvalOutcome.error.message);
+    await rollbackQuietly(contender);
+    invariant(payment.rows[0]?.state === "completed" && approvalLost, "payment-first race must complete payment and reject approval");
+  } catch (error) {
+    await Promise.all([rollbackQuietly(winner), rollbackQuietly(contender)]);
+    throw error;
+  }
+  state = await winner.query(
+    `SELECT bookings.status AS booking_status,
+      holds.status AS hold_status,
+      requests.status AS request_status,
+      (SELECT count(*)::integer FROM private.simulated_payment_receipts WHERE booking_id = $1::uuid) AS receipt_count,
+      (SELECT count(*)::integer FROM public.payments WHERE booking_id = $1::uuid) AS payment_count
+     FROM public.bookings AS bookings
+     JOIN private.capacity_holds AS holds ON holds.booking_id = bookings.id
+     JOIN private.fixed_tour_cancellation_requests AS requests ON requests.booking_id = bookings.id
+     WHERE bookings.id = $1::uuid`,
+    [paymentWins.bookingId],
+  );
+  invariant(
+    state.rows[0]?.booking_status === "confirmed"
+      && state.rows[0]?.hold_status === "consumed"
+      && state.rows[0]?.request_status === "pending"
+      && state.rows[0]?.receipt_count === 1
+      && state.rows[0]?.payment_count === 0,
+    "payment-first race authoritative state is inconsistent",
+  );
+}
+
 const DEFAULT_SCENARIOS = {
   cas_revision_winner: casRevisionWinner,
   guest_claim_winner: guestClaimWinner,
@@ -453,6 +597,7 @@ const DEFAULT_SCENARIOS = {
   quote_checkout_compensation: quoteCheckoutCompensation,
   stripe_webhook_event_race: stripeWebhookEventRace,
   simulated_payment_terminalization: simulatedPaymentTerminalization,
+  cancellation_approval_payment_race: cancellationApprovalPaymentRace,
 };
 
 export async function runConcurrencyGate({ databaseUrl, sessionFactory = () => new Client({ connectionString: databaseUrl, application_name: "localens-concurrency" }), scenarios = DEFAULT_SCENARIOS, logger = () => {} } = {}) {
