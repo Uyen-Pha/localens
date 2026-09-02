@@ -11,12 +11,17 @@ import {
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { createSupabasePortalSessionAdapter } from "@/lib/infrastructure/supabase/portal-session-adapter";
 import { createSupabaseFixedTourRuntimeAdapter } from "@/lib/infrastructure/supabase/fixed-tour-runtime-adapter";
+import {
+  createSupabaseRuntimeGuideAssignmentAdapter,
+} from "@/lib/infrastructure/supabase/runtime-guide-assignment-adapter";
+import type { RuntimeGuideAssignmentPort } from "@/lib/application/guide-assignment/contracts";
 
 type SupabaseRuntimeConfig = Extract<BrowserRuntimeConfig, { mode: "supabase" }>;
 
 export interface SupabasePortalShell extends FixedTourRuntimeComposition {
   readonly mode: "supabase";
   readonly session: RuntimeSessionPort;
+  readonly guideAssignments: RuntimeGuideAssignmentPort;
   readonly initialized: Promise<void>;
 }
 
@@ -31,6 +36,7 @@ export function createSupabasePortalShell(config: SupabaseRuntimeConfig): Supaba
       mode: "supabase",
       session: createSupabasePortalSessionAdapter(client),
       ...createFixedTourRuntimeComposition(createSupabaseFixedTourRuntimeAdapter(client)),
+      guideAssignments: createSupabaseRuntimeGuideAssignmentAdapter(client),
       initialized: Promise.resolve(),
     };
   } catch {

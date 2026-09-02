@@ -215,6 +215,12 @@
       "credential": "database-definer-owner",
       "bypassJustification": "guide assignment transitions"
     },
+    "localens_guide_admin_projection_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "administrator fixed-departure guide assignment projections"
+    },
     "localens_guide_projection_owner": {
       "rolcanlogin": false,
       "rolbypassrls": false,
@@ -530,8 +536,19 @@
       "forceRls": true
     },
     {
+      "name": "private.guide_assignment_idempotency",
+      "policies": [
+        "guide_assignment_idempotency_rpc_insert",
+        "guide_assignment_idempotency_rpc_select"
+      ],
+      "writerOperation": "idempotent fixed-departure guide assignment RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
       "name": "private.user_roles",
       "policies": [
+        "user_roles_admin_guide_runtime_projection_select",
         "user_roles_admin_summary_select",
         "user_roles_auth_trigger_insert",
         "user_roles_auth_trigger_select",
@@ -585,6 +602,7 @@
     {
       "name": "public.bookings",
       "policies": [
+        "bookings_admin_guide_runtime_projection_select",
         "bookings_admin_reconciliation",
         "bookings_admin_reconciliation_update",
         "bookings_availability_owner_select",
@@ -757,6 +775,7 @@
     {
       "name": "public.departures",
       "policies": [
+        "departures_admin_guide_runtime_projection_select",
         "departures_availability_owner_select",
         "departures_cancellation_admin_lock",
         "departures_cancellation_admin_select",
@@ -767,6 +786,7 @@
         "departures_guide_assignment_owner_select",
         "departures_payment_owner_lock",
         "departures_payment_owner_select",
+        "departures_runtime_guide_assignment_lock",
         "departures_simulated_payment_owner_all",
         "tour_guard_departures_select",
         "tour_owner_all"
@@ -979,6 +999,7 @@
     {
       "name": "public.guide_assignments",
       "policies": [
+        "guide_assignments_admin_runtime_projection_select",
         "guide_assignments_projection_owner_select",
         "guide_assignments_rpc_owner_all"
       ],
@@ -988,13 +1009,10 @@
     },
     {
       "name": "public.guide_profiles",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "grants": [
-        "SELECT -> authenticated"
-      ],
+      "readerRoles": [],
+      "grants": [],
       "policies": [
+        "guide_profiles_admin_guide_runtime_projection_select",
         "guide_profiles_admin_summary_select",
         "guide_profiles_guide_assignment_owner_select",
         "guide_profiles_guide_select"
@@ -1470,16 +1488,6 @@
   ],
   "rpcs": [
     {
-      "name": "public.accept_guide_assignment",
-      "signature": "public.accept_guide_assignment(uuid)",
-      "owner": "localens_guide_assignment_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "guide accepts own assignment",
-      "credential": "browser-jwt"
-    },
-    {
       "name": "public.admin_user_summary",
       "signature": "public.admin_user_summary()",
       "owner": "localens_admin_rpc_owner",
@@ -1500,13 +1508,13 @@
       "credential": "browser-jwt"
     },
     {
-      "name": "public.assign_guide",
-      "signature": "public.assign_guide(uuid,uuid)",
+      "name": "public.assign_fixed_departure_guide",
+      "signature": "public.assign_fixed_departure_guide(uuid,uuid,text)",
       "owner": "localens_guide_assignment_rpc_owner",
       "readerRoles": [
         "authenticated"
       ],
-      "writerOperation": "admin assigns guide",
+      "writerOperation": "administrator idempotently assigns a pure guide to a confirmed scheduled fixed departure",
       "credential": "browser-jwt"
     },
     {
@@ -1527,16 +1535,6 @@
         "authenticated"
       ],
       "writerOperation": "owner claims guest plan",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.complete_guide_assignment",
-      "signature": "public.complete_guide_assignment(uuid)",
-      "owner": "localens_guide_assignment_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "guide completes own assignment",
       "credential": "browser-jwt"
     },
     {
@@ -1577,6 +1575,26 @@
         "authenticated"
       ],
       "writerOperation": "admin reads bounded food review queue",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.get_admin_eligible_guides",
+      "signature": "public.get_admin_eligible_guides()",
+      "owner": "localens_guide_admin_projection_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "administrator reads pure-guide profile candidates",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.get_admin_guide_assignment_queue",
+      "signature": "public.get_admin_guide_assignment_queue()",
+      "owner": "localens_guide_admin_projection_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "administrator reads confirmed scheduled fixed bookings and active assignments",
       "credential": "browser-jwt"
     },
     {
@@ -1712,6 +1730,9 @@
     }
   ],
   "internalFunctions": [
+    "public.accept_guide_assignment(uuid)",
+    "public.assign_guide(uuid,uuid)",
+    "public.complete_guide_assignment(uuid)",
     "private.accept_guide_assignment(uuid)",
     "private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)",
     "private.advance_trip_plan_revision(uuid,integer,jsonb)",
@@ -1821,7 +1842,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 647,
+  "grantCount": 656,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }

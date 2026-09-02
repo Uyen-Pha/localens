@@ -17,6 +17,10 @@ const accounts = {
     email: "guide.runtime@localens.test",
     passwordEnv: "LOCALENS_RUNTIME_GUIDE_PASSWORD",
   },
+  guideSecondary: {
+    email: "guide-secondary.runtime@localens.test",
+    passwordEnv: "LOCALENS_RUNTIME_GUIDE_PASSWORD",
+  },
   admin: {
     email: "admin.runtime@localens.test",
     passwordEnv: "LOCALENS_RUNTIME_ADMIN_PASSWORD",
@@ -73,6 +77,14 @@ type CancellationDecisionRow = {
   decided_at: string;
   state: "approved" | "rejected" | "replayed";
 };
+type GuideAssignmentPayload = { booking_id: string; guide_user_id: string; idempotency_key: string };
+type GuideAssignmentRow = {
+  assignment_id: string;
+  booking_id: string;
+  guide_user_id: string;
+  status: "assigned" | "accepted";
+  outcome: "assigned" | "reassigned" | "unchanged" | "replayed";
+};
 
 let customerAPayload: HoldPayload;
 let customerABooking: HoldRow;
@@ -119,7 +131,11 @@ async function signIn(page: Page, account: Account, locale: "en" | "vi"): Promis
     name: locale === "vi" ? "Đăng nhập" : "Sign in",
     exact: true,
   }).click();
-  const destination = account === "admin" ? "admin" : account === "guide" ? "guide" : "account";
+  const destination = account === "admin"
+    ? "admin"
+    : account === "guide" || account === "guideSecondary"
+      ? "guide"
+      : "account";
   await expect(page).toHaveURL(new RegExp(`/${locale}/${destination}/?(?:\\?.*)?$`));
 }
 
@@ -176,6 +192,36 @@ function expectNoAuthorityLeak(value: unknown): void {
   ]) {
     expect(serialized).not.toContain(forbidden);
   }
+}
+
+function expectExactGuideAssignmentPayload(value: unknown): asserts value is GuideAssignmentPayload {
+  expect(value).toEqual(expect.objectContaining({
+    booking_id: expect.any(String),
+    guide_user_id: expect.any(String),
+    idempotency_key: expect.any(String),
+  }));
+  expect(Object.keys(value as Record<string, unknown>).sort()).toEqual([
+    "booking_id",
+    "guide_user_id",
+    "idempotency_key",
+  ]);
+}
+
+function expectExactGuideAssignmentRow(value: unknown): asserts value is GuideAssignmentRow {
+  expect(value).toEqual(expect.objectContaining({
+    assignment_id: expect.any(String),
+    booking_id: expect.any(String),
+    guide_user_id: expect.any(String),
+    status: expect.stringMatching(/^(?:assigned|accepted)$/),
+    outcome: expect.stringMatching(/^(?:assigned|reassigned|unchanged|replayed)$/),
+  }));
+  expect(Object.keys(value as Record<string, unknown>).sort()).toEqual([
+    "assignment_id",
+    "booking_id",
+    "guide_user_id",
+    "outcome",
+    "status",
+  ]);
 }
 
 function expectNoPaymentAuthorityLeak(value: unknown): void {
@@ -652,6 +698,238 @@ test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment accept
     expect(paymentConflict.error?.code).toBe("P0001");
     expect(paymentConflict.error?.message).toContain("IDEMPOTENCY_CONFLICT");
     expectNoAuthorityLeak(paymentConflict.error);
+  });
+
+  test("administrator assigns and reassigns one confirmed booking while only the current guide sees the read-only schedule", async ({ browser }) => {
+    let assignmentPayload: GuideAssignmentPayload;
+    let assignmentRow: GuideAssignmentRow;
+    let reassignmentRow: GuideAssignmentRow;
+    let returnAssignmentRow: GuideAssignmentRow;
+    const adminContext = await browser.newContext();
+    try {
+      const page = await adminContext.newPage();
+      await signIn(page, "admin", "en");
+      const region = page.getByRole("region", { name: "Guide assignments" });
+      await expect(region).toBeVisible();
+      const target = region.getByRole("article").filter({
+        has: page.locator("dd").filter({ hasText: /^1$/ }),
+      });
+      await expect(target).toHaveCount(1);
+      const responsePromise = page.waitForResponse((response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/rest/v1/rpc/assign_fixed_departure_guide");
+      await target.getByRole("button", { name: "Assign guide", exact: true }).click();
+      const response = await responsePromise;
+      expect(response.status()).toBe(200);
+      assignmentPayload = response.request().postDataJSON();
+      expectExactGuideAssignmentPayload(assignmentPayload);
+      expect(assignmentPayload.booking_id).toBe(customerABooking.booking_id);
+      const body: unknown = await response.json();
+      expect(body).toHaveLength(1);
+      assignmentRow = (body as unknown[])[0] as GuideAssignmentRow;
+      expectExactGuideAssignmentRow(assignmentRow);
+      expect(assignmentRow).toMatchObject({
+        booking_id: customerABooking.booking_id,
+        guide_user_id: assignmentPayload.guide_user_id,
+        status: "assigned",
+        outcome: "assigned",
+      });
+      await expect(page.getByRole("status")).toHaveText("Assignment saved from authoritative data.");
+      await expect(page.getByRole("status")).toBeFocused();
+      await expect(target.getByText("Runtime Guide", { exact: true })).toBeVisible();
+      await page.reload();
+      await expect(page.getByRole("region", { name: "Guide assignments" }).getByText("Runtime Guide", { exact: true })).toBeVisible();
+      await expectNoDemoStorage(page);
+    } finally {
+      await adminContext.close();
+    }
+
+    const admin = await authenticatedClient("admin");
+    const replay = await admin.rpc("assign_fixed_departure_guide", assignmentPayload);
+    expect(replay.error).toBeNull();
+    expect(replay.data).toHaveLength(1);
+    expectExactGuideAssignmentRow((replay.data as unknown[])[0]);
+    expect((replay.data as unknown[])[0]).toMatchObject({
+      assignment_id: assignmentRow.assignment_id,
+      booking_id: assignmentRow.booking_id,
+      guide_user_id: assignmentRow.guide_user_id,
+      status: assignmentRow.status,
+      outcome: "replayed",
+    });
+
+    const unchanged = await admin.rpc("assign_fixed_departure_guide", {
+      ...assignmentPayload,
+      idempotency_key: "runtime-guide-assignment-unchanged",
+    });
+    expect(unchanged.error).toBeNull();
+    expect(unchanged.data).toHaveLength(1);
+    expect((unchanged.data as unknown[])[0]).toMatchObject({
+      assignment_id: assignmentRow.assignment_id,
+      outcome: "unchanged",
+    });
+
+    const payloadConflict = await admin.rpc("assign_fixed_departure_guide", {
+      ...assignmentPayload,
+      booking_id: customerBBooking.booking_id,
+    });
+    expect(payloadConflict.data).toBeNull();
+    expect(payloadConflict.error?.code).toBe("P0001");
+    expect(payloadConflict.error?.message).toContain("guide_assignment_idempotency_conflict");
+
+    const scheduleConflict = await admin.rpc("assign_fixed_departure_guide", {
+      booking_id: customerBBooking.booking_id,
+      guide_user_id: assignmentPayload.guide_user_id,
+      idempotency_key: "runtime-guide-assignment-overlap",
+    });
+    expect(scheduleConflict.data).toBeNull();
+    expect(scheduleConflict.error?.code).toBe("P0001");
+    expect(scheduleConflict.error?.message).toContain("guide_assignment_schedule_conflict");
+
+    for (const account of ["customerA", "guide", "guideSecondary"] as const) {
+      const denied = await authenticatedClient(account);
+      const queue = await denied.rpc("get_admin_guide_assignment_queue");
+      expect(queue.data).toBeNull();
+      expect(queue.error?.code).toBe("42501");
+    }
+
+    const guideContext = await browser.newContext();
+    try {
+      const page = await guideContext.newPage();
+      await signIn(page, "guide", "vi");
+      const region = page.getByRole("region", { name: "Tour được phân công" });
+      await expect(region).toBeVisible();
+      await expect(region.getByText(fixture.viTitle, { exact: true })).toBeVisible();
+      await expect(region.getByText(fixture.enMeetingPoint, { exact: true })).toBeVisible();
+      await expect(region.getByRole("button", { name: /tiếp nhận|hoàn thành|accept|complete/i })).toHaveCount(0);
+      await page.reload();
+      await expect(page.getByRole("region", { name: "Tour được phân công" }).getByText(fixture.viTitle, { exact: true })).toBeVisible();
+      await expectNoDemoStorage(page);
+    } finally {
+      await guideContext.close();
+    }
+
+    const reassignContext = await browser.newContext();
+    try {
+      const page = await reassignContext.newPage();
+      await signIn(page, "admin", "en");
+      const region = page.getByRole("region", { name: "Guide assignments" });
+      const target = region.getByRole("article").filter({
+        has: page.locator("dd").filter({ hasText: /^1$/ }),
+      });
+      await expect(target.getByText("Runtime Guide", { exact: true })).toBeVisible();
+
+      async function submitAssignment(): Promise<{ payload: GuideAssignmentPayload; row: GuideAssignmentRow }> {
+        const responsePromise = page.waitForResponse((response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/rest/v1/rpc/assign_fixed_departure_guide");
+        await target.getByRole("button", { name: "Assign guide", exact: true }).click();
+        const response = await responsePromise;
+        expect(response.status()).toBe(200);
+        const payload = response.request().postDataJSON() as GuideAssignmentPayload;
+        expectExactGuideAssignmentPayload(payload);
+        const body: unknown = await response.json();
+        expect(body).toHaveLength(1);
+        const row = (body as unknown[])[0] as GuideAssignmentRow;
+        expectExactGuideAssignmentRow(row);
+        await expect(page.getByRole("status")).toHaveText("Assignment saved from authoritative data.");
+        return { payload, row };
+      }
+
+      const sameGuide = await submitAssignment();
+      expect(sameGuide.payload.guide_user_id).toBe(assignmentPayload.guide_user_id);
+      expect(sameGuide.row).toMatchObject({
+        assignment_id: assignmentRow.assignment_id,
+        outcome: "unchanged",
+      });
+
+      await target.getByLabel(fixture.enTitle).selectOption({ label: "Runtime Guide Two · English" });
+      const reassignment = await submitAssignment();
+      const reassignmentPayload = reassignment.payload;
+      expect(reassignmentPayload.booking_id).toBe(assignmentPayload.booking_id);
+      expect(reassignmentPayload.guide_user_id).not.toBe(assignmentPayload.guide_user_id);
+      reassignmentRow = reassignment.row;
+      expect(reassignmentRow).toMatchObject({
+        booking_id: assignmentRow.booking_id,
+        guide_user_id: reassignmentPayload.guide_user_id,
+        status: "assigned",
+        outcome: "reassigned",
+      });
+      expect(reassignmentRow.assignment_id).not.toBe(assignmentRow.assignment_id);
+      await expect(target.getByText("Runtime Guide Two", { exact: true })).toBeVisible();
+      await page.reload();
+      await expect(page.getByRole("region", { name: "Guide assignments" }).getByText("Runtime Guide Two", { exact: true })).toBeVisible();
+      await expectNoDemoStorage(page);
+
+      const originalGuide = await authenticatedClient("guide");
+      const originalGuideAssignments = await originalGuide.rpc("get_guide_assigned_bookings");
+      expect(originalGuideAssignments.error).toBeNull();
+      expect(originalGuideAssignments.data).toHaveLength(0);
+
+      const secondaryGuideContext = await browser.newContext();
+      try {
+        const secondaryPage = await secondaryGuideContext.newPage();
+        await signIn(secondaryPage, "guideSecondary", "en");
+        const secondaryRegion = secondaryPage.getByRole("region", { name: "Your assigned tours" });
+        await expect(secondaryRegion.getByText(fixture.enTitle, { exact: true })).toBeVisible();
+        await expect(secondaryRegion.getByText(fixture.enMeetingPoint, { exact: true })).toBeVisible();
+        await expect(secondaryRegion.getByRole("button", { name: /accept|complete|tiếp nhận|hoàn thành/i })).toHaveCount(0);
+        await secondaryPage.reload();
+        await expect(secondaryPage.getByRole("region", { name: "Your assigned tours" }).getByText(fixture.enTitle, { exact: true })).toBeVisible();
+        await expectNoDemoStorage(secondaryPage);
+      } finally {
+        await secondaryGuideContext.close();
+      }
+
+      await target.getByLabel(fixture.enTitle).selectOption({ label: "Runtime Guide · Vietnamese" });
+      const returned = await submitAssignment();
+      expect(returned.payload.idempotency_key).not.toBe(sameGuide.payload.idempotency_key);
+      expect(returned.payload.guide_user_id).toBe(assignmentPayload.guide_user_id);
+      returnAssignmentRow = returned.row;
+      expect(returnAssignmentRow).toMatchObject({
+        booking_id: assignmentRow.booking_id,
+        guide_user_id: assignmentPayload.guide_user_id,
+        status: "assigned",
+        outcome: "reassigned",
+      });
+      expect(returnAssignmentRow.assignment_id).not.toBe(assignmentRow.assignment_id);
+      expect(returnAssignmentRow.assignment_id).not.toBe(reassignmentRow.assignment_id);
+      await expect(target.getByText("Runtime Guide", { exact: true })).toBeVisible();
+      await page.reload();
+      await expect(page.getByRole("region", { name: "Guide assignments" }).getByText("Runtime Guide", { exact: true })).toBeVisible();
+    } finally {
+      await reassignContext.close();
+    }
+
+    const finalGuideContext = await browser.newContext();
+    try {
+      const page = await finalGuideContext.newPage();
+      await signIn(page, "guide", "vi");
+      const region = page.getByRole("region", { name: "Tour được phân công" });
+      await expect(region.getByText(fixture.viTitle, { exact: true })).toBeVisible();
+      await expect(region.getByText(fixture.enMeetingPoint, { exact: true })).toBeVisible();
+      await expect(region.getByRole("button", { name: /accept|complete|tiếp nhận|hoàn thành/i })).toHaveCount(0);
+      await page.reload();
+      await expect(page.getByRole("region", { name: "Tour được phân công" }).getByText(fixture.viTitle, { exact: true })).toBeVisible();
+      await expectNoDemoStorage(page);
+    } finally {
+      await finalGuideContext.close();
+    }
+
+    const originalGuide = await authenticatedClient("guide");
+    const originalAssignments = await originalGuide.rpc("get_guide_assigned_bookings");
+    expect(originalAssignments.error).toBeNull();
+    expect(originalAssignments.data).toHaveLength(1);
+    expect((originalAssignments.data as unknown[])[0]).toMatchObject({
+      assignment_id: returnAssignmentRow.assignment_id,
+      booking_id: customerABooking.booking_id,
+    });
+    const secondaryGuide = await authenticatedClient("guideSecondary");
+    const ownAssignments = await secondaryGuide.rpc("get_guide_assigned_bookings");
+    expect(ownAssignments.error).toBeNull();
+    expect(ownAssignments.data).toHaveLength(0);
+    const adminGuideProjection = await admin.rpc("get_guide_assigned_bookings");
+    expect(adminGuideProjection.data).toBeNull();
+    expect(adminGuideProjection.error?.code).toBe("42501");
   });
 
   test("bilingual cancellation remains a request until an administrator decides", async ({ browser }) => {

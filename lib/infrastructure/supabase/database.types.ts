@@ -3566,6 +3566,20 @@ export type Database = {
           revision_no: number
         }[]
       }
+      assign_fixed_departure_guide: {
+        Args: {
+          booking_id: string
+          guide_user_id: string
+          idempotency_key: string
+        }
+        Returns: Database["public"]["CompositeTypes"]["guide_assignment_mutation_result"][]
+        SetofOptions: {
+          from: "*"
+          to: "guide_assignment_mutation_result"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       assign_guide: {
         Args: { booking_id: string; guide_user_id: string }
         Returns: {
@@ -3670,6 +3684,14 @@ export type Database = {
           status: Database["public"]["Enums"]["content_status"]
         }[]
       }
+      get_admin_eligible_guides: {
+        Args: never
+        Returns: {
+          display_name: string
+          guide_user_id: string
+          language: Database["public"]["Enums"]["locale"]
+        }[]
+      }
       get_admin_food_catalog_review_queue: {
         Args: { p_limit?: number; p_offset?: number }
         Returns: {
@@ -3687,9 +3709,29 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_admin_guide_assignment_queue: {
+        Args: never
+        Returns: {
+          assignment_id: string
+          assignment_status: Database["public"]["Enums"]["assignment_status"]
+          booking_id: string
+          departure_id: string
+          end_at: string
+          guide_display_name: string
+          guide_user_id: string
+          language: Database["public"]["Enums"]["locale"]
+          meeting_point: string
+          party_size: number
+          start_at: string
+          title_en: string
+          title_vi: string
+          tour_version_id: string
+        }[]
+      }
       get_guide_assigned_bookings: {
         Args: never
         Returns: {
+          assignment_id: string
           assignment_status: Database["public"]["Enums"]["assignment_status"]
           booking_id: string
           departure_id: string
@@ -3953,6 +3995,13 @@ export type Database = {
         reason: string | null
         requested_at: string | null
         state: string | null
+      }
+      guide_assignment_mutation_result: {
+        assignment_id: string | null
+        booking_id: string | null
+        guide_user_id: string | null
+        status: Database["public"]["Enums"]["assignment_status"] | null
+        outcome: string | null
       }
       simulated_payment_result: {
         booking_id: string | null

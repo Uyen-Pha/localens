@@ -298,13 +298,6 @@
     },
     {
       "objectType": "function",
-      "objectName": "public.accept_guide_assignment(uuid)",
-      "privilege": "execute",
-      "columns": [],
-      "grantee": "authenticated"
-    },
-    {
-      "objectType": "function",
       "objectName": "public.admin_user_summary()",
       "privilege": "execute",
       "columns": [],
@@ -319,7 +312,7 @@
     },
     {
       "objectType": "function",
-      "objectName": "public.assign_guide(uuid,uuid)",
+      "objectName": "public.assign_fixed_departure_guide(uuid,uuid,text)",
       "privilege": "execute",
       "columns": [],
       "grantee": "authenticated"
@@ -334,13 +327,6 @@
     {
       "objectType": "function",
       "objectName": "public.claim_guest_plan(uuid,text,smallint)",
-      "privilege": "execute",
-      "columns": [],
-      "grantee": "authenticated"
-    },
-    {
-      "objectType": "function",
-      "objectName": "public.complete_guide_assignment(uuid)",
       "privilege": "execute",
       "columns": [],
       "grantee": "authenticated"
@@ -382,7 +368,21 @@
     },
     {
       "objectType": "function",
+      "objectName": "public.get_admin_eligible_guides()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
       "objectName": "public.get_admin_food_catalog_review_queue(integer,integer)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.get_admin_guide_assignment_queue()",
       "privilege": "execute",
       "columns": [],
       "grantee": "authenticated"
@@ -714,6 +714,13 @@
       "objectName": "private",
       "privilege": "usage",
       "columns": [],
+      "grantee": "localens_guide_admin_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
       "grantee": "localens_guide_assignment_guard_owner"
     },
     {
@@ -974,6 +981,13 @@
       "privilege": "usage",
       "columns": [],
       "grantee": "localens_guest_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_guide_admin_projection_owner"
     },
     {
       "objectType": "schema",
@@ -1669,6 +1683,20 @@
     },
     {
       "objectType": "table",
+      "objectName": "private.guide_assignment_idempotency",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.guide_assignment_idempotency",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
       "objectName": "private.quota_buckets",
       "privilege": "insert",
       "columns": [],
@@ -2022,6 +2050,16 @@
         "role",
         "user_id"
       ],
+      "grantee": "localens_guide_admin_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [
+        "role",
+        "user_id"
+      ],
       "grantee": "localens_guide_assignment_rpc_owner"
     },
     {
@@ -2295,6 +2333,24 @@
         "tour_version_id"
       ],
       "grantee": "localens_guide_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "select",
+      "columns": [
+        "departure_id",
+        "id",
+        "language",
+        "meeting_point",
+        "party_size",
+        "source_kind",
+        "status",
+        "title_en",
+        "title_vi",
+        "tour_version_id"
+      ],
+      "grantee": "localens_guide_admin_projection_owner"
     },
     {
       "objectType": "table",
@@ -3308,6 +3364,18 @@
     {
       "objectType": "table",
       "objectName": "public.departures",
+      "privilege": "select",
+      "columns": [
+        "end_at",
+        "id",
+        "start_at",
+        "status"
+      ],
+      "grantee": "localens_guide_admin_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
       "privilege": "update",
       "columns": [],
       "grantee": "localens_tour_rpc_owner"
@@ -3338,6 +3406,15 @@
         "id"
       ],
       "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_guide_assignment_rpc_owner"
     },
     {
       "objectType": "table",
@@ -3758,6 +3835,19 @@
     {
       "objectType": "table",
       "objectName": "public.guide_assignments",
+      "privilege": "select",
+      "columns": [
+        "assigned_at",
+        "booking_id",
+        "guide_user_id",
+        "id",
+        "status"
+      ],
+      "grantee": "localens_guide_admin_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.guide_assignments",
       "privilege": "update",
       "columns": [],
       "grantee": "localens_guide_assignment_rpc_owner"
@@ -3766,8 +3856,12 @@
       "objectType": "table",
       "objectName": "public.guide_profiles",
       "privilege": "select",
-      "columns": [],
-      "grantee": "authenticated"
+      "columns": [
+        "display_name",
+        "language",
+        "user_id"
+      ],
+      "grantee": "localens_guide_admin_projection_owner"
     },
     {
       "objectType": "table",

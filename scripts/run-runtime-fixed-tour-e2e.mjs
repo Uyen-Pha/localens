@@ -78,7 +78,10 @@ function validateExplicitDatabaseUrl(value) {
   }
 }
 
-function stepSpec(name, cwd, env) {
+function stepSpec(name, cwd, env, {
+  playwrightSpec = "tests/e2e/runtime-fixed-tour.spec.ts",
+  playwrightConfig = "playwright.runtime-fixed-tour.config.ts",
+} = {}) {
   const script = (file, ...args) => ({
     name,
     command: process.execPath,
@@ -100,8 +103,8 @@ function stepSpec(name, cwd, env) {
       args: [
         path.join(cwd, "node_modules", "@playwright", "test", "cli.js"),
         "test",
-        "tests/e2e/runtime-fixed-tour.spec.ts",
-        "--config=playwright.runtime-fixed-tour.config.ts",
+        playwrightSpec,
+        `--config=${playwrightConfig}`,
       ],
       cwd,
       env,
@@ -128,11 +131,11 @@ function runChildStep(spec) {
   });
 }
 
-async function runCheckedStep(name, { cwd, env, runStep, logger }) {
+async function runCheckedStep(name, { cwd, env, runStep, logger, stepOptions }) {
   logger(`[runtime-fixed-tour] ${name}`);
   let result;
   try {
-    result = await runStep(stepSpec(name, cwd, env));
+    result = await runStep(stepSpec(name, cwd, env, stepOptions));
   } catch {
     throw runtimeError("RUNTIME_FIXED_TOUR_STEP_FAILED", `${name} could not be started`, {
       step: name,
@@ -259,6 +262,10 @@ export async function runRuntimeFixedTourE2E(options = {}) {
       env: playwrightEnv,
       runStep,
       logger,
+      stepOptions: {
+        playwrightSpec: options.playwrightSpec,
+        playwrightConfig: options.playwrightConfig,
+      },
     });
   } catch (error) {
     primaryError = stableError(error);

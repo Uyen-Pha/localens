@@ -31,6 +31,16 @@ const RuntimeCancellationQueue = lazy(async () => {
   return { default: module.RuntimeCancellationQueue };
 });
 
+const RuntimeGuideAssignmentQueue = lazy(async () => {
+  const module = await import("@/components/admin/runtime-guide-assignment-queue");
+  return { default: module.RuntimeGuideAssignmentQueue };
+});
+
+const RuntimeGuideAssignmentList = lazy(async () => {
+  const module = await import("@/components/guide/runtime-guide-assignment-list");
+  return { default: module.RuntimeGuideAssignmentList };
+});
+
 function isStaleRuntimeSession(error: unknown): error is PortalError {
   return error instanceof PortalError &&
     (error.code === "UNAUTHENTICATED" || error.code === "FORBIDDEN");
@@ -243,8 +253,18 @@ function RuntimeRoleShell({
           </Suspense>
         ) : null}
         {session.role === "admin" ? (
+          <>
+            <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
+              <RuntimeCancellationQueue locale={locale} fixedTour={composition.fixedTour} />
+            </Suspense>
+            <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
+              <RuntimeGuideAssignmentQueue locale={locale} assignments={composition.guideAssignments} />
+            </Suspense>
+          </>
+        ) : null}
+        {session.role === "guide" ? (
           <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
-            <RuntimeCancellationQueue locale={locale} fixedTour={composition.fixedTour} />
+            <RuntimeGuideAssignmentList locale={locale} assignments={composition.guideAssignments} />
           </Suspense>
         ) : null}
       </section>

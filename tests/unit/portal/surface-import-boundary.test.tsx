@@ -41,6 +41,12 @@ const shell: SupabasePortalShell = {
     listCancellationQueue: async () => [],
     decideCancellation: async () => { throw new Error("not used"); },
   },
+  guideAssignments: {
+    listAdminQueue: async () => [],
+    listEligibleGuides: async () => [],
+    assignGuide: async () => { throw new Error("not used"); },
+    listOwnAssignments: async () => [],
+  },
   session: {
     getSession: async () => null,
     signInWithPassword: async () => {

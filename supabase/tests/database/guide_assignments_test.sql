@@ -82,9 +82,9 @@ SELECT ok(NOT has_table_privilege('authenticated', 'public.guide_assignments', '
 SELECT ok(NOT has_table_privilege('authenticated', 'public.bookings', 'SELECT'), 'guide cannot read booking base table');
 SELECT ok(NOT has_table_privilege('authenticated', 'public.departures', 'SELECT'), 'guide cannot read departure base table');
 SELECT ok(has_function_privilege('authenticated', 'public.get_guide_assigned_bookings()', 'EXECUTE'), 'authenticated can call only sanitized guide projection');
-SELECT ok(has_function_privilege('authenticated', 'public.accept_guide_assignment(uuid)', 'EXECUTE'), 'authenticated can request guide accept transition');
-SELECT ok(has_function_privilege('authenticated', 'public.complete_guide_assignment(uuid)', 'EXECUTE'), 'authenticated can request guide complete transition');
-SELECT ok(has_function_privilege('authenticated', 'public.assign_guide(uuid,uuid)', 'EXECUTE'), 'authenticated reaches guarded admin assignment RPC');
+SELECT ok(NOT has_function_privilege('authenticated', 'public.accept_guide_assignment(uuid)', 'EXECUTE'), 'browser guide cannot request accept transition');
+SELECT ok(NOT has_function_privilege('authenticated', 'public.complete_guide_assignment(uuid)', 'EXECUTE'), 'browser guide cannot request complete transition');
+SELECT ok(NOT has_function_privilege('authenticated', 'public.assign_guide(uuid,uuid)', 'EXECUTE'), 'browser cannot bypass idempotent admin assignment RPC');
 SELECT ok(NOT has_function_privilege('authenticated', 'private.assign_guide(uuid,uuid)', 'EXECUTE'), 'authenticated cannot call internal assignment RPC');
 SELECT ok(NOT has_function_privilege('authenticated', 'private.guide_requirement_snapshot(uuid)', 'EXECUTE'), 'authenticated cannot call requirement snapshot helper');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_policies WHERE schemaname = 'public' AND tablename = 'guide_assignments' AND policyname = 'guide_assignments_rpc_owner_all'), 'assignment owner policy exists');
@@ -111,9 +111,8 @@ SELECT ok(
   'guide projection has no wildcard SELECT and excludes closed/completed assignments');
 
 -- Runtime-deferred isolation fixture: reassignment closes the old guide row,
--- completion removes the row from the guide work queue, and another guide can
--- never see either row. All identifiers are synthetic and the transaction is
--- rolled back at the end of this executable pgTAP file.
+-- the guide queue stays read-only, and another guide never sees the row. All
+-- identifiers are synthetic and the transaction is rolled back at the end.
 INSERT INTO auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 VALUES
   ('00000000-0000-0000-0000-000000001101'::uuid, 'authenticated', 'authenticated', 'task11-admin@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now()),
@@ -121,6 +120,13 @@ VALUES
   ('00000000-0000-0000-0000-000000001103'::uuid, 'authenticated', 'authenticated', 'task11-guide-two@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now()),
   ('00000000-0000-0000-0000-000000001104'::uuid, 'authenticated', 'authenticated', 'task11-guide-three@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now())
 ON CONFLICT (id) DO NOTHING;
+DELETE FROM private.user_roles
+WHERE user_id IN (
+  '00000000-0000-0000-0000-000000001101'::uuid,
+  '00000000-0000-0000-0000-000000001102'::uuid,
+  '00000000-0000-0000-0000-000000001103'::uuid,
+  '00000000-0000-0000-0000-000000001104'::uuid
+);
 INSERT INTO private.user_roles (user_id, role)
 VALUES
   ('00000000-0000-0000-0000-000000001101'::uuid, 'admin'::public.app_role),
@@ -201,7 +207,7 @@ VALUES ('00000000-0000-0000-0000-000000001111'::uuid, '00000000-0000-0000-0000-0
 RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001101', true);
-SELECT lives_ok($$SELECT * FROM public.assign_guide('00000000-0000-0000-0000-000000001110'::uuid, '00000000-0000-0000-0000-000000001103'::uuid)$$, 'admin reassignment closes the former guide row');
+SELECT lives_ok($$SELECT * FROM public.assign_fixed_departure_guide('00000000-0000-0000-0000-000000001110'::uuid, '00000000-0000-0000-0000-000000001103'::uuid, 'task11-reassign')$$, 'admin reassignment closes the former guide row');
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001102', true);
 SELECT is((SELECT count(*)::integer FROM public.get_guide_assigned_bookings()), 0, 'former guide sees zero rows after reassignment');
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001104', true);
@@ -215,9 +221,9 @@ WHERE booking_id = '00000000-0000-0000-0000-000000001110'::uuid
 GRANT SELECT ON task11_reassignment_id TO authenticated;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001103', true);
-SELECT lives_ok($$SELECT * FROM public.accept_guide_assignment((SELECT id FROM task11_reassignment_id))$$, 'new guide accepts reassigned booking');
-SELECT lives_ok($$SELECT * FROM public.complete_guide_assignment((SELECT id FROM task11_reassignment_id))$$, 'new guide completes reassigned booking');
-SELECT is((SELECT count(*)::integer FROM public.get_guide_assigned_bookings()), 0, 'completed assignment no longer appears in guide work queue');
+SELECT throws_ok($$SELECT * FROM public.accept_guide_assignment((SELECT id FROM task11_reassignment_id))$$, '42501', NULL, 'browser guide cannot accept a reassigned booking');
+SELECT throws_ok($$SELECT * FROM public.complete_guide_assignment((SELECT id FROM task11_reassignment_id))$$, '42501', NULL, 'browser guide cannot complete a reassigned booking');
+SELECT is((SELECT count(*)::integer FROM public.get_guide_assigned_bookings()), 1, 'assigned booking remains in the read-only guide work queue');
 RESET ROLE;
 
 SELECT * FROM finish();

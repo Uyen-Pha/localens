@@ -200,11 +200,11 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001302
 SELECT is((SELECT count(*)::integer FROM public.profiles), 1, 'customer B sees exactly own profile');
 SELECT is((SELECT count(*)::integer FROM public.profiles WHERE id = '00000000-0000-0000-0000-000000001301'::uuid), 0, 'customer B cannot see customer A profile');
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001303', true);
-SELECT is((SELECT count(*)::integer FROM public.guide_profiles), 1, 'guide A sees exactly own guide profile');
-SELECT is((SELECT count(*)::integer FROM public.guide_profiles WHERE user_id = '00000000-0000-0000-0000-000000001304'::uuid), 0, 'guide A cannot see guide B profile');
+SELECT throws_ok($$SELECT * FROM public.guide_profiles$$, '42501', NULL, 'guide A cannot directly read guide profile base rows');
+SELECT throws_ok($$SELECT * FROM public.guide_profiles WHERE user_id = '00000000-0000-0000-0000-000000001304'::uuid$$, '42501', NULL, 'guide A cannot directly read guide B profile');
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001304', true);
-SELECT is((SELECT count(*)::integer FROM public.guide_profiles), 1, 'guide B sees exactly own guide profile');
-SELECT is((SELECT count(*)::integer FROM public.guide_profiles WHERE user_id = '00000000-0000-0000-0000-000000001303'::uuid), 0, 'guide B cannot see guide A profile');
+SELECT throws_ok($$SELECT * FROM public.guide_profiles$$, '42501', NULL, 'guide B cannot directly read guide profile base rows');
+SELECT throws_ok($$SELECT * FROM public.guide_profiles WHERE user_id = '00000000-0000-0000-0000-000000001303'::uuid$$, '42501', NULL, 'guide B cannot directly read guide A profile');
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001301', true);
 SELECT extensions.throws_ok(
   $$SELECT * FROM public.admin_user_summary()$$,

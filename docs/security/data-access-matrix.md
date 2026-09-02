@@ -36,6 +36,7 @@ Migration owner for default privileges: postgres
 | localens_content_public_owner | false | false | database-definer-owner | public content pointer |
 | localens_guest_executor | true | false | edge-internal-guest | internal guest plan Edge function only |
 | localens_guest_rpc_owner | false | false | database-definer-owner | guest plan capability writes |
+| localens_guide_admin_projection_owner | false | false | database-definer-owner | administrator fixed-departure guide assignment projections |
 | localens_guide_assignment_guard_owner | false | false | database-definer-owner | guide assignment guard |
 | localens_guide_assignment_rpc_owner | false | false | database-definer-owner | guide assignment transitions |
 | localens_guide_projection_owner | false | false | database-definer-owner | guide sanitized projection |
@@ -72,6 +73,7 @@ Migration owner for default privileges: postgres
 | private.fixed_tour_cancellation_requests | postgres | none |  | role-scoped fixed-tour cancellation RPCs only | true | true | cancellation_requests_admin_projection_select, cancellation_requests_admin_rpc_select, cancellation_requests_admin_rpc_update, cancellation_requests_customer_projection_select, cancellation_requests_customer_rpc_insert, cancellation_requests_customer_rpc_lock, cancellation_requests_customer_rpc_select, cancellation_requests_guard_select |  | migration-owner-only |
 | private.guest_bindings | postgres | none |  | guest/claim RPC only | true | true | guest_bindings_claim_owner_select, guest_bindings_claim_owner_update, guest_bindings_guest_owner_all, guest_owner_guest_binding_plan_read |  | migration-owner-only |
 | private.guest_capabilities | postgres | none |  | guest/claim RPC only | true | true | guest_capabilities_claim_owner_select, guest_capabilities_claim_owner_update, guest_capabilities_guest_owner_all, guest_owner_guest_capability_plan_read |  | migration-owner-only |
+| private.guide_assignment_idempotency | postgres | none |  | idempotent fixed-departure guide assignment RPC only | true | true | guide_assignment_idempotency_rpc_insert, guide_assignment_idempotency_rpc_select |  | migration-owner-only |
 | private.quota_buckets | postgres | none |  | quota RPC only | true | true | guest_owner_quota_plan_denied, quota_buckets_quota_owner_all |  | migration-owner-only |
 | private.quota_global_buckets | postgres | none |  | quota RPC only | true | true | quota_global_quota_owner_all |  | migration-owner-only |
 | private.quota_reservations | postgres | none |  | quota RPC only | true | true | quota_reservations_quota_owner_insert, quota_reservations_quota_owner_select |  | migration-owner-only |
@@ -80,11 +82,11 @@ Migration owner for default privileges: postgres
 | private.seo_live_pointer | postgres | none |  | finalize RPC only | true | true | seo_live_pointer_build_owner_all, seo_live_pointer_public_owner_select |  | migration-owner-only |
 | private.simulated_payment_receipts | postgres | none |  | fixed-tour simulated-payment RPC only | true | true | simulated_payment_receipts_checkout_owner_select, simulated_payment_receipts_payment_guard_select, simulated_payment_receipts_projection_owner_select, simulated_payment_receipts_rpc_owner_all, simulated_receipts_cancellation_admin_select, simulated_receipts_cancellation_customer_select |  | migration-owner-only |
 | private.stripe_test_settings | postgres | none |  | Stripe Test finalizer only | true | true | stripe_test_settings_payment_owner_lock, stripe_test_settings_payment_owner_select |  | migration-owner-only |
-| private.user_roles | postgres | none |  | provision_role RPC only | true | true | user_roles_admin_summary_select, user_roles_auth_trigger_insert, user_roles_auth_trigger_select, user_roles_cancellation_admin_projection_select, user_roles_cancellation_admin_rpc_select, user_roles_cancellation_customer_projection_select, user_roles_cancellation_customer_rpc_select, user_roles_catalog_rpc_select, user_roles_checkout_owner_select, user_roles_claim_rpc_select, user_roles_content_admin_select, user_roles_guide_assignment_owner_select, user_roles_identity_rpc_insert, user_roles_identity_rpc_select, user_roles_plan_rpc_select, user_roles_request_admin_rpc_select, user_roles_request_customer_rpc_select, user_roles_simulated_payment_owner_select |  | migration-owner-only |
+| private.user_roles | postgres | none |  | provision_role RPC only | true | true | user_roles_admin_guide_runtime_projection_select, user_roles_admin_summary_select, user_roles_auth_trigger_insert, user_roles_auth_trigger_select, user_roles_cancellation_admin_projection_select, user_roles_cancellation_admin_rpc_select, user_roles_cancellation_customer_projection_select, user_roles_cancellation_customer_rpc_select, user_roles_catalog_rpc_select, user_roles_checkout_owner_select, user_roles_claim_rpc_select, user_roles_content_admin_select, user_roles_guide_assignment_owner_select, user_roles_identity_rpc_insert, user_roles_identity_rpc_select, user_roles_plan_rpc_select, user_roles_request_admin_rpc_select, user_roles_request_customer_rpc_select, user_roles_simulated_payment_owner_select |  | migration-owner-only |
 | private.webhook_events | postgres | none |  | Stripe webhook finalizer only | true | true | webhook_events_payment_owner_all |  | migration-owner-only |
 | public.area_translations | postgres | none |  | none | true | true | area_translations_public_select, catalog_owner_all |  | migration-owner-only |
 | public.areas | postgres | none |  | none | true | true | areas_public_select, catalog_owner_all |  | migration-owner-only |
-| public.bookings | postgres | none |  | checkout/payment/admin RPC only | true | true | bookings_admin_reconciliation, bookings_admin_reconciliation_update, bookings_availability_owner_select, bookings_cancellation_admin_projection_select, bookings_cancellation_admin_select, bookings_cancellation_admin_update, bookings_cancellation_customer_lock, bookings_cancellation_customer_select, bookings_checkout_owner_all, bookings_guide_assignment_owner_lock, bookings_guide_assignment_owner_select, bookings_payment_owner_all, bookings_payment_projection_select, bookings_projection_owner_select, bookings_simulated_payment_owner_all, bookings_simulated_payment_projection_select |  | migration-owner-only |
+| public.bookings | postgres | none |  | checkout/payment/admin RPC only | true | true | bookings_admin_guide_runtime_projection_select, bookings_admin_reconciliation, bookings_admin_reconciliation_update, bookings_availability_owner_select, bookings_cancellation_admin_projection_select, bookings_cancellation_admin_select, bookings_cancellation_admin_update, bookings_cancellation_customer_lock, bookings_cancellation_customer_select, bookings_checkout_owner_all, bookings_guide_assignment_owner_lock, bookings_guide_assignment_owner_select, bookings_payment_owner_all, bookings_payment_projection_select, bookings_projection_owner_select, bookings_simulated_payment_owner_all, bookings_simulated_payment_projection_select |  | migration-owner-only |
 | public.catalog_snapshot_area_translations | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_area_translations_public_select |  | migration-owner-only |
 | public.catalog_snapshot_areas | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_areas_public_select |  | migration-owner-only |
 | public.catalog_snapshot_food_item_supports | postgres | none |  | catalog snapshot RPC only | true | true | catalog_owner_all |  | migration-owner-only |
@@ -108,7 +110,7 @@ Migration owner for default privileges: postgres
 | public.content_drafts | postgres | none |  | content admin RPC only | true | true | content_drafts_admin_owner_all |  | migration-owner-only |
 | public.custom_quotes | postgres | none |  | quote RPC only | true | true | custom_quotes_admin_rpc_owner_all, custom_quotes_checkout_owner_select, custom_quotes_checkout_owner_update, custom_quotes_customer_rpc_owner_select, custom_quotes_customer_select, custom_quotes_guide_assignment_owner_select, custom_quotes_payment_owner_all |  | migration-owner-only |
 | public.custom_requests | postgres | none |  | request RPC only | true | true | custom_requests_admin_rpc_owner_all, custom_requests_checkout_owner_lock, custom_requests_checkout_owner_select, custom_requests_customer_rpc_owner_all, custom_requests_customer_select, custom_requests_guide_assignment_owner_select |  | migration-owner-only |
-| public.departures | postgres | none |  | departure lifecycle/checkout RPC only | true | true | departures_availability_owner_select, departures_cancellation_admin_lock, departures_cancellation_admin_select, departures_cancellation_customer_lock, departures_cancellation_customer_select, departures_checkout_owner_lock, departures_checkout_owner_select, departures_guide_assignment_owner_select, departures_payment_owner_lock, departures_payment_owner_select, departures_simulated_payment_owner_all, tour_guard_departures_select, tour_owner_all |  | migration-owner-only |
+| public.departures | postgres | none |  | departure lifecycle/checkout RPC only | true | true | departures_admin_guide_runtime_projection_select, departures_availability_owner_select, departures_cancellation_admin_lock, departures_cancellation_admin_select, departures_cancellation_customer_lock, departures_cancellation_customer_select, departures_checkout_owner_lock, departures_checkout_owner_select, departures_guide_assignment_owner_select, departures_payment_owner_lock, departures_payment_owner_select, departures_runtime_guide_assignment_lock, departures_simulated_payment_owner_all, tour_guard_departures_select, tour_owner_all |  | migration-owner-only |
 | public.food_item_supports | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_item_supports_admin_review_select, food_item_supports_guard_select |  | migration-owner-only |
 | public.food_item_translations | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_item_translations_admin_review_select, food_item_translations_guard_select |  | migration-owner-only |
 | public.food_items | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_items_admin_review_select, food_items_admin_review_update, food_items_guard_select |  | migration-owner-only |
@@ -119,8 +121,8 @@ Migration owner for default privileges: postgres
 | public.food_vendor_translations | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendor_translations_admin_review_select, food_vendor_translations_guard_select |  | migration-owner-only |
 | public.food_vendors | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendors_admin_review_select, food_vendors_admin_review_update, food_vendors_guard_select |  | migration-owner-only |
 | public.fx_snapshots | postgres | none |  | FX snapshot RPC only | true | true | fx_snapshots_catalog_owner_all, fx_snapshots_checkout_owner_select, fx_snapshots_plan_rpc_select, fx_snapshots_request_admin_rpc_lock, fx_snapshots_request_admin_rpc_select |  | migration-owner-only |
-| public.guide_assignments | postgres | none |  | guide assignment RPC only | true | true | guide_assignments_projection_owner_select, guide_assignments_rpc_owner_all |  | migration-owner-only |
-| public.guide_profiles | postgres | none | authenticated (login=false, bypassrls=false, browser-jwt) | none | true | true | guide_profiles_admin_summary_select, guide_profiles_guide_assignment_owner_select, guide_profiles_guide_select | SELECT -> authenticated | migration-owner-only |
+| public.guide_assignments | postgres | none |  | guide assignment RPC only | true | true | guide_assignments_admin_runtime_projection_select, guide_assignments_projection_owner_select, guide_assignments_rpc_owner_all |  | migration-owner-only |
+| public.guide_profiles | postgres | none |  | none | true | true | guide_profiles_admin_guide_runtime_projection_select, guide_profiles_admin_summary_select, guide_profiles_guide_assignment_owner_select, guide_profiles_guide_select |  | migration-owner-only |
 | public.payments | postgres | none |  | payment/admin RPC only | true | true | payments_admin_reconciliation_update, payments_admin_select, payments_cancellation_admin_select, payments_cancellation_customer_select, payments_checkout_owner_select, payments_payment_owner_all, payments_projection_owner_select, payments_simulated_payment_owner_select |  | migration-owner-only |
 | public.place_experience_types | postgres | none |  | none | true | true | catalog_owner_all, place_experience_types_public_select |  | migration-owner-only |
 | public.place_guide_languages | postgres | none |  | none | true | true | catalog_owner_all, place_guide_languages_public_select |  | migration-owner-only |
@@ -171,19 +173,19 @@ Migration owner for default privileges: postgres
 
 | RPC | Owner | API reader/execute roles | Writer operation | Credential |
 | --- | --- | --- | --- | --- |
-| public.accept_guide_assignment | localens_guide_assignment_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | guide accepts own assignment | browser-jwt |
 | public.admin_user_summary | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin read only | browser-jwt |
 | public.advance_trip_plan_revision | localens_plan_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner revision append | browser-jwt |
-| public.assign_guide | localens_guide_assignment_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin assigns guide | browser-jwt |
+| public.assign_fixed_departure_guide | localens_guide_assignment_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | administrator idempotently assigns a pure guide to a confirmed scheduled fixed departure | browser-jwt |
 | public.begin_fixed_tour_booking | localens_checkout_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner starts a fixed-tour capacity hold | browser-jwt |
 | public.claim_guest_plan | localens_claim_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner claims guest plan | browser-jwt |
-| public.complete_guide_assignment | localens_guide_assignment_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | guide completes own assignment | browser-jwt |
 | public.complete_simulated_fixed_tour_payment | localens_simulated_payment_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner completes fixed-tour thesis payment simulation | browser-jwt |
 | public.create_custom_quote | localens_request_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin creates server-priced quote | browser-jwt |
 | public.decide_fixed_tour_cancellation | localens_cancellation_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | administrator decides fixed-tour cancellation | browser-jwt |
 | public.fail_seo_publish | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | build marks failed | edge-internal-content-build |
 | public.finalize_seo_publish | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | build CAS finalizes release | edge-internal-content-build |
+| public.get_admin_eligible_guides | localens_guide_admin_projection_owner | authenticated (login=false, bypassrls=false, browser-jwt) | administrator reads pure-guide profile candidates | browser-jwt |
 | public.get_admin_food_catalog_review_queue | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin reads bounded food review queue | browser-jwt |
+| public.get_admin_guide_assignment_queue | localens_guide_admin_projection_owner | authenticated (login=false, bypassrls=false, browser-jwt) | administrator reads confirmed scheduled fixed bookings and active assignments | browser-jwt |
 | public.get_guide_assigned_bookings | localens_guide_projection_owner | authenticated (login=false, bypassrls=false, browser-jwt) | guide reads sanitized queue | browser-jwt |
 | public.get_live_departure_availability | localens_availability_rpc_owner | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | hold-aware published availability read | browser-anonymous-or-jwt |
 | public.get_portal_identity | localens_identity_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | authenticated owner identity read | browser-jwt |
@@ -198,7 +200,7 @@ Migration owner for default privileges: postgres
 
 ## Internal functions
 
-Enumerated internal functions: 98. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
+Enumerated internal functions: 101. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
 
 - `private.accept_guide_assignment(uuid)`
 - `private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)`
@@ -298,10 +300,13 @@ Enumerated internal functions: 98. All are non-API and must use a named NOLOGIN/
 - `private.valid_tour_copy_array(text[])`
 - `private.validate_food_plan_revision_dto(jsonb)`
 - `private.validate_trip_plan_revision_dto(jsonb)`
+- `public.accept_guide_assignment(uuid)`
+- `public.assign_guide(uuid,uuid)`
+- `public.complete_guide_assignment(uuid)`
 
 ## Explicit grants
 
-Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (647 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (656 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Dynamic policy semantics
 

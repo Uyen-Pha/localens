@@ -16,6 +16,7 @@ const RUNTIME_AUTH_SEED_ERROR = Symbol("RUNTIME_AUTH_SEED_ERROR");
 export const RUNTIME_AUTH_IDENTITIES = Object.freeze([
   { email: "customer.runtime@localens.test", role: "customer", displayName: "Runtime Traveler", language: "en" },
   { email: "guide.runtime@localens.test", role: "guide", displayName: "Runtime Guide", language: "vi" },
+  { email: "guide-secondary.runtime@localens.test", role: "guide", displayName: "Runtime Guide Two", language: "en" },
   { email: "admin.runtime@localens.test", role: "admin", displayName: "Runtime Administrator", language: "en" },
 ]);
 
@@ -55,7 +56,7 @@ function requirePasswords(passwords) {
     if (typeof passwords?.[role] !== "string" || passwords[role].length === 0) {
       throw runtimeAuthSeedError(
         "RUNTIME_AUTH_SEED_PASSWORDS_REQUIRED",
-        "all three runtime Auth password environment variables are required",
+        "all runtime Auth password environment variables are required",
       );
     }
   }

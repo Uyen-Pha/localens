@@ -7,6 +7,7 @@ describe("demo Playwright server isolation", () => {
     expect(config.testIgnore).toEqual([
       "runtime-auth.spec.ts",
       "runtime-fixed-tour.spec.ts",
+      "runtime-guide-assignment.spec.ts",
     ]);
     expect(config.use?.baseURL).toBe("http://127.0.0.1:3300");
     expect(config.webServer).toMatchObject({

@@ -135,8 +135,8 @@ RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000000004', 'role', 'authenticated')::text, true);
-SELECT is((SELECT count(*)::integer FROM public.guide_profiles WHERE user_id = '00000000-0000-0000-0000-000000000004'::uuid), 1, 'guide reads own guide profile');
-SELECT is((SELECT count(*)::integer FROM public.guide_profiles WHERE user_id = '00000000-0000-0000-0000-000000000002'::uuid), 0, 'guide cannot read another guide profile');
+SELECT throws_ok($$SELECT * FROM public.guide_profiles WHERE user_id = '00000000-0000-0000-0000-000000000004'::uuid$$::text, '42501'::character(5), NULL::text, 'guide reads profile data only through named projections'::text);
+SELECT throws_ok($$SELECT * FROM public.guide_profiles WHERE user_id = '00000000-0000-0000-0000-000000000002'::uuid$$::text, '42501'::character(5), NULL::text, 'guide cannot directly read another guide profile'::text);
 RESET ROLE;
 
 -- Role provisioning derives the actor from the JWT subject, requires admin, rejects

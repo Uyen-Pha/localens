@@ -328,7 +328,7 @@ describe("runtime Auth seed", () => {
     },
   );
 
-  it("reuses three Auth users and normalizes only identity tables on every run", async () => {
+  it("reuses four Auth users, including two guides, and normalizes only identity tables on every run", async () => {
     const authAdmin = createAuthAdmin();
     const database = createDatabaseQuery();
     const logs: string[] = [];
@@ -347,10 +347,10 @@ describe("runtime Auth seed", () => {
     const second = await seedRuntimeAuth(options);
 
     expect(first).toEqual(second);
-    expect(first).toHaveLength(3);
-    expect(authAdmin.createUser).toHaveBeenCalledTimes(3);
-    expect(authAdmin.updateUserById).toHaveBeenCalledTimes(3);
-    expect(new Set(first.map(({ userId }) => userId))).toHaveLength(3);
+    expect(first).toHaveLength(4);
+    expect(authAdmin.createUser).toHaveBeenCalledTimes(4);
+    expect(authAdmin.updateUserById).toHaveBeenCalledTimes(4);
+    expect(new Set(first.map(({ userId }) => userId))).toHaveLength(4);
 
     for (const identity of RUNTIME_AUTH_IDENTITIES) {
       const userId = authAdmin.users.get(identity.email)?.id as string;
@@ -366,6 +366,11 @@ describe("runtime Auth seed", () => {
       displayName: "Runtime Guide",
       language: "vi",
     });
+    const secondaryGuideId = authAdmin.users.get("guide-secondary.runtime@localens.test")?.id as string;
+    expect(database.guideProfiles.get(secondaryGuideId)).toEqual({
+      displayName: "Runtime Guide Two",
+      language: "en",
+    });
     expect(database.guideProfiles.has(customerId)).toBe(false);
     expect(database.guideProfiles.has(adminId)).toBe(false);
 
@@ -380,8 +385,8 @@ describe("runtime Auth seed", () => {
       expect(output).toContain(identity.email);
       expect(output).toContain(identity.role);
     }
-    expect(logs.slice(0, 3).every((message) => message.includes("status=created"))).toBe(true);
-    expect(logs.slice(3).every((message) => message.includes("status=reused"))).toBe(true);
+    expect(logs.slice(0, 4).every((message) => message.includes("status=created"))).toBe(true);
+    expect(logs.slice(4).every((message) => message.includes("status=reused"))).toBe(true);
     for (const secret of [SERVICE_ROLE_KEY, LOCAL_DATABASE_URL, ...Object.values(PASSWORDS)]) {
       expect(output).not.toContain(secret);
     }

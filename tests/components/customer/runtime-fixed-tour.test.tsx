@@ -108,7 +108,18 @@ function shell(port: FixedTourRuntimePort, current: PortalIdentity | null): Supa
     }),
     signOut: vi.fn(async () => undefined),
   };
-  return { mode: "supabase", initialized: Promise.resolve(), session, fixedTour: port };
+  return {
+    mode: "supabase",
+    initialized: Promise.resolve(),
+    session,
+    fixedTour: port,
+    guideAssignments: {
+      listAdminQueue: async () => [],
+      listEligibleGuides: async () => [],
+      assignGuide: async () => { throw new Error("not used"); },
+      listOwnAssignments: async () => [],
+    },
+  };
 }
 
 beforeEach(() => window.sessionStorage.clear());

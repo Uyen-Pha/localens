@@ -22,6 +22,7 @@
     "test:e2e": "node scripts/run-demo-e2e.mjs",
     "test:e2e:runtime-auth": "node scripts/run-runtime-auth-e2e.mjs",
     "test:e2e:runtime-fixed-tour": "node scripts/run-runtime-fixed-tour-e2e.mjs",
+    "test:e2e:runtime-guide-assignment": "node scripts/run-runtime-guide-assignment-e2e.mjs",
     "db:static": "node scripts/check-supabase-artifacts.mjs",
     "db:static:seed": "node scripts/generate-supabase-seed.mjs --check-readiness",
     "db:start": "node scripts/supabase-local.mjs start",

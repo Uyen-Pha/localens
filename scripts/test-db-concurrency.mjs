@@ -15,6 +15,7 @@ export const REQUIRED_CONCURRENCY_SCENARIOS = [
   "Stripe webhook event race",
   "simulated payment single terminalization",
   "cancellation approval versus simulated payment",
+  "guide assignment duplicate, same-booking, and schedule serialization",
 ];
 
 export const CONCURRENCY_SCENARIO_IDS = [
@@ -26,6 +27,7 @@ export const CONCURRENCY_SCENARIO_IDS = [
   "stripe_webhook_event_race",
   "simulated_payment_terminalization",
   "cancellation_approval_payment_race",
+  "guide_assignment_serialization",
 ];
 
 const LOCAL_SUPABASE_DB_PORT = "54322";
@@ -242,6 +244,46 @@ async function ensureAdmin(session, userId, label) {
     "INSERT INTO private.user_roles (user_id, role) VALUES ($1::uuid, 'admin'::public.app_role) ON CONFLICT (user_id, role) DO NOTHING",
     [userId],
   );
+}
+
+async function ensureExactRole(session, userId, role, label) {
+  await ensureCustomer(session, userId, label);
+  await session.query("DELETE FROM private.user_roles WHERE user_id = $1::uuid", [userId]);
+  await session.query(
+    "INSERT INTO private.user_roles (user_id, role) VALUES ($1::uuid, $2::public.app_role)",
+    [userId, role],
+  );
+  if (role === "guide") {
+    await session.query(
+      `INSERT INTO public.guide_profiles (user_id, display_name, language)
+       VALUES ($1::uuid, $2, 'en'::public.locale)
+       ON CONFLICT (user_id) DO UPDATE SET display_name = EXCLUDED.display_name`,
+      [userId, `Concurrency guide ${userId.slice(0, 8)}`],
+    );
+  }
+}
+
+async function createConfirmedFixedTourBooking(session, { customerId, departureId, label }) {
+  await session.query("BEGIN");
+  try {
+    await setRoleAndSubject(session, "authenticated", customerId);
+    const checkout = await beginFixedTourBookingForConcurrency(session, {
+      departureId,
+      idempotencyKey: `guide-booking-${label}-${randomUUID()}`,
+    });
+    const bookingId = checkout.rows[0]?.booking_id;
+    invariant(bookingId, `guide assignment ${label} booking was not created`);
+    const payment = await session.query(
+      "SELECT * FROM public.complete_simulated_fixed_tour_payment($1::uuid, $2)",
+      [bookingId, `guide-payment-${label}-${randomUUID()}`],
+    );
+    invariant(payment.rows[0]?.state === "completed", `guide assignment ${label} booking was not confirmed`);
+    await session.query("COMMIT");
+    return bookingId;
+  } catch (error) {
+    await rollbackQuietly(session);
+    throw error;
+  }
 }
 
 async function departureCapacityNoOversell({ sessions, context }) {
@@ -589,6 +631,205 @@ async function cancellationApprovalPaymentRace({ sessions }) {
   );
 }
 
+async function guideAssignmentSerialization({ sessions }) {
+  const [winner, contender] = sessions;
+  const adminId = randomUUID();
+  const guideId = randomUUID();
+  const customerId = randomUUID();
+  await ensureExactRole(winner, adminId, "admin", "guide-assignment-admin");
+  await ensureExactRole(winner, guideId, "guide", "guide-assignment-guide");
+  await ensureExactRole(winner, customerId, "customer", "guide-assignment-customer");
+
+  const [winnerFixture, contenderFixture] = [
+    await createPublishedDepartureFixture(winner),
+    await createPublishedDepartureFixture(winner),
+  ];
+  const winnerBookingId = await createConfirmedFixedTourBooking(winner, {
+    customerId,
+    departureId: winnerFixture.departure,
+    label: "winner",
+  });
+  const contenderBookingId = await createConfirmedFixedTourBooking(winner, {
+    customerId,
+    departureId: contenderFixture.departure,
+    label: "contender",
+  });
+  const contenderPid = await backendPid(contender);
+  const winnerKey = `guide-assignment-winner-${randomUUID()}`;
+  const contenderKey = `guide-assignment-contender-${randomUUID()}`;
+
+  await Promise.all([winner.query("BEGIN"), contender.query("BEGIN")]);
+  try {
+    await winner.query(
+      "SELECT pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('localens:guide-schedule:' || $1::uuid::text, 0))",
+      [guideId],
+    );
+    await setRoleAndSubject(contender, "authenticated", adminId);
+    const contenderWork = contender.query(
+      "SELECT * FROM public.assign_fixed_departure_guide($1::uuid, $2::uuid, $3)",
+      [contenderBookingId, guideId, contenderKey],
+    ).then((value) => ({ value }), (error) => ({ error }));
+    await waitForLock(winner, contenderPid);
+
+    await setRoleAndSubject(winner, "authenticated", adminId);
+    const winnerResult = await winner.query(
+      "SELECT * FROM public.assign_fixed_departure_guide($1::uuid, $2::uuid, $3)",
+      [winnerBookingId, guideId, winnerKey],
+    );
+    await winner.query("COMMIT");
+
+    const contenderOutcome = await contenderWork;
+    const overlapRejected = contenderOutcome.error?.code === "P0001"
+      && /guide_assignment_schedule_conflict/.test(contenderOutcome.error.message);
+    await rollbackQuietly(contender);
+    invariant(
+      winnerResult.rows[0]?.outcome === "assigned" && overlapRejected,
+      "overlapping departures must serialize per guide and accept exactly one assignment",
+    );
+  } catch (error) {
+    await Promise.all([rollbackQuietly(winner), rollbackQuietly(contender)]);
+    throw error;
+  }
+
+  let state = await winner.query(
+    `SELECT
+      count(*) FILTER (WHERE assignments.status IN ('assigned', 'accepted'))::integer AS active_count,
+      count(*) FILTER (WHERE assignments.booking_id = $1::uuid)::integer AS winner_count,
+      count(*) FILTER (WHERE assignments.booking_id = $2::uuid)::integer AS contender_count,
+      (SELECT count(*)::integer FROM private.guide_assignment_idempotency
+       WHERE actor_user_id = $3::uuid AND idempotency_key IN ($4, $5)) AS ledger_count
+     FROM public.guide_assignments AS assignments
+     WHERE assignments.guide_user_id = $6::uuid`,
+    [winnerBookingId, contenderBookingId, adminId, winnerKey, contenderKey, guideId],
+  );
+  invariant(
+    state.rows[0]?.active_count === 1
+      && state.rows[0]?.winner_count === 1
+      && state.rows[0]?.contender_count === 0
+      && state.rows[0]?.ledger_count === 1,
+    "guide assignment race persisted an overlapping assignment or losing idempotency row",
+  );
+
+  // Same actor/key/payload: the contender blocks on the durable idempotency
+  // lock, then observes exactly the winner snapshot as a replay.
+  const duplicateGuideId = randomUUID();
+  await ensureExactRole(winner, duplicateGuideId, "guide", "guide-assignment-duplicate-guide");
+  const duplicateFixture = await createPublishedDepartureFixture(winner);
+  const duplicateBookingId = await createConfirmedFixedTourBooking(winner, {
+    customerId,
+    departureId: duplicateFixture.departure,
+    label: "duplicate",
+  });
+  const duplicateKey = `guide-assignment-duplicate-${randomUUID()}`;
+  const duplicateContenderPid = await backendPid(contender);
+  await Promise.all([winner.query("BEGIN"), contender.query("BEGIN")]);
+  try {
+    await winner.query(
+      "SELECT pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('localens:guide-assignment-idempotency:' || $1::uuid::text || ':' || $2, 0))",
+      [adminId, duplicateKey],
+    );
+    await setRoleAndSubject(contender, "authenticated", adminId);
+    const duplicateWork = contender.query(
+      "SELECT * FROM public.assign_fixed_departure_guide($1::uuid, $2::uuid, $3)",
+      [duplicateBookingId, duplicateGuideId, duplicateKey],
+    );
+    await waitForLock(winner, duplicateContenderPid);
+    await setRoleAndSubject(winner, "authenticated", adminId);
+    const duplicateWinner = await winner.query(
+      "SELECT * FROM public.assign_fixed_departure_guide($1::uuid, $2::uuid, $3)",
+      [duplicateBookingId, duplicateGuideId, duplicateKey],
+    );
+    await winner.query("COMMIT");
+    const duplicateReplay = await duplicateWork;
+    await contender.query("COMMIT");
+    invariant(
+      duplicateWinner.rows[0]?.outcome === "assigned"
+        && duplicateReplay.rows[0]?.outcome === "replayed"
+        && duplicateReplay.rows[0]?.assignment_id === duplicateWinner.rows[0]?.assignment_id,
+      "duplicate guide assignment did not return one assigned result and one stable replay",
+    );
+  } catch (error) {
+    await Promise.all([rollbackQuietly(winner), rollbackQuietly(contender)]);
+    throw error;
+  }
+  state = await winner.query(
+    `SELECT
+      (SELECT count(*)::integer FROM public.guide_assignments WHERE booking_id = $1::uuid) AS history_count,
+      (SELECT count(*)::integer FROM public.guide_assignments WHERE booking_id = $1::uuid AND status IN ('assigned', 'accepted')) AS active_count,
+      (SELECT count(*)::integer FROM private.guide_assignment_idempotency WHERE actor_user_id = $2::uuid AND idempotency_key = $3) AS ledger_count`,
+    [duplicateBookingId, adminId, duplicateKey],
+  );
+  invariant(
+    state.rows[0]?.history_count === 1
+      && state.rows[0]?.active_count === 1
+      && state.rows[0]?.ledger_count === 1,
+    "duplicate guide assignment persisted duplicate history or ledger rows",
+  );
+
+  // Different keys/guides for one booking: the contender blocks on the booking
+  // row and deterministically reassigns after the winner commits.
+  const competingGuideA = randomUUID();
+  const competingGuideB = randomUUID();
+  await ensureExactRole(winner, competingGuideA, "guide", "guide-assignment-competing-guide-a");
+  await ensureExactRole(winner, competingGuideB, "guide", "guide-assignment-competing-guide-b");
+  const competingFixture = await createPublishedDepartureFixture(winner);
+  const competingBookingId = await createConfirmedFixedTourBooking(winner, {
+    customerId,
+    departureId: competingFixture.departure,
+    label: "same-booking",
+  });
+  const competingKeyA = `guide-assignment-same-booking-a-${randomUUID()}`;
+  const competingKeyB = `guide-assignment-same-booking-b-${randomUUID()}`;
+  const competingContenderPid = await backendPid(contender);
+  await Promise.all([winner.query("BEGIN"), contender.query("BEGIN")]);
+  try {
+    await winner.query("SELECT id FROM public.bookings WHERE id = $1::uuid FOR UPDATE", [competingBookingId]);
+    await setRoleAndSubject(contender, "authenticated", adminId);
+    const competingWork = contender.query(
+      "SELECT * FROM public.assign_fixed_departure_guide($1::uuid, $2::uuid, $3)",
+      [competingBookingId, competingGuideB, competingKeyB],
+    );
+    await waitForLock(winner, competingContenderPid);
+    await setRoleAndSubject(winner, "authenticated", adminId);
+    const competingWinner = await winner.query(
+      "SELECT * FROM public.assign_fixed_departure_guide($1::uuid, $2::uuid, $3)",
+      [competingBookingId, competingGuideA, competingKeyA],
+    );
+    await winner.query("COMMIT");
+    const competingReassignment = await competingWork;
+    await contender.query("COMMIT");
+    invariant(
+      competingWinner.rows[0]?.outcome === "assigned"
+        && competingReassignment.rows[0]?.outcome === "reassigned"
+        && competingReassignment.rows[0]?.guide_user_id === competingGuideB,
+      "same-booking competitors did not produce deterministic assignment history",
+    );
+  } catch (error) {
+    await Promise.all([rollbackQuietly(winner), rollbackQuietly(contender)]);
+    throw error;
+  }
+  state = await winner.query(
+    `SELECT
+      count(*)::integer AS history_count,
+      count(*) FILTER (WHERE status = 'closed')::integer AS closed_count,
+      count(*) FILTER (WHERE status IN ('assigned', 'accepted'))::integer AS active_count,
+      count(*) FILTER (WHERE status IN ('assigned', 'accepted') AND guide_user_id = $2::uuid)::integer AS active_winner_count,
+      (SELECT count(*)::integer FROM private.guide_assignment_idempotency
+       WHERE actor_user_id = $3::uuid AND idempotency_key IN ($4, $5)) AS ledger_count
+     FROM public.guide_assignments
+     WHERE booking_id = $1::uuid`,
+    [competingBookingId, competingGuideB, adminId, competingKeyA, competingKeyB],
+  );
+  invariant(
+    state.rows[0]?.history_count === 2
+      && state.rows[0]?.closed_count === 1
+      && state.rows[0]?.active_count === 1
+      && state.rows[0]?.active_winner_count === 1
+      && state.rows[0]?.ledger_count === 2,
+    "same-booking race did not leave deterministic closed and active history",
+  );
+}
+
 const DEFAULT_SCENARIOS = {
   cas_revision_winner: casRevisionWinner,
   guest_claim_winner: guestClaimWinner,
@@ -598,6 +839,7 @@ const DEFAULT_SCENARIOS = {
   stripe_webhook_event_race: stripeWebhookEventRace,
   simulated_payment_terminalization: simulatedPaymentTerminalization,
   cancellation_approval_payment_race: cancellationApprovalPaymentRace,
+  guide_assignment_serialization: guideAssignmentSerialization,
 };
 
 export async function runConcurrencyGate({ databaseUrl, sessionFactory = () => new Client({ connectionString: databaseUrl, application_name: "localens-concurrency" }), scenarios = DEFAULT_SCENARIOS, logger = () => {} } = {}) {

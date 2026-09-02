@@ -132,7 +132,7 @@ describe("Task 13 RLS/RPC access matrix", () => {
       rpcs: Array<{ name: string; signature: string; owner: string; readerRoles: string[] }>;
       internalFunctions: string[];
     };
-    expect(matrix.tables).toHaveLength(81);
+    expect(matrix.tables).toHaveLength(82);
     expect(matrix.views).toHaveLength(18);
     expect(matrix.rpcs).toHaveLength(24);
     expect(matrix.rpcs).toContainEqual(expect.objectContaining({
@@ -157,6 +157,24 @@ describe("Task 13 RLS/RPC access matrix", () => {
       name: "public.decide_fixed_tour_cancellation",
       signature: "public.decide_fixed_tour_cancellation(uuid,text,text,text)",
       owner: "localens_cancellation_admin_rpc_owner",
+      readerRoles: ["authenticated"],
+    }));
+    expect(matrix.rpcs).toContainEqual(expect.objectContaining({
+      name: "public.assign_fixed_departure_guide",
+      signature: "public.assign_fixed_departure_guide(uuid,uuid,text)",
+      owner: "localens_guide_assignment_rpc_owner",
+      readerRoles: ["authenticated"],
+    }));
+    expect(matrix.rpcs).toContainEqual(expect.objectContaining({
+      name: "public.get_admin_guide_assignment_queue",
+      signature: "public.get_admin_guide_assignment_queue()",
+      owner: "localens_guide_admin_projection_owner",
+      readerRoles: ["authenticated"],
+    }));
+    expect(matrix.rpcs).toContainEqual(expect.objectContaining({
+      name: "public.get_admin_eligible_guides",
+      signature: "public.get_admin_eligible_guides()",
+      owner: "localens_guide_admin_projection_owner",
       readerRoles: ["authenticated"],
     }));
     expect(matrix.rpcs).toContainEqual(expect.objectContaining({

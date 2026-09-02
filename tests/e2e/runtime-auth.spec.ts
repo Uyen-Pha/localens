@@ -1,5 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
+import { portalCopy } from "@/components/portals/portal-copy";
+
 const accounts = {
   customer: {
     email: "customer.runtime@localens.test",
@@ -46,9 +48,7 @@ async function expectPersistedRole(
   options: { locale: "en" | "vi"; route: "account" | "guide" | "admin"; displayName: string },
 ): Promise<void> {
   const heading = options.locale === "vi" ? "Cổng bảo mật của bạn" : "Your secure portal";
-  const disclosure = options.locale === "vi"
-    ? "Runtime bảo mật đã kết nối. Dữ liệu nghiệp vụ của cổng sẽ được bật ở lát cắt đã kiểm chứng tiếp theo."
-    : "Secure runtime connected. Operational portal data is enabled in the next verified slice.";
+  const disclosure = portalCopy(options.locale).runtimeDisclosure;
   await page.reload();
   await expect(page.getByRole("heading", { name: heading })).toBeVisible();
   await expect(page.getByText(options.displayName, { exact: true })).toBeVisible();
@@ -79,9 +79,7 @@ async function expectDeniedRoutes(
   const linkName = options.locale === "vi" ? "Mở cổng của bạn" : "Open your portal";
   const runtimeHeading = options.locale === "vi" ? "Cổng bảo mật của bạn" : "Your secure portal";
   const roleTerm = options.locale === "vi" ? "Vai trò" : "Role";
-  const disclosure = options.locale === "vi"
-    ? "Runtime bảo mật đã kết nối. Dữ liệu nghiệp vụ của cổng sẽ được bật ở lát cắt đã kiểm chứng tiếp theo."
-    : "Secure runtime connected. Operational portal data is enabled in the next verified slice.";
+  const disclosure = portalCopy(options.locale).runtimeDisclosure;
   for (const route of options.routes) {
     await page.goto(`/${options.locale}/${route}/`);
     await expect(page.getByRole("heading", { name: heading })).toBeVisible();
