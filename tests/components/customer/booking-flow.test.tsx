@@ -94,6 +94,10 @@ describe("BookingFlow", () => {
     expect(flow?.querySelector(".booking-flow__review")).not.toBeNull();
     expect(flow?.querySelector(".booking-flow__summary")).not.toBeNull();
     expect(flow?.querySelector(".booking-flow__actions")).toHaveClass("booking-flow__actions--primary");
+
+    const totalLabel = screen.getByText(copy.totalLabel);
+    expect(totalLabel.tagName).toBe("DT");
+    expect(totalLabel.parentElement?.querySelector("dd")).toHaveTextContent(/^VND\s960,000$/);
   });
 
   it("rejects an unknown departure from the URL without showing a price or payment action", async () => {

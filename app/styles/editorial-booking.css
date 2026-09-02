@@ -1,4 +1,4 @@
-/* editorial-css-sha256: ce64b968110fabfc7c78f9809e442e8c044e47953d4ec65313a9e59432146670 */
+/* editorial-css-sha256: 36f607259c47b48c39404ba229d78b652a8e410f05d79e1c5c92a605745e3c9e */
 
 /* Booking keeps the shared paper-and-ink system while giving review and payment
    their own clear reading order. */
@@ -109,6 +109,10 @@
   padding-block: var(--space-3);
 }
 
+.booking-flow--editorial .booking-flow__price-summary div {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .booking-flow--editorial .booking-flow__facts div:first-child,
 .booking-flow--editorial .booking-flow__price-summary div:first-child {
   padding-top: 0;
@@ -129,6 +133,12 @@
   color: var(--customer-ink);
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+
+.booking-flow--editorial .booking-flow__price-summary dd {
+  overflow-wrap: normal;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .booking-flow--editorial .booking-flow__party-field {

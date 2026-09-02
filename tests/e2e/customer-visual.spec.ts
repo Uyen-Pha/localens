@@ -15,6 +15,15 @@ const viewports = [
   { name: "mobile", width: 390, height: 844 },
 ] as const;
 
+const bookingTotalViewports = [
+  { name: "desktop", width: 1440, height: 900 },
+  { name: "tablet", width: 768, height: 1024 },
+  { name: "mobile", width: 390, height: 844 },
+  { name: "narrow", width: 320, height: 568 },
+] as const;
+
+const bookingLocales = ["en", "vi"] as const;
+
 const routes = [
   { name: "home-en", path: "/en/", heading: "Your Saigon, planned around you" },
   { name: "home-vi", path: "/vi/", heading: "Sài Gòn của bạn, được thiết kế quanh bạn" },
@@ -187,7 +196,7 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
     const contrastViolations = collectedContrastViolations.filter((violation) => !violation.includes("-low-contrast-fixture"));
     contrastFixture.remove();
 
-    const clippedContent = Array.from(document.querySelectorAll<HTMLElement>("a, button, input, select, textarea, h1, h2, h3, p, li, img"))
+    const clippedContent = Array.from(document.querySelectorAll<HTMLElement>("a, button, input, select, textarea, h1, h2, h3, p, li, dt, dd, img"))
       .filter((element) => {
         const rect = element.getBoundingClientRect();
         const style = getComputedStyle(element);
@@ -285,6 +294,9 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
       const focusTreatment = style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0
         ? style.outlineColor.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:\s*[,/]\s*([\d.]+))?\s*\)/)
         : style.boxShadow !== "none" ? style.boxShadow.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:\s*[,/]\s*([\d.]+))?\s*\)/) : null;
+      const horizontalFocusExtent = style.outlineStyle !== "none"
+        ? Math.max(0, Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset))
+        : 0;
       const focusContrast = background && focusTreatment
         ? (() => {
             const alpha = Number(focusTreatment[4] ?? 1);
@@ -299,7 +311,8 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
           })()
         : 0;
       return {
-        valid: rect.width > 0 && rect.height > 0 && rect.left >= -1 && rect.right <= window.innerWidth + 1
+        valid: rect.width > 0 && rect.height > 0
+          && rect.left - horizontalFocusExtent >= -1 && rect.right + horizontalFocusExtent <= window.innerWidth + 1
           && rect.top >= -1 && rect.bottom <= window.innerHeight + 1
           && style.visibility !== "hidden" && focusContrast >= 3,
         label: label.trim(),
@@ -312,8 +325,10 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
           matchesFocusVisible: active.matches(":focus-visible"),
           outlineStyle: style.outlineStyle,
           outlineWidth: style.outlineWidth,
+          outlineOffset: style.outlineOffset,
           outlineColor: style.outlineColor,
           boxShadow: style.boxShadow,
+          horizontalFocusExtent,
         },
       };
     });
@@ -443,6 +458,63 @@ async function assertRouteCtas(page: Page, routeName: (typeof routes)[number]["n
   if (routeName === "booking-en") {
     await expect(page.getByRole("link", { name: "Back to fixed tours" })).toHaveAttribute("href", "/en/tours/");
   }
+}
+
+for (const viewport of bookingTotalViewports) {
+  test.describe(`${viewport.name} booking total`, () => {
+    test.use({ viewport });
+
+    for (const locale of bookingLocales) {
+      test(`keeps the ${locale.toUpperCase()} booking total readable`, async ({ page }) => {
+        const browserErrors = await preparePage(page);
+        const bookingTotalEvidenceRoot = path.join(evidenceRoot, "booking-total", "final");
+        await mkdir(bookingTotalEvidenceRoot, { recursive: true });
+        await prepareProtectedCustomerRoute(page, "booking-en");
+
+        const bookingPath = `/${locale}/booking/?departure=demo-departure-markets-and-street-food-2026-09-05&partySize=1`;
+        const response = await page.goto(bookingPath, { waitUntil: "domcontentloaded" });
+        expect(response?.status(), `${bookingPath} response`).toBe(200);
+        await waitForDeterministicPage(page);
+        await expect(page.locator("html")).toHaveAttribute("lang", locale);
+
+        const totalRow = page.locator(".booking-flow__price-summary div").filter({
+          has: page.locator("dt").filter({ hasText: /total|tổng/i }),
+        });
+        await expect(totalRow).toHaveCount(1);
+        const totalPrice = totalRow.locator("dd");
+        await expect(totalPrice).toHaveText(locale === "vi" ? /VND\s480\.000/ : /VND\s480,000/);
+
+        await clearFocus(page);
+        await page.screenshot({
+          path: path.join(bookingTotalEvidenceRoot, `${locale}-${viewport.width}x${viewport.height}.png`),
+          fullPage: true,
+        });
+
+        const metrics = await totalPrice.evaluate((element) => ({
+          scrollWidth: element.scrollWidth,
+          clientWidth: element.clientWidth,
+          whiteSpace: getComputedStyle(element).whiteSpace,
+          overflowWrap: getComputedStyle(element).overflowWrap,
+        }));
+        expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+        expect(metrics.whiteSpace).toBe("nowrap");
+        expect(metrics.overflowWrap).toBe("normal");
+
+        const pageMetrics = await page.evaluate(() => {
+          document.documentElement.style.scrollbarGutter = "stable";
+          return {
+            bodyMinWidth: getComputedStyle(document.body).minWidth,
+            clientWidth: document.documentElement.clientWidth,
+            scrollWidth: document.documentElement.scrollWidth,
+          };
+        });
+        expect(pageMetrics.bodyMinWidth).toBe("0px");
+        expect(pageMetrics.scrollWidth).toBeLessThanOrEqual(pageMetrics.clientWidth);
+        await assertAccessibilitySmoke(page);
+        expect(browserErrors).toEqual([]);
+      });
+    }
+  });
 }
 
 for (const viewport of viewports) {
