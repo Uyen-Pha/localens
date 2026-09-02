@@ -432,7 +432,11 @@ export async function startOwnedRuntimeServer(serverEnv, {
     String(port),
   ], {
     cwd,
-    env: { ...serverEnv, NEXT_PUBLIC_LOCALLENS_RUNTIME: mode },
+    env: {
+      ...serverEnv,
+      LOCALLENS_NEXT_DIST_DIR: `.next/e2e-${mode}-${port}`,
+      NEXT_PUBLIC_LOCALLENS_RUNTIME: mode,
+    },
     stdio: "inherit",
     windowsHide: true,
   });

@@ -160,7 +160,10 @@ describe("Task 6 runtime Auth runner", () => {
         "3300",
       ]),
       expect.objectContaining({
-        env: expect.objectContaining({ NEXT_PUBLIC_LOCALLENS_RUNTIME: "demo" }),
+        env: expect.objectContaining({
+          LOCALLENS_NEXT_DIST_DIR: ".next/e2e-demo-3300",
+          NEXT_PUBLIC_LOCALLENS_RUNTIME: "demo",
+        }),
       }),
     );
     await server.stop();

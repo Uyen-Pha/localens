@@ -244,7 +244,7 @@ The 2026-09-02 acceptance passed 4/4 browser cases and the embedded 15-file/1,46
 
 ## Demo browser gate
 
-`pnpm test:e2e` uses `scripts/run-demo-e2e.mjs` to own a clean fixture-only Next server on port 3300 directly, then supplies `PLAYWRIGHT_BASE_URL` to Playwright. This avoids Playwright's Windows shell-process teardown path. A successful run must print `server:stop`, exit zero, and leave no listener on port 3300.
+`pnpm test:e2e` uses `scripts/run-demo-e2e.mjs` to own a clean fixture-only Next server on port 3300 directly, then supplies `PLAYWRIGHT_BASE_URL` to Playwright. Demo and Supabase E2E servers use validated, mode-and-port-specific directories under `.next/`, so a demo run cannot poison the following runtime dev cache. This avoids Playwright's Windows shell-process teardown path. A successful run must print `server:stop`, exit zero, and leave no listener on port 3300.
 
 ## Two-session concurrency gate
 
