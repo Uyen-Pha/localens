@@ -37,7 +37,12 @@ describe("CI failure artifact redactor", () => {
       "SUPABASE_SERVICE_ROLE_KEY=sb_secret_unsafe-value",
       "ACCESS_TOKEN=unsafe-token",
     ].join("\n"));
-    writeFileSync(join(report, "index.html"), `<pre>${jwt} sb_publishable_unsafe-value</pre>`);
+    const embeddedZip = Buffer.from(`archive:${jwt}:sb_secret_inside-html-archive`).toString("base64");
+    writeFileSync(
+      join(report, "index.html"),
+      `<template id="playwrightReportBase64">data:application/zip;base64,${embeddedZip}</template>`,
+    );
+    writeFileSync(join(report, "summary.json"), JSON.stringify({ token: jwt, key: "sb_publishable_unsafe-value" }));
     writeFileSync(join(report, "trace.zip"), Buffer.from([0, 1, 2, ...Buffer.from("sb_secret_inside-archive")]));
     writeFileSync(join(results, "screenshot.png"), Buffer.from([0, 1, 2, 3]));
 
@@ -51,13 +56,14 @@ describe("CI failure artifact redactor", () => {
 
     expect(run.status, run.stderr).toBe(0);
     const safeLog = readFileSync(join(output, "ci-logs", "runtime.log"), "utf8");
-    const safeReport = readFileSync(join(output, "playwright-report", "index.html"), "utf8");
+    const safeReport = readFileSync(join(output, "playwright-report", "summary.json"), "utf8");
     expect(safeLog).not.toContain("unsafe");
     expect(safeLog).not.toContain(jwt);
     expect(safeLog).toContain("[REDACTED_DATABASE_URL]");
     expect(safeLog).toContain("[REDACTED]");
     expect(safeReport).not.toContain(jwt);
     expect(safeReport).not.toContain("sb_publishable_unsafe-value");
+    expect(existsSync(join(output, "playwright-report", "index.html"))).toBe(false);
     expect(existsSync(join(output, "playwright-report", "trace.zip"))).toBe(false);
     expect(existsSync(join(output, "test-results", "screenshot.png"))).toBe(false);
 
@@ -67,10 +73,11 @@ describe("CI failure artifact redactor", () => {
     };
     expect(manifest.copied).toEqual(expect.arrayContaining([
       "ci-logs/runtime.log",
-      "playwright-report/index.html",
+      "playwright-report/summary.json",
     ]));
     expect(manifest.skipped).toEqual(expect.arrayContaining([
       "playwright-report/trace.zip",
+      "playwright-report/index.html",
       "test-results/screenshot.png",
     ]));
   });

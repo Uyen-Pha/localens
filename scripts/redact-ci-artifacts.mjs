@@ -9,7 +9,6 @@ import {
 import path from "node:path";
 
 const SAFE_TEXT_EXTENSIONS = new Set([
-  ".html",
   ".json",
   ".log",
   ".md",
