@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import { PHASE_DEVELOPMENT_SERVER, PHASE_PRODUCTION_BUILD } from "next/constants";
 
 import { parseRuntimeMode } from "./lib/env/runtime";
 import { buildSecurityHeaders, type SecurityHeaderInput } from "./lib/security/headers";
@@ -18,7 +18,9 @@ function parseOwnedDistDir(value: string | undefined): string | undefined {
 export default function nextConfig(phase: string): NextConfig {
   const mode = parseRuntimeMode(process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME);
   const distDir = parseOwnedDistDir(process.env.LOCALLENS_NEXT_DIST_DIR);
-  const vercelEnvironment = parseVercelEnvironment(process.env.VERCEL_ENV);
+  const vercelEnvironment = phase === PHASE_DEVELOPMENT_SERVER
+    ? "development"
+    : parseVercelEnvironment(process.env.VERCEL_ENV);
 
   return {
     ...(mode === "demo" && phase === PHASE_PRODUCTION_BUILD ? { output: "export" } : {}),

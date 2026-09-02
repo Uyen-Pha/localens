@@ -28,7 +28,7 @@ async function configFor(input: {
   runtime: "demo" | "supabase";
   phase?: string;
   supabaseUrl?: string;
-  vercelEnvironment?: "development" | "preview" | "production";
+  vercelEnvironment?: string;
 }) {
   vi.resetModules();
   mutableEnv.NEXT_PUBLIC_LOCALLENS_RUNTIME = input.runtime;
@@ -130,6 +130,21 @@ describe("buildSecurityHeaders", () => {
 
     expect(headers.get("Strict-Transport-Security")).toMatch(/max-age=/);
   });
+
+  it("allows eval only for an explicitly development policy", () => {
+    const developmentCsp = headerMap(buildSecurityHeaders({
+      runtime: "supabase",
+      supabaseUrl: "https://project.supabase.co",
+      vercelEnvironment: "development",
+    })).get("Content-Security-Policy")!;
+    const unknownCsp = headerMap(buildSecurityHeaders({
+      runtime: "supabase",
+      supabaseUrl: "https://project.supabase.co",
+    })).get("Content-Security-Policy")!;
+
+    expect(cspDirective(developmentCsp, "script-src")).toContain("'unsafe-eval'");
+    expect(cspDirective(unknownCsp, "script-src")).not.toContain("'unsafe-eval'");
+  });
 });
 
 describe("Next runtime security header configuration", () => {
@@ -159,5 +174,35 @@ describe("Next runtime security header configuration", () => {
         vercelEnvironment: "production",
       }),
     }]);
+  });
+
+  it.each([
+    { name: "missing", vercelEnvironment: undefined },
+    { name: "unknown", vercelEnvironment: "self-hosted" },
+    { name: "preview", vercelEnvironment: "preview" },
+    { name: "production", vercelEnvironment: "production" },
+  ])("omits unsafe-eval from $name production builds", async ({ vercelEnvironment }) => {
+    const config = await configFor({
+      runtime: "supabase",
+      phase: PHASE_PRODUCTION_BUILD,
+      supabaseUrl: "https://project.supabase.co",
+      vercelEnvironment,
+    });
+    const [{ headers }] = await config.headers!();
+    const csp = headerMap(headers).get("Content-Security-Policy")!;
+
+    expect(cspDirective(csp, "script-src")).not.toContain("'unsafe-eval'");
+  });
+
+  it("includes unsafe-eval for the Next development phase without VERCEL_ENV", async () => {
+    const config = await configFor({
+      runtime: "supabase",
+      phase: PHASE_DEVELOPMENT_SERVER,
+      supabaseUrl: "http://127.0.0.1:54321",
+    });
+    const [{ headers }] = await config.headers!();
+    const csp = headerMap(headers).get("Content-Security-Policy")!;
+
+    expect(cspDirective(csp, "script-src")).toContain("'unsafe-eval'");
   });
 });

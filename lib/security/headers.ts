@@ -14,7 +14,7 @@ export function buildSecurityHeaders(
   }
 
   const scriptSources = ["'self'", "'unsafe-inline'"];
-  if (input.vercelEnvironment === undefined || input.vercelEnvironment === "development") {
+  if (input.vercelEnvironment === "development") {
     scriptSources.push("'unsafe-eval'");
   }
 
