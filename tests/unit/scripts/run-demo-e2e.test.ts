@@ -18,6 +18,7 @@ describe("owned demo E2E runner", () => {
         serverEnvironments.push(env);
         return { stop: vi.fn(async () => { events.push("server:stop"); }) };
       }),
+      warmServer: vi.fn(async () => { events.push("server:warm"); }),
       runPlaywright: vi.fn(async (env: Record<string, string | undefined>) => {
         events.push("playwright");
         playwrightEnvironments.push(env);
@@ -25,7 +26,7 @@ describe("owned demo E2E runner", () => {
       }),
     });
 
-    expect(events).toEqual(["server:start", "playwright", "server:stop"]);
+    expect(events).toEqual(["server:start", "server:warm", "playwright", "server:stop"]);
     expect(serverEnvironments[0]).toMatchObject({
       NEXT_PUBLIC_LOCALLENS_RUNTIME: "demo",
       NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES: "1",
@@ -43,11 +44,28 @@ describe("owned demo E2E runner", () => {
       env: {},
       logger: vi.fn(),
       startServer: vi.fn(async () => ({ stop })),
+      warmServer: vi.fn(async () => undefined),
       runPlaywright: vi.fn(async () => ({ status: 7 })),
     }).catch((caught: unknown) => caught);
 
     expect(error).toMatchObject({ code: "DEMO_E2E_PLAYWRIGHT_FAILED", status: 7 });
     expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops the owned server when deterministic route warmup fails", async () => {
+    const stop = vi.fn(async () => undefined);
+    const error = await runDemoE2E({
+      cwd: "C:/repo",
+      env: {},
+      logger: vi.fn(),
+      startServer: vi.fn(async () => ({ stop })),
+      warmServer: vi.fn(async () => { throw new Error("warmup-secret"); }),
+      runPlaywright: vi.fn(),
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ code: "DEMO_E2E_FAILED" });
+    expect(String(error)).not.toContain("warmup-secret");
+    expect(stop).toHaveBeenCalledOnce();
   });
 
   it("main redacts unknown failures", async () => {

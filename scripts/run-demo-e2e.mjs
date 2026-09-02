@@ -7,6 +7,18 @@ import { startOwnedRuntimeServer } from "./run-runtime-auth-e2e.mjs";
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEMO_BASE_URL = "http://127.0.0.1:3300";
 const DEMO_READY_URL = `${DEMO_BASE_URL}/en/`;
+const DEMO_WARMUP_PATHS = Object.freeze([
+  "/en/",
+  "/vi/",
+  "/en/tours/",
+  "/en/planner/",
+  "/en/sign-in/",
+  "/en/account/",
+  "/en/custom-request/",
+  "/en/admin/",
+  "/en/guide/",
+  "/en/booking/?departure=demo-departure-markets-and-street-food-2026-09-05&partySize=1",
+]);
 const DEMO_E2E_ERROR = Symbol("DEMO_E2E_ERROR");
 const ENV_ALLOWLIST = Object.freeze([
   "PATH", "Path", "PATHEXT", "SystemRoot", "SYSTEMROOT", "WINDIR", "ComSpec", "COMSPEC",
@@ -54,6 +66,13 @@ function runPlaywrightChild(cwd, env) {
   });
 }
 
+async function warmDemoServer(fetchImpl = fetch) {
+  for (const route of DEMO_WARMUP_PATHS) {
+    const response = await fetchImpl(`${DEMO_BASE_URL}${route}`, { redirect: "manual" });
+    if (!response.ok) throw new Error("owned demo route warmup failed");
+  }
+}
+
 export async function runDemoE2E(options = {}) {
   const cwd = options.cwd ?? PROJECT_ROOT;
   const env = options.env ?? process.env;
@@ -64,6 +83,7 @@ export async function runDemoE2E(options = {}) {
     port: 3300,
     serverUrl: DEMO_READY_URL,
   }));
+  const warmServer = options.warmServer ?? (() => warmDemoServer());
   const runPlaywright = options.runPlaywright ?? ((playwrightEnv) => runPlaywrightChild(cwd, playwrightEnv));
   const controlEnv = baseEnvironment(env);
   const serverEnv = {
@@ -83,6 +103,8 @@ export async function runDemoE2E(options = {}) {
   try {
     logger("[demo-e2e] server:start");
     server = await startServer(serverEnv);
+    logger("[demo-e2e] server:warm");
+    await warmServer();
     logger("[demo-e2e] playwright");
     const result = await runPlaywright(playwrightEnv);
     if (result?.status !== 0) {
