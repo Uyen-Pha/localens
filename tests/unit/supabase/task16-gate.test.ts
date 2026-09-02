@@ -20,15 +20,16 @@ import { resolve as resolvePath } from "node:path";
 describe("Task16 database gate", () => {
   it("runs the local gate in order and always stops after success", async () => {
     const calls: string[] = [];
-    const commands: Array<{ command: string; args: string[] }> = [];
+    const commands: Array<{ command: string; args: string[]; databaseUrl?: string }> = [];
     const result = await runDbGate({
       cwd: "C:/repo",
       platform: "win32",
       comSpec: "C:/Windows/System32/cmd.exe",
       cliPath: "C:/repo/node_modules/.bin/supabase.cmd",
-      runner: async (spec: { name: string; command: string; args: string[] }) => {
+      env: { LOCALENS_DB_URL: "postgresql://remote.invalid:5432/postgres" },
+      runner: async (spec: { name: string; command: string; args: string[]; env: Record<string, string> }) => {
         calls.push(spec.name);
-        commands.push({ command: spec.command, args: spec.args });
+        commands.push({ command: spec.command, args: spec.args, databaseUrl: spec.env.LOCALENS_DB_URL });
         return { status: 0, stdout: "", stderr: "" };
       },
     });
@@ -38,6 +39,9 @@ describe("Task16 database gate", () => {
     expect(commands).toEqual(calls.map((name) => ({
       command: "C:/Windows/System32/cmd.exe",
       args: ["/d", "/s", "/c", `pnpm.cmd run ${name}`],
+      databaseUrl: name === "db:concurrency"
+        ? "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+        : undefined,
     })));
   });
 
@@ -407,6 +411,7 @@ describe("Task 1 runtime mode package gate", () => {
       "dev:supabase": "node scripts/run-next-mode.mjs dev supabase",
       "build:demo": "node scripts/run-next-mode.mjs build demo",
       "build:supabase": "node scripts/run-next-mode.mjs build supabase",
+      "db:stop": "node scripts/supabase-local.mjs stop",
       check: "pnpm lint && pnpm typecheck && pnpm test:run --no-file-parallelism --testTimeout=30000 && pnpm db:static && pnpm build:demo",
     });
   });

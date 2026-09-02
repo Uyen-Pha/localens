@@ -15,6 +15,8 @@ export const DB_GATE_STEPS = [
   "db:types:check",
 ];
 
+const LOCAL_SUPABASE_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+
 function gateError(code, message, details = {}) {
   const error = new Error(`${code}: ${message}`);
   error.code = code;
@@ -26,13 +28,23 @@ export function exitCodeForError(error) {
   return error?.status ?? 2;
 }
 
-function packageScriptSpec(name, cwd, platform = process.platform, comSpec = process.env.ComSpec ?? "cmd.exe") {
+function packageScriptSpec(
+  name,
+  cwd,
+  platform = process.platform,
+  comSpec = process.env.ComSpec ?? "cmd.exe",
+  baseEnv = process.env,
+) {
+  const env = { ...baseEnv };
+  delete env.LOCALENS_DB_URL;
+  if (name === "db:concurrency") env.LOCALENS_DB_URL = LOCAL_SUPABASE_DATABASE_URL;
   if (platform === "win32") {
     return {
       name,
       command: comSpec,
       args: ["/d", "/s", "/c", `pnpm.cmd run ${name}`],
       cwd,
+      env,
     };
   }
   return {
@@ -40,6 +52,7 @@ function packageScriptSpec(name, cwd, platform = process.platform, comSpec = pro
     command: "pnpm",
     args: ["run", name],
     cwd,
+    env,
   };
 }
 
@@ -47,7 +60,7 @@ function runPackageScript(spec) {
   return new Promise((resolve, reject) => {
     const child = spawn(spec.command, spec.args, {
       cwd: spec.cwd,
-      env: process.env,
+      env: spec.env,
       stdio: "inherit",
       windowsHide: true,
     });
@@ -69,6 +82,7 @@ export async function runDbGate(options = {}) {
   const cwd = options.cwd ?? process.cwd();
   const platform = options.platform ?? process.platform;
   const comSpec = options.comSpec ?? process.env.ComSpec ?? "cmd.exe";
+  const env = options.env ?? process.env;
   const args = options.args ?? [];
   assertNoRemoteMode(args);
   const cliPath = requireLocalSupabaseCli({ cwd, cliPath: options.cliPath });
@@ -78,7 +92,7 @@ export async function runDbGate(options = {}) {
 
   try {
     for (const name of DB_GATE_STEPS) {
-      const spec = packageScriptSpec(name, cwd, platform, comSpec);
+      const spec = packageScriptSpec(name, cwd, platform, comSpec, env);
       calls.push(spec);
       const result = await runner(spec);
       const stepFailure = asStepFailure(spec, result);
@@ -87,7 +101,7 @@ export async function runDbGate(options = {}) {
   } catch (error) {
     failure = error;
   } finally {
-    const stopSpec = packageScriptSpec("db:stop", cwd, platform, comSpec);
+    const stopSpec = packageScriptSpec("db:stop", cwd, platform, comSpec, env);
     calls.push(stopSpec);
     try {
       const stopResult = await runner(stopSpec);
