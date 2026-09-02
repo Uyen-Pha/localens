@@ -36,7 +36,9 @@ function packageScriptSpec(
   baseEnv = process.env,
 ) {
   const env = { ...baseEnv };
-  delete env.LOCALENS_DB_URL;
+  for (const key of Object.keys(env)) {
+    if (key.toUpperCase() === "LOCALENS_DB_URL") delete env[key];
+  }
   if (name === "db:concurrency") env.LOCALENS_DB_URL = LOCAL_SUPABASE_DATABASE_URL;
   if (platform === "win32") {
     return {
