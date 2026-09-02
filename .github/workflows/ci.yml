@@ -114,41 +114,12 @@ jobs:
         run: pnpm build:supabase > ci-logs/build-supabase.log 2>&1
 
       - name: Prepare redacted failure artifacts
+        id: redact
         if: failure()
-        shell: bash
-        run: |
-          mkdir -p ci-artifacts
-          cp -R ci-logs ci-artifacts/ci-logs
-          test ! -d playwright-report || cp -R playwright-report ci-artifacts/playwright-report
-          test ! -d test-results || cp -R test-results ci-artifacts/test-results
-          node <<'NODE'
-          const fs = require("node:fs");
-          const path = require("node:path");
-          const root = "ci-artifacts";
-          const patterns = [
-            [/postgres(?:ql)?:\/\/[^\s"']+/gi, "[REDACTED_DATABASE_URL]"],
-            [/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_JWT]"],
-            [/\bsb_(?:secret|publishable)_[A-Za-z0-9_-]+\b/g, "[REDACTED_SUPABASE_KEY]"],
-            [/(PASSWORD|SECRET|SERVICE_ROLE_KEY|ACCESS_TOKEN)=([^\s]+)/gi, "$1=[REDACTED]"],
-          ];
-          const visit = (entry) => {
-            for (const item of fs.readdirSync(entry, { withFileTypes: true })) {
-              const target = path.join(entry, item.name);
-              if (item.isDirectory()) visit(target);
-              else {
-                const value = fs.readFileSync(target);
-                if (value.includes(0)) continue;
-                let text = value.toString("utf8");
-                for (const [pattern, replacement] of patterns) text = text.replace(pattern, replacement);
-                fs.writeFileSync(target, text);
-              }
-            }
-          };
-          visit(root);
-          NODE
+        run: node scripts/redact-ci-artifacts.mjs ci-artifacts ci-logs playwright-report test-results
 
       - name: Upload redacted runtime failure artifacts
-        if: failure()
+        if: ${{ failure() && steps.redact.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: runtime-local-failure-${{ github.run_id }}
@@ -161,7 +132,6 @@ jobs:
       - quality-demo
       - demo-e2e
       - runtime-local
-    if: ${{ vars.LOCALLENS_STAGING_URL != '' }}
     environment: staging
     runs-on: ubuntu-latest
     timeout-minutes: 10

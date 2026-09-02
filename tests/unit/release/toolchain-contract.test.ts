@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
 type WorkflowStep = {
+  id?: string;
   if?: string;
   name?: string;
   run?: string;
@@ -83,15 +84,22 @@ describe("release toolchain contract", () => {
     const runtimeSteps = jobs["runtime-local"]?.steps ?? [];
     const redactStep = runtimeSteps.find((step) => step.name === "Prepare redacted failure artifacts");
     const uploadStep = runtimeSteps.find((step) => step.name === "Upload redacted runtime failure artifacts");
+    expect(redactStep?.id).toBe("redact");
     expect(redactStep?.if).toBe("failure()");
-    expect(redactStep?.run).toContain("[REDACTED_DATABASE_URL]");
-    expect(redactStep?.run).toContain("[REDACTED_SUPABASE_KEY]");
-    expect(uploadStep?.if).toBe("failure()");
+    expect(redactStep?.run).toBe(
+      "node scripts/redact-ci-artifacts.mjs ci-artifacts ci-logs playwright-report test-results",
+    );
+    expect(uploadStep?.if).toContain("steps.redact.outcome == 'success'");
     expect(uploadStep?.uses).toBe("actions/upload-artifact@v4");
 
     expect(jobs["staging-smoke"]?.environment).toBe("staging");
+    expect(jobs["staging-smoke"]?.needs).toEqual([
+      "quality-demo",
+      "demo-e2e",
+      "runtime-local",
+    ]);
     expect(jobs["staging-smoke"]?.env?.LOCALLENS_STAGING_URL).toBe("${{ vars.LOCALLENS_STAGING_URL }}");
-    expect(jobs["staging-smoke"]?.if).toContain("vars.LOCALLENS_STAGING_URL");
+    expect(jobs["staging-smoke"]?.if).toBeUndefined();
 
     const everyRun = Object.values(jobs).flatMap(runs).join("\n");
     expect(everyRun.split("\n").map((line) => line.trim())).not.toContain("pnpm build");
