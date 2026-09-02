@@ -112,7 +112,7 @@ describe("Task 6 runtime Auth runner", () => {
 
   it("fails closed before spawning when the runtime server port is already occupied", async () => {
     const child = Object.assign(new EventEmitter(), {
-      exitCode: null,
+      exitCode: null as number | null,
       signalCode: null,
       kill: vi.fn(() => true),
     });
@@ -128,7 +128,7 @@ describe("Task 6 runtime Auth runner", () => {
 
   it("can start a directly-owned demo server on a caller-selected port", async () => {
     const child = Object.assign(new EventEmitter(), {
-      exitCode: null,
+      exitCode: null as number | null,
       signalCode: null,
       kill: vi.fn(() => {
         child.exitCode = 0;
@@ -247,7 +247,7 @@ describe("Task 6 runtime Auth runner", () => {
 
   it("uses the owning controller to stop and confirm a Windows process tree", async () => {
     const child = Object.assign(new EventEmitter(), {
-      exitCode: null,
+      exitCode: null as number | null,
       signalCode: null,
       pid: 4321,
       kill: vi.fn(),
