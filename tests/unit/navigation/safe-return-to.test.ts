@@ -27,6 +27,12 @@ describe("safe return-to navigation", () => {
     "/en/booking/../admin/",
     "/en/booking/%2e%2e/admin/",
     "/en/booking/a/../?departure=departure-1",
+    "/en/booking/a/%2e%2e/?departure=departure-1",
+    "/en/booking/a/%2E./?departure=departure-1",
+    "/en/booking/a/.%2e/?departure=departure-1",
+    "/en/booking/%2e/?departure=departure-1",
+    "/en/booking/%252e%252e/?departure=departure-1",
+    "/en/booking/a%2f../?departure=departure-1",
     "/en/booking/#identity",
     "/en/booking/#",
   ])("rejects unsafe or out-of-scope candidate %j", (candidate) => {
