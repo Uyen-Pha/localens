@@ -28,11 +28,18 @@ export function parseSafeReturnTo(locale: Locale, candidate: string | null): str
     return null;
   }
   const bookingPrefix = `/${locale}/booking/`;
-  if (!candidate.startsWith(bookingPrefix)) return null;
+  const plannerPath = `/${locale}/planner`;
+  const customRequestPath = `/${locale}/custom-request`;
+  const isPlannerPath = candidate === plannerPath || candidate === `${plannerPath}/`;
+  const isCustomRequestPath = candidate === customRequestPath || candidate === `${customRequestPath}/`;
+  if (!candidate.startsWith(bookingPrefix) && !isPlannerPath && !isCustomRequestPath) return null;
 
   try {
     const parsed = new URL(candidate, RETURN_TO_BASE);
-    if (parsed.origin !== RETURN_TO_BASE || !parsed.pathname.startsWith(bookingPrefix) || parsed.hash) {
+    const isBookingPath = parsed.pathname.startsWith(bookingPrefix);
+    const isAllowedExactPath = parsed.pathname === plannerPath || parsed.pathname === `${plannerPath}/`
+      || parsed.pathname === customRequestPath || parsed.pathname === `${customRequestPath}/`;
+    if (parsed.origin !== RETURN_TO_BASE || (!isBookingPath && !isAllowedExactPath) || parsed.hash) {
       return null;
     }
     return candidate;

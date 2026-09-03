@@ -22,8 +22,11 @@ import {
 } from "@/lib/application/planner/personalization-session";
 import {
   readDemoPlannerSession,
+  claimDemoPlannerSessionForReturn,
+  prepareDemoPlannerReturn,
   saveDemoPlannerSession,
 } from "@/lib/application/planner/demo-planner-session";
+import { signInPath } from "@/lib/navigation/safe-return-to";
 import type { Locale } from "@/lib/i18n/config";
 import type { PlannerCopy } from "@/lib/i18n/dictionaries";
 import type { DemoPortalIdentity, DemoSessionPort } from "@/lib/application/portal/contracts";
@@ -161,11 +164,22 @@ export function PlannerFlow({
 
     const ownerScope: PersonalizationOwnerScope = identity?.role === "customer" ? `customer:${identity.userId}` : "anonymous";
 
-    const persisted = readDemoPlannerSession(Date.now(), ownerScope);
+    const now = Date.now();
+    const persisted = readDemoPlannerSession(now, ownerScope);
     if (persisted.status === "ok" && persisted.session.locale === locale) {
       setHandoffStatus(persisted.session.state.preferences === null ? "missing" : "ok");
       setState(persisted.session.state);
       return;
+    }
+
+    if (ownerScope !== "anonymous") {
+      const targetPath = typeof window === "undefined" ? `/${locale}/planner/` : window.location.pathname;
+      const claimed = claimDemoPlannerSessionForReturn(targetPath, ownerScope, now);
+      if (claimed.status === "ok" && claimed.session.locale === locale) {
+        setHandoffStatus(claimed.session.state.preferences === null ? "missing" : "ok");
+        setState(claimed.session.state);
+        return;
+      }
     }
 
     const handoff = readPersonalizationState();
@@ -426,7 +440,19 @@ export function PlannerFlow({
           ) : identity === undefined ? (
             <p role="status">{portalCopy(locale).loading}</p>
           ) : identity === null ? (
-            <Link className="button button--primary" href={`/${locale}/sign-in`}>{portalCopy(locale).chooseIdentity}</Link>
+            <Link
+              className="button button--primary"
+              href={signInPath(locale, `/${locale}/planner/`)}
+              onClick={() => {
+                const session = readDemoPlannerSession();
+                const handoff = readPersonalizationState();
+                const handoffId = session.status === "ok" ? session.session.handoffId : handoff.status === "ok" ? handoff.handoffId : null;
+                const originalExpiresAt = session.status === "ok" ? session.session.originalExpiresAt : handoff.status === "ok" ? handoff.originalExpiresAt : null;
+                if (handoffId !== null && originalExpiresAt !== null) {
+                  prepareDemoPlannerReturn(`/${locale}/planner/`, handoffId, originalExpiresAt);
+                }
+              }}
+            >{portalCopy(locale).chooseIdentity}</Link>
           ) : (
             <>
               <p>{signedInRoleText(locale, identity.role)}</p>

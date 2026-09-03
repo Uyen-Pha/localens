@@ -561,12 +561,23 @@ function fnv1a32(value: string): string {
 }
 
 function confirmedDraftInput(draft: CustomRequestDraft): CustomRequestDraftInput {
-  return {
+  const input: CustomRequestDraftInput = {
     planId: draft.planId,
     revision: draft.revision,
     preferences: draft.preferences,
     revisionSnapshot: draft.revisionSnapshot,
   };
+  if (draft.handoffId !== undefined) {
+    return {
+      ...input,
+      handoffId: draft.handoffId,
+      ownerScope: draft.ownerScope,
+      originalExpiresAt: draft.originalExpiresAt,
+      locale: draft.locale,
+      requestId: draft.requestId,
+    };
+  }
+  return input;
 }
 
 function isApprovedE2EFoodSelection(
@@ -632,15 +643,25 @@ function isApprovedBaseRevision(draft: CustomRequestDraft, locale: Locale): bool
 
 function validatedConfirmedDraft(value: unknown, locale: Locale): CustomRequestDraft | null {
   if (!isRecord(value)) return null;
-  const fields = ["planId", "revision", "preferences", "revisionSnapshot", "integrityFingerprint"] as const;
-  if (Object.keys(value).length !== fields.length || fields.some((field) => !Object.prototype.hasOwnProperty.call(value, field))) return null;
-  if (Object.keys(value).some((key) => !fields.includes(key as (typeof fields)[number]))) return null;
+  const requiredFields = ["planId", "revision", "preferences", "revisionSnapshot", "integrityFingerprint"] as const;
+  const optionalFields = ["handoffId", "ownerScope", "originalExpiresAt", "locale", "requestId"] as const;
+  if (requiredFields.some((field) => !Object.prototype.hasOwnProperty.call(value, field))) return null;
+  if (Object.keys(value).some((key) => !requiredFields.includes(key as (typeof requiredFields)[number])
+    && !optionalFields.includes(key as (typeof optionalFields)[number]))) return null;
   if (typeof value.integrityFingerprint !== "string" || !/^[0-9a-f]{32}$/.test(value.integrityFingerprint)) return null;
   if (typeof value.planId !== "string" || !PORTAL_ID_PATTERN.test(value.planId)
     || typeof value.revision !== "number" || !Number.isSafeInteger(value.revision) || value.revision < 1 || value.revision > 100
     || !isPersonalizationRequest(value.preferences) || !isRecord(value.revisionSnapshot)) return null;
   try {
     const candidate = value as unknown as CustomRequestDraft;
+    const hasHandoffMetadata = optionalFields.some((field) => Object.prototype.hasOwnProperty.call(value, field));
+    if (hasHandoffMetadata && (
+      typeof candidate.handoffId !== "string" || candidate.handoffId.length === 0 || candidate.handoffId.length > 96 ||
+      (candidate.ownerScope !== "anonymous" && (typeof candidate.ownerScope !== "string" || !candidate.ownerScope.startsWith("customer:") || candidate.ownerScope.length > 160)) ||
+      typeof candidate.originalExpiresAt !== "number" || !Number.isSafeInteger(candidate.originalExpiresAt) || candidate.originalExpiresAt <= 0 ||
+      (candidate.locale !== locale) ||
+      typeof candidate.requestId !== "string" || candidate.requestId !== `demo-request-${candidate.handoffId}-${candidate.revision}` || candidate.requestId.length > 120
+    )) return null;
     if (candidate.revision !== candidate.revisionSnapshot.revision || !Array.isArray(candidate.revisionSnapshot.items)
       || candidate.revisionSnapshot.items.length === 0) return null;
     if (localDraftFingerprint(confirmedDraftInput(candidate)) !== candidate.integrityFingerprint) return null;

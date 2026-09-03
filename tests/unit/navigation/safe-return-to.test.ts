@@ -55,6 +55,14 @@ describe("safe return-to navigation", () => {
     expect(signInPath("vi")).toBe("/vi/sign-in/");
   });
 
+  it("accepts only exact planner and custom-request paths for demo handoff return", () => {
+    expect(parseSafeReturnTo("en", "/en/planner/")).toBe("/en/planner/");
+    expect(parseSafeReturnTo("en", "/en/custom-request")).toBe("/en/custom-request");
+    expect(parseSafeReturnTo("en", "/en/planner/other")).toBeNull();
+    expect(parseSafeReturnTo("en", "/en/custom-request/other")).toBeNull();
+    expect(signInPath("en", "/en/planner/")).toBe("/en/sign-in/?returnTo=%2Fen%2Fplanner%2F");
+  });
+
   it("returns customers to safe booking intent and sends every other case to its role portal", () => {
     const returnTo = "/en/booking/?departure=departure-1&partySize=2";
 

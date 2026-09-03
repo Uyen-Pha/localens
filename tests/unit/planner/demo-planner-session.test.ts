@@ -7,14 +7,34 @@ import {
 import {
   DEMO_PLANNER_SESSION_KEY,
   PERSONALIZATION_SESSION_TTL_MS,
+  clearPersonalizationRequest,
+  readPersonalizationState,
+  savePersonalizationRequest,
+  type PersonalizationRequest,
 } from "@/lib/application/planner/personalization-session";
 import {
+  claimDemoPlannerSessionForReturn,
+  prepareDemoPlannerReturn,
   readDemoPlannerSession,
   saveDemoPlannerSession,
 } from "@/lib/application/planner/demo-planner-session";
 import { totalsFor } from "@/lib/application/planner/e2e-planner-state-validator";
 
-const NOW = 1_800_000_000_000;
+const NOW = Date.now() + 10_000;
+const personalization: PersonalizationRequest = {
+  startAt: "2026-09-05T10:30:00+07:00",
+  durationMinutes: 240,
+  areas: ["demo-hcmc-district-1"],
+  budget: { currency: "VND" as const, amountMinor: 1_500_000 },
+  partySize: 2,
+  guideLanguage: "en" as const,
+  priorityWeights: { street_food: 0, history: 3, traditional_craft: 0, traditional_market: 1 },
+  pace: "active" as const,
+  dietaryRequirements: [],
+  mobilityRequirements: [],
+  lockedStopIds: [],
+  specialNeeds: "",
+};
 
 function state(): DemoPlannerState {
   return createDemoPlannerAdapter().createInitial("en");
@@ -40,6 +60,7 @@ function sessionFor(
 
 afterEach(() => {
   window.sessionStorage.removeItem(DEMO_PLANNER_SESSION_KEY);
+  clearPersonalizationRequest();
   vi.restoreAllMocks();
 });
 
@@ -117,6 +138,48 @@ describe("demo planner session contract", () => {
 
     expect(readDemoPlannerSession(NOW, "customer:two")).toEqual({ status: "owner-mismatch" });
     expect(readDemoPlannerSession(NOW, "customer:one").status).toBe("ok");
+  });
+
+  it("reuses the personalization handoff identity when the planner session starts", () => {
+    const plannerState = createDemoPlannerAdapter().createInitial("en", personalization);
+    expect(savePersonalizationRequest(personalization)).toBe(true);
+    const handoff = readPersonalizationState();
+    if (handoff.status !== "ok") throw new Error("expected a personalization handoff");
+
+    expect(saveDemoPlannerSession(plannerState, {
+      type: "lock",
+      itemId: plannerState.current.items[0].id,
+      locked: true,
+      resultRevision: plannerState.current.revision,
+    }, "anonymous", NOW)).toBe(true);
+    const saved = readDemoPlannerSession(NOW);
+    expect(saved.status).toBe("ok");
+    if (saved.status !== "ok") throw new Error("expected a saved planner handoff");
+    expect(saved.session.handoffId).toBe(handoff.handoffId);
+    expect(saved.session.originalExpiresAt).toBe(handoff.originalExpiresAt);
+  });
+
+  it("claims an anonymous session only once for the exact post-sign-in path", () => {
+    const plannerState = state();
+    expect(saveDemoPlannerSession(plannerState, {
+      type: "lock",
+      itemId: plannerState.current.items[0].id,
+      locked: true,
+      resultRevision: plannerState.current.revision,
+    }, "anonymous", NOW)).toBe(true);
+    const saved = readDemoPlannerSession(NOW);
+    if (saved.status !== "ok") throw new Error("expected a saved planner handoff");
+
+    expect(prepareDemoPlannerReturn("/en/planner/", saved.session.handoffId, saved.session.originalExpiresAt)).toBe(true);
+    const claimed = claimDemoPlannerSessionForReturn("/en/planner/", "customer:one", NOW + 1);
+    expect(claimed.status).toBe("ok");
+    if (claimed.status !== "ok") throw new Error("expected a claimed planner handoff");
+    expect(claimed.session.ownerScope).toBe("customer:one");
+    expect(claimDemoPlannerSessionForReturn("/en/planner/", "customer:two", NOW + 2)).toEqual({ status: "missing" });
+
+    expect(prepareDemoPlannerReturn("/en/planner/", claimed.session.handoffId, claimed.session.originalExpiresAt)).toBe(true);
+    expect(claimDemoPlannerSessionForReturn("/en/planner/other", "customer:two", NOW + 3)).toEqual({ status: "invalid" });
+    expect(readDemoPlannerSession(NOW + 3, "customer:one").status).toBe("ok");
   });
 
   it("fails closed when storage rejects the write", () => {

@@ -1,9 +1,12 @@
 import {
   isPersonalizationRequest,
+  readPersonalizationState,
+  type PersonalizationOwnerScope,
   type PersonalizationRequest,
 } from "@/lib/application/planner/personalization-session";
 import type { DemoPlannerRevision, DemoPlannerItem, DemoPlannerState } from "@/lib/application/planner/demo-planner";
 import type { ItineraryPreviewFoodSelectionDto } from "@/lib/application/api/read-only-api";
+import type { Locale } from "@/lib/i18n/config";
 
 export const CUSTOM_REQUEST_SESSION_KEY = "localens.custom-request.v1";
 export const CUSTOM_REQUEST_SESSION_TTL_MS = 30 * 60 * 1000;
@@ -14,6 +17,12 @@ export type CustomRequestDraft = Readonly<{
   preferences: PersonalizationRequest;
   revisionSnapshot: DemoPlannerRevision;
   integrityFingerprint: string;
+  /** Present on new handoffs; omitted only for legacy local drafts. */
+  handoffId?: string;
+  ownerScope?: PersonalizationOwnerScope;
+  originalExpiresAt?: number;
+  locale?: Locale;
+  requestId?: string;
 }>;
 
 export type CustomRequestDraftInput = Omit<CustomRequestDraft, "integrityFingerprint">;
@@ -25,12 +34,28 @@ export function customRequestDraftFromPlanner(
     throw new Error("A confirmed planner revision is required");
   }
 
-  return {
+  const input: CustomRequestDraftInput = {
     planId: state.planId,
     revision: state.current.revision,
     preferences: state.preferences,
     revisionSnapshot: state.current,
   };
+  const handoff = readPersonalizationState();
+  if (handoff.status !== "ok" || JSON.stringify(handoff.request) !== JSON.stringify(state.preferences)) return input;
+  return {
+    ...input,
+    handoffId: handoff.handoffId,
+    ownerScope: handoff.ownerScope,
+    originalExpiresAt: handoff.originalExpiresAt,
+    locale: state.locale,
+    requestId: stableCustomRequestId({ ...input, handoffId: handoff.handoffId }),
+  };
+}
+
+export function stableCustomRequestId(draft: Pick<CustomRequestDraftInput, "planId" | "revision" | "handoffId">): string {
+  return draft.handoffId === undefined
+    ? `demo-request-${draft.planId}-${draft.revision}`
+    : `demo-request-${draft.handoffId}-${draft.revision}`;
 }
 
 export type CustomRequestDraftReadState =
@@ -100,6 +125,15 @@ function fnv1a32(value: string, offset: number): string {
 }
 
 function canonicalDraftMaterial(draft: CustomRequestDraftInput): string {
+  const handoffMaterial = draft.handoffId === undefined
+    ? {}
+    : {
+      handoffId: draft.handoffId,
+      ownerScope: draft.ownerScope,
+      originalExpiresAt: draft.originalExpiresAt,
+      locale: draft.locale,
+      requestId: draft.requestId,
+    };
   return JSON.stringify({
     planId: draft.planId,
     revision: draft.revision,
@@ -144,6 +178,7 @@ function canonicalDraftMaterial(draft: CustomRequestDraftInput): string {
       warnings: draft.revisionSnapshot.warnings,
       feedback: draft.revisionSnapshot.feedback,
     },
+    ...handoffMaterial,
   });
 }
 
@@ -245,11 +280,21 @@ function isCustomRequestDraftInput(value: unknown): value is CustomRequestDraftI
     !Number.isSafeInteger(value.revision) ||
     value.revision < 1
   ) return false;
+  const hasHandoffMetadata = ["handoffId", "ownerScope", "originalExpiresAt", "locale", "requestId"]
+    .some((field) => Object.prototype.hasOwnProperty.call(value, field));
+  const hasCompleteHandoffMetadata = !hasHandoffMetadata || (
+    typeof value.handoffId === "string" && value.handoffId.length > 0 && value.handoffId.length <= 96 &&
+    (value.ownerScope === "anonymous" || (typeof value.ownerScope === "string" && value.ownerScope.startsWith("customer:") && value.ownerScope.length <= 160)) &&
+    typeof value.originalExpiresAt === "number" && Number.isSafeInteger(value.originalExpiresAt) && value.originalExpiresAt > 0 &&
+    (value.locale === "en" || value.locale === "vi") &&
+    typeof value.requestId === "string" && value.requestId === stableCustomRequestId(value as Pick<CustomRequestDraftInput, "planId" | "revision" | "handoffId">) && value.requestId.length <= 120
+  );
   return (
     typeof value.planId === "string" && value.planId.length > 0 && value.planId.length <= 120 &&
     isPersonalizationRequest(value.preferences) &&
     isDemoPlannerRevision(value.revisionSnapshot) &&
-    value.revisionSnapshot.revision === value.revision
+    value.revisionSnapshot.revision === value.revision &&
+    hasCompleteHandoffMetadata
   );
 }
 
@@ -306,7 +351,8 @@ export function readCustomRequestDraftState(now = Date.now()): CustomRequestDraf
   const { integrityFingerprint, ...draftWithoutFingerprint } = parsed.draft;
   if (localDraftFingerprint(draftWithoutFingerprint) !== integrityFingerprint) return { status: "invalid" };
   if (parsed.savedAt > now) return { status: "invalid" };
-  if (now - parsed.savedAt > CUSTOM_REQUEST_SESSION_TTL_MS) {
+  const expiresAt = parsed.draft.originalExpiresAt ?? parsed.savedAt + CUSTOM_REQUEST_SESSION_TTL_MS;
+  if (expiresAt <= parsed.savedAt || now >= expiresAt) {
     try {
       window.sessionStorage.removeItem(CUSTOM_REQUEST_SESSION_KEY);
     } catch {

@@ -11,6 +11,11 @@ import {
 import { createDemoPlannerAdapter } from "@/lib/application/planner/demo-planner";
 import type { DemoPlannerItem } from "@/lib/application/planner/demo-planner";
 import type { PersonalizationRequest } from "@/lib/application/planner/personalization-session";
+import {
+  clearPersonalizationRequest,
+  readPersonalizationState,
+  savePersonalizationRequest,
+} from "@/lib/application/planner/personalization-session";
 import { createFoodFixturePlannerState } from "../../e2e/food-fixture";
 
 type MutableStoredEnvelope = {
@@ -57,6 +62,7 @@ function draft(): CustomRequestDraftInput {
 
 afterEach(() => {
   clearCustomRequestDraft();
+  clearPersonalizationRequest();
 });
 
 describe("custom request local handoff", () => {
@@ -79,6 +85,31 @@ describe("custom request local handoff", () => {
       status: "ok",
       draft: { revisionSnapshot: selected.revisionSnapshot },
     });
+  });
+
+  it("binds a new draft to the current personalization handoff and derives a stable request id", () => {
+    const plannerState = createDemoPlannerAdapter().createInitial("en", request);
+    expect(savePersonalizationRequest(request)).toBe(true);
+    const firstHandoff = readPersonalizationState();
+    expect(firstHandoff.status).toBe("ok");
+    expect(saveCustomRequestDraft(customRequestDraftFromPlanner(plannerState))).toBe(true);
+
+    const first = readCustomRequestDraftState();
+    expect(first.status).toBe("ok");
+    if (first.status !== "ok" || firstHandoff.status !== "ok") throw new Error("expected a bound draft");
+    expect(first.draft.handoffId).toBe(firstHandoff.handoffId);
+    expect(first.draft.ownerScope).toBe(firstHandoff.ownerScope);
+    expect(first.draft.originalExpiresAt).toBe(firstHandoff.originalExpiresAt);
+    expect(first.draft.locale).toBe("en");
+    expect(first.draft.requestId).toContain(first.draft.handoffId);
+
+    expect(savePersonalizationRequest(request)).toBe(true);
+    expect(saveCustomRequestDraft(customRequestDraftFromPlanner(plannerState))).toBe(true);
+    const second = readCustomRequestDraftState();
+    expect(second.status).toBe("ok");
+    if (second.status !== "ok") throw new Error("expected a second bound draft");
+    expect(second.draft.handoffId).not.toBe(first.draft.handoffId);
+    expect(second.draft.requestId).not.toBe(first.draft.requestId);
   });
 
   it("round-trips the selected revision in the current browser tab", () => {

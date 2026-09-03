@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   readCustomRequestDraftState,
+  stableCustomRequestId,
   type CustomRequestDraft,
 } from "@/lib/application/planner/custom-request-demo";
 import {
@@ -87,9 +88,20 @@ export function CustomRequestFlow({
       setLoadStatus("stale");
       return;
     }
+    const boundDraft = selectedRevision.draft;
+    if (boundDraft.handoffId !== undefined && (
+      boundDraft.locale !== locale ||
+      boundDraft.handoffId !== personalization.handoffId ||
+      boundDraft.ownerScope !== personalization.ownerScope ||
+      boundDraft.originalExpiresAt !== personalization.originalExpiresAt ||
+      boundDraft.requestId !== stableCustomRequestId(boundDraft)
+    )) {
+      setLoadStatus("stale");
+      return;
+    }
     setDraft(selectedRevision.draft);
     setLoadStatus("ok");
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     if (draft === null || demoPortal === undefined || loadStatus !== "ok") return;
@@ -110,9 +122,8 @@ export function CustomRequestFlow({
           activeDemoPortal.customer.account.listCustomRequests(),
           activeDemoPortal.customer.account.listCustomerBookings(),
         ]);
-        const persistedRequest = requests.find((entry) =>
-          entry.planId === selectedDraft.planId && entry.revisionNo === selectedDraft.revision,
-        );
+        const expectedRequestId = selectedDraft.requestId ?? stableCustomRequestId(selectedDraft);
+        const persistedRequest = requests.find((entry) => entry.id === expectedRequestId);
         if (disposed || interactionStarted.current) return;
         if (persistedRequest === undefined) {
           setRequestId(null);
@@ -179,7 +190,7 @@ export function CustomRequestFlow({
     }
     try {
       await requireDemoCustomer();
-      const nextRequestId = `demo-request-${draft.planId}-${draft.revision}`;
+      const nextRequestId = draft.requestId ?? stableCustomRequestId(draft);
       const submission = await demoPortal.demoIntegration.submitPersonalizedRequest({
         requestId: nextRequestId,
         locale,
@@ -204,8 +215,8 @@ export function CustomRequestFlow({
           demoPortal.customer.account.listCustomRequests(),
           demoPortal.customer.account.listCustomerBookings(),
         ]);
-        const request = requests.find((entry) => entry.id === requestId)
-          ?? requests.find((entry) => entry.planId === draft?.planId && entry.revisionNo === draft?.revision);
+        const expectedRequestId = requestId ?? (draft === null ? null : draft.requestId ?? stableCustomRequestId(draft));
+        const request = expectedRequestId === null ? undefined : requests.find((entry) => entry.id === expectedRequestId);
         if (request === undefined || request.status !== "approved") {
           setActionMessage(copy.adminReviewPendingMessage);
           return;
