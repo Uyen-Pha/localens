@@ -57,7 +57,7 @@ describe("Task16 database gate", () => {
     expect(calls).toEqual([...DB_GATE_STEPS, "db:stop"]);
     expect(commands).toEqual(calls.map((name) => ({
       command: "C:/Windows/System32/cmd.exe",
-      args: ["/d", "/s", "/c", `pnpm.cmd run ${name}`],
+      args: ["/d", "/s", "/c", `corepack.cmd pnpm run ${name}`],
       databaseUrl: name === "db:concurrency"
         ? "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
         : undefined,
@@ -381,6 +381,23 @@ describe("Task16 concurrency preflight", () => {
     expect(sessions).toHaveLength(2);
     expect(calls).toHaveLength(9);
     for (const call of calls) expect(new Set(call.sessionIds).size).toBe(2);
+  });
+
+  it("allows an explicitly verified loopback QA port without changing the default", async () => {
+    const sessions: Array<{ connect: () => Promise<void>; end: () => Promise<void> }> = [];
+    const sessionFactory = () => {
+      const session = { connect: async () => undefined, end: async () => undefined };
+      sessions.push(session);
+      return session;
+    };
+
+    await expect(runConcurrencyGate({
+      databaseUrl: "postgresql://postgres:postgres@127.0.0.1:55322/postgres",
+      expectedPort: "55322",
+      sessionFactory,
+      scenarios: Object.fromEntries(CONCURRENCY_SCENARIO_IDS.map((scenario: string) => [scenario, async () => undefined])),
+    })).resolves.toEqual({ ok: true, scenarios: CONCURRENCY_SCENARIO_IDS });
+    expect(sessions).toHaveLength(2);
   });
 
   it("rejects a remote database URL before any harness configuration", async () => {

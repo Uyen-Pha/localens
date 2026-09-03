@@ -51,7 +51,7 @@ function packageScriptSpec(
     return {
       name,
       command: comSpec,
-      args: ["/d", "/s", "/c", `pnpm.cmd run ${name}`],
+      args: ["/d", "/s", "/c", `corepack.cmd pnpm run ${name}`],
       cwd,
       env,
     };

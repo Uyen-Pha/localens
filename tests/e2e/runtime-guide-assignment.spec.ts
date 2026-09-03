@@ -143,7 +143,10 @@ test("isolated B2.4 assigns A, reassigns B, then safely returns to A with cross-
       expect(Object.keys(row).sort()).toEqual([
         "assignment_id", "booking_id", "guide_user_id", "outcome", "status",
       ]);
-      await expect(page.getByRole("status")).toHaveText("Assignment saved from authoritative data.");
+      const assignmentStatus = page
+        .getByRole("status")
+        .filter({ hasText: "Assignment saved from authoritative data." });
+      await expect(assignmentStatus).toHaveText("Assignment saved from authoritative data.");
       return { payload, row };
     }
 

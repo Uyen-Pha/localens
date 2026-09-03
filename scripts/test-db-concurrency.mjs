@@ -41,12 +41,14 @@ function invariant(condition, message) {
   if (!condition) throw new Error(`CONCURRENCY_INVARIANT_FAILED: ${message}`);
 }
 
-export function validateLocalDatabaseUrl(value) {
+export function validateLocalDatabaseUrl(value, expectedPort = LOCAL_SUPABASE_DB_PORT) {
   let parsed;
   try { parsed = new URL(value); } catch { throw new Error("database URL is not a valid PostgreSQL URL"); }
   if (!["postgres:", "postgresql:"].includes(parsed.protocol)) throw new Error("database URL must use postgres:// or postgresql://");
   if (!["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)) throw new Error("database URL host must be loopback-only");
-  if (parsed.port !== LOCAL_SUPABASE_DB_PORT) throw new Error(`database URL port must be ${LOCAL_SUPABASE_DB_PORT} for local Supabase`);
+  if (!/^\d{1,5}$/.test(String(expectedPort)) || parsed.port !== String(expectedPort)) {
+    throw new Error(`database URL port must be ${expectedPort} for local Supabase`);
+  }
   return parsed;
 }
 
@@ -842,8 +844,8 @@ const DEFAULT_SCENARIOS = {
   guide_assignment_serialization: guideAssignmentSerialization,
 };
 
-export async function runConcurrencyGate({ databaseUrl, sessionFactory = () => new Client({ connectionString: databaseUrl, application_name: "localens-concurrency" }), scenarios = DEFAULT_SCENARIOS, logger = () => {} } = {}) {
-  validateLocalDatabaseUrl(databaseUrl);
+export async function runConcurrencyGate({ databaseUrl, expectedPort = LOCAL_SUPABASE_DB_PORT, sessionFactory = () => new Client({ connectionString: databaseUrl, application_name: "localens-concurrency" }), scenarios = DEFAULT_SCENARIOS, logger = () => {} } = {}) {
+  validateLocalDatabaseUrl(databaseUrl, expectedPort);
   const sessions = [sessionFactory(databaseUrl), sessionFactory(databaseUrl)];
   invariant(sessions[0] !== sessions[1], "two independent database sessions are required");
   const context = {};
@@ -858,14 +860,14 @@ export async function runConcurrencyGate({ databaseUrl, sessionFactory = () => n
   } finally { await Promise.allSettled(sessions.map((session) => session.end())); }
 }
 
-export async function runConcurrencyCheck({ cwd = process.cwd(), env = process.env, ...options } = {}) {
+export async function runConcurrencyCheck({ cwd = process.cwd(), env = process.env, expectedPort = LOCAL_SUPABASE_DB_PORT, ...options } = {}) {
   if (env.LOCALENS_DB_URL) {
-    try { validateLocalDatabaseUrl(env.LOCALENS_DB_URL); } catch (error) { return result("REMOTE_MODE_REJECTED", error.message); }
+    try { validateLocalDatabaseUrl(env.LOCALENS_DB_URL, expectedPort); } catch (error) { return result("REMOTE_MODE_REJECTED", error.message); }
   }
   if (!env.LOCALENS_DB_URL?.trim()) return result("NOT_CONFIGURED", "LOCALENS_DB_URL is not configured for the local two-session harness");
   if (env.LOCALENS_DB_CONCURRENCY !== "1") return result("NOT_CONFIGURED", "set LOCALENS_DB_CONCURRENCY=1 only for an explicitly configured local harness");
   if (!resolveLocalSupabaseCli({ cwd })) return result("NOT_AVAILABLE", "project-local Supabase CLI is unavailable");
-  try { return await runConcurrencyGate({ databaseUrl: env.LOCALENS_DB_URL, ...options }); }
+  try { return await runConcurrencyGate({ databaseUrl: env.LOCALENS_DB_URL, expectedPort, ...options }); }
   catch (error) {
     const diagnostic = [error?.message ?? String(error), error?.code && `SQLSTATE ${error.code}`, error?.detail, error?.where]
       .filter(Boolean)

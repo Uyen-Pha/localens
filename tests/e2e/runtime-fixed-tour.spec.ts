@@ -762,8 +762,9 @@ test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment accept
         status: "assigned",
         outcome: "assigned",
       });
-      await expect(page.getByRole("status")).toHaveText("Assignment saved from authoritative data.");
-      await expect(page.getByRole("status")).toBeFocused();
+      const assignmentStatus = page.getByRole("status").filter({ hasText: "Assignment saved from authoritative data." });
+      await expect(assignmentStatus).toHaveText("Assignment saved from authoritative data.");
+      await expect(assignmentStatus).toBeFocused();
       await expect(target.getByText("Runtime Guide", { exact: true })).toBeVisible();
       await page.reload();
       await expect(page.getByRole("region", { name: "Guide assignments" }).getByText("Runtime Guide", { exact: true })).toBeVisible();
@@ -859,7 +860,7 @@ test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment accept
         expect(body).toHaveLength(1);
         const row = (body as unknown[])[0] as GuideAssignmentRow;
         expectExactGuideAssignmentRow(row);
-        await expect(page.getByRole("status")).toHaveText("Assignment saved from authoritative data.");
+        await expect(page.getByRole("status").filter({ hasText: "Assignment saved from authoritative data." })).toHaveText("Assignment saved from authoritative data.");
         return { payload, row };
       }
 
@@ -1041,7 +1042,7 @@ test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment accept
           decision_note: scenario.note,
         });
         await expect(queueItem.getByText(copy.cancellationStatusLabels[scenario.decision], { exact: true })).toBeVisible();
-        await expect(page.getByRole("status")).toHaveText(copy.cancellationDecisionSaved);
+        await expect(page.getByRole("status").filter({ hasText: copy.cancellationDecisionSaved })).toHaveText(copy.cancellationDecisionSaved);
       } finally {
         await adminContext.close();
       }
