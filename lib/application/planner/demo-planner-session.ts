@@ -1,5 +1,6 @@
 import type { Locale } from "@/lib/i18n/config";
 import type { DemoPlannerState } from "@/lib/application/planner/demo-planner";
+import { isStrictPlannerState } from "@/lib/application/planner/e2e-planner-state-validator";
 import {
   DEMO_PLANNER_SESSION_KEY,
   PERSONALIZATION_SESSION_TTL_MS,
@@ -30,16 +31,14 @@ export type DemoPlannerSession = Readonly<{
 
 export type DemoPlannerSessionReadState =
   | Readonly<{ status: "ok"; session: DemoPlannerSession }>
-  | Readonly<{ status: "missing" | "expired" | "invalid" | "storage-error" }>;
+  | Readonly<{ status: "missing" | "expired" | "invalid" | "storage-error" | "owner-mismatch" }>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isState(value: unknown): value is DemoPlannerState {
-  if (!isRecord(value) || typeof value.planId !== "string" || !Array.isArray(value.history)) return false;
-  if (!isRecord(value.current) || !Array.isArray(value.current.items)) return false;
-  return value.history.length <= 12 && value.current.items.length > 0 && value.current.items.length <= 12;
+function isState(value: unknown, locale: Locale): value is DemoPlannerState {
+  return isStrictPlannerState(value, locale);
 }
 
 function isOperation(value: unknown): value is DemoPlannerOperation {
@@ -50,13 +49,17 @@ function isOperation(value: unknown): value is DemoPlannerOperation {
     Array.isArray(value.lockedItemIds) && value.lockedItemIds.every((id) => typeof id === "string");
 }
 
+function isOwnerScope(value: unknown): value is DemoPlannerSession["ownerScope"] {
+  return value === "anonymous" || (typeof value === "string" && value.startsWith("customer:") && value.length <= 160);
+}
+
 function isSession(value: unknown): value is DemoPlannerSession {
   return isRecord(value) && value.version === 1 &&
     typeof value.handoffId === "string" && value.handoffId.length > 0 && value.handoffId.length <= 96 &&
-    (value.ownerScope === "anonymous" || (typeof value.ownerScope === "string" && value.ownerScope.startsWith("customer:"))) &&
+    isOwnerScope(value.ownerScope) &&
     typeof value.createdAt === "number" && Number.isSafeInteger(value.createdAt) &&
-    typeof value.originalExpiresAt === "number" && Number.isSafeInteger(value.originalExpiresAt) && value.originalExpiresAt > value.createdAt &&
-    (value.locale === "en" || value.locale === "vi") && isState(value.state) &&
+    typeof value.originalExpiresAt === "number" && Number.isSafeInteger(value.originalExpiresAt) &&
+    (value.locale === "en" || value.locale === "vi") && isState(value.state, value.locale) &&
     Array.isArray(value.operations) && value.operations.length <= DEMO_PLANNER_SESSION_MAX_OPERATIONS &&
     value.operations.every(isOperation);
 }
@@ -70,7 +73,10 @@ function newHandoffId(): string {
   return `planner-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function readDemoPlannerSession(now = Date.now()): DemoPlannerSessionReadState {
+export function readDemoPlannerSession(
+  now = Date.now(),
+  expectedOwnerScope?: DemoPlannerSession["ownerScope"],
+): DemoPlannerSessionReadState {
   if (typeof window === "undefined") return { status: "missing" };
   let raw: string | null;
   try {
@@ -87,10 +93,14 @@ export function readDemoPlannerSession(now = Date.now()): DemoPlannerSessionRead
     return { status: "invalid" };
   }
   if (!isSession(parsed)) return { status: "invalid" };
+  if (parsed.createdAt > now || parsed.originalExpiresAt !== parsed.createdAt + PERSONALIZATION_SESSION_TTL_MS) {
+    return { status: "invalid" };
+  }
   if (parsed.originalExpiresAt <= now) {
     try { window.sessionStorage.removeItem(DEMO_PLANNER_SESSION_KEY); } catch { /* best effort */ }
     return { status: "expired" };
   }
+  if (expectedOwnerScope !== undefined && parsed.ownerScope !== expectedOwnerScope) return { status: "owner-mismatch" };
   return { status: "ok", session: parsed };
 }
 
@@ -100,8 +110,8 @@ export function saveDemoPlannerSession(
   ownerScope: DemoPlannerSession["ownerScope"] = "anonymous",
   now = Date.now(),
 ): boolean {
-  if (typeof window === "undefined" || !isState(state) || !isOperation(operation)) return false;
-  const current = readDemoPlannerSession(now);
+  if (typeof window === "undefined" || !isState(state, state.locale) || !isOperation(operation)) return false;
+  const current = readDemoPlannerSession(now, ownerScope);
   const session: DemoPlannerSession = current.status === "ok" && current.session.locale === state.locale
     ? { ...current.session, state, operations: [...current.session.operations, operation].slice(-DEMO_PLANNER_SESSION_MAX_OPERATIONS) }
     : {

@@ -509,7 +509,7 @@ describe("PlannerFlow", () => {
 
   it("recovers from an oversized planner session on the next successful lock", () => {
     const copy = getDictionary("en").planner;
-    window.sessionStorage.setItem("localens.demo.planner.v1", "x".repeat(100_000));
+    window.sessionStorage.setItem("localens.demo.planner.v1", "x".repeat(256_001));
 
     render(<PlannerFlow locale="en" copy={copy} />);
     fireEvent.click(screen.getByRole("button", { name: `${copy.lockLabel}: Ben Thanh Market` }));

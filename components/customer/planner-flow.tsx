@@ -16,6 +16,7 @@ import {
 } from "@/lib/application/planner/custom-request-demo";
 import {
   readPersonalizationState,
+  type PersonalizationOwnerScope,
   type PersonalizationReadState,
   type PersonalizationRequest,
 } from "@/lib/application/planner/personalization-session";
@@ -96,6 +97,34 @@ function formatRequirements(values: readonly string[], locale: Locale, noneLabel
   return values.length > 0 ? values.map((value) => labels[value]?.[locale] ?? value).join(", ") : noneLabel;
 }
 
+function initialPlannerSnapshot(
+  adapter: PlannerAdapter,
+  locale: Locale,
+): { state: DemoPlannerState; handoffStatus: "pending" | PersonalizationReadState["status"] } {
+  const fixture = readE2EPlannerState(locale);
+  if (fixture !== null) {
+    return {
+      state: fixture,
+      handoffStatus: fixture.preferences === null ? "missing" : "ok",
+    };
+  }
+
+  // An anonymous planner snapshot is safe to restore before the async demo
+  // identity read. Customer-owned snapshots wait for that identity check.
+  const anonymousSession = readDemoPlannerSession(Date.now(), "anonymous");
+  if (anonymousSession.status === "ok" && anonymousSession.session.locale === locale) {
+    return {
+      state: anonymousSession.session.state,
+      handoffStatus: anonymousSession.session.state.preferences === null ? "missing" : "ok",
+    };
+  }
+
+  const handoff = readPersonalizationState();
+  if (handoff.status === "ok") return { state: adapter.createInitial(locale, handoff.request), handoffStatus: "ok" };
+  if (handoff.status === "missing") return { state: adapter.createInitial(locale), handoffStatus: "missing" };
+  return { state: adapter.createInitial(locale, null), handoffStatus: handoff.status };
+}
+
 export function PlannerFlow({
   locale,
   copy,
@@ -107,8 +136,9 @@ export function PlannerFlow({
   adapter?: PlannerAdapter;
   demoSession?: Pick<DemoSessionPort, "getSession">;
 }) {
-  const [state, setState] = useState<DemoPlannerState>(() => adapter.createInitial(locale, null));
-  const [handoffStatus, setHandoffStatus] = useState<"pending" | PersonalizationReadState["status"]>("pending");
+  const [initialSnapshot] = useState(() => initialPlannerSnapshot(adapter, locale));
+  const [state, setState] = useState<DemoPlannerState>(initialSnapshot.state);
+  const [handoffStatus, setHandoffStatus] = useState<"pending" | PersonalizationReadState["status"]>(initialSnapshot.handoffStatus);
   const [feedback, setFeedback] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [staleError, setStaleError] = useState(false);
@@ -127,7 +157,11 @@ export function PlannerFlow({
       return;
     }
 
-    const persisted = readDemoPlannerSession();
+    if (identity === undefined) return;
+
+    const ownerScope: PersonalizationOwnerScope = identity?.role === "customer" ? `customer:${identity.userId}` : "anonymous";
+
+    const persisted = readDemoPlannerSession(Date.now(), ownerScope);
     if (persisted.status === "ok" && persisted.session.locale === locale) {
       setHandoffStatus(persisted.session.state.preferences === null ? "missing" : "ok");
       setState(persisted.session.state);
@@ -145,7 +179,7 @@ export function PlannerFlow({
       if (handoff.status === "missing") return adapter.createInitial(locale);
       return adapter.createInitial(locale, null);
     });
-  }, [adapter, locale]);
+  }, [adapter, identity, locale]);
 
   useEffect(() => {
     let disposed = false;
