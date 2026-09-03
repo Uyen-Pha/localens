@@ -17,6 +17,9 @@ export type PersonalizationRequest = Readonly<{
 
 export const PERSONALIZATION_SESSION_KEY = "localens.personalization.v1";
 export const PERSONALIZATION_SESSION_TTL_MS = 30 * 60 * 1000;
+export const DEMO_PLANNER_SESSION_KEY = "localens.demo.planner.v1";
+
+export type PersonalizationOwnerScope = "anonymous" | `customer:${string}`;
 
 const PRIORITY_KEYS: readonly PersonalizationPriorityKey[] = [
   "street_food",
@@ -92,10 +95,19 @@ type PersonalizationEnvelope = Readonly<{
   version: 1;
   savedAt: number;
   request: PersonalizationRequest;
+  handoffId?: string;
+  ownerScope?: PersonalizationOwnerScope;
+  originalExpiresAt?: number;
 }>;
 
 export type PersonalizationReadState =
-  | Readonly<{ status: "ok"; request: PersonalizationRequest }>
+  | Readonly<{
+    status: "ok";
+    request: PersonalizationRequest;
+    handoffId: string;
+    ownerScope: PersonalizationOwnerScope;
+    originalExpiresAt: number;
+  }>
   | Readonly<{ status: "missing" }>
   | Readonly<{ status: "expired" }>
   | Readonly<{ status: "invalid" }>
@@ -115,9 +127,18 @@ export function savePersonalizationRequest(request: PersonalizationRequest): boo
   if (typeof window === "undefined" || !isPersonalizationRequest(request)) return false;
 
   try {
-    const envelope: PersonalizationEnvelope = { version: 1, savedAt: Date.now(), request };
+    const savedAt = Date.now();
+    const envelope: PersonalizationEnvelope = {
+      version: 1,
+      savedAt,
+      request,
+      handoffId: createHandoffId(),
+      ownerScope: "anonymous",
+      originalExpiresAt: savedAt + PERSONALIZATION_SESSION_TTL_MS,
+    };
     const serialized = JSON.stringify(envelope);
     window.sessionStorage.setItem(PERSONALIZATION_SESSION_KEY, serialized);
+    window.sessionStorage.removeItem(DEMO_PLANNER_SESSION_KEY);
     return window.sessionStorage.getItem(PERSONALIZATION_SESSION_KEY) === serialized;
   } catch {
     return false;
@@ -153,7 +174,36 @@ export function readPersonalizationState(now = Date.now()): PersonalizationReadS
     }
     return { status: "expired" };
   }
-  return { status: "ok", request: parsed.request };
+  return {
+    status: "ok",
+    request: parsed.request,
+    handoffId: isHandoffId(parsed.handoffId) ? parsed.handoffId : `legacy-${parsed.savedAt}`,
+    ownerScope: isOwnerScope(parsed.ownerScope) ? parsed.ownerScope : "anonymous",
+    originalExpiresAt: isValidExpiry(parsed.originalExpiresAt)
+      ? parsed.originalExpiresAt
+      : parsed.savedAt + PERSONALIZATION_SESSION_TTL_MS,
+  };
+}
+
+function createHandoffId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch {
+    // Use the timestamp fallback when browser crypto is unavailable.
+  }
+  return `handoff-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function isHandoffId(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 96;
+}
+
+function isOwnerScope(value: unknown): value is PersonalizationOwnerScope {
+  return value === "anonymous" || (typeof value === "string" && value.startsWith("customer:") && value.length <= 160);
+}
+
+function isValidExpiry(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
 export function readPersonalizationRequest(now = Date.now()): PersonalizationRequest | null {

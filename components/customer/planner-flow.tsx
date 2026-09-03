@@ -19,6 +19,10 @@ import {
   type PersonalizationReadState,
   type PersonalizationRequest,
 } from "@/lib/application/planner/personalization-session";
+import {
+  readDemoPlannerSession,
+  saveDemoPlannerSession,
+} from "@/lib/application/planner/demo-planner-session";
 import type { Locale } from "@/lib/i18n/config";
 import type { PlannerCopy } from "@/lib/i18n/dictionaries";
 import type { DemoPortalIdentity, DemoSessionPort } from "@/lib/application/portal/contracts";
@@ -123,6 +127,13 @@ export function PlannerFlow({
       return;
     }
 
+    const persisted = readDemoPlannerSession();
+    if (persisted.status === "ok" && persisted.session.locale === locale) {
+      setHandoffStatus(persisted.session.state.preferences === null ? "missing" : "ok");
+      setState(persisted.session.state);
+      return;
+    }
+
     const handoff = readPersonalizationState();
     setHandoffStatus(handoff.status);
 
@@ -166,15 +177,22 @@ export function PlannerFlow({
   }, [staleError]);
 
   function toggleLock(itemId: string) {
-    setState((current) => ({
-      ...current,
+    const nextState = {
+      ...state,
       current: {
-        ...current.current,
-        items: current.current.items.map((item) =>
+        ...state.current,
+        items: state.current.items.map((item) =>
           item.id === itemId ? { ...item, locked: !item.locked } : item,
         ),
       },
-    }));
+    };
+    setState(nextState);
+    void saveDemoPlannerSession(nextState, {
+      type: "lock",
+      itemId,
+      locked: nextState.current.items.find((item) => item.id === itemId)?.locked ?? false,
+      resultRevision: nextState.current.revision,
+    }, identity?.role === "customer" ? `customer:${identity.userId}` : "anonymous");
     setStatusMessage(null);
   }
 
@@ -210,6 +228,12 @@ export function PlannerFlow({
     }
 
     setState(result.state);
+    void saveDemoPlannerSession(result.state, {
+      type: "refine",
+      feedback: normalizedFeedback,
+      lockedItemIds: result.state.current.items.filter((item) => item.locked).map((item) => item.id),
+      resultRevision: result.state.current.revision,
+    }, identity?.role === "customer" ? `customer:${identity.userId}` : "anonymous");
     setFeedback("");
     setStatusMessage(copy.revisionCreatedMessage);
   }

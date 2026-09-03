@@ -32,6 +32,8 @@ afterEach(() => {
   clearPersonalizationRequest();
   clearCustomRequestDraft();
   window.sessionStorage.removeItem(E2E_PLANNER_STATE_SESSION_KEY);
+  window.sessionStorage.removeItem("localens.demo.planner.v1");
+  window.sessionStorage.removeItem("unrelated-planner-data");
   delete process.env.NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES;
   if (originalRuntimeMode === undefined) delete process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME;
   else process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME = originalRuntimeMode;
@@ -413,6 +415,110 @@ describe("PlannerFlow", () => {
       name: `${copy.unlockLabel}: ${"Bảo tàng Chứng tích Chiến tranh"}`,
     });
     expect(unlockButton).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("persists the terminal lock state across a navigation remount without touching unrelated storage", () => {
+    const copy = getDictionary("en").planner;
+    window.sessionStorage.setItem("unrelated-planner-data", "keep");
+
+    render(<PlannerFlow locale="en" copy={copy} />);
+    fireEvent.click(screen.getByRole("button", { name: `${copy.lockLabel}: Ben Thanh Market` }));
+
+    expect(window.sessionStorage.getItem("localens.demo.planner.v1")).not.toBeNull();
+    expect(window.sessionStorage.getItem("unrelated-planner-data")).toBe("keep");
+
+    cleanup();
+    render(<PlannerFlow locale="en" copy={copy} />);
+
+    expect(screen.getByRole("button", { name: `${copy.unlockLabel}: Ben Thanh Market` })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(window.sessionStorage.getItem("unrelated-planner-data")).toBe("keep");
+  });
+
+  it("persists revision three and its ordered refinements across a navigation remount", () => {
+    const copy = getDictionary("en").planner;
+    render(<PlannerFlow locale="en" copy={copy} />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: copy.feedbackLabel }), {
+      target: { value: "Keep the museum focus." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: copy.refineLabel }));
+    fireEvent.change(screen.getByRole("textbox", { name: copy.feedbackLabel }), {
+      target: { value: "Add a slower walking pace." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: copy.refineLabel }));
+
+    expect(screen.getByRole("heading", { name: "Revision 3" })).toBeInTheDocument();
+
+    const raw = window.sessionStorage.getItem("localens.demo.planner.v1");
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw ?? "{}").operations).toEqual([
+      expect.objectContaining({ type: "refine", feedback: "Keep the museum focus.", resultRevision: 2 }),
+      expect.objectContaining({ type: "refine", feedback: "Add a slower walking pace.", resultRevision: 3 }),
+    ]);
+
+    cleanup();
+    render(<PlannerFlow locale="en" copy={copy} />);
+
+    expect(screen.getByRole("heading", { name: "Revision 3" })).toBeInTheDocument();
+    expect(screen.getByText("Keep the museum focus.")).toBeInTheDocument();
+    expect(screen.getByText("Add a slower walking pace.")).toBeInTheDocument();
+  });
+
+  it("recovers from a corrupt planner session on the next successful lock", () => {
+    const copy = getDictionary("en").planner;
+    window.sessionStorage.setItem("localens.demo.planner.v1", "not-json");
+
+    render(<PlannerFlow locale="en" copy={copy} />);
+    fireEvent.click(screen.getByRole("button", { name: `${copy.lockLabel}: Ben Thanh Market` }));
+
+    expect(screen.getByRole("button", { name: `${copy.unlockLabel}: Ben Thanh Market` })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(JSON.parse(window.sessionStorage.getItem("localens.demo.planner.v1") ?? "{}").state.current.items[0].locked).toBe(true);
+  });
+
+  it("recovers from an expired planner session on the next successful refinement", () => {
+    const copy = getDictionary("en").planner;
+    window.sessionStorage.setItem("localens.demo.planner.v1", JSON.stringify({
+      version: 1,
+      handoffId: "expired-handoff",
+      ownerScope: "anonymous",
+      createdAt: Date.now() - 31 * 60 * 1000,
+      originalExpiresAt: Date.now() - 1,
+      locale: "en",
+      state: { ...injectedState(), current: { ...injectedState().current, feedback: "expired state" } },
+      operations: [],
+    }));
+
+    render(<PlannerFlow locale="en" copy={copy} />);
+    fireEvent.change(screen.getByRole("textbox", { name: copy.feedbackLabel }), {
+      target: { value: "Recover this route." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: copy.refineLabel }));
+
+    expect(screen.getByRole("heading", { name: "Revision 2" })).toBeInTheDocument();
+    expect(screen.queryByText("expired state")).not.toBeInTheDocument();
+    expect(JSON.parse(window.sessionStorage.getItem("localens.demo.planner.v1") ?? "{}").state.current.feedback).toBe(
+      "Recover this route.",
+    );
+  });
+
+  it("recovers from an oversized planner session on the next successful lock", () => {
+    const copy = getDictionary("en").planner;
+    window.sessionStorage.setItem("localens.demo.planner.v1", "x".repeat(100_000));
+
+    render(<PlannerFlow locale="en" copy={copy} />);
+    fireEvent.click(screen.getByRole("button", { name: `${copy.lockLabel}: Ben Thanh Market` }));
+
+    expect(screen.getByRole("button", { name: `${copy.unlockLabel}: Ben Thanh Market` })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(JSON.parse(window.sessionStorage.getItem("localens.demo.planner.v1") ?? "{}").state.current.items[0].locked).toBe(true);
   });
 
   it("refines into a new revision and records the feedback in history", () => {

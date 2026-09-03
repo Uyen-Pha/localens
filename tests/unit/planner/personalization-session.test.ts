@@ -51,6 +51,23 @@ describe("personalization session contract", () => {
     expect(readPersonalizationRequest()).toEqual(request);
   });
 
+  it("creates a new handoff for every personalization submission, even for identical values", () => {
+    expect(savePersonalizationRequest(request)).toBe(true);
+    const first = readPersonalizationState();
+    expect(first.status).toBe("ok");
+
+    expect(savePersonalizationRequest(request)).toBe(true);
+    const second = readPersonalizationState();
+    expect(second.status).toBe("ok");
+
+    if (first.status !== "ok" || second.status !== "ok") throw new Error("expected active personalization handoffs");
+    expect(first.handoffId).toBeTruthy();
+    expect(second.handoffId).toBeTruthy();
+    expect(second.handoffId).not.toBe(first.handoffId);
+    expect(second.ownerScope).toBe("anonymous");
+    expect(second.originalExpiresAt).toBeGreaterThan(Date.now());
+  });
+
   it("fails closed when session data is not a valid request", () => {
     window.sessionStorage.setItem("localens.personalization.v1", JSON.stringify({
       startAt: request.startAt,
