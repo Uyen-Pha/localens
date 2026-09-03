@@ -454,6 +454,8 @@ export interface GuideProfileUpdate {
 
 /** Extends the existing assignment projection with guide/admin-only special needs. */
 export type GuideAssignedTour = GuideAssignedBooking & {
+  /** Catalog duration is an estimate; it must not be used as a confirmed end time. */
+  catalogDurationMinutes?: number;
   specialNeeds: string | null;
   /** Cancellation state is projected only for this guide's own assignment. */
   cancellationStatus: CancellationStatus | null;

@@ -33,6 +33,40 @@ function formatTime(value: string, locale: "en" | "vi"): string {
   }).format(new Date(value));
 }
 
+function formatDuration(value: number | undefined, locale: "en" | "vi", unavailable: string): string {
+  if (value === undefined || !Number.isSafeInteger(value) || value <= 0) return unavailable;
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  if (locale === "vi") return minutes === 0 ? `${hours} giờ` : `${hours} giờ ${minutes} phút`;
+  const hourLabel = hours === 1 ? "hour" : "hours";
+  return minutes === 0 ? `${hours} ${hourLabel}` : `${hours} ${hourLabel} ${minutes} minutes`;
+}
+
+function hasValidActualRange(startAt: string, endAt: string | null): endAt is string {
+  if (endAt === null) return false;
+  const start = Date.parse(startAt);
+  const end = Date.parse(endAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return false;
+  const dateKey = (value: number) => new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Asia/Ho_Chi_Minh",
+  }).format(new Date(value));
+  return dateKey(start) === dateKey(end);
+}
+
+function formatActualSchedule(
+  startAt: string,
+  endAt: string | null,
+  locale: "en" | "vi",
+  unavailable: string,
+): string {
+  return hasValidActualRange(startAt, endAt)
+    ? `${formatTime(startAt, locale)}–${formatTime(endAt, locale)}`
+    : unavailable;
+}
+
 function statusClass(status: string): string {
   return status === "assigned" ? styles.status : `${styles.status} ${styles.statusNeutral}`;
 }
@@ -222,7 +256,8 @@ export function GuidePortal({
                       </div>
                       <dl className={styles.facts}>
                         <div><dt>{copy.date}</dt><dd>{formatDate(assignment.startAt, locale)}</dd></div>
-                        <div><dt>{copy.scheduleHeading}</dt><dd>{formatTime(assignment.startAt, locale)}{assignment.endAt === null ? "" : `–${formatTime(assignment.endAt, locale)}`}</dd></div>
+                        <div><dt>{copy.scheduleHeading}</dt><dd>{formatActualSchedule(assignment.startAt, assignment.endAt, locale, copy.scheduleUnavailable)}</dd></div>
+                        <div><dt>{copy.estimatedDuration}</dt><dd>{formatDuration(assignment.catalogDurationMinutes, locale, copy.durationUnavailable)}</dd></div>
                         <div><dt>{copy.meetingPoint}</dt><dd>{assignment.meetingPoint}</dd></div>
                         <div><dt>{copy.partySize}</dt><dd>{assignment.partySize}</dd></div>
                         <div><dt>{copy.tourLanguage}</dt><dd>{assignment.language === "vi" ? copy.vietnamese : copy.english}</dd></div>
@@ -245,7 +280,28 @@ export function GuidePortal({
                 <span className={styles.status}>{copy.demoOnly}</span>
               </div>
               <p className={styles.sectionIntro}>{copy.readOnlyAssignment}</p>
-              {data.assignments.length === 0 ? <p className={styles.empty}>{copy.noAssignments}</p> : null}
+              {data.assignments.length === 0 ? <p className={styles.empty}>{copy.noAssignments}</p> : (
+                <div className={styles.list}>
+                  {data.assignments.map((assignment) => (
+                    <article
+                      className={styles.assignmentCard}
+                      key={`details-${assignment.bookingId}`}
+                      aria-label={`${assignment.title} ${copy.assignedToursHeading}`}
+                    >
+                      <dl className={styles.facts}>
+                        <div><dt>{copy.scheduleHeading}</dt><dd>{formatActualSchedule(assignment.startAt, assignment.endAt, locale, copy.scheduleUnavailable)}</dd></div>
+                        <div><dt>{copy.estimatedDuration}</dt><dd>{formatDuration(assignment.catalogDurationMinutes, locale, copy.durationUnavailable)}</dd></div>
+                        <div><dt>{copy.meetingPoint}</dt><dd>{assignment.meetingPoint}</dd></div>
+                        <div><dt>{copy.partySize}</dt><dd>{assignment.partySize}</dd></div>
+                        <div><dt>{copy.tourLanguage}</dt><dd>{assignment.language === "vi" ? copy.vietnamese : copy.english}</dd></div>
+                        <div><dt>{copy.accessibilityNeeds}</dt><dd>{assignment.specialNeeds ?? copy.noneRecorded}</dd></div>
+                        <div><dt>{copy.assignmentStatus}</dt><dd>{copy.assignmentStatusLabels[assignment.assignmentStatus]}</dd></div>
+                        <div><dt>{copy.cancellationNotice}</dt><dd>{assignment.cancellationStatus === null ? copy.noneRecorded : copy.cancellationStatusLabels[assignment.cancellationStatus]}</dd></div>
+                      </dl>
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
         ) : null}

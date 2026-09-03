@@ -26,6 +26,7 @@ import {
   createDemoPlannerAdapter,
   type DemoPlannerItem,
 } from "@/lib/application/planner/demo-planner";
+import { demoCatalogRepository } from "@/lib/infrastructure/mock/hcmc-catalog";
 import { isStrictPlannerState } from "@/lib/application/planner/e2e-planner-state-validator";
 import {
   isPersonalizationRequest,
@@ -215,6 +216,7 @@ const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
   id: string;
   versionId: string;
   slug: string;
+  catalogSlug: string;
   titleEn: string;
   titleVi: string;
   cancellationPolicy: string;
@@ -223,6 +225,7 @@ const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
     id: "demo-tour-markets",
     versionId: "demo-tour-version-markets",
     slug: "markets-and-street-food",
+    catalogSlug: "demo-markets-and-street-food",
     titleEn: "Markets and Street Food",
     titleVi: "Chợ địa phương và ẩm thực đường phố",
     cancellationPolicy: "Demo booking: changes are free before confirmation.",
@@ -231,6 +234,7 @@ const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
     id: "demo-tour-history",
     versionId: "demo-tour-version-history",
     slug: "history-and-memory",
+    catalogSlug: "demo-history-and-memory",
     titleEn: "History and Memory",
     titleVi: "Lịch sử và ký ức",
     cancellationPolicy: "Demo booking: changes are free before confirmation.",
@@ -239,6 +243,7 @@ const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
     id: "demo-tour-cho-lon-craft",
     versionId: "demo-tour-version-cho-lon-craft",
     slug: "cho-lon-craft",
+    catalogSlug: "demo-cho-lon-craft",
     titleEn: "Cho Lon Craft Traditions",
     titleVi: "Nghề thủ công Chợ Lớn",
     cancellationPolicy: "Demo booking: changes are free before confirmation.",
@@ -247,11 +252,21 @@ const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
     id: "demo-tour-city-life-mix",
     versionId: "demo-tour-version-city-life-mix",
     slug: "city-life-mix",
+    catalogSlug: "demo-city-life-mix",
     titleEn: "City Life, From Market to Craft",
     titleVi: "Nhịp sống thành phố: từ chợ đến nghề thủ công",
     cancellationPolicy: "Demo booking: changes are free before confirmation.",
   }),
 });
+
+function catalogDurationForHandoffTour(tourVersionId: string, locale: Locale): number | undefined {
+  const handoffTour = Object.values(DEMO_HANDOFF_TOURS).find((tour) => tour.versionId === tourVersionId);
+  if (handoffTour === undefined) return undefined;
+  const catalogTour = demoCatalogRepository.listTours(locale).find((tour) => tour.slug === handoffTour.catalogSlug);
+  return catalogTour !== undefined && Number.isSafeInteger(catalogTour.durationMinutes) && catalogTour.durationMinutes > 0
+    ? catalogTour.durationMinutes
+    : undefined;
+}
 
 const ENVELOPE_FIELDS = [
   "version",
@@ -1557,6 +1572,7 @@ function toGuideAssignment(
     bookingId: booking.id,
     tourVersionId: booking.tourVersionId,
     departureId: departure.id,
+    catalogDurationMinutes: catalogDurationForHandoffTour(booking.tourVersionId, guide.language),
     title: guide.language === "vi" ? booking.titleVi : booking.titleEn,
     startAt: departure.startsAt,
     endAt: departure.endAt,
