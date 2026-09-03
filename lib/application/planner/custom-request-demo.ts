@@ -41,7 +41,11 @@ export function customRequestDraftFromPlanner(
     revisionSnapshot: state.current,
   };
   const handoff = readPersonalizationState();
-  if (handoff.status !== "ok" || JSON.stringify(handoff.request) !== JSON.stringify(state.preferences)) return input;
+  // Older browser records have no handoff metadata. `readPersonalizationState`
+  // exposes a deterministic synthetic id for those records so consumers can
+  // keep the old plan-based request id without inventing a new ownership
+  // boundary during migration.
+  if (handoff.status !== "ok" || handoff.handoffId.startsWith("legacy-") || JSON.stringify(handoff.request) !== JSON.stringify(state.preferences)) return input;
   return {
     ...input,
     handoffId: handoff.handoffId,

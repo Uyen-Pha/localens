@@ -66,6 +66,20 @@ afterEach(() => {
 });
 
 describe("custom request local handoff", () => {
+  it("keeps legacy personalization envelopes on the legacy plan-based request id", () => {
+    const plannerState = createFoodFixturePlannerState("en");
+    window.sessionStorage.setItem("localens.personalization.v1", JSON.stringify({
+      version: 1,
+      savedAt: Date.now(),
+      request: plannerState.preferences,
+    }));
+
+    const selected = customRequestDraftFromPlanner(plannerState);
+
+    expect(selected.handoffId).toBeUndefined();
+    expect(selected.requestId).toBeUndefined();
+  });
+
   it("preserves the exact food-bearing planner revision through the request handoff", () => {
     const plannerState = createFoodFixturePlannerState("en");
     const selectedFood = plannerState.current.items.find((item) => item.foodSelection !== null)?.foodSelection;

@@ -104,28 +104,10 @@ function initialPlannerSnapshot(
   adapter: PlannerAdapter,
   locale: Locale,
 ): { state: DemoPlannerState; handoffStatus: "pending" | PersonalizationReadState["status"] } {
-  const fixture = readE2EPlannerState(locale);
-  if (fixture !== null) {
-    return {
-      state: fixture,
-      handoffStatus: fixture.preferences === null ? "missing" : "ok",
-    };
-  }
-
-  // An anonymous planner snapshot is safe to restore before the async demo
-  // identity read. Customer-owned snapshots wait for that identity check.
-  const anonymousSession = readDemoPlannerSession(Date.now(), "anonymous");
-  if (anonymousSession.status === "ok" && anonymousSession.session.locale === locale) {
-    return {
-      state: anonymousSession.session.state,
-      handoffStatus: anonymousSession.session.state.preferences === null ? "missing" : "ok",
-    };
-  }
-
-  const handoff = readPersonalizationState();
-  if (handoff.status === "ok") return { state: adapter.createInitial(locale, handoff.request), handoffStatus: "ok" };
-  if (handoff.status === "missing") return { state: adapter.createInitial(locale), handoffStatus: "missing" };
-  return { state: adapter.createInitial(locale, null), handoffStatus: handoff.status };
+  // Keep the first render identical on the server and browser. Browser-only
+  // fixture/session hydration happens in the effect below, after React has
+  // attached to the server markup.
+  return { state: adapter.createInitial(locale), handoffStatus: "missing" };
 }
 
 export function PlannerFlow({

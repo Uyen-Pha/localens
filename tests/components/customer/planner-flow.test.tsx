@@ -70,13 +70,13 @@ describe("PlannerFlow", () => {
     expect(screen.queryByText("Injected planner state")).not.toBeInTheDocument();
   });
 
-  it("loads a strictly validated planner fixture only when the E2E gate is on", () => {
+  it("loads a strictly validated planner fixture only when the E2E gate is on", async () => {
     process.env.NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES = "1";
     window.sessionStorage.setItem(E2E_PLANNER_STATE_SESSION_KEY, JSON.stringify(injectedState()));
 
     render(<PlannerFlow locale="en" copy={getDictionary("en").planner} />);
 
-    expect(screen.getByText("Injected planner state")).toBeInTheDocument();
+    expect(await screen.findByText("Injected planner state")).toBeInTheDocument();
   });
 
   it("fails closed when an E2E planner fixture contains an unknown field", () => {
@@ -142,7 +142,7 @@ describe("PlannerFlow", () => {
     expect(screen.getByText(copy.defaultFixtureLabel)).toBeInTheDocument();
   });
 
-  it("fails closed with a localized recovery CTA when the handoff is expired", () => {
+  it("fails closed with a localized recovery CTA when the handoff is expired", async () => {
     const copy = getDictionary("vi").planner;
     window.sessionStorage.setItem("localens.personalization.v1", JSON.stringify({
       version: 1,
@@ -165,24 +165,24 @@ describe("PlannerFlow", () => {
 
     render(<PlannerFlow locale="vi" copy={copy} />);
 
-    expect(screen.getByRole("alert")).toHaveTextContent(copy.handoffExpiredLabel);
+    expect(await screen.findByRole("alert")).toHaveTextContent(copy.handoffExpiredLabel);
     expect(screen.getByRole("link", { name: copy.backToPersonalizationLabel })).toHaveAttribute("href", "/vi#personalize");
     expect(screen.queryByTestId("planner-activity")).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: copy.preferencesHeading })).not.toBeInTheDocument();
   });
 
-  it("fails closed with a localized recovery CTA when the handoff is invalid", () => {
+  it("fails closed with a localized recovery CTA when the handoff is invalid", async () => {
     const copy = getDictionary("en").planner;
     window.sessionStorage.setItem("localens.personalization.v1", "not-json");
 
     render(<PlannerFlow locale="en" copy={copy} />);
 
-    expect(screen.getByRole("alert")).toHaveTextContent(copy.handoffInvalidLabel);
+    expect(await screen.findByRole("alert")).toHaveTextContent(copy.handoffInvalidLabel);
     expect(screen.getByRole("link", { name: copy.backToPersonalizationLabel })).toHaveAttribute("href", "/en#personalize");
     expect(screen.queryByTestId("planner-activity")).not.toBeInTheDocument();
   });
 
-  it("fails closed with a localized recovery CTA when browser storage cannot be read", () => {
+  it("fails closed with a localized recovery CTA when browser storage cannot be read", async () => {
     const copy = getDictionary("vi").planner;
     const getItemSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("storage disabled");
@@ -191,7 +191,7 @@ describe("PlannerFlow", () => {
     try {
       render(<PlannerFlow locale="vi" copy={copy} />);
 
-      expect(screen.getByRole("alert")).toHaveTextContent(copy.handoffStorageErrorLabel);
+      expect(await screen.findByRole("alert")).toHaveTextContent(copy.handoffStorageErrorLabel);
       expect(screen.getByRole("link", { name: copy.backToPersonalizationLabel })).toHaveAttribute("href", "/vi#personalize");
       expect(screen.queryByTestId("planner-activity")).not.toBeInTheDocument();
     } finally {
@@ -199,7 +199,7 @@ describe("PlannerFlow", () => {
     }
   });
 
-  it("shows submitted preferences in the local proposal without adding a booking action", () => {
+  it("shows submitted preferences in the local proposal without adding a booking action", async () => {
     const copy = getDictionary("vi").planner;
     savePersonalizationRequest({
       startAt: "2026-09-05T10:30:00+07:00",
@@ -223,7 +223,7 @@ describe("PlannerFlow", () => {
 
     render(<PlannerFlow locale="vi" copy={copy} />);
 
-    const preferences = screen.getByRole("region", { name: copy.preferencesHeading });
+    const preferences = await screen.findByRole("region", { name: copy.preferencesHeading });
     expect(within(preferences).getByRole("heading", { name: copy.preferencesHeading })).toBeInTheDocument();
     expect(within(preferences).getByText("2026-09-05 10:30:00")).toBeInTheDocument();
     expect(within(preferences).getByText(/1\.500\.000/)).toBeInTheDocument();
@@ -417,7 +417,7 @@ describe("PlannerFlow", () => {
     expect(unlockButton).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("persists the terminal lock state across a navigation remount without touching unrelated storage", () => {
+  it("persists the terminal lock state across a navigation remount without touching unrelated storage", async () => {
     const copy = getDictionary("en").planner;
     window.sessionStorage.setItem("unrelated-planner-data", "keep");
 
@@ -430,14 +430,14 @@ describe("PlannerFlow", () => {
     cleanup();
     render(<PlannerFlow locale="en" copy={copy} />);
 
-    expect(screen.getByRole("button", { name: `${copy.unlockLabel}: Ben Thanh Market` })).toHaveAttribute(
+    expect(await screen.findByRole("button", { name: `${copy.unlockLabel}: Ben Thanh Market` })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
     expect(window.sessionStorage.getItem("unrelated-planner-data")).toBe("keep");
   });
 
-  it("persists revision three and its ordered refinements across a navigation remount", () => {
+  it("persists revision three and its ordered refinements across a navigation remount", async () => {
     const copy = getDictionary("en").planner;
     render(<PlannerFlow locale="en" copy={copy} />);
 
@@ -450,7 +450,7 @@ describe("PlannerFlow", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: copy.refineLabel }));
 
-    expect(screen.getByRole("heading", { name: "Revision 3" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Revision 3" })).toBeInTheDocument();
 
     const raw = window.sessionStorage.getItem("localens.demo.planner.v1");
     expect(raw).not.toBeNull();
@@ -462,7 +462,7 @@ describe("PlannerFlow", () => {
     cleanup();
     render(<PlannerFlow locale="en" copy={copy} />);
 
-    expect(screen.getByRole("heading", { name: "Revision 3" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Revision 3" })).toBeInTheDocument();
     expect(screen.getByText("Keep the museum focus.")).toBeInTheDocument();
     expect(screen.getByText("Add a slower walking pace.")).toBeInTheDocument();
   });

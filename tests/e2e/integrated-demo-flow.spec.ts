@@ -467,15 +467,19 @@ test("personalized request runs the complete customer and admin chain in Vietnam
   await expect(page).toHaveURL(/\/vi\/custom-request\/?$/);
   const selectedRevision = page.getByRole("region", { name: customCopy.selectedRevisionHeading, exact: true });
   await expect(selectedRevision.getByText(customCopy.revisionLabel, { exact: true }).locator("xpath=..").getByRole("definition")).toHaveText("2");
-  const planId = (await selectedRevision.getByText(customCopy.planIdLabel, { exact: true }).locator("xpath=..").getByRole("definition").textContent())?.trim();
-  if (!planId) throw new Error("The confirmed Vietnamese revision has no plan identifier.");
-  const requestId = `demo-request-${planId}-2`;
   await page.getByRole("button", { name: customCopy.submitRequestLabel, exact: true }).click();
   await expect(page.getByText(customCopy.adminReviewPendingMessage, { exact: true })).toBeVisible();
 
   await switchRole(page, locale, "admin");
   await expect(page.getByRole("heading", { name: portalCopy.adminPortal, exact: true })).toBeVisible();
   const personalizedRegion = page.getByRole("region", { name: portalCopy.personalizedHeading, exact: true });
+  const pendingRequests = personalizedRegion.getByRole("listitem").filter({
+    hasText: portalCopy.requestStatusLabels.pending_review,
+  });
+  await expect(pendingRequests).toHaveCount(2);
+  const pendingRequest = pendingRequests.last();
+  const requestId = (await pendingRequest.getByRole("heading", { level: 3 }).textContent())?.trim();
+  if (!requestId) throw new Error("The submitted Vietnamese request has no visible identifier.");
   const requestCard = personalizedRegion.getByRole("listitem").filter({ hasText: requestId });
   await expect(requestCard).toHaveCount(1);
   await requestCard.getByRole("combobox", { name: `${portalCopy.decision}: ${requestId}`, exact: true }).selectOption({ label: portalCopy.approved });
