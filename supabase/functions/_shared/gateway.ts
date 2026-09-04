@@ -8,7 +8,7 @@
 
 export const DEFAULT_EDGE_BODY_LIMIT = 64 * 1024;
 const DEFAULT_ALLOWED_METHODS = ["POST", "OPTIONS"] as const;
-const ALLOWED_CORS_HEADERS = "authorization, content-type, x-correlation-id";
+const ALLOWED_CORS_HEADERS = "authorization, content-type, x-correlation-id, x-localens-device-id";
 const ALLOWED_CORS_HEADER_NAMES = new Set(ALLOWED_CORS_HEADERS.split(",").map((header) => header.trim()));
 const CORRELATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;

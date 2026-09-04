@@ -94,7 +94,7 @@ describe("Edge gateway contract", () => {
         headers: {
           Origin: "http://localhost:3000",
           "Access-Control-Request-Method": "POST",
-          "Access-Control-Request-Headers": "authorization, content-type",
+          "Access-Control-Request-Headers": "authorization, content-type, x-localens-device-id",
         },
       }),
       policy,
@@ -129,7 +129,7 @@ describe("Edge gateway contract", () => {
       expect(result.response.status).toBe(403);
       expect(result.response.headers.get("Access-Control-Allow-Origin")).toBe("https://locallens.example");
       expect(result.response.headers.get("Access-Control-Allow-Headers")).toBe(
-        "authorization, content-type, x-correlation-id",
+        "authorization, content-type, x-correlation-id, x-localens-device-id",
       );
     }
   });
