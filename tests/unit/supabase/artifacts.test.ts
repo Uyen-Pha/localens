@@ -680,6 +680,7 @@ COMMIT;
       expect(deno.imports).toMatchObject({
         "@/supabase/functions/_shared/edge-env": "../../../supabase/functions/_shared/edge-env.ts",
         "@/supabase/functions/_shared/gateway": "../../../supabase/functions/_shared/gateway.ts",
+        "@/supabase/functions/_shared/itinerary-wire-response": "../../../supabase/functions/_shared/itinerary-wire-response.ts",
         "@/supabase/functions/_shared/supabase-itinerary-adapter": "../../../supabase/functions/_shared/supabase-itinerary-adapter.ts",
         "@/lib/domain/itinerary/contracts": "../../../lib/domain/itinerary/contracts.ts",
       });

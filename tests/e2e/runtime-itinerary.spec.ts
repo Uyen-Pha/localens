@@ -7,11 +7,15 @@ import {
   type Page,
 } from "@playwright/test";
 
-import type {
-  ItineraryRequest,
-  ItineraryResult,
+import {
+  ItineraryResultSchema,
+  type ItineraryRequest,
 } from "@/lib/domain/itinerary/contracts";
 import type { Database } from "@/lib/infrastructure/supabase/database.types";
+import {
+  serializeItineraryWireResponse,
+  type ItineraryWireResponse,
+} from "@/supabase/functions/_shared/itinerary-wire-response";
 
 const accounts = {
   owner: {
@@ -63,7 +67,7 @@ type RecommendationBody = {
   degraded: boolean;
   messageKey?: string;
   planId: string;
-  proposal: ItineraryResult;
+  proposal: ItineraryWireResponse;
   rationales: Record<string, string>;
   revision: 1;
 };
@@ -73,7 +77,7 @@ type RefinementBody = {
   degraded: boolean;
   messageKey?: string;
   planId: string;
-  proposal: ItineraryResult;
+  proposal: ItineraryWireResponse;
   rationales: Record<string, string>;
   regeneration: "partial" | "full";
   revision: number;
@@ -313,7 +317,11 @@ function expectRecommendation(
   });
   const body = result.body as RecommendationBody;
   expect(body.proposal.items.length).toBeGreaterThan(0);
-  expect(body.proposal.totals.groupCostVnd).toBeLessThanOrEqual(body.proposal.budgetVnd);
+  expect(body.proposal.totals.groupCostVnd).toMatch(/^(0|[1-9]\d*)$/);
+  expect(body.proposal.budgetVnd).toMatch(/^(0|[1-9]\d*)$/);
+  expect(
+    BigInt(body.proposal.totals.groupCostVnd) <= BigInt(body.proposal.budgetVnd),
+  ).toBe(true);
   return body;
 }
 
@@ -345,8 +353,11 @@ async function expectRevisionOnePersisted(
     revision_no: 1,
     base_revision_no: 0,
     ranking_source: body.proposal.rankingSource,
-    result_json: body.proposal,
   });
+  const persistedResult = ItineraryResultSchema.safeParse(revision.data?.[0]?.result_json);
+  expect(persistedResult.success).toBe(true);
+  if (!persistedResult.success) throw new Error("Persisted revision 1 must contain a valid itinerary result");
+  expect(serializeItineraryWireResponse(persistedResult.data)).toEqual(body.proposal);
   const revisionId = revision.data?.[0]?.id;
   if (typeof revisionId !== "string") throw new Error("Persisted revision 1 must have an ID");
 
