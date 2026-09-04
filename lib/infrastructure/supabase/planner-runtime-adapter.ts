@@ -69,14 +69,59 @@ function responseErrorCode(status: number | null): RuntimePlannerErrorCode {
   return "SERVICE_UNAVAILABLE";
 }
 
-function responseStatus(error: unknown): number | null {
-  if (!isRecord(error) || !isRecord(error.context) || typeof error.context.status !== "number") return null;
-  return Number.isInteger(error.context.status) ? error.context.status : null;
-}
-
 function responseCorrelation(value: unknown): string {
   if (!isRecord(value) || !isUuid(value.correlationId)) return FALLBACK_CORRELATION_ID;
   return value.correlationId;
+}
+
+type GatewayErrorEnvelope = {
+  code: RuntimePlannerErrorCode;
+  messageKey: string;
+  retryable: boolean;
+  correlationId: string;
+};
+
+type ResponseContext = {
+  status: number;
+  clone(): unknown;
+};
+
+const GATEWAY_CODE_MAP: Readonly<Record<string, RuntimePlannerErrorCode>> = {
+  AUTH_REQUIRED: "AUTH_REQUIRED",
+  AUTH_INVALID: "AUTH_EXPIRED",
+  INVALID_REQUEST: "INVALID_REQUEST",
+  QUOTA_EXCEEDED: "QUOTA_EXCEEDED",
+  STALE_REVISION: "STALE_REVISION",
+  SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
+};
+
+function isGatewayMessageKey(value: unknown): value is string {
+  return typeof value === "string"
+    && /^(?:gateway|recommendation|refinement|itinerary)\.[a-z0-9_]+$/.test(value);
+}
+
+function parseGatewayErrorEnvelope(value: unknown): GatewayErrorEnvelope | null {
+  if (!isRecord(value) || !isExactKeys(value, ["code", "messageKey", "retryable", "correlationId"])) return null;
+  const code = typeof value.code === "string" ? GATEWAY_CODE_MAP[value.code] : undefined;
+  if (code === undefined || !isGatewayMessageKey(value.messageKey) || typeof value.retryable !== "boolean" || !isUuid(value.correlationId)) return null;
+  return { code, messageKey: value.messageKey, retryable: value.retryable, correlationId: value.correlationId };
+}
+
+function responseContext(error: unknown): ResponseContext | null {
+  if (!isRecord(error) || !isRecord(error.context) || typeof error.context.status !== "number" || !Number.isInteger(error.context.status) || typeof error.context.clone !== "function") return null;
+  return error.context as unknown as ResponseContext;
+}
+
+async function parseFunctionsHttpError(error: unknown): Promise<{ status: number; envelope: GatewayErrorEnvelope | null } | null> {
+  const context = responseContext(error);
+  if (context === null) return null;
+  try {
+    const clone = context.clone();
+    if (!isRecord(clone) || typeof clone.json !== "function") return { status: context.status, envelope: null };
+    return { status: context.status, envelope: parseGatewayErrorEnvelope(await clone.json()) };
+  } catch {
+    return { status: context.status, envelope: null };
+  }
 }
 
 function deviceId(): string | null {
@@ -126,11 +171,18 @@ async function readRows(operation: PromiseLike<{ data: unknown; error: unknown }
 }
 
 async function canonicalizeAreas(client: PlannerSupabaseClient, request: ItineraryRequest): Promise<ItineraryRequest | null> {
-  const rows = await readRows(client.from("catalog_snapshot_areas_v").select("snapshot_id,area_id,slug").in("slug", request.areas));
+  const current = await readRows(client.from("current_itinerary_snapshot_v").select("catalog_snapshot_id"));
+  const snapshot = current?.length === 1 && isRecord(current[0]) ? current[0] : null;
+  const snapshotId = snapshot?.catalog_snapshot_id;
+  if (snapshot === null || !isExactKeys(snapshot, ["catalog_snapshot_id"]) || !isUuid(snapshotId)) return null;
+  const rows = await readRows(
+    client.from("catalog_snapshot_areas_v").select("snapshot_id,area_id,slug")
+      .eq("snapshot_id", snapshotId).in("slug", request.areas),
+  );
   if (rows === null || rows.length !== request.areas.length) return null;
   const areas = new Map<string, string>();
   for (const row of rows) {
-    if (!isRecord(row) || !isExactKeys(row, ["snapshot_id", "area_id", "slug"]) || !isUuid(row.snapshot_id) || !isUuid(row.area_id) || !isIdentifier(row.slug) || !request.areas.includes(row.slug) || areas.has(row.slug)) return null;
+    if (!isRecord(row) || !isExactKeys(row, ["snapshot_id", "area_id", "slug"]) || row.snapshot_id !== snapshotId || !isUuid(row.area_id) || !isIdentifier(row.slug) || !request.areas.includes(row.slug) || areas.has(row.slug)) return null;
     areas.set(row.slug, row.area_id);
   }
   const canonical = request.areas.map((slug) => areas.get(slug));
@@ -249,8 +301,12 @@ export function createSupabasePlannerRuntimeAdapter(client: PlannerSupabaseClien
         headers: { "x-localens-device-id": id },
       });
       if (response.error !== null) {
-        const status = responseStatus(response.error);
-        return failure(responseErrorCode(status), status === null || status === 503, responseCorrelation(response.data));
+        const httpError = await parseFunctionsHttpError(response.error);
+        if (httpError !== null && httpError.envelope !== null) {
+          return { ok: false, error: httpError.envelope };
+        }
+        if (httpError !== null) return failure(responseErrorCode(httpError.status), httpError.status === 503);
+        return failure("SERVICE_UNAVAILABLE", true);
       }
       return mapProposal(response.data, locale);
     } catch {
@@ -278,11 +334,10 @@ export function createSupabasePlannerRuntimeAdapter(client: PlannerSupabaseClien
     async getPlan(planId, locale) {
       if (locale !== "en" && locale !== "vi" || !isUuid(planId)) return failure("INVALID_REQUEST");
       if (await getSession() === null) return failure("AUTH_REQUIRED");
-      const plans = await readRows(client.from("trip_plans").select("id,latest_revision_no").eq("id", planId));
-      const plan = plans?.length === 1 && isRecord(plans[0]) ? plans[0] : null;
-      const latestRevision = plan?.latest_revision_no;
-      if (plan === null || !isExactKeys(plan, ["id", "latest_revision_no"]) || plan.id !== planId || typeof latestRevision !== "number" || !Number.isSafeInteger(latestRevision) || latestRevision < 1) return failure();
-      const revisions = await readRows(client.from("trip_plan_revisions").select("plan_id,revision_no,result_json,ranking_source").eq("plan_id", planId).eq("revision_no", latestRevision));
+      const revisions = await readRows(
+        client.from("trip_plan_revisions").select("plan_id,revision_no,result_json,ranking_source")
+          .eq("plan_id", planId).order("revision_no", { ascending: false }).limit(1),
+      );
       const response = revisions !== null && revisions.length === 1 ? persistedResponse(revisions[0], planId) : null;
       return response === null ? failure() : mapProposal(response, locale);
     },

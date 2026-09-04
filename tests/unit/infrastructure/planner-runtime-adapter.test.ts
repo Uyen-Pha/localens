@@ -19,15 +19,32 @@ function queryDouble(response: QueryResponse) {
     select: vi.fn(),
     eq: vi.fn(),
     in: vi.fn(),
+    limit: vi.fn(),
     order: vi.fn(),
     then: vi.fn(),
   };
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);
   query.in.mockReturnValue(query);
+  query.limit.mockReturnValue(query);
   query.order.mockReturnValue(query);
   query.then.mockImplementation((resolve, reject) => Promise.resolve(response).then(resolve, reject));
   return query;
+}
+
+function gatewayFailure(
+  status: number,
+  body: unknown,
+): QueryResponse {
+  return {
+    data: null,
+    error: {
+      context: new Response(typeof body === "string" ? body : JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      }),
+    },
+  };
 }
 
 function wireResponse(overrides: Record<string, unknown> = {}) {
@@ -117,44 +134,44 @@ function clientDouble({
     { snapshot_id: ids.catalog, area_id: ids.areaOne, slug: "district-1" },
     { snapshot_id: ids.catalog, area_id: ids.areaTwo, slug: "district-5" },
   ],
+  currentSnapshot = [{ catalog_snapshot_id: ids.catalog }],
   display = [{ snapshot_id: ids.catalog, place_id: "place-one", locale: "en", title: "Place one", summary: "A place." }],
   vendors = [],
   items = [],
-  plans = [{ id: ids.plan, latest_revision_no: 1 }],
   revisions = [{ plan_id: ids.plan, revision_no: 1, result_json: persistedResult(), ranking_source: "ai" }],
   session = { data: { session: { user: { id: ids.user } } }, error: null },
   identity = { data: [{ user_id: ids.user, display_name: "Demo customer", role: "customer", language: "en" }], error: null },
 }: {
   invoke?: QueryResponse;
   areas?: unknown;
+  currentSnapshot?: unknown;
   display?: unknown;
   vendors?: unknown;
   items?: unknown;
-  plans?: unknown;
   revisions?: unknown;
   session?: QueryResponse;
   identity?: QueryResponse;
 } = {}) {
+  const currentSnapshotQuery = queryDouble({ data: currentSnapshot, error: null });
   const areaQuery = queryDouble({ data: areas, error: null });
   const displayQuery = queryDouble({ data: display, error: null });
   const vendorQuery = queryDouble({ data: vendors, error: null });
   const itemQuery = queryDouble({ data: items, error: null });
-  const planQuery = queryDouble({ data: plans, error: null });
   const revisionQuery = queryDouble({ data: revisions, error: null });
   const client = {
     auth: { getSession: vi.fn().mockResolvedValue(session) },
     rpc: vi.fn().mockResolvedValue(identity),
     functions: { invoke: vi.fn().mockResolvedValue(invoke) },
     from: vi.fn((relation: string) => {
+      if (relation === "current_itinerary_snapshot_v") return currentSnapshotQuery;
       if (relation === "catalog_snapshot_areas_v") return areaQuery;
       if (relation === "catalog_snapshot_place_display_v") return displayQuery;
       if (relation === "catalog_snapshot_food_vendors_v") return vendorQuery;
-      if (relation === "trip_plans") return planQuery;
       if (relation === "trip_plan_revisions") return revisionQuery;
       return itemQuery;
     }),
   };
-  return { client, areaQuery, displayQuery, vendorQuery, itemQuery, planQuery, revisionQuery };
+  return { client, currentSnapshotQuery, areaQuery, displayQuery, vendorQuery, itemQuery, revisionQuery };
 }
 
 describe("Supabase planner runtime adapter", () => {
@@ -166,13 +183,15 @@ describe("Supabase planner runtime adapter", () => {
     vi.restoreAllMocks();
   });
 
-  it("canonicalizes areas, invokes the authenticated Edge function, and maps localized display rows", async () => {
-    const { client, areaQuery, displayQuery } = clientDouble();
+  it("pins area canonicalization to the current catalog snapshot before invoking the Edge function", async () => {
+    const { client, currentSnapshotQuery, areaQuery, displayQuery } = clientDouble();
     const adapter = createSupabasePlannerRuntimeAdapter(client as never);
 
     const result = await adapter.recommend(itineraryFixture.request, "en");
 
     expect(result).toMatchObject({ ok: true, value: { planId: ids.plan, source: "ai", items: [{ title: "Place one" }] } });
+    expect(currentSnapshotQuery.select).toHaveBeenCalledWith("catalog_snapshot_id");
+    expect(areaQuery.eq).toHaveBeenCalledWith("snapshot_id", ids.catalog);
     expect(areaQuery.in).toHaveBeenCalledWith("slug", ["district-1", "district-5"]);
     expect(client.functions.invoke).toHaveBeenCalledWith("recommend-itinerary", {
       body: { input: { ...itineraryFixture.request, areas: [ids.areaOne, ids.areaTwo] } },
@@ -252,26 +271,23 @@ describe("Supabase planner runtime adapter", () => {
     expect(itemQuery.in).toHaveBeenCalledWith("place_id", ["place-one"]);
   });
 
-  it("restores only the latest owner-scoped plan through RLS reads and remaps persisted money safely", async () => {
-    const { client, planQuery, revisionQuery } = clientDouble();
+  it("restores the newest owner-scoped revision in one RLS query and remaps persisted money safely", async () => {
+    const latest = { plan_id: ids.plan, revision_no: 2, result_json: persistedResult(), ranking_source: "ai" };
+    const { client, revisionQuery } = clientDouble({ revisions: [latest] });
     const result = await createSupabasePlannerRuntimeAdapter(client as never).getPlan(ids.plan, "en");
 
-    expect(result).toMatchObject({ ok: true, value: { planId: ids.plan, revision: 1, budgetVnd: 2_000_000 } });
+    expect(result).toMatchObject({ ok: true, value: { planId: ids.plan, revision: 2, budgetVnd: 2_000_000 } });
     expect(client.functions.invoke).not.toHaveBeenCalled();
-    expect(client.from).toHaveBeenCalledWith("trip_plans");
-    expect(planQuery.eq).toHaveBeenCalledWith("id", ids.plan);
+    expect(client.from).not.toHaveBeenCalledWith("trip_plans");
     expect(client.from).toHaveBeenCalledWith("trip_plan_revisions");
-    expect(revisionQuery.eq).toHaveBeenNthCalledWith(1, "plan_id", ids.plan);
-    expect(revisionQuery.eq).toHaveBeenNthCalledWith(2, "revision_no", 1);
+    expect(revisionQuery.eq).toHaveBeenCalledWith("plan_id", ids.plan);
+    expect(revisionQuery.order).toHaveBeenCalledWith("revision_no", { ascending: false });
+    expect(revisionQuery.limit).toHaveBeenCalledWith(1);
     expect(JSON.stringify(revisionQuery.select.mock.calls)).not.toMatch(/owner_user_id|actor_user_id|email|phone/i);
   });
 
   it.each([
     ["network failure", () => Promise.reject(new Error("network unavailable")), "SERVICE_UNAVAILABLE", true],
-    ["expired session", () => Promise.resolve({ data: null, error: { context: { status: 401 } } }), "AUTH_EXPIRED", false],
-    ["stale revision", () => Promise.resolve({ data: null, error: { context: { status: 409 } } }), "STALE_REVISION", false],
-    ["quota response", () => Promise.resolve({ data: null, error: { context: { status: 429 } } }), "QUOTA_EXCEEDED", false],
-    ["service response", () => Promise.resolve({ data: null, error: { context: { status: 503 } } }), "SERVICE_UNAVAILABLE", true],
     ["malformed body", () => Promise.resolve({ data: { private: "detail" }, error: null }), "SERVICE_UNAVAILABLE", false],
   ])("maps %s to a safe planner error", async (_label, invocation, code, retryable) => {
     const { client } = clientDouble();
@@ -280,6 +296,41 @@ describe("Supabase planner runtime adapter", () => {
 
     expect(result).toMatchObject({ ok: false, error: { code, retryable } });
     expect(JSON.stringify(result)).not.toContain("detail");
+  });
+
+  it.each([
+    [401, "AUTH_REQUIRED", "recommendation.auth_required", false, "AUTH_REQUIRED"],
+    [409, "STALE_REVISION", "refinement.stale_revision", true, "STALE_REVISION"],
+    [429, "QUOTA_EXCEEDED", "recommendation.quota_exceeded", true, "QUOTA_EXCEEDED"],
+    [503, "SERVICE_UNAVAILABLE", "gateway.service_unavailable", true, "SERVICE_UNAVAILABLE"],
+  ] as const)("uses the validated %i FunctionsHttpError gateway envelope", async (status, code, messageKey, retryable, expectedCode) => {
+    const correlationId = "77777777-7777-4777-8777-777777777777";
+    const { client } = clientDouble({
+      invoke: gatewayFailure(status, { code, messageKey, retryable, correlationId }),
+    });
+
+    const result = await createSupabasePlannerRuntimeAdapter(client as never).recommend(itineraryFixture.request, "en");
+
+    expect(result).toEqual({ ok: false, error: { code: expectedCode, messageKey, retryable, correlationId } });
+  });
+
+  it.each([
+    ["malformed JSON", 503, "{not json", "SERVICE_UNAVAILABLE", true],
+    ["extra provider field", 409, {
+      code: "STALE_REVISION",
+      messageKey: "refinement.stale_revision",
+      retryable: true,
+      correlationId: "77777777-7777-4777-8777-777777777777",
+      providerDetail: "do not expose",
+    }, "STALE_REVISION", false],
+  ] as const)("falls back safely when the FunctionsHttpError body has %s", async (_label, status, body, expectedCode, retryable) => {
+    const { client } = clientDouble({ invoke: gatewayFailure(status, body) });
+
+    const result = await createSupabasePlannerRuntimeAdapter(client as never).recommend(itineraryFixture.request, "en");
+
+    expect(result).toMatchObject({ ok: false, error: { code: expectedCode, messageKey: `planner.${expectedCode === "STALE_REVISION" ? "stale_revision" : "service_unavailable"}`, retryable } });
+    expect(JSON.stringify(result)).not.toContain("providerDetail");
+    expect(JSON.stringify(result)).not.toContain("do not expose");
   });
 
   it("does not call catalog or Edge services when the authenticated customer session is unavailable", async () => {
@@ -291,6 +342,33 @@ describe("Supabase planner runtime adapter", () => {
     expect(client.functions.invoke).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["missing", []],
+    ["duplicate", [{ catalog_snapshot_id: ids.catalog }, { catalog_snapshot_id: ids.catalog }]],
+  ])("fails closed when the current itinerary snapshot row is %s", async (_label, currentSnapshot) => {
+    const { client, areaQuery } = clientDouble({ currentSnapshot });
+
+    const result = await createSupabasePlannerRuntimeAdapter(client as never).recommend(itineraryFixture.request, "en");
+
+    expect(result).toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" } });
+    expect(areaQuery.select).not.toHaveBeenCalled();
+    expect(client.functions.invoke).not.toHaveBeenCalled();
+  });
+
+  it.each(["read", "write"] as const)("fails closed without invoking an Edge function when sessionStorage %s throws", async (operation) => {
+    const { client } = clientDouble();
+    if (operation === "read") {
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("storage blocked"); });
+    } else {
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("storage blocked"); });
+    }
+
+    const result = await createSupabasePlannerRuntimeAdapter(client as never).recommend(itineraryFixture.request, "en");
+
+    expect(result).toMatchObject({ ok: false, error: { code: "SERVICE_UNAVAILABLE", retryable: false } });
+    expect(client.functions.invoke).not.toHaveBeenCalled();
+  });
+
   it("rejects an unknown gateway message key without exposing it to planner consumers", async () => {
     const { client } = clientDouble({ invoke: { data: wireResponse({ messageKey: "provider.private_detail" }), error: null } });
     const result = await createSupabasePlannerRuntimeAdapter(client as never).recommend(itineraryFixture.request, "en");
@@ -299,7 +377,7 @@ describe("Supabase planner runtime adapter", () => {
     expect(JSON.stringify(result)).not.toContain("provider.private_detail");
   });
 
-  it("fails closed for duplicate area or localized display rows", async () => {
+  it("fails closed for duplicate or mixed-snapshot area rows and localized display rows", async () => {
     const duplicateAreas = clientDouble({
       areas: [
         { snapshot_id: ids.catalog, area_id: ids.areaOne, slug: "district-1" },
@@ -310,6 +388,16 @@ describe("Supabase planner runtime adapter", () => {
     await expect(createSupabasePlannerRuntimeAdapter(duplicateAreas.client as never).recommend(itineraryFixture.request, "en"))
       .resolves.toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" } });
     expect(duplicateAreas.client.functions.invoke).not.toHaveBeenCalled();
+
+    const mixedSnapshotAreas = clientDouble({
+      areas: [
+        { snapshot_id: ids.catalog, area_id: ids.areaOne, slug: "district-1" },
+        { snapshot_id: "88888888-8888-4888-8888-888888888888", area_id: ids.areaTwo, slug: "district-5" },
+      ],
+    });
+    await expect(createSupabasePlannerRuntimeAdapter(mixedSnapshotAreas.client as never).recommend(itineraryFixture.request, "en"))
+      .resolves.toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" } });
+    expect(mixedSnapshotAreas.client.functions.invoke).not.toHaveBeenCalled();
 
     const duplicateDisplay = clientDouble({
       display: [
