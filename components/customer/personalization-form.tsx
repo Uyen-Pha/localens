@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import {
-  createReadOnlyApi,
-  type ItineraryPreviewDto,
+import type {
+  ItineraryPreviewDto,
+  ReadOnlyApi,
 } from "@/lib/application/api/read-only-api";
 import type { Locale } from "@/lib/i18n/config";
 import type {
@@ -21,6 +21,8 @@ import {
   ItineraryPreview,
   type ItineraryPreviewError,
 } from "@/components/customer/itinerary-preview";
+import { loadPortalSurfaceComposition } from "@/components/portals/portal-session";
+import { signInPath } from "@/lib/navigation/safe-return-to";
 
 type PersonalizationFormCopy = Dictionary["home"]["personalizationForm"];
 
@@ -34,7 +36,10 @@ const PRIORITY_KEYS: PersonalizationPriorityKey[] = [
   "traditional_craft",
   "traditional_market",
 ];
-const readOnlyApi = createReadOnlyApi();
+
+type RuntimeSelection =
+  | { mode: "demo"; readOnlyApi: ReadOnlyApi }
+  | { mode: "supabase" };
 
 export type { PersonalizationRequest } from "@/lib/application/planner/personalization-session";
 
@@ -84,6 +89,32 @@ function optionalRequirement(formData: FormData, name: string): string[] {
   return value === "none" ? [] : [value];
 }
 
+function isInitializedComposition(
+  value: unknown,
+): value is { mode: "demo" | "supabase"; initialized: PromiseLike<void> } {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as { mode?: unknown; initialized?: unknown };
+  return (
+    (candidate.mode === "demo" || candidate.mode === "supabase") &&
+    typeof candidate.initialized === "object" &&
+    candidate.initialized !== null &&
+    typeof (candidate.initialized as { then?: unknown }).then === "function"
+  );
+}
+
+async function resolveRuntimeSelection(): Promise<RuntimeSelection> {
+  const composition = await loadPortalSurfaceComposition();
+  if (!isInitializedComposition(composition)) {
+    throw new Error("Invalid portal surface composition");
+  }
+
+  await composition.initialized;
+  if (composition.mode === "supabase") return { mode: "supabase" };
+
+  const { createReadOnlyApi } = await import("@/lib/application/api/read-only-api");
+  return { mode: "demo", readOnlyApi: createReadOnlyApi() };
+}
+
 /** Map the visible shell to the itinerary contract without making a network call. */
 export function buildPersonalizationRequest(formData: FormData): PersonalizationRequest {
   const currency = String(formData.get("budgetCurrency") ?? "VND") as "VND" | "USD";
@@ -128,9 +159,32 @@ export function PersonalizationForm({
   const [previewError, setPreviewError] = useState<ItineraryPreviewError | null>(null);
   const [plannerHandoffSaved, setPlannerHandoffSaved] = useState(false);
   const [plannerHandoffError, setPlannerHandoffError] = useState(false);
+  const [runtimeSelection, setRuntimeSelection] = useState<RuntimeSelection | null>(null);
+  const [runtimeLoadFailed, setRuntimeLoadFailed] = useState(false);
+  const [runtimeRetryKey, setRuntimeRetryKey] = useState(0);
+  const runtimeLoadRef = useRef<Promise<RuntimeSelection> | null>(null);
+
+  useEffect(() => {
+    let disposed = false;
+    setRuntimeSelection(null);
+    setRuntimeLoadFailed(false);
+    runtimeLoadRef.current ??= resolveRuntimeSelection();
+    void runtimeLoadRef.current
+      .then((selection) => {
+        if (!disposed) setRuntimeSelection(selection);
+      })
+      .catch(() => {
+        if (!disposed) setRuntimeLoadFailed(true);
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [runtimeRetryKey]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (runtimeSelection === null) return;
     const formData = new FormData(event.currentTarget);
     const hasDate = String(formData.get("startDate") ?? "").length > 0;
     const hasTime = String(formData.get("startTime") ?? "").length > 0;
@@ -177,11 +231,24 @@ export function PersonalizationForm({
       setValidationError(copy.validationMessage);
       setPreview(undefined);
       setPreviewError(null);
+      setPlannerHandoffSaved(false);
+      setPlannerHandoffError(false);
       return;
     }
 
     const request = buildPersonalizationRequest(formData);
-    const result = readOnlyApi.previewItinerary(toItineraryRequest(request));
+    if (runtimeSelection.mode === "supabase") {
+      setValidationError(null);
+      setIsPreviewed(false);
+      setPreview(undefined);
+      setPreviewError(null);
+      const saved = savePersonalizationRequest(request);
+      setPlannerHandoffSaved(saved);
+      setPlannerHandoffError(!saved);
+      return;
+    }
+
+    const result = runtimeSelection.readOnlyApi.previewItinerary(toItineraryRequest(request));
     if (!result.ok) {
       setIsPreviewed(false);
       setValidationError(null);
@@ -191,6 +258,8 @@ export function PersonalizationForm({
         retryable: result.error.retryable,
         correlationId: result.error.correlationId,
       });
+      setPlannerHandoffSaved(false);
+      setPlannerHandoffError(false);
       return;
     }
 
@@ -204,7 +273,7 @@ export function PersonalizationForm({
   }
 
   return (
-    <form className="personalization-form personalization-form--editorial" aria-label={copy.formLabel} onSubmit={handleSubmit}>
+    <form className="personalization-form personalization-form--editorial" aria-label={copy.formLabel} aria-busy={runtimeSelection === null && !runtimeLoadFailed} onSubmit={handleSubmit}>
       <div className="personalization-form__grid">
         <fieldset className="duration-field" aria-describedby="duration-hint">
           <legend>{copy.durationLabel}</legend>
@@ -315,11 +384,27 @@ export function PersonalizationForm({
       </div>
 
       <div className="personalization-form__footer">
-        <button className="button button--primary" type="submit">{copy.submitLabel}</button>
+        <button className="button button--primary" type="submit" disabled={runtimeSelection === null}>{copy.submitLabel}</button>
+        {runtimeSelection === null && !runtimeLoadFailed ? <p className="form-preview" role="status" aria-live="polite">{copy.runtimeLoadingMessage}</p> : null}
+        {runtimeLoadFailed ? (
+          <>
+            <p className="form-validation" role="alert">{copy.runtimeUnavailableMessage}</p>
+            <button
+              className="button button--secondary"
+              type="button"
+              onClick={() => {
+                runtimeLoadRef.current = null;
+                setRuntimeRetryKey((value) => value + 1);
+              }}
+            >
+              {copy.runtimeRetryLabel}
+            </button>
+          </>
+        ) : null}
         {validationError ? <p className="form-validation" role="alert">{validationError}</p> : null}
         {isPreviewed ? <p className="form-preview" role="status">{copy.previewMessage}</p> : null}
       </div>
-      {isPreviewed ? (
+      {runtimeSelection?.mode === "demo" && isPreviewed ? (
         <div className="personalization-form__planner-cta">
           {plannerHandoffSaved ? (
             <>
@@ -332,12 +417,27 @@ export function PersonalizationForm({
           {plannerHandoffError ? <p className="form-validation" role="alert">{copy.plannerLinkStorageError}</p> : null}
         </div>
       ) : null}
-      <ItineraryPreview
-        locale={locale}
-        copy={copy.preview}
-        preview={preview}
-        error={previewError}
-      />
+      {runtimeSelection?.mode === "supabase" && (plannerHandoffSaved || plannerHandoffError) ? (
+        <div className="personalization-form__planner-cta">
+          {plannerHandoffSaved ? (
+            <>
+              <Link className="button button--secondary" href={signInPath(locale, `/${locale}/planner/`)}>
+                {copy.runtimePlannerLinkLabel}
+              </Link>
+              <p className="form-preview" role="note">{copy.runtimePlannerLinkDisclosure}</p>
+            </>
+          ) : null}
+          {plannerHandoffError ? <p className="form-validation" role="alert">{copy.runtimePlannerLinkStorageError}</p> : null}
+        </div>
+      ) : null}
+      {runtimeSelection?.mode === "demo" ? (
+        <ItineraryPreview
+          locale={locale}
+          copy={copy.preview}
+          preview={preview}
+          error={previewError}
+        />
+      ) : null}
     </form>
   );
 }

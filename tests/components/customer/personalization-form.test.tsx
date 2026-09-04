@@ -1,5 +1,46 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const compositionHarness = vi.hoisted(() => ({
+  results: [] as unknown[],
+  loadPortalSurfaceComposition: vi.fn(async (): Promise<unknown> => {
+    const next = compositionHarness.results.length > 1
+      ? compositionHarness.results.shift()
+      : compositionHarness.results[0];
+    if (next instanceof Error) throw next;
+    return next;
+  }),
+}));
+
+const readOnlyApiHarness = vi.hoisted(() => ({
+  createReadOnlyApi: vi.fn(),
+  previewItinerary: vi.fn(),
+}));
+
+vi.mock("@/components/portals/portal-session", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/components/portals/portal-session")>();
+  return {
+    ...original,
+    loadPortalSurfaceComposition: compositionHarness.loadPortalSurfaceComposition,
+  };
+});
+
+vi.mock("@/lib/application/api/read-only-api", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/application/api/read-only-api")>();
+  return {
+    ...original,
+    createReadOnlyApi: (...args: Parameters<typeof original.createReadOnlyApi>) => {
+      readOnlyApiHarness.createReadOnlyApi(...args);
+      const api = original.createReadOnlyApi(...args);
+      readOnlyApiHarness.previewItinerary.mockImplementation(api.previewItinerary);
+      return {
+        ...api,
+        previewItinerary: readOnlyApiHarness.previewItinerary,
+      };
+    },
+  };
+});
 
 import {
   buildPersonalizationRequest,
@@ -7,9 +48,33 @@ import {
   PersonalizationForm,
 } from "@/components/customer/personalization-form";
 import { getDictionary } from "@/lib/i18n/dictionaries";
-import { readPersonalizationRequest } from "@/lib/application/planner/personalization-session";
+import {
+  DEMO_PLANNER_SESSION_KEY,
+  readPersonalizationRequest,
+} from "@/lib/application/planner/personalization-session";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+beforeEach(() => {
+  compositionHarness.results = [{ mode: "demo", initialized: Promise.resolve() }];
+  compositionHarness.loadPortalSurfaceComposition.mockClear();
+  readOnlyApiHarness.createReadOnlyApi.mockClear();
+  readOnlyApiHarness.previewItinerary.mockClear();
+  window.sessionStorage.clear();
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
 
 function chooseDemoMarketPriority(copy: {
   priorities: ReadonlyArray<{ key: string; label: string }>;
@@ -21,6 +86,39 @@ function chooseDemoMarketPriority(copy: {
   }
   fireEvent.change(screen.getByLabelText(streetFood.label), { target: { value: "0" } });
   fireEvent.change(screen.getByLabelText(traditionalMarket.label), { target: { value: "1" } });
+}
+
+function fillValidForm(
+  copy: ReturnType<typeof getDictionary>["home"]["personalizationForm"],
+  specialNeeds = "",
+) {
+  fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
+    target: { value: "2026-09-05" },
+  });
+  fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
+  if (specialNeeds) {
+    fireEvent.change(screen.getByLabelText(copy.specialNeedsLabel), {
+      target: { value: specialNeeds },
+    });
+  }
+  chooseDemoMarketPriority(copy);
+}
+
+function runtimeComposition(initialized: Promise<void> = Promise.resolve()) {
+  return {
+    mode: "supabase",
+    initialized,
+    planner: {
+      getSession: vi.fn(),
+      recommend: vi.fn(),
+      refine: vi.fn(),
+      getPlan: vi.fn(),
+    },
+  };
+}
+
+async function waitUntilReady(copy: ReturnType<typeof getDictionary>["home"]["personalizationForm"]) {
+  await waitFor(() => expect(screen.getByRole("button", { name: copy.submitLabel })).toBeEnabled());
 }
 
 describe("PersonalizationForm", () => {
@@ -101,10 +199,11 @@ describe("PersonalizationForm", () => {
     expect(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[1].label)).toHaveAttribute("value", "demo-hcmc-district-3");
   });
 
-  it("requires a date, time, and at least one area before showing the local preview", () => {
+  it("requires a date, time, and at least one area before showing the local preview", async () => {
     const dictionary = getDictionary("en");
 
     render(<PersonalizationForm copy={dictionary.home.personalizationForm} />);
+    await waitUntilReady(dictionary.home.personalizationForm);
     const form = screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel });
 
     fireEvent.submit(form);
@@ -130,11 +229,12 @@ describe("PersonalizationForm", () => {
     expect(screen.queryByText(dictionary.home.personalizationForm.confirmationMessage)).not.toBeInTheDocument();
   });
 
-  it("rejects split duration totals outside the one-to-twelve-hour range", () => {
+  it("rejects split duration totals outside the one-to-twelve-hour range", async () => {
     const dictionary = getDictionary("en");
     const copy = dictionary.home.personalizationForm;
 
     render(<PersonalizationForm copy={copy} />);
+    await waitUntilReady(copy);
     const form = screen.getByRole("form", { name: copy.formLabel });
     fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
       target: { value: "2026-09-05" },
@@ -197,11 +297,12 @@ describe("PersonalizationForm", () => {
     });
   });
 
-  it("renders a deterministic itinerary proposal after a valid preview submit", () => {
+  it("renders a deterministic itinerary proposal after a valid preview submit", async () => {
     const dictionary = getDictionary("en");
     const previewCopy = dictionary.home.personalizationForm.preview;
 
     render(<PersonalizationForm copy={dictionary.home.personalizationForm} />);
+    await waitUntilReady(dictionary.home.personalizationForm);
     const form = screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel });
     fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel), {
       target: { value: "2026-09-05" },
@@ -218,11 +319,152 @@ describe("PersonalizationForm", () => {
     expect(screen.getByRole("region", { name: previewCopy.heading })).toHaveFocus();
   });
 
-  it("reveals a separate simulated planner CTA only after the local preview exists", () => {
+  it("keeps the server and pre-hydration render browser-independent", () => {
+    const copy = getDictionary("en").home.personalizationForm;
+
+    const markup = renderToString(<PersonalizationForm copy={copy} locale="en" />);
+
+    expect(markup).toContain('aria-busy="true"');
+    expect(markup).toContain("disabled");
+    expect(markup).toContain(copy.runtimeLoadingMessage);
+    expect(compositionHarness.loadPortalSurfaceComposition).not.toHaveBeenCalled();
+    expect(readOnlyApiHarness.createReadOnlyApi).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "en" as const,
+      "Your preferences are saved in this tab. Sign in with a demo customer account to generate and save an AI-assisted itinerary.",
+      "Sign in to open the AI planner",
+      "/en/sign-in?returnTo=%2Fen%2Fplanner%2F",
+    ],
+    [
+      "vi" as const,
+      "Nhu cầu được lưu trong tab này. Hãy đăng nhập tài khoản khách hàng demo để AI tạo và lưu lịch trình.",
+      "Đăng nhập để mở planner AI",
+      "/vi/sign-in?returnTo=%2Fvi%2Fplanner%2F",
+    ],
+  ])("stores a tab-local %s handoff without invoking demo or runtime planning", async (
+    locale,
+    disclosure,
+    linkLabel,
+    href,
+  ) => {
+    const copy = getDictionary(locale).home.personalizationForm;
+    const composition = runtimeComposition();
+    compositionHarness.results = [composition];
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const specialNeeds = "Quiet route; do not expose this note.";
+    window.sessionStorage.setItem(DEMO_PLANNER_SESSION_KEY, "stale demo preview");
+
+    render(<PersonalizationForm copy={copy} locale={locale} />);
+    await waitUntilReady(copy);
+    fillValidForm(copy, specialNeeds);
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+
+    const link = await screen.findByRole("link", { name: linkLabel });
+    expect(link).toHaveAttribute("href", href);
+    expect(screen.getByText(disclosure)).toBeInTheDocument();
+    expect(readPersonalizationRequest()).toMatchObject({ specialNeeds });
+    expect(screen.queryByRole("region", { name: copy.preview.heading })).not.toBeInTheDocument();
+    expect(screen.queryByText(copy.preview.deterministicDisclosure)).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem(DEMO_PLANNER_SESSION_KEY)).toBeNull();
+    expect(document.body).not.toHaveTextContent(specialNeeds);
+    expect(link.getAttribute("href")).not.toContain(specialNeeds);
+    expect(readOnlyApiHarness.createReadOnlyApi).not.toHaveBeenCalled();
+    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
+    expect(composition.planner.recommend).not.toHaveBeenCalled();
+    expect(composition.planner.refine).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("waits for hydration and composition initialization while guarding duplicate submits", async () => {
+    const copy = getDictionary("en").home.personalizationForm;
+    const initialization = deferred<void>();
+    compositionHarness.results = [runtimeComposition(initialization.promise)];
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+
+    render(<PersonalizationForm copy={copy} locale="en" />);
+    const form = screen.getByRole("form", { name: copy.formLabel });
+    const submit = screen.getByRole("button", { name: copy.submitLabel });
+    fillValidForm(copy);
+
+    expect(submit).toBeDisabled();
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(compositionHarness.loadPortalSurfaceComposition).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      initialization.resolve();
+      await initialization.promise;
+    });
+    await waitFor(() => expect(submit).toBeEnabled());
+  });
+
+  it("fails closed on rejected composition and retries without falling back to demo", async () => {
+    const copy = getDictionary("en").home.personalizationForm;
+    compositionHarness.results = [new Error("invalid runtime"), runtimeComposition()];
+
+    render(<PersonalizationForm copy={copy} locale="en" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The secure planner handoff is unavailable. Try again.",
+    );
+    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: copy.submitLabel })).toBeEnabled();
+    });
+    expect(compositionHarness.loadPortalSurfaceComposition).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["malformed composition", () => ({ mode: "unexpected", initialized: Promise.resolve() })],
+    ["rejected initialization", () => {
+      const initialized = Promise.reject<void>(new Error("offline"));
+      void initialized.catch(() => undefined);
+      return runtimeComposition(initialized);
+    }],
+  ])("fails closed on %s", async (_case, createComposition) => {
+    const copy = getDictionary("en").home.personalizationForm;
+    compositionHarness.results = [createComposition()];
+
+    render(<PersonalizationForm copy={copy} locale="en" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The secure planner handoff is unavailable. Try again.",
+    );
+    expect(screen.getByRole("button", { name: copy.submitLabel })).toBeDisabled();
+    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
+  });
+
+  it("fails closed in Supabase mode when the tab-local handoff cannot be saved", async () => {
+    const copy = getDictionary("en").home.personalizationForm;
+    compositionHarness.results = [runtimeComposition()];
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("storage disabled");
+    });
+
+    render(<PersonalizationForm copy={copy} locale="en" />);
+    await waitFor(() => expect(screen.getByRole("button", { name: copy.submitLabel })).toBeEnabled());
+    fillValidForm(copy);
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(copy.runtimePlannerLinkStorageError);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: copy.preview.heading })).not.toBeInTheDocument();
+    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
+  });
+
+  it("reveals a separate simulated planner CTA only after the local preview exists", async () => {
     const dictionary = getDictionary("en");
     const copy = dictionary.home.personalizationForm;
 
     render(<PersonalizationForm copy={copy} locale="en" />);
+    await waitUntilReady(copy);
     expect(screen.queryByRole("link", { name: copy.plannerLinkLabel })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
@@ -237,11 +479,12 @@ describe("PersonalizationForm", () => {
     expect(screen.getByText(copy.plannerLinkDisclosure)).toBeInTheDocument();
   });
 
-  it("stores the submitted preferences for the separate planner demo after preview", () => {
+  it("stores the submitted preferences for the separate planner demo after preview", async () => {
     const dictionary = getDictionary("en");
     const copy = dictionary.home.personalizationForm;
 
     render(<PersonalizationForm copy={copy} locale="en" />);
+    await waitUntilReady(copy);
     fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
       target: { value: "2026-09-05" },
     });
@@ -273,7 +516,7 @@ describe("PersonalizationForm", () => {
     });
   });
 
-  it("does not show a planner CTA when the tab handoff cannot be saved", () => {
+  it("does not show a planner CTA when the tab handoff cannot be saved", async () => {
     const dictionary = getDictionary("en");
     const copy = dictionary.home.personalizationForm;
     const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
@@ -282,6 +525,7 @@ describe("PersonalizationForm", () => {
 
     try {
       render(<PersonalizationForm copy={copy} locale="en" />);
+      await waitUntilReady(copy);
       fireEvent.change(screen.getByLabelText(copy.startDateLabel), { target: { value: "2026-09-05" } });
       fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
       chooseDemoMarketPriority(copy);
@@ -294,10 +538,11 @@ describe("PersonalizationForm", () => {
     }
   });
 
-  it("blocks a preview when party size, budget, or every priority weight is invalid", () => {
+  it("blocks a preview when party size, budget, or every priority weight is invalid", async () => {
     const dictionary = getDictionary("en");
 
     render(<PersonalizationForm copy={dictionary.home.personalizationForm} />);
+    await waitUntilReady(dictionary.home.personalizationForm);
     const form = screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel });
     fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel), {
       target: { value: "2026-09-05" },

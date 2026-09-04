@@ -311,6 +311,12 @@ export type Dictionary = {
       plannerLinkLabel: string;
       plannerLinkDisclosure: string;
       plannerLinkStorageError: string;
+      runtimeLoadingMessage: string;
+      runtimeUnavailableMessage: string;
+      runtimeRetryLabel: string;
+      runtimePlannerLinkLabel: string;
+      runtimePlannerLinkDisclosure: string;
+      runtimePlannerLinkStorageError: string;
       preview: {
         heading: string;
         deterministicDisclosure: string;
@@ -712,6 +718,12 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       plannerLinkLabel: "Open the separate simulated refinement demo",
       plannerLinkDisclosure: "Your preferences are passed only through this browser tab to the simulated planner. No backend request is created.",
       plannerLinkStorageError: "This browser could not save the handoff for the simulated planner. The planner link is unavailable; your local preview is still shown.",
+      runtimeLoadingMessage: "Preparing the secure planner handoff…",
+      runtimeUnavailableMessage: "The secure planner handoff is unavailable. Try again.",
+      runtimeRetryLabel: "Try again",
+      runtimePlannerLinkLabel: "Sign in to open the AI planner",
+      runtimePlannerLinkDisclosure: "Your preferences are saved in this tab. Sign in with a demo customer account to generate and save an AI-assisted itinerary.",
+      runtimePlannerLinkStorageError: "This browser could not save the secure planner handoff. Nothing was sent; try again when tab storage is available.",
       preview: {
         heading: "Your route proposal",
         deterministicDisclosure:
@@ -1016,6 +1028,12 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       plannerLinkLabel: "Mở bản demo điều chỉnh mô phỏng riêng",
       plannerLinkDisclosure: "Nhu cầu chỉ được chuyển qua phiên của tab trình duyệt này đến planner mô phỏng. Chưa có request backend nào được tạo.",
       plannerLinkStorageError: "Trình duyệt không thể lưu dữ liệu chuyển sang planner mô phỏng. Liên kết planner đã được ẩn; bản xem trước cục bộ vẫn hiển thị.",
+      runtimeLoadingMessage: "Đang chuẩn bị chuyển tiếp an toàn đến planner…",
+      runtimeUnavailableMessage: "Không thể chuẩn bị chuyển tiếp an toàn đến planner. Hãy thử lại.",
+      runtimeRetryLabel: "Thử lại",
+      runtimePlannerLinkLabel: "Đăng nhập để mở planner AI",
+      runtimePlannerLinkDisclosure: "Nhu cầu được lưu trong tab này. Hãy đăng nhập tài khoản khách hàng demo để AI tạo và lưu lịch trình.",
+      runtimePlannerLinkStorageError: "Trình duyệt không thể lưu dữ liệu chuyển tiếp an toàn đến planner. Chưa có dữ liệu nào được gửi; hãy thử lại khi tab cho phép lưu trữ.",
       preview: {
         heading: "Đề xuất lịch trình của bạn",
         deterministicDisclosure:
