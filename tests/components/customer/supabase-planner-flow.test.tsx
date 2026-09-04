@@ -303,7 +303,7 @@ describe("SupabasePlannerFlow", () => {
     saveValidHandoff();
     const recommend = vi.fn(async () => ({
       ok: false as const,
-      error: runtimeError("QUOTA_EXCEEDED", false),
+      error: runtimeError("QUOTA_EXCEEDED", true),
     }));
     const port = plannerPort({ recommend });
 
@@ -317,7 +317,7 @@ describe("SupabasePlannerFlow", () => {
     expect(alert).not.toHaveTextContent(/fallback proposal/i);
     await Promise.resolve();
     expect(recommend).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
   });
 
   it("retries a network failure only after the customer asks and reuses the same safe request", async () => {

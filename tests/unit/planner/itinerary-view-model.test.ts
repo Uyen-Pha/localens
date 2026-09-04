@@ -129,6 +129,11 @@ describe("runtime itinerary view model", () => {
     ["a malformed wire amount", { ...aiResponse, proposal: { ...aiResponse.proposal, budgetVnd: "01" } }],
     ["a bigint overflow", { ...aiResponse, proposal: { ...aiResponse.proposal, budgetVnd: "9007199254740992" } }],
     ["an unknown message key", { ...aiResponse, messageKey: "itinerary.provider_detail" }],
+    ["a deterministic source without degraded mode", {
+      ...aiResponse,
+      proposal: { ...aiResponse.proposal, rankingSource: "deterministic" },
+    }],
+    ["a degraded AI source", { ...aiResponse, degraded: true }],
     ["an extra top-level response field", { ...aiResponse, providerTrace: "must not cross the boundary" }],
   ])("fails closed for %s", (_label, invalidResponse) => {
     expect(toRuntimePlannerProposal(invalidResponse, displayRows, "vi")).toBeNull();

@@ -383,6 +383,7 @@ export function toRuntimePlannerProposal(
 
   const proposal = mapWireItineraryResult(response.proposal);
   if (proposal === null || !isSafeMoney(proposal.budgetVnd)) return null;
+  if (response.degraded !== (proposal.rankingSource === "deterministic")) return null;
   const snapshotIds: RuntimePlannerSnapshotIds = proposal.snapshotIds;
   if (!isIdentifier(snapshotIds.catalog) || !isIdentifier(snapshotIds.travel) || (snapshotIds.fx !== null && !isIdentifier(snapshotIds.fx))) return null;
 
