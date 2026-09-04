@@ -136,7 +136,14 @@ describe("Task 6 runtime Auth runner", () => {
         return true;
       }),
     });
-    const spawnChild = vi.fn(() => child);
+    const spawnChild = vi.fn((...spawnArguments: [
+      string,
+      string[],
+      { env: Record<string, string | undefined> },
+    ]) => {
+      void spawnArguments;
+      return child;
+    });
     let probe = 0;
     const server = await startOwnedRuntimeServer({ NEXT_PUBLIC_LOCALLENS_RUNTIME: "demo" }, {
       cwd: "C:/repo",
@@ -149,6 +156,10 @@ describe("Task 6 runtime Auth runner", () => {
       port: 3300,
       serverUrl: "http://127.0.0.1:3300/en/",
       platform: "linux",
+      processEnv: {
+        PATH: "/usr/local/bin:/usr/bin",
+        GITHUB_TOKEN: "must-not-pass-through",
+      },
     });
 
     expect(spawnChild).toHaveBeenCalledWith(
@@ -162,11 +173,13 @@ describe("Task 6 runtime Auth runner", () => {
       expect.objectContaining({
         detached: true,
         env: expect.objectContaining({
+          PATH: "/usr/local/bin:/usr/bin",
           LOCALLENS_NEXT_DIST_DIR: ".next/e2e-demo-3300",
           NEXT_PUBLIC_LOCALLENS_RUNTIME: "demo",
         }),
       }),
     );
+    expect(spawnChild.mock.calls[0]?.[2]?.env).not.toHaveProperty("GITHUB_TOKEN");
     await server.stop();
   });
 

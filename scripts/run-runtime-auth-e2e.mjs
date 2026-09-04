@@ -18,12 +18,25 @@ const PASSWORD_ENV = {
   guide: "LOCALENS_RUNTIME_GUIDE_PASSWORD",
   admin: "LOCALENS_RUNTIME_ADMIN_PASSWORD",
 };
+const RUNTIME_PROCESS_ENV_KEYS = Object.freeze([
+  "PATH", "Path", "PATHEXT", "SystemRoot", "SYSTEMROOT", "WINDIR", "ComSpec", "COMSPEC",
+  "TEMP", "TMP", "USERPROFILE", "HOME", "APPDATA", "LOCALAPPDATA", "ProgramFiles",
+  "PROGRAMFILES", "ProgramW6432", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE", "CI",
+]);
 
 function runtimeError(code, message, details = {}) {
   const error = new Error(`${code}: ${message}`);
   error.code = code;
   Object.assign(error, details);
   return error;
+}
+
+function selectRuntimeProcessEnv(env) {
+  const selected = {};
+  for (const key of RUNTIME_PROCESS_ENV_KEYS) {
+    if (typeof env[key] === "string" && env[key].length > 0) selected[key] = env[key];
+  }
+  return selected;
 }
 
 function parseStatusFields(output) {
@@ -459,6 +472,7 @@ export async function startOwnedRuntimeServer(serverEnv, {
   platform = process.platform,
   forceOwnedTree = forceOwnedRuntimeProcessTree,
   signal,
+  processEnv = process.env,
 } = {}) {
   if (!["demo", "supabase"].includes(mode) || !Number.isInteger(port) || port < 1 || port > 65_535) {
     throw runtimeError("RUNTIME_AUTH_SERVER_CONFIG_INVALID", "owned runtime server configuration is invalid");
@@ -481,6 +495,7 @@ export async function startOwnedRuntimeServer(serverEnv, {
   ], {
     cwd,
     env: {
+      ...selectRuntimeProcessEnv(processEnv),
       ...serverEnv,
       LOCALLENS_NEXT_DIST_DIR: `.next/e2e-${mode}-${port}`,
       NEXT_PUBLIC_LOCALLENS_RUNTIME: mode,
