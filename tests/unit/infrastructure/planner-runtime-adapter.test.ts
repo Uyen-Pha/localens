@@ -99,8 +99,29 @@ function wireResponse(overrides: Record<string, unknown> = {}) {
   };
 }
 
+type MutableJsonRecord = Record<string, unknown>;
+type MutableProposal = MutableJsonRecord & {
+  items: MutableJsonRecord[];
+  totals: MutableJsonRecord;
+};
+
+function mutableJsonRecord(value: unknown): MutableJsonRecord {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError("Expected a mutable JSON object fixture");
+  }
+  return value as MutableJsonRecord;
+}
+
+function mutableProposal(value: unknown): MutableProposal {
+  const proposal = mutableJsonRecord(value);
+  if (!Array.isArray(proposal.items)) throw new TypeError("Expected proposal items fixture");
+  proposal.items.forEach(mutableJsonRecord);
+  mutableJsonRecord(proposal.totals);
+  return proposal as MutableProposal;
+}
+
 function persistedResult() {
-  const result = structuredClone(wireResponse().proposal) as Record<string, any>;
+  const result = mutableProposal(structuredClone(wireResponse().proposal));
   result.budgetVnd = Number(result.budgetVnd);
   result.items = result.items.map((item: Record<string, unknown>) => ({
     ...item,
@@ -241,8 +262,10 @@ describe("Supabase planner runtime adapter", () => {
 
   it("loads localized food vendor and menu labels only for a selected returned food item", async () => {
     const response = wireResponse();
-    const proposal = response.proposal as Record<string, any>;
-    proposal.items[0].foodSelection = {
+    const proposal = mutableProposal(response.proposal);
+    const firstItem = proposal.items[0];
+    if (firstItem === undefined) throw new TypeError("Expected a proposal item fixture");
+    firstItem.foodSelection = {
       vendorId: "vendor-one",
       menuItemId: "item-one",
       quantity: 1,
@@ -251,10 +274,10 @@ describe("Supabase planner runtime adapter", () => {
       paymentMode: "pay_at_vendor",
       activity: "Taste a local dish",
     };
-    proposal.items[0].foodCostMinVnd = "30000";
-    proposal.items[0].foodCostMaxVnd = "40000";
-    proposal.items[0].payAtVendorMinVnd = "30000";
-    proposal.items[0].payAtVendorMaxVnd = "40000";
+    firstItem.foodCostMinVnd = "30000";
+    firstItem.foodCostMaxVnd = "40000";
+    firstItem.payAtVendorMinVnd = "30000";
+    firstItem.payAtVendorMaxVnd = "40000";
     proposal.totals.foodCostMinVnd = "30000";
     proposal.totals.foodCostMaxVnd = "40000";
     proposal.totals.payAtVendorMinVnd = "30000";
