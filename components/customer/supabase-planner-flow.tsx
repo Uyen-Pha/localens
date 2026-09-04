@@ -46,53 +46,6 @@ type RetryIntent =
   | { kind: "operation"; operation: PendingOperation; previous?: RuntimePlannerProposal }
   | { kind: "refresh"; previous: RuntimePlannerProposal };
 
-const RUNTIME_COPY = {
-  en: {
-    loading: "Loading your secure planner…",
-    activeDisclosure: "Authenticated thesis-demo planner — AI ranks approved options; LocalLens validates timing and cost before saving.",
-    signIn: "Sign in to generate itinerary",
-    generate: "Generate itinerary",
-    generating: "Generating itinerary…",
-    aiReady: "AI-assisted itinerary ready.",
-    fallbackReady: "Safe fallback itinerary ready.",
-    fallbackLabel: "Fallback status",
-    fallbackDetail: "AI was unavailable, so LocalLens used its deterministic fallback. The itinerary remains a thesis-demo proposal.",
-    quota: "AI demo limit reached. Please try again after the quota window resets; LocalLens will not retry automatically.",
-    network: "The planner lost its network connection. Nothing was submitted automatically.",
-    authExpired: "Your customer session expired. Sign in again before generating or refining an itinerary.",
-    invalid: "LocalLens could not safely process this planner request. Return to personalization and review the structured choices.",
-    unavailable: "The authenticated planner is temporarily unavailable. Nothing was submitted automatically.",
-    retry: "Try again",
-    timeline: "Itinerary timeline",
-    rationaleHeading: "Why these stops were suggested",
-    scopeLabel: "Refinement scope",
-    scopePartial: "Adjust unlocked stops",
-    scopeFull: "Rebuild the full itinerary",
-  },
-  vi: {
-    loading: "Đang tải planner bảo mật…",
-    activeDisclosure: "Planner demo đồ án có xác thực — AI xếp hạng lựa chọn đã duyệt; LocalLens kiểm tra thời gian và chi phí trước khi lưu.",
-    signIn: "Đăng nhập để tạo lịch trình",
-    generate: "Tạo lịch trình",
-    generating: "Đang tạo lịch trình…",
-    aiReady: "Lịch trình có AI hỗ trợ đã sẵn sàng.",
-    fallbackReady: "Lịch trình dự phòng an toàn đã sẵn sàng.",
-    fallbackLabel: "Trạng thái dự phòng",
-    fallbackDetail: "AI tạm không khả dụng nên LocalLens dùng phương án xác định. Lịch trình vẫn chỉ là đề xuất demo đồ án.",
-    quota: "Đã đạt giới hạn AI của bản demo. Hãy thử lại sau khi hạn mức được làm mới; LocalLens sẽ không tự động thử lại.",
-    network: "Planner bị mất kết nối mạng. Hệ thống không tự động gửi lại yêu cầu.",
-    authExpired: "Phiên khách hàng đã hết hạn. Hãy đăng nhập lại trước khi tạo hoặc tinh chỉnh lịch trình.",
-    invalid: "LocalLens không thể xử lý an toàn yêu cầu này. Hãy quay lại biểu mẫu và kiểm tra các lựa chọn có cấu trúc.",
-    unavailable: "Planner có xác thực đang tạm không khả dụng. Hệ thống không tự động gửi lại yêu cầu.",
-    retry: "Thử lại",
-    timeline: "Dòng thời gian lịch trình",
-    rationaleHeading: "Lý do đề xuất các điểm này",
-    scopeLabel: "Phạm vi điều chỉnh",
-    scopePartial: "Điều chỉnh các điểm chưa khóa",
-    scopeFull: "Tạo lại toàn bộ lịch trình",
-  },
-} as const;
-
 function formatMinutes(value: number, locale: Locale): string {
   return locale === "vi" ? `${value} phút` : `${value} min`;
 }
@@ -136,13 +89,12 @@ function runtimeRequest(request: PersonalizationRequest): ItineraryRequest {
   };
 }
 
-function errorMessage(error: RuntimePlannerError, locale: Locale, copy: PlannerCopy): string {
-  const runtimeCopy = RUNTIME_COPY[locale];
-  if (error.code === "QUOTA_EXCEEDED") return runtimeCopy.quota;
-  if (error.code === "AUTH_REQUIRED" || error.code === "AUTH_EXPIRED") return runtimeCopy.authExpired;
-  if (error.code === "INVALID_REQUEST") return runtimeCopy.invalid;
+function errorMessage(error: RuntimePlannerError, copy: PlannerCopy): string {
+  if (error.code === "QUOTA_EXCEEDED") return copy.runtimeQuotaMessage;
+  if (error.code === "AUTH_REQUIRED" || error.code === "AUTH_EXPIRED") return copy.runtimeAuthExpiredMessage;
+  if (error.code === "INVALID_REQUEST") return copy.runtimeInvalidRequestMessage;
   if (error.code === "STALE_REVISION") return copy.staleRevisionMessage;
-  return error.retryable ? runtimeCopy.network : runtimeCopy.unavailable;
+  return error.retryable ? copy.runtimeNetworkMessage : copy.runtimeUnavailableMessage;
 }
 
 function PlannerProposal({
@@ -160,7 +112,6 @@ function PlannerProposal({
   controlsDisabled: boolean;
   onToggleLock: (itemId: string) => void;
 }) {
-  const runtimeCopy = RUNTIME_COPY[locale];
   const rationales = Object.values(proposal.rationales);
 
   return (
@@ -173,7 +124,7 @@ function PlannerProposal({
         <span className="planner-flow__plan-id">{proposal.planId}</span>
       </div>
 
-      <ol className="planner-timeline" aria-label={runtimeCopy.timeline}>
+      <ol className="planner-timeline" aria-label={copy.runtimeTimelineLabel}>
         {proposal.items.map((item) => {
           const locked = lockedItemIds.has(item.placeId);
           return (
@@ -223,7 +174,7 @@ function PlannerProposal({
 
       {rationales.length > 0 ? (
         <section className="planner-flow__checks" aria-labelledby="runtime-planner-rationales-heading">
-          <h3 id="runtime-planner-rationales-heading">{runtimeCopy.rationaleHeading}</h3>
+          <h3 id="runtime-planner-rationales-heading">{copy.runtimeRationaleHeading}</h3>
           <ul>{rationales.map((rationale) => <li key={rationale}>{rationale}</li>)}</ul>
         </section>
       ) : null}
@@ -245,7 +196,6 @@ function PlannerProposal({
 }
 
 export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFlowProps) {
-  const runtimeCopy = RUNTIME_COPY[locale];
   const [access, setAccess] = useState<PlannerAccessState>({ status: "loading" });
   const [uiState, setUiState] = useState<RuntimePlannerUiState>({ status: "idle" });
   const [lockedItemIds, setLockedItemIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -417,15 +367,15 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
       {uiState.status === "idle" ? (
         <>
           <p className="planner-flow__proposal" role="note">{copy.runtimeDisclosure}</p>
-          {access.status === "loading" ? <p role="status" aria-live="polite">{runtimeCopy.loading}</p> : null}
+          {access.status === "loading" ? <p role="status" aria-live="polite">{copy.runtimeLoadingLabel}</p> : null}
         </>
-      ) : <p className="planner-flow__proposal" role="note">{runtimeCopy.activeDisclosure}</p>}
+      ) : <p className="planner-flow__proposal" role="note">{copy.runtimeActiveDisclosure}</p>}
 
       {access.status === "signed-out" ? (
         <div className="planner-flow__handoff-error">
-          <p>{runtimeCopy.authExpired}</p>
+          <p>{copy.runtimeAuthExpiredMessage}</p>
           <Link className="button button--primary" href={signInPath(locale, `/${locale}/planner/`)}>
-            {runtimeCopy.signIn}
+            {copy.runtimeSignInLabel}
           </Link>
         </div>
       ) : null}
@@ -441,27 +391,27 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
 
       {access.status === "ready" && uiState.status === "idle" ? (
         <button className="button button--primary" type="button" onClick={generateProposal}>
-          {runtimeCopy.generate}
+          {copy.runtimeGenerateLabel}
         </button>
       ) : null}
 
       {uiState.status === "loading" ? (
         <div>
           <p role="status" aria-live="polite">
-            {uiState.operation === "recommend" ? runtimeCopy.generating : copy.refiningLabel}
+            {uiState.operation === "recommend" ? copy.runtimeGeneratingLabel : copy.refiningLabel}
           </p>
           <button className="button button--primary" type="button" disabled>
-            {uiState.operation === "recommend" ? runtimeCopy.generating : copy.refiningLabel}
+            {uiState.operation === "recommend" ? copy.runtimeGeneratingLabel : copy.refiningLabel}
           </button>
         </div>
       ) : null}
 
       {uiState.status === "error" ? (
         <div className="planner-flow__error" role="alert">
-          <p>{errorMessage(uiState.error, locale, copy)}</p>
+          <p>{errorMessage(uiState.error, copy)}</p>
           {(uiState.error.code === "AUTH_REQUIRED" || uiState.error.code === "AUTH_EXPIRED") ? (
             <Link className="button button--primary" href={signInPath(locale, `/${locale}/planner/`)}>
-              {runtimeCopy.signIn}
+              {copy.runtimeSignInLabel}
             </Link>
           ) : null}
           {uiState.error.code === "STALE_REVISION" && uiState.previous ? (
@@ -471,7 +421,7 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
           ) : null}
           {uiState.error.retryable && uiState.error.code !== "STALE_REVISION" ? (
             <button className="button button--secondary" type="button" onClick={retryLastOperation}>
-              {runtimeCopy.retry}
+              {copy.runtimeRetryLabel}
             </button>
           ) : null}
         </div>
@@ -480,11 +430,11 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
       {currentProposal ? (
         <>
           <p className="planner-flow__status" role="status" aria-live="polite">
-            {currentProposal.degraded ? runtimeCopy.fallbackReady : runtimeCopy.aiReady}
+            {currentProposal.degraded ? copy.runtimeFallbackReadyLabel : copy.runtimeAiDisclosure}
           </p>
           {currentProposal.degraded ? (
-            <p className="planner-flow__default-disclosure" role="note" aria-label={runtimeCopy.fallbackLabel}>
-              {runtimeCopy.fallbackDetail}
+            <p className="planner-flow__default-disclosure" role="note" aria-label={copy.runtimeFallbackLabel}>
+              {copy.runtimeFallbackDisclosure}
             </p>
           ) : null}
           <PlannerProposal
@@ -510,7 +460,7 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
               />
             </label>
             <label className="field" htmlFor="runtime-planner-scope">
-              <span>{runtimeCopy.scopeLabel}</span>
+              <span>{copy.runtimeScopeLabel}</span>
               <select
                 id="runtime-planner-scope"
                 name="scope"
@@ -518,8 +468,8 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
                 onChange={(event) => setScope(event.target.value === "full" ? "full" : "partial")}
                 required
               >
-                <option value="partial">{runtimeCopy.scopePartial}</option>
-                <option value="full">{runtimeCopy.scopeFull}</option>
+                <option value="partial">{copy.runtimeScopePartialLabel}</option>
+                <option value="full">{copy.runtimeScopeFullLabel}</option>
               </select>
             </label>
             <p id="runtime-planner-feedback-hint" className="planner-flow__hint">{copy.proposalOnly}</p>

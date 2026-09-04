@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import {
   LocaleSwitcher,
@@ -28,9 +29,10 @@ export type SiteHeaderProps = {
   pathname?: string | null;
   search?: string | null;
   hash?: string | null;
+  demoBadge?: ReactNode;
 };
 
-export function SiteHeader({ locale, labels, pathname, search, hash }: SiteHeaderProps) {
+export function SiteHeader({ locale, labels, pathname, search, hash, demoBadge }: SiteHeaderProps) {
   const usesProductionAlignedNavigation = labels.navigation.tours !== undefined ||
     labels.navigation.personalizedTrip !== undefined ||
     labels.navigation.howItWorks !== undefined;
@@ -41,9 +43,12 @@ export function SiteHeader({ locale, labels, pathname, search, hash }: SiteHeade
   return (
     <header className="site-header">
       <div className="site-header__inner">
-        <Link className="site-header__brand" href={`/${locale}/`}>
-          {labels.brand}
-        </Link>
+        <div className="site-header__identity">
+          <Link className="site-header__brand" href={`/${locale}/`}>
+            {labels.brand}
+          </Link>
+          {demoBadge}
+        </div>
 
         <nav className="site-header__nav" aria-label={labels.navigation.primary}>
           <Link href={`/${locale}/tours/`}>{toursLabel}</Link>

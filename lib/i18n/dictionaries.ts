@@ -83,6 +83,26 @@ export type PlannerCopy = {
   intro: string;
   simulatedDisclosure: string;
   runtimeDisclosure: string;
+  runtimeActiveDisclosure: string;
+  runtimeLoadingLabel: string;
+  runtimeSignInLabel: string;
+  runtimeGenerateLabel: string;
+  runtimeGeneratingLabel: string;
+  runtimeAiDisclosure: string;
+  runtimeFallbackReadyLabel: string;
+  runtimeFallbackDisclosure: string;
+  runtimeFallbackLabel: string;
+  runtimeQuotaMessage: string;
+  runtimeNetworkMessage: string;
+  runtimeAuthExpiredMessage: string;
+  runtimeInvalidRequestMessage: string;
+  runtimeUnavailableMessage: string;
+  runtimeRetryLabel: string;
+  runtimeTimelineLabel: string;
+  runtimeRationaleHeading: string;
+  runtimeScopeLabel: string;
+  runtimeScopePartialLabel: string;
+  runtimeScopeFullLabel: string;
   proposalOnly: string;
   preferencesHeading: string;
   preferenceDateLabel: string;
@@ -167,6 +187,7 @@ export type PlannerCopy = {
 
 export type Dictionary = {
   brand: string;
+  thesisDemoLabel: string;
   home: {
     eyebrow: string;
     title: string;
@@ -1086,7 +1107,27 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     heading: "Your personalized route proposal",
     intro: "Review the sequence, activities, timing, and estimated group cost before asking for a refinement.",
     simulatedDisclosure: "Simulated proposal only — form preferences stay in this browser tab; no backend authority, AI service, booking, or payment is connected.",
-    runtimeDisclosure: "The Supabase planner runtime is selected. This screen does not generate or save an itinerary yet.",
+    runtimeDisclosure: "Authenticated thesis-demo planner — generate and save an itinerary only after you choose the action.",
+    runtimeActiveDisclosure: "Authenticated thesis-demo planner — AI ranks approved options; LocalLens validates timing and cost before saving.",
+    runtimeLoadingLabel: "Loading your secure planner…",
+    runtimeSignInLabel: "Sign in to generate itinerary",
+    runtimeGenerateLabel: "Generate itinerary",
+    runtimeGeneratingLabel: "Generating itinerary…",
+    runtimeAiDisclosure: "Gemini assisted with ranking; LocalLens validated the timing and cost.",
+    runtimeFallbackReadyLabel: "Safe deterministic fallback ready.",
+    runtimeFallbackDisclosure: "AI is temporarily unavailable; LocalLens used the safe deterministic fallback.",
+    runtimeFallbackLabel: "Fallback status",
+    runtimeQuotaMessage: "The thesis-demo AI limit has been reached today. LocalLens will not retry automatically; try again after the quota resets.",
+    runtimeNetworkMessage: "The planner lost its network connection. Nothing was submitted automatically.",
+    runtimeAuthExpiredMessage: "Your customer session expired. Sign in again before generating or refining an itinerary.",
+    runtimeInvalidRequestMessage: "LocalLens could not safely process this planner request. Return to personalization and review the structured choices.",
+    runtimeUnavailableMessage: "The authenticated planner is temporarily unavailable. Nothing was submitted automatically.",
+    runtimeRetryLabel: "Try again",
+    runtimeTimelineLabel: "Itinerary timeline",
+    runtimeRationaleHeading: "Why these stops were suggested",
+    runtimeScopeLabel: "Refinement scope",
+    runtimeScopePartialLabel: "Adjust unlocked stops",
+    runtimeScopeFullLabel: "Rebuild the full itinerary",
     proposalOnly: "This is a suggestion for discussion. It does not confirm or book a tour automatically.",
     preferencesHeading: "Preferences received from your form",
     preferenceDateLabel: "Date and start time (Ho Chi Minh City, UTC+07:00)",
@@ -1166,7 +1207,27 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     heading: "Đề xuất lịch trình cá nhân hóa",
     intro: "Xem trình tự, hoạt động, thời gian và chi phí nhóm dự kiến trước khi yêu cầu điều chỉnh.",
     simulatedDisclosure: "Chỉ là đề xuất mô phỏng — nhu cầu chỉ nằm trong tab trình duyệt này; chưa có quyền backend, dịch vụ AI, đặt tour hay thanh toán nào được kết nối.",
-    runtimeDisclosure: "Đang chọn runtime lập kế hoạch Supabase. Màn hình này chưa tạo hoặc lưu lịch trình.",
+    runtimeDisclosure: "Planner demo đồ án có xác thực — chỉ tạo và lưu lịch trình sau khi bạn chủ động chọn thao tác.",
+    runtimeActiveDisclosure: "Planner demo đồ án có xác thực — AI xếp hạng lựa chọn đã duyệt; LocalLens kiểm tra thời gian và chi phí trước khi lưu.",
+    runtimeLoadingLabel: "Đang tải planner bảo mật…",
+    runtimeSignInLabel: "Đăng nhập để tạo lịch trình",
+    runtimeGenerateLabel: "Tạo lịch trình",
+    runtimeGeneratingLabel: "Đang tạo lịch trình…",
+    runtimeAiDisclosure: "Gemini đã hỗ trợ xếp hạng; thời gian và chi phí do LocalLens kiểm tra.",
+    runtimeFallbackReadyLabel: "Phương án dự phòng xác định an toàn đã sẵn sàng.",
+    runtimeFallbackDisclosure: "AI tạm không khả dụng; LocalLens đã dùng phương án xác định an toàn.",
+    runtimeFallbackLabel: "Trạng thái dự phòng",
+    runtimeQuotaMessage: "Đã đạt giới hạn AI của bản demo hôm nay. LocalLens sẽ không tự động thử lại; hãy thử sau khi hạn mức được làm mới.",
+    runtimeNetworkMessage: "Planner bị mất kết nối mạng. Hệ thống không tự động gửi lại yêu cầu.",
+    runtimeAuthExpiredMessage: "Phiên khách hàng đã hết hạn. Hãy đăng nhập lại trước khi tạo hoặc tinh chỉnh lịch trình.",
+    runtimeInvalidRequestMessage: "LocalLens không thể xử lý an toàn yêu cầu này. Hãy quay lại biểu mẫu và kiểm tra các lựa chọn có cấu trúc.",
+    runtimeUnavailableMessage: "Planner có xác thực đang tạm không khả dụng. Hệ thống không tự động gửi lại yêu cầu.",
+    runtimeRetryLabel: "Thử lại",
+    runtimeTimelineLabel: "Dòng thời gian lịch trình",
+    runtimeRationaleHeading: "Lý do đề xuất các điểm này",
+    runtimeScopeLabel: "Phạm vi điều chỉnh",
+    runtimeScopePartialLabel: "Điều chỉnh các điểm chưa khóa",
+    runtimeScopeFullLabel: "Tạo lại toàn bộ lịch trình",
     proposalOnly: "Đây là gợi ý để trao đổi. Hệ thống không tự xác nhận hoặc đặt tour.",
     preferencesHeading: "Nhu cầu đã nhận từ biểu mẫu",
     preferenceDateLabel: "Ngày và giờ bắt đầu (Thành phố Hồ Chí Minh, UTC+07:00)",
@@ -1372,6 +1433,7 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
 const dictionaries = {
   en: {
     ...english,
+    thesisDemoLabel: "Thesis demo",
     home: customerHomeCopy.en,
     planner: plannerCopy.en,
     customRequest: customRequestCopy.en,
@@ -1389,6 +1451,7 @@ const dictionaries = {
   },
   vi: {
     ...vietnamese,
+    thesisDemoLabel: "Bản demo đồ án",
     home: customerHomeCopy.vi,
     planner: plannerCopy.vi,
     customRequest: customRequestCopy.vi,

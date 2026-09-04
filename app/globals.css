@@ -68,6 +68,15 @@ button:focus-visible,
   justify-content: space-between;
 }
 
+.site-header__identity {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .site-header__brand {
   display: inline-flex;
   flex: 0 0 auto;
@@ -77,6 +86,21 @@ button:focus-visible,
   font-weight: 700;
   letter-spacing: 0.02em;
   text-decoration: none;
+}
+
+.thesis-demo-badge {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-brand-forest-soft);
+  color: var(--color-brand-forest);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .site-header__nav,

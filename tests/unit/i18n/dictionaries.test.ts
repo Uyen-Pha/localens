@@ -2,6 +2,8 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type { Locale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { fixedTourRuntimeCopy } from "@/lib/i18n/fixed-tour-runtime";
+import { portalCopy } from "@/components/portals/portal-copy";
 
 describe("localized dictionaries", () => {
   it("contains the published English copy", () => {
@@ -102,6 +104,42 @@ describe("localized dictionaries", () => {
         expect(value.length).toBeGreaterThan(0);
       }
     }
+  });
+
+  it.each([
+    {
+      locale: "en" as const,
+      badge: "Thesis demo",
+      ai: "Gemini assisted with ranking; LocalLens validated the timing and cost.",
+      fallback: "AI is temporarily unavailable; LocalLens used the safe deterministic fallback.",
+      quota: "The thesis-demo AI limit has been reached today. LocalLens will not retry automatically; try again after the quota resets.",
+      payment: "Simulated payment — no card details are entered and no real charge occurs.",
+    },
+    {
+      locale: "vi" as const,
+      badge: "Bản demo đồ án",
+      ai: "Gemini đã hỗ trợ xếp hạng; thời gian và chi phí do LocalLens kiểm tra.",
+      fallback: "AI tạm không khả dụng; LocalLens đã dùng phương án xác định an toàn.",
+      quota: "Đã đạt giới hạn AI của bản demo hôm nay. LocalLens sẽ không tự động thử lại; hãy thử sau khi hạn mức được làm mới.",
+      payment: "Thanh toán mô phỏng — không nhập thông tin thẻ và không phát sinh giao dịch thật.",
+    },
+  ])("provides typed thesis-demo disclosures in $locale", ({
+    locale,
+    badge,
+    ai,
+    fallback,
+    quota,
+    payment,
+  }) => {
+    const dictionary = getDictionary(locale);
+
+    expect(dictionary.thesisDemoLabel).toBe(badge);
+    expect(dictionary.planner.runtimeAiDisclosure).toBe(ai);
+    expect(dictionary.planner.runtimeFallbackDisclosure).toBe(fallback);
+    expect(dictionary.planner.runtimeQuotaMessage).toBe(quota);
+    expect(dictionary.planner.runtimeDisclosure).not.toMatch(/does not generate|chưa tạo hoặc lưu/i);
+    expect(fixedTourRuntimeCopy(locale).simulationDisclosure).toBe(payment);
+    expect(portalCopy(locale).simulatedPayment).toBe(payment);
   });
 
   it("requires the typed locale boundary", () => {

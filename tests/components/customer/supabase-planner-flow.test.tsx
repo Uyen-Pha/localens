@@ -222,7 +222,9 @@ describe("SupabasePlannerFlow", () => {
 
     await generate();
 
-    expect(await screen.findByRole("status")).toHaveTextContent("AI-assisted itinerary ready");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Gemini assisted with ranking; LocalLens validated the timing and cost.",
+    );
     expect(screen.getByText("Selected for its strong historical relevance.")).toBeVisible();
     expect(screen.getByText("Strong match for the requested history focus.")).toBeVisible();
     const timeline = screen.getByRole("list", { name: "Itinerary timeline" });
@@ -243,8 +245,58 @@ describe("SupabasePlannerFlow", () => {
     renderPlanner(port);
     await generate();
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Safe fallback itinerary ready");
-    expect(screen.getByRole("note", { name: "Fallback status" })).toHaveTextContent("deterministic fallback");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Safe deterministic fallback ready.",
+    );
+    expect(screen.getByRole("note", { name: "Fallback status" })).toHaveTextContent(
+      "AI is temporarily unavailable; LocalLens used the safe deterministic fallback.",
+    );
+    expect(screen.queryByText(
+      "Gemini assisted with ranking; LocalLens validated the timing and cost.",
+    )).not.toBeInTheDocument();
+  });
+
+  it("uses the exact Vietnamese AI and deterministic-fallback disclosures", async () => {
+    saveValidHandoff();
+    const recommend = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: proposal() })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: proposal({ source: "deterministic", degraded: true, messageKey: "itinerary.ai_unavailable" }),
+      });
+
+    const { unmount } = renderPlanner(plannerPort({ recommend }), "vi");
+    fireEvent.click(await screen.findByRole("button", { name: "Tạo lịch trình" }));
+    await screen.findByRole("heading", { name: "Phiên bản 1" });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Gemini đã hỗ trợ xếp hạng; thời gian và chi phí do LocalLens kiểm tra.",
+    );
+
+    unmount();
+    saveValidHandoff();
+    renderPlanner(plannerPort({ recommend }), "vi");
+    fireEvent.click(await screen.findByRole("button", { name: "Tạo lịch trình" }));
+    await screen.findByRole("heading", { name: "Phiên bản 1" });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Phương án dự phòng xác định an toàn đã sẵn sàng.",
+    );
+    expect(screen.getByRole("note", { name: "Trạng thái dự phòng" })).toHaveTextContent(
+      "AI tạm không khả dụng; LocalLens đã dùng phương án xác định an toàn.",
+    );
+    expect(screen.queryByText(
+      "Gemini đã hỗ trợ xếp hạng; thời gian và chi phí do LocalLens kiểm tra.",
+    )).not.toBeInTheDocument();
+  });
+
+  it("describes the ready planner without the obsolete cannot-generate claim", async () => {
+    saveValidHandoff();
+    renderPlanner();
+
+    expect(await screen.findByRole("button", { name: "Generate itinerary" })).toBeEnabled();
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "Authenticated thesis-demo planner — generate and save an itinerary only after you choose the action.",
+    );
+    expect(screen.queryByText(/does not generate or save an itinerary yet/i)).not.toBeInTheDocument();
   });
 
   it("gives quota guidance without automatically retrying", async () => {
@@ -258,7 +310,11 @@ describe("SupabasePlannerFlow", () => {
     renderPlanner(port);
     fireEvent.click(await screen.findByRole("button", { name: "Generate itinerary" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("AI demo limit reached");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "The thesis-demo AI limit has been reached today. LocalLens will not retry automatically; try again after the quota resets.",
+    );
+    expect(alert).not.toHaveTextContent(/fallback proposal/i);
     await Promise.resolve();
     expect(recommend).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();

@@ -356,7 +356,7 @@ describe("runtime fixed-tour account", () => {
       paymentHeading: "Payment",
       pending: "Pending payment",
       action: "Complete simulated payment",
-      disclosure: /no card details.*no real charge/i,
+      disclosure: "Simulated payment — no card details are entered and no real charge occurs.",
     },
     {
       locale: "vi" as const,
@@ -364,7 +364,7 @@ describe("runtime fixed-tour account", () => {
       paymentHeading: "Thanh toán",
       pending: "Chờ thanh toán",
       action: "Hoàn tất thanh toán mô phỏng",
-      disclosure: /không yêu cầu thông tin thẻ.*không phát sinh giao dịch thật/i,
+      disclosure: "Thanh toán mô phỏng — không nhập thông tin thẻ và không phát sinh giao dịch thật.",
     },
   ])("separates booking and payment status with explicit $locale disclosure", async ({
     locale,
@@ -379,8 +379,12 @@ describe("runtime fixed-tour account", () => {
     const article = await screen.findByRole("article", { name: title });
     expect(article).toHaveTextContent(pending);
     expect(screen.getByRole("heading", { name: paymentHeading })).toBeInTheDocument();
-    expect(screen.getByRole("note")).toHaveTextContent(disclosure);
-    expect(screen.getByRole("button", { name: action })).toBeEnabled();
+    const disclosureNote = screen.getByRole("note");
+    const paymentAction = screen.getByRole("button", { name: action });
+    expect(disclosureNote).toHaveTextContent(disclosure);
+    expect(disclosureNote.compareDocumentPosition(paymentAction) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(article.querySelector("input, textarea, select")).toBeNull();
+    expect(paymentAction).toBeEnabled();
   });
 
   it("completes with only booking identity and idempotency, then reloads authoritative data", async () => {
@@ -404,6 +408,9 @@ describe("runtime fixed-tour account", () => {
     expect(await screen.findByText("Confirmed", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Paid", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Payment simulated", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "Simulated payment — no card details are entered and no real charge occurs.",
+    );
     expect(screen.queryByRole("button", { name: "Complete simulated payment" })).not.toBeInTheDocument();
     expect(bookings).toHaveBeenCalledTimes(2);
     expect(payments).toHaveBeenCalledTimes(2);
@@ -424,6 +431,9 @@ describe("runtime fixed-tour account", () => {
     ));
     expect(screen.getByText("Đã xác nhận", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Đã thanh toán", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "Thanh toán mô phỏng — không nhập thông tin thẻ và không phát sinh giao dịch thật.",
+    );
     expect(screen.queryByRole("button", { name: "Hoàn tất thanh toán mô phỏng" })).not.toBeInTheDocument();
   });
 
