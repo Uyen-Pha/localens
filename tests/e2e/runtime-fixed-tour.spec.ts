@@ -980,7 +980,9 @@ test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment accept
         const copy = fixedTourRuntimeCopy(scenario.locale);
         const cancellationCopy = bookingCancellationCopy(scenario.locale);
         const bookingManagement = page.getByRole("region", { name: cancellationCopy.bookingManagement });
-        const bookingItem = bookingManagement.getByRole("article", { name: scenario.title });
+        const bookingItem = bookingManagement
+          .getByRole("article", { name: scenario.title })
+          .filter({ hasText: bookingId });
         await expect(bookingItem).toContainText(bookingId);
         await expect(bookingItem).toContainText(copy.bookingStatusLabels.cancelled);
         await expect(bookingItem).toContainText(cancellationCopy.reason);
