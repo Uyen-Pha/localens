@@ -183,13 +183,13 @@
       "rolcanlogin": false,
       "rolbypassrls": false,
       "credential": "database-definer-owner",
-      "bypassJustification": "customer fixed-tour cancellation requests"
+      "bypassJustification": "exact-customer automatic booking cancellation RPC"
     },
     "localens_cancellation_admin_rpc_owner": {
       "rolcanlogin": false,
       "rolbypassrls": false,
       "credential": "database-definer-owner",
-      "bypassJustification": "administrator fixed-tour cancellation decisions"
+      "bypassJustification": "inaccessible legacy cancellation decision owner retained for archive compatibility"
     },
     "localens_cancellation_customer_projection_owner": {
       "rolcanlogin": false,
@@ -201,13 +201,13 @@
       "rolcanlogin": false,
       "rolbypassrls": false,
       "credential": "database-definer-owner",
-      "bypassJustification": "administrator cancellation queue"
+      "bypassJustification": "exact-administrator read-only cancellation history"
     },
     "localens_cancellation_guard_owner": {
       "rolcanlogin": false,
       "rolbypassrls": false,
       "credential": "database-definer-owner",
-      "bypassJustification": "cancellation immutability and payment exclusion guards"
+      "bypassJustification": "cancellation immutability, approved legacy backfill, and payment exclusion guards"
     },
     "localens_guide_assignment_rpc_owner": {
       "rolcanlogin": false,
@@ -355,18 +355,25 @@
       "forceRls": true
     },
     {
+      "name": "private.booking_cancellations",
+      "policies": [
+        "booking_cancellations_admin_projection_select",
+        "booking_cancellations_customer_projection_select",
+        "booking_cancellations_customer_rpc_insert",
+        "booking_cancellations_customer_rpc_select",
+        "booking_cancellations_guard_insert",
+        "booking_cancellations_guard_select"
+      ],
+      "writerOperation": "exact-customer automatic cancellation RPC or approved legacy backfill only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
       "name": "private.fixed_tour_cancellation_requests",
       "policies": [
-        "cancellation_requests_admin_projection_select",
-        "cancellation_requests_admin_rpc_select",
-        "cancellation_requests_admin_rpc_update",
-        "cancellation_requests_customer_projection_select",
-        "cancellation_requests_customer_rpc_insert",
-        "cancellation_requests_customer_rpc_lock",
-        "cancellation_requests_customer_rpc_select",
         "cancellation_requests_guard_select"
       ],
-      "writerOperation": "role-scoped fixed-tour cancellation RPCs only",
+      "writerOperation": "none; inaccessible immutable legacy archive",
       "owner": "postgres",
       "forceRls": true
     },
@@ -611,6 +618,7 @@
         "bookings_cancellation_admin_update",
         "bookings_cancellation_customer_lock",
         "bookings_cancellation_customer_select",
+        "bookings_cancellation_guard_select",
         "bookings_checkout_owner_all",
         "bookings_guide_assignment_owner_lock",
         "bookings_guide_assignment_owner_select",
@@ -747,6 +755,8 @@
       "name": "public.custom_quotes",
       "policies": [
         "custom_quotes_admin_rpc_owner_all",
+        "custom_quotes_cancellation_customer_select",
+        "custom_quotes_cancellation_customer_update",
         "custom_quotes_checkout_owner_select",
         "custom_quotes_checkout_owner_update",
         "custom_quotes_customer_rpc_owner_select",
@@ -1412,7 +1422,7 @@
       "securityBarrier": true
     },
     {
-      "name": "public.customer_fixed_tour_cancellation_requests_v",
+      "name": "public.customer_booking_cancellations_v",
       "owner": "localens_cancellation_customer_projection_owner",
       "readerRoles": [
         "authenticated"
@@ -1422,7 +1432,7 @@
       "securityBarrier": true
     },
     {
-      "name": "public.admin_fixed_tour_cancellation_queue_v",
+      "name": "public.admin_booking_cancellations_v",
       "owner": "localens_cancellation_admin_projection_owner",
       "readerRoles": [
         "authenticated"
@@ -1669,23 +1679,13 @@
       "credential": "browser-jwt"
     },
     {
-      "name": "public.request_fixed_tour_cancellation",
-      "signature": "public.request_fixed_tour_cancellation(uuid,text,text)",
+      "name": "public.cancel_booking",
+      "signature": "public.cancel_booking(uuid,text,text,text)",
       "owner": "localens_cancellation_customer_rpc_owner",
       "readerRoles": [
         "authenticated"
       ],
-      "writerOperation": "owner requests fixed-tour cancellation",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.decide_fixed_tour_cancellation",
-      "signature": "public.decide_fixed_tour_cancellation(uuid,text,text,text)",
-      "owner": "localens_cancellation_admin_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "administrator decides fixed-tour cancellation",
+      "writerOperation": "exact customer cancels an eligible departure or quote booking",
       "credential": "browser-jwt"
     },
     {
@@ -1733,12 +1733,15 @@
     "public.accept_guide_assignment(uuid)",
     "public.assign_guide(uuid,uuid)",
     "public.complete_guide_assignment(uuid)",
+    "public.decide_fixed_tour_cancellation(uuid,text,text,text)",
+    "public.request_fixed_tour_cancellation(uuid,text,text)",
     "private.accept_guide_assignment(uuid)",
     "private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)",
     "private.advance_trip_plan_revision(uuid,integer,jsonb)",
     "private.assert_checkout_attempt_mutation()",
     "private.assert_checkout_transition()",
     "private.assert_fixed_tour_cancellation_request_mutation()",
+    "private.backfill_approved_booking_cancellations()",
     "private.assert_catalog_review_admin()",
     "private.assert_content_admin()",
     "private.assert_content_json_safe()",
@@ -1805,6 +1808,7 @@
     "private.record_request_quote_audit_event(public.audit_event_type,uuid,public.app_role,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric)",
     "private.reject_append_only_change()",
     "private.reject_audit_mutation()",
+    "private.reject_booking_cancellation_mutation()",
     "private.reject_checkout_idempotency_mutation()",
     "private.reject_content_copy_mutation()",
     "private.reject_custom_quote_delete()",
@@ -1813,6 +1817,7 @@
     "private.reject_custom_request_event_mutation()",
     "private.reject_fixed_tour_cancellation_truncate()",
     "private.reject_payment_after_approved_cancellation()",
+    "private.reject_payment_after_booking_cancellation()",
     "private.reject_published_snapshot_insert()",
     "private.reject_published_tour_child_insert()",
     "private.reject_quota_reservation_mutation()",
@@ -1842,7 +1847,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 656,
+  "grantCount": 658,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }

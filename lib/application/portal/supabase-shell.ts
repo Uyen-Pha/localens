@@ -14,6 +14,10 @@ import { createSupabaseFixedTourRuntimeAdapter } from "@/lib/infrastructure/supa
 import {
   createSupabaseRuntimeGuideAssignmentAdapter,
 } from "@/lib/infrastructure/supabase/runtime-guide-assignment-adapter";
+import {
+  createSupabaseBookingCancellationAdapter,
+  type SupabaseBookingCancellationPort,
+} from "@/lib/infrastructure/supabase/booking-cancellation-adapter";
 import type { RuntimeGuideAssignmentPort } from "@/lib/application/guide-assignment/contracts";
 
 type SupabaseRuntimeConfig = Extract<BrowserRuntimeConfig, { mode: "supabase" }>;
@@ -25,7 +29,13 @@ export interface SupabasePortalShell extends FixedTourRuntimeComposition {
   readonly initialized: Promise<void>;
 }
 
-export function createSupabasePortalShell(config: SupabaseRuntimeConfig): SupabasePortalShell {
+export type SupabasePortalShellWithBookingCancellations = SupabasePortalShell & {
+  readonly bookingCancellations: SupabaseBookingCancellationPort;
+};
+
+export function createSupabasePortalShell(
+  config: SupabaseRuntimeConfig,
+): SupabasePortalShellWithBookingCancellations {
   try {
     const client = createBrowserSupabaseClient({
       NEXT_PUBLIC_SUPABASE_URL: config.supabaseUrl,
@@ -35,6 +45,7 @@ export function createSupabasePortalShell(config: SupabaseRuntimeConfig): Supaba
     return {
       mode: "supabase",
       session: createSupabasePortalSessionAdapter(client),
+      bookingCancellations: createSupabaseBookingCancellationAdapter(client),
       ...createFixedTourRuntimeComposition(createSupabaseFixedTourRuntimeAdapter(client)),
       guideAssignments: createSupabaseRuntimeGuideAssignmentAdapter(client),
       initialized: Promise.resolve(),

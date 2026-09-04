@@ -36,6 +36,16 @@ import type { Database } from "@/lib/infrastructure/supabase/database.types";
 
 type FixedTourSupabaseClient = Pick<SupabaseClient<Database>, "auth" | "from" | "rpc">;
 type UnknownRecord = Record<string, unknown>;
+type CurrentPublicViewName = keyof Database["public"]["Views"];
+type LegacyCancellationViewName =
+  | "customer_fixed_tour_cancellation_requests_v"
+  | "admin_fixed_tour_cancellation_queue_v";
+
+// Task 3 removes these legacy methods. Keep their application seams compilable
+// while Task 2 removes the superseded views from generated database types.
+function legacyCancellationView(client: FixedTourSupabaseClient, name: LegacyCancellationViewName) {
+  return client.from(name as CurrentPublicViewName);
+}
 
 const PUBLISHED_TOUR_COLUMNS = [
   "tour_id",
@@ -385,8 +395,7 @@ export function createSupabaseFixedTourRuntimeAdapter(
     async listOwnCancellationRequests(): Promise<FixedTourCancellationRequest[]> {
       await requireSession(client);
       const data = await responseData(
-        client
-          .from("customer_fixed_tour_cancellation_requests_v")
+        legacyCancellationView(client, "customer_fixed_tour_cancellation_requests_v")
           .select(CUSTOMER_CANCELLATION_COLUMNS)
           .order("requested_at", { ascending: false })
           .order("request_id", { ascending: false }),
@@ -421,8 +430,7 @@ export function createSupabaseFixedTourRuntimeAdapter(
     async listCancellationQueue(): Promise<FixedTourCancellationQueueItem[]> {
       await requireSession(client);
       const data = await responseData(
-        client
-          .from("admin_fixed_tour_cancellation_queue_v")
+        legacyCancellationView(client, "admin_fixed_tour_cancellation_queue_v")
           .select(ADMIN_CANCELLATION_COLUMNS)
           .order("requested_at", { ascending: true })
           .order("request_id", { ascending: true }),

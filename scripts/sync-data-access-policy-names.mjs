@@ -1,31 +1,21 @@
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { databaseInventory, migrationFiles } from "./check-supabase-artifacts.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const matrixPath = resolve(root, "docs/security/data-access-matrix.json");
-const migrationDir = resolve(root, "supabase/migrations");
 const matrix = JSON.parse(readFileSync(matrixPath, "utf8"));
-const policiesByTable = new Map();
-for (const file of readdirSync(migrationDir).filter((name) => name.endsWith(".sql")).sort()) {
-  const source = readFileSync(resolve(migrationDir, file), "utf8");
-  for (const match of source.matchAll(/\bCREATE\s+POLICY\s+([A-Za-z_][A-Za-z0-9_]*)\s+ON\s+((?:public|private)\.[A-Za-z_][A-Za-z0-9_]*)/gi)) {
-    const table = match[2].toLowerCase();
-    const policies = policiesByTable.get(table) ?? new Set();
-    policies.add(match[1]);
-    policiesByTable.set(table, policies);
-  }
-  for (const match of source.matchAll(/FOREACH\s+\w+\s+IN\s+ARRAY\s+ARRAY\[([\s\S]*?)\][\s\S]*?EXECUTE\s+format\(\s*'CREATE\s+POLICY\s+([A-Za-z_][A-Za-z0-9_]*)\s+ON\s+(public|private)\.%I[\s\S]*?\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)/gi)) {
-    for (const tableMatch of match[1].matchAll(/'([A-Za-z_][A-Za-z0-9_]*)'/g)) {
-      const table = `${match[3].toLowerCase()}.${tableMatch[1].toLowerCase()}`;
-      const policies = policiesByTable.get(table) ?? new Set();
-      policies.add(match[2]);
-      policiesByTable.set(table, policies);
-    }
-  }
-}
 const inventory = databaseInventory(migrationFiles(root));
+const policiesByTable = new Map();
+for (const qualifiedPolicy of inventory.policies) {
+  const separator = qualifiedPolicy.indexOf(":");
+  const table = qualifiedPolicy.slice(0, separator);
+  const policy = qualifiedPolicy.slice(separator + 1);
+  const policies = policiesByTable.get(table) ?? new Set();
+  policies.add(policy);
+  policiesByTable.set(table, policies);
+}
 for (const table of matrix.tables) {
   table.owner = table.owner ?? matrix.defaults?.owner ?? "postgres";
   table.forceRls = table.forceRls ?? matrix.defaults?.forceRls ?? true;

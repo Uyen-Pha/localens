@@ -2892,6 +2892,61 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_booking_cancellations_v: {
+        Row: {
+          booking_id: string | null
+          cancelled_at: string | null
+          customer_user_id: string | null
+          id: string | null
+          idempotency_key: string | null
+          other_reason: string | null
+          reason_code: string | null
+          source_kind: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          cancelled_at?: string | null
+          customer_user_id?: string | null
+          id?: string | null
+          idempotency_key?: string | null
+          other_reason?: string | null
+          reason_code?: string | null
+          source_kind?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          cancelled_at?: string | null
+          customer_user_id?: string | null
+          id?: string | null
+          idempotency_key?: string | null
+          other_reason?: string | null
+          reason_code?: string | null
+          source_kind?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_cancellations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_cancellations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "customer_bookings_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_cancellations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "customer_simulated_payment_status_v"
+            referencedColumns: ["booking_id"]
+          },
+        ]
+      }
       admin_content_drafts_v: {
         Row: {
           body: string | null
@@ -2979,44 +3034,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "trip_plans"
             referencedColumns: ["id", "owner_user_id"]
-          },
-        ]
-      }
-      admin_fixed_tour_cancellation_queue_v: {
-        Row: {
-          booking_id: string | null
-          booking_status: Database["public"]["Enums"]["booking_status"] | null
-          customer_display_name: string | null
-          decided_at: string | null
-          decision_note: string | null
-          reason: string | null
-          request_id: string | null
-          requested_at: string | null
-          status: string | null
-          title_en: string | null
-          title_vi: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fixed_tour_cancellation_requests_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: true
-            referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fixed_tour_cancellation_requests_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: true
-            referencedRelation: "customer_bookings_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fixed_tour_cancellation_requests_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: true
-            referencedRelation: "customer_simulated_payment_status_v"
-            referencedColumns: ["booking_id"]
           },
         ]
       }
@@ -3145,6 +3162,61 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "catalog_snapshots"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_booking_cancellations_v: {
+        Row: {
+          booking_id: string | null
+          cancelled_at: string | null
+          customer_user_id: string | null
+          id: string | null
+          idempotency_key: string | null
+          other_reason: string | null
+          reason_code: string | null
+          source_kind: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          cancelled_at?: string | null
+          customer_user_id?: string | null
+          id?: string | null
+          idempotency_key?: string | null
+          other_reason?: string | null
+          reason_code?: string | null
+          source_kind?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          cancelled_at?: string | null
+          customer_user_id?: string | null
+          id?: string | null
+          idempotency_key?: string | null
+          other_reason?: string | null
+          reason_code?: string | null
+          source_kind?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_cancellations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_cancellations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "customer_bookings_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_cancellations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "customer_simulated_payment_status_v"
+            referencedColumns: ["booking_id"]
           },
         ]
       }
@@ -3369,58 +3441,6 @@ export type Database = {
           },
         ]
       }
-      customer_fixed_tour_cancellation_requests_v: {
-        Row: {
-          booking_id: string | null
-          decided_at: string | null
-          decision_note: string | null
-          reason: string | null
-          request_id: string | null
-          requested_at: string | null
-          status: string | null
-        }
-        Insert: {
-          booking_id?: string | null
-          decided_at?: string | null
-          decision_note?: string | null
-          reason?: string | null
-          request_id?: string | null
-          requested_at?: string | null
-          status?: string | null
-        }
-        Update: {
-          booking_id?: string | null
-          decided_at?: string | null
-          decision_note?: string | null
-          reason?: string | null
-          request_id?: string | null
-          requested_at?: string | null
-          status?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fixed_tour_cancellation_requests_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: true
-            referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fixed_tour_cancellation_requests_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: true
-            referencedRelation: "customer_bookings_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fixed_tour_cancellation_requests_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: true
-            referencedRelation: "customer_simulated_payment_status_v"
-            referencedColumns: ["booking_id"]
-          },
-        ]
-      }
       customer_payment_status_v: {
         Row: {
           amount_minor: string | null
@@ -3599,6 +3619,21 @@ export type Database = {
           hold_expires_at: string
           state: string
         }[]
+      }
+      cancel_booking: {
+        Args: {
+          booking_id: string
+          idempotency_key?: string
+          other_reason?: string
+          reason_code?: string
+        }
+        Returns: Database["public"]["CompositeTypes"]["booking_cancellation_result"][]
+        SetofOptions: {
+          from: "*"
+          to: "booking_cancellation_result"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       claim_guest_plan: {
         Args: {
@@ -3979,6 +4014,18 @@ export type Database = {
         | "conflict"
     }
     CompositeTypes: {
+      booking_cancellation_result: {
+        id: string | null
+        booking_id: string | null
+        customer_user_id: string | null
+        source_kind: string | null
+        reason_code: string | null
+        other_reason: string | null
+        idempotency_key: string | null
+        cancelled_at: string | null
+        booking_status: Database["public"]["Enums"]["booking_status"] | null
+        state: string | null
+      }
       fixed_tour_cancellation_decision_result: {
         request_id: string | null
         booking_id: string | null

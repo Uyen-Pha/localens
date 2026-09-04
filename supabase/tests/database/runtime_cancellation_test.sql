@@ -3,425 +3,502 @@ BEGIN;
 SELECT no_plan();
 
 DELETE FROM auth.users
-WHERE id IN (
-  '00000000-0000-0000-0000-000000002601'::uuid,
-  '00000000-0000-0000-0000-000000002602'::uuid,
-  '00000000-0000-0000-0000-000000002603'::uuid,
-  '00000000-0000-0000-0000-000000002604'::uuid
-);
+WHERE id BETWEEN '00000000-0000-0000-0000-000000002601'::uuid
+  AND '00000000-0000-0000-0000-000000002605'::uuid;
 
 INSERT INTO auth.users (
   id, aud, role, email, encrypted_password,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 )
 VALUES
-  ('00000000-0000-0000-0000-000000002601'::uuid, 'authenticated', 'authenticated', 'cancel-a@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000002602'::uuid, 'authenticated', 'authenticated', 'cancel-b@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000002603'::uuid, 'authenticated', 'authenticated', 'cancel-guide@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000002604'::uuid, 'authenticated', 'authenticated', 'cancel-admin@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now());
+  ('00000000-0000-0000-0000-000000002601', 'authenticated', 'authenticated', 'cancel-a@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000002602', 'authenticated', 'authenticated', 'cancel-b@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000002603', 'authenticated', 'authenticated', 'cancel-guide@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000002604', 'authenticated', 'authenticated', 'cancel-admin@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000002605', 'authenticated', 'authenticated', 'cancel-mixed@example.invalid', '', '{}'::jsonb, '{}'::jsonb, now(), now());
 
-INSERT INTO private.user_roles (user_id, role)
-VALUES
-  ('00000000-0000-0000-0000-000000002603'::uuid, 'guide'::public.app_role),
-  ('00000000-0000-0000-0000-000000002604'::uuid, 'admin'::public.app_role);
-
-UPDATE public.profiles
-SET display_name = CASE id
-  WHEN '00000000-0000-0000-0000-000000002601'::uuid THEN 'Cancellation customer A'
-  WHEN '00000000-0000-0000-0000-000000002602'::uuid THEN 'Cancellation customer B'
-  WHEN '00000000-0000-0000-0000-000000002603'::uuid THEN 'Cancellation guide'
-  ELSE 'Cancellation admin'
-END
-WHERE id IN (
-  '00000000-0000-0000-0000-000000002601'::uuid,
-  '00000000-0000-0000-0000-000000002602'::uuid,
+DELETE FROM private.user_roles
+WHERE user_id IN (
   '00000000-0000-0000-0000-000000002603'::uuid,
   '00000000-0000-0000-0000-000000002604'::uuid
 );
+INSERT INTO private.user_roles (user_id, role)
+VALUES
+  ('00000000-0000-0000-0000-000000002603', 'guide'),
+  ('00000000-0000-0000-0000-000000002604', 'admin'),
+  ('00000000-0000-0000-0000-000000002605', 'admin');
 
 INSERT INTO public.catalog_snapshots (id, status)
-VALUES ('00000000-0000-0000-0000-000000002611'::uuid, 'building');
+VALUES ('00000000-0000-0000-0000-000000002611', 'building');
 INSERT INTO public.catalog_snapshot_areas (snapshot_id, area_id, slug)
-VALUES ('00000000-0000-0000-0000-000000002611'::uuid, '00000000-0000-0000-0000-000000002612'::uuid, 'runtime-cancellation-area');
+VALUES ('00000000-0000-0000-0000-000000002611', '00000000-0000-0000-0000-000000002612', 'automatic-cancellation-area');
 INSERT INTO public.catalog_snapshot_places (
   snapshot_id, place_id, area_id, slug, price_vnd_per_person,
   visit_duration_minutes, source_url, verified_at, attribution
 )
 VALUES (
-  '00000000-0000-0000-0000-000000002611'::uuid,
-  '00000000-0000-0000-0000-000000002613'::uuid,
-  '00000000-0000-0000-0000-000000002612'::uuid,
-  'runtime-cancellation-place', 0, 60,
-  'https://example.invalid/runtime-cancellation-place', CURRENT_DATE,
-  'Runtime cancellation pgTAP fixture'
+  '00000000-0000-0000-0000-000000002611',
+  '00000000-0000-0000-0000-000000002613',
+  '00000000-0000-0000-0000-000000002612',
+  'automatic-cancellation-place', 0, 60,
+  'https://example.invalid/automatic-cancellation-place', CURRENT_DATE,
+  'Automatic cancellation pgTAP fixture'
 );
 INSERT INTO public.catalog_snapshot_place_translations (
   snapshot_id, place_id, locale, title, summary, description
 )
 VALUES
-  ('00000000-0000-0000-0000-000000002611'::uuid, '00000000-0000-0000-0000-000000002613'::uuid, 'en', 'Runtime cancellation place', 'Fixture', 'Fixture place'),
-  ('00000000-0000-0000-0000-000000002611'::uuid, '00000000-0000-0000-0000-000000002613'::uuid, 'vi', 'Dia diem huy tour runtime', 'Du lieu mau', 'Dia diem du lieu mau');
+  ('00000000-0000-0000-0000-000000002611', '00000000-0000-0000-0000-000000002613', 'en', 'Cancellation place', 'Fixture', 'Fixture place'),
+  ('00000000-0000-0000-0000-000000002611', '00000000-0000-0000-0000-000000002613', 'vi', 'Dia diem huy don', 'Du lieu mau', 'Dia diem du lieu mau');
 INSERT INTO public.travel_snapshots (id, catalog_snapshot_id, status)
-VALUES ('00000000-0000-0000-0000-000000002614'::uuid, '00000000-0000-0000-0000-000000002611'::uuid, 'building');
+VALUES ('00000000-0000-0000-0000-000000002614', '00000000-0000-0000-0000-000000002611', 'building');
 
 SET LOCAL ROLE localens_tour_rpc_owner;
 INSERT INTO public.tours (id, slug, status)
-VALUES ('00000000-0000-0000-0000-000000002615'::uuid, 'runtime-cancellation', 'draft');
+VALUES ('00000000-0000-0000-0000-000000002615', 'automatic-cancellation', 'draft');
 INSERT INTO public.tour_translations (tour_id, locale, title, summary, meeting_point)
 VALUES
-  ('00000000-0000-0000-0000-000000002615'::uuid, 'en', 'Runtime cancellation', 'Fixture', 'Runtime gate'),
-  ('00000000-0000-0000-0000-000000002615'::uuid, 'vi', 'Huy tour runtime', 'Du lieu mau', 'Cong runtime');
+  ('00000000-0000-0000-0000-000000002615', 'en', 'Automatic cancellation', 'Fixture', 'Runtime gate'),
+  ('00000000-0000-0000-0000-000000002615', 'vi', 'Huy don tu dong', 'Du lieu mau', 'Cong runtime');
 INSERT INTO public.tour_versions (
   id, tour_id, catalog_snapshot_id, status, duration_minutes,
   price_vnd_per_person, inclusions, exclusions, cancellation_policy,
   source_url, verified_at, attribution, license
 )
 VALUES (
-  '00000000-0000-0000-0000-000000002616'::uuid,
-  '00000000-0000-0000-0000-000000002615'::uuid,
-  '00000000-0000-0000-0000-000000002611'::uuid,
+  '00000000-0000-0000-0000-000000002616',
+  '00000000-0000-0000-0000-000000002615',
+  '00000000-0000-0000-0000-000000002611',
   'draft', 120, 125000, ARRAY['guide'], ARRAY['transfer'],
-  'Cancellation is decided by an administrator before payment.',
-  'https://example.invalid/runtime-cancellation', CURRENT_DATE,
-  'Runtime cancellation pgTAP fixture', 'CC0'
+  'Cancellation is allowed before payment.',
+  'https://example.invalid/automatic-cancellation', CURRENT_DATE,
+  'Automatic cancellation pgTAP fixture', 'CC0'
 );
 INSERT INTO public.tour_version_translations (tour_version_id, locale, title, summary, meeting_point)
 VALUES
-  ('00000000-0000-0000-0000-000000002616'::uuid, 'en', 'Runtime cancellation', 'Fixture', 'Runtime gate'),
-  ('00000000-0000-0000-0000-000000002616'::uuid, 'vi', 'Huy tour runtime', 'Du lieu mau', 'Cong runtime');
+  ('00000000-0000-0000-0000-000000002616', 'en', 'Automatic cancellation', 'Fixture', 'Runtime gate'),
+  ('00000000-0000-0000-0000-000000002616', 'vi', 'Huy don tu dong', 'Du lieu mau', 'Cong runtime');
 INSERT INTO public.tour_version_stops (tour_version_id, catalog_snapshot_id, position, place_id)
-VALUES ('00000000-0000-0000-0000-000000002616'::uuid, '00000000-0000-0000-0000-000000002611'::uuid, 1, '00000000-0000-0000-0000-000000002613'::uuid);
+VALUES ('00000000-0000-0000-0000-000000002616', '00000000-0000-0000-0000-000000002611', 1, '00000000-0000-0000-0000-000000002613');
 RESET ROLE;
 
-UPDATE public.catalog_snapshots SET status = 'published', published_at = pg_catalog.clock_timestamp()
-WHERE id = '00000000-0000-0000-0000-000000002611'::uuid;
-UPDATE public.travel_snapshots SET status = 'published', published_at = pg_catalog.clock_timestamp()
-WHERE id = '00000000-0000-0000-0000-000000002614'::uuid;
+UPDATE public.catalog_snapshots SET status = 'published', published_at = clock_timestamp()
+WHERE id = '00000000-0000-0000-0000-000000002611';
+UPDATE public.travel_snapshots SET status = 'published', published_at = clock_timestamp()
+WHERE id = '00000000-0000-0000-0000-000000002614';
 SET LOCAL ROLE localens_tour_rpc_owner;
-UPDATE public.tour_versions SET status = 'published', published_at = pg_catalog.clock_timestamp()
-WHERE id = '00000000-0000-0000-0000-000000002616'::uuid;
+UPDATE public.tour_versions SET status = 'published', published_at = clock_timestamp()
+WHERE id = '00000000-0000-0000-0000-000000002616';
 UPDATE public.tours SET status = 'published'
-WHERE id = '00000000-0000-0000-0000-000000002615'::uuid;
+WHERE id = '00000000-0000-0000-0000-000000002615';
 INSERT INTO public.departures (id, tour_version_id, start_at, end_at, status, capacity)
 VALUES (
-  '00000000-0000-0000-0000-000000002617'::uuid,
-  '00000000-0000-0000-0000-000000002616'::uuid,
-  pg_catalog.clock_timestamp() + interval '7 days',
-  pg_catalog.clock_timestamp() + interval '7 days 2 hours',
-  'scheduled', 20
+  '00000000-0000-0000-0000-000000002617',
+  '00000000-0000-0000-0000-000000002616',
+  clock_timestamp() + interval '7 days', clock_timestamp() + interval '7 days 2 hours',
+  'scheduled', 100
 );
 RESET ROLE;
 
-SELECT ok(to_regclass('private.fixed_tour_cancellation_requests') IS NOT NULL, 'private cancellation request table exists');
-SELECT ok(to_regclass('public.customer_fixed_tour_cancellation_requests_v') IS NOT NULL, 'customer cancellation projection exists');
-SELECT ok(to_regclass('public.admin_fixed_tour_cancellation_queue_v') IS NOT NULL, 'admin cancellation queue exists');
-SELECT has_function('public', 'request_fixed_tour_cancellation', ARRAY['uuid', 'text', 'text']);
-SELECT has_function('public', 'decide_fixed_tour_cancellation', ARRAY['uuid', 'text', 'text', 'text']);
+INSERT INTO public.trip_plans (id, owner_user_id, latest_revision_no)
+VALUES
+  ('00000000-0000-0000-0000-000000002621', '00000000-0000-0000-0000-000000002601', 1),
+  ('00000000-0000-0000-0000-000000002622', '00000000-0000-0000-0000-000000002601', 1);
+INSERT INTO public.trip_plan_revisions (
+  id, plan_id, revision_no, base_revision_no, request_json, result_json,
+  fingerprint, ranking_source, catalog_snapshot_id, travel_snapshot_id,
+  currency, budget_vnd, total_cost_vnd, total_duration_minutes, actor_user_id
+)
+VALUES
+  ('00000000-0000-0000-0000-000000002631', '00000000-0000-0000-0000-000000002621', 1, 0, '{"partySize":1}', '{}', repeat('a', 64), 'deterministic', '00000000-0000-0000-0000-000000002611', '00000000-0000-0000-0000-000000002614', 'VND', 100000, 100000, 60, '00000000-0000-0000-0000-000000002601'),
+  ('00000000-0000-0000-0000-000000002632', '00000000-0000-0000-0000-000000002622', 1, 0, '{"partySize":1}', '{}', repeat('b', 64), 'deterministic', '00000000-0000-0000-0000-000000002611', '00000000-0000-0000-0000-000000002614', 'VND', 100000, 100000, 60, '00000000-0000-0000-0000-000000002601');
+INSERT INTO public.custom_requests (id, plan_id, revision_id, revision_no, owner_user_id, status)
+VALUES
+  ('00000000-0000-0000-0000-000000002641', '00000000-0000-0000-0000-000000002621', '00000000-0000-0000-0000-000000002631', 1, '00000000-0000-0000-0000-000000002601', 'draft'),
+  ('00000000-0000-0000-0000-000000002642', '00000000-0000-0000-0000-000000002622', '00000000-0000-0000-0000-000000002632', 1, '00000000-0000-0000-0000-000000002601', 'draft');
+SELECT set_config('localens.request_transition', 'on', true);
+UPDATE public.custom_requests
+SET status = 'pending_review'::public.request_status
+WHERE id IN (
+  '00000000-0000-0000-0000-000000002641'::uuid,
+  '00000000-0000-0000-0000-000000002642'::uuid
+);
+UPDATE public.custom_requests
+SET status = 'approved'::public.request_status
+WHERE id IN (
+  '00000000-0000-0000-0000-000000002641'::uuid,
+  '00000000-0000-0000-0000-000000002642'::uuid
+);
+SELECT set_config('localens.request_transition', 'off', true);
+INSERT INTO public.custom_quotes (
+  id, request_id, status, amount_vnd_minor, checkout_currency, checkout_amount_minor,
+  catalog_snapshot_id, travel_snapshot_id, title_en, title_vi, policy, created_at
+)
+VALUES
+  ('00000000-0000-0000-0000-000000002651', '00000000-0000-0000-0000-000000002641', 'checkout_pending', 100000, 'vnd', 100000, '00000000-0000-0000-0000-000000002611', '00000000-0000-0000-0000-000000002614', 'Active quote', 'Bao gia con han', 'Cancellation fixture', clock_timestamp()),
+  ('00000000-0000-0000-0000-000000002652', '00000000-0000-0000-0000-000000002642', 'checkout_pending', 100000, 'vnd', 100000, '00000000-0000-0000-0000-000000002611', '00000000-0000-0000-0000-000000002614', 'Expired quote', 'Bao gia het han', 'Cancellation fixture', clock_timestamp() - interval '3 days');
+
+CREATE TEMP TABLE cancellation_fixtures (
+  label text PRIMARY KEY,
+  booking_id uuid NOT NULL,
+  attempt_id uuid NOT NULL,
+  owner_user_id uuid NOT NULL,
+  source_kind text NOT NULL,
+  source_id uuid NOT NULL,
+  booking_status public.booking_status NOT NULL DEFAULT 'pending_payment',
+  attempt_status text NOT NULL DEFAULT 'created',
+  provider_session_id text,
+  hold_status public.hold_status
+);
+INSERT INTO cancellation_fixtures (label, booking_id, attempt_id, owner_user_id, source_kind, source_id, booking_status, attempt_status, provider_session_id, hold_status)
+VALUES
+  ('dep-main', '00000000-0000-0000-0000-000000002701', '00000000-0000-0000-0000-000000002801', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
+  ('dep-optional', '00000000-0000-0000-0000-000000002702', '00000000-0000-0000-0000-000000002802', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
+  ('dep-conflict', '00000000-0000-0000-0000-000000002703', '00000000-0000-0000-0000-000000002803', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
+  ('dep-cross', '00000000-0000-0000-0000-000000002704', '00000000-0000-0000-0000-000000002804', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
+  ('dep-paid', '00000000-0000-0000-0000-000000002705', '00000000-0000-0000-0000-000000002805', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
+  ('dep-terminal', '00000000-0000-0000-0000-000000002706', '00000000-0000-0000-0000-000000002806', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'confirmed', 'created', NULL, 'active'),
+  ('dep-provider', '00000000-0000-0000-0000-000000002707', '00000000-0000-0000-0000-000000002807', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'session_recorded', 'cs_provider_authority', 'active'),
+  ('dep-real-payment', '00000000-0000-0000-0000-000000002708', '00000000-0000-0000-0000-000000002808', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
+  ('dep-owner-b', '00000000-0000-0000-0000-000000002709', '00000000-0000-0000-0000-000000002809', '00000000-0000-0000-0000-000000002602', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
+  ('dep-guide', '00000000-0000-0000-0000-000000002710', '00000000-0000-0000-0000-000000002810', '00000000-0000-0000-0000-000000002603', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
+  ('dep-admin', '00000000-0000-0000-0000-000000002711', '00000000-0000-0000-0000-000000002811', '00000000-0000-0000-0000-000000002604', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
+  ('quote-main', '00000000-0000-0000-0000-000000002712', '00000000-0000-0000-0000-000000002812', '00000000-0000-0000-0000-000000002601', 'quote', '00000000-0000-0000-0000-000000002651', 'pending_payment', 'created', NULL, NULL),
+  ('quote-expired', '00000000-0000-0000-0000-000000002713', '00000000-0000-0000-0000-000000002813', '00000000-0000-0000-0000-000000002601', 'quote', '00000000-0000-0000-0000-000000002652', 'pending_payment', 'created', NULL, NULL),
+  ('legacy-approved', '00000000-0000-0000-0000-000000002714', '00000000-0000-0000-0000-000000002814', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'cancelled', 'compensated', NULL, 'released'),
+  ('legacy-pending', '00000000-0000-0000-0000-000000002715', '00000000-0000-0000-0000-000000002815', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
+  ('legacy-rejected', '00000000-0000-0000-0000-000000002716', '00000000-0000-0000-0000-000000002816', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active');
+
+INSERT INTO public.bookings (
+  id, owner_user_id, source_kind, source_id, departure_id, quote_id, status,
+  tour_version_id, title_en, title_vi, cancellation_policy, catalog_snapshot_id,
+  travel_snapshot_id, per_person_vnd_minor, total_vnd_minor, checkout_currency,
+  checkout_amount_minor, party_size, language, meeting_point, created_at, hold_expires_at
+)
+SELECT
+  booking_id, owner_user_id, source_kind, source_id,
+  CASE WHEN source_kind = 'departure' THEN source_id END,
+  CASE WHEN source_kind = 'quote' THEN source_id END,
+  booking_status,
+  CASE WHEN source_kind = 'departure' THEN '00000000-0000-0000-0000-000000002616'::uuid END,
+  'Cancellation booking', 'Don huy', 'Cancellation fixture',
+  '00000000-0000-0000-0000-000000002611', '00000000-0000-0000-0000-000000002614',
+  CASE WHEN source_kind = 'departure' THEN 125000 END,
+  CASE WHEN source_kind = 'departure' THEN 125000 ELSE 100000 END,
+  'vnd', CASE WHEN source_kind = 'departure' THEN 125000 ELSE 100000 END,
+  1, 'en', 'Runtime gate', statement_timestamp(), statement_timestamp() + interval '35 minutes'
+FROM cancellation_fixtures;
+
+INSERT INTO private.checkout_attempts (
+  id, booking_id, owner_user_id, source_kind, departure_id, quote_id,
+  provider_idempotency_key, status, provider_session_id, provider_expires_at
+)
+SELECT
+  attempt_id, booking_id, owner_user_id, source_kind,
+  CASE WHEN source_kind = 'departure' THEN source_id END,
+  CASE WHEN source_kind = 'quote' THEN source_id END,
+  'localens:stripe-checkout:v1:' || attempt_id::text,
+  attempt_status, provider_session_id,
+  CASE WHEN provider_session_id IS NOT NULL THEN clock_timestamp() + interval '30 minutes' END
+FROM cancellation_fixtures;
+
+INSERT INTO private.checkout_idempotency (
+  id, owner_user_id, idempotency_key, canonical_request_hash,
+  booking_id, checkout_attempt_id, provider_idempotency_key
+)
+SELECT
+  ('10000000-0000-0000-0000-' || right(booking_id::text, 12))::uuid,
+  owner_user_id, 'checkout-' || label, repeat('c', 64), booking_id, attempt_id,
+  'localens:stripe-checkout:v1:' || attempt_id::text
+FROM cancellation_fixtures;
+
+INSERT INTO private.capacity_holds (
+  id, booking_id, departure_id, party_size, status, created_at, expires_at, released_at
+)
+SELECT
+  ('20000000-0000-0000-0000-' || right(booking_id::text, 12))::uuid,
+  booking_id, source_id, 1, hold_status, statement_timestamp(),
+  statement_timestamp() + interval '35 minutes',
+  CASE WHEN hold_status = 'released' THEN statement_timestamp() END
+FROM cancellation_fixtures
+WHERE source_kind = 'departure';
+
+INSERT INTO public.payments (
+  booking_id, attempt_id, owner_user_id, provider_session_id,
+  provider_payment_intent_id, provider_account_id, provider_endpoint_id,
+  mode, amount_minor, currency, status
+)
+SELECT booking_id, attempt_id, owner_user_id, 'cs_real_authority', 'pi_real_authority',
+  'acct_localens_test', 'we_localens_test', 'payment', 125000, 'vnd', 'pending'
+FROM cancellation_fixtures WHERE label = 'dep-real-payment';
+
+SELECT ok(to_regclass('private.booking_cancellations') IS NOT NULL, 'immutable booking cancellation table exists');
+SELECT ok(to_regclass('public.customer_booking_cancellations_v') IS NOT NULL, 'customer cancellation projection exists');
+SELECT ok(to_regclass('public.admin_booking_cancellations_v') IS NOT NULL, 'administrator cancellation projection exists');
+SELECT has_function('public', 'cancel_booking', ARRAY['uuid', 'text', 'text', 'text']);
 SELECT ok(
-  (SELECT relrowsecurity AND relforcerowsecurity
-   FROM pg_catalog.pg_class
-   WHERE oid = 'private.fixed_tour_cancellation_requests'::regclass),
-  'cancellation requests enforce RLS'
+  (SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid = 'private.booking_cancellations'::regclass),
+  'booking cancellations force RLS'
 );
 SELECT ok(
-  NOT has_table_privilege('anon', 'private.fixed_tour_cancellation_requests', 'SELECT')
-    AND NOT has_table_privilege('authenticated', 'private.fixed_tour_cancellation_requests', 'SELECT')
-    AND NOT has_table_privilege('authenticated', 'private.fixed_tour_cancellation_requests', 'INSERT')
-    AND NOT has_table_privilege('authenticated', 'private.fixed_tour_cancellation_requests', 'UPDATE'),
-  'browser roles have no cancellation base-table access'
+  NOT has_table_privilege('anon', 'private.booking_cancellations', 'SELECT')
+    AND NOT has_table_privilege('authenticated', 'private.booking_cancellations', 'SELECT')
+    AND NOT has_table_privilege('authenticated', 'private.booking_cancellations', 'INSERT')
+    AND NOT has_table_privilege('authenticated', 'private.booking_cancellations', 'UPDATE')
+    AND NOT has_table_privilege('authenticated', 'private.booking_cancellations', 'DELETE'),
+  'browser roles have no cancellation fact access'
+);
+SELECT ok(
+  has_column_privilege('localens_cancellation_guard_owner', 'public.bookings', 'id', 'SELECT')
+    AND has_column_privilege('localens_cancellation_guard_owner', 'public.bookings', 'source_kind', 'SELECT')
+    AND EXISTS (
+      SELECT 1 FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'bookings'
+        AND policyname = 'bookings_cancellation_guard_select'
+        AND roles = ARRAY['localens_cancellation_guard_owner']::name[]
+    ),
+  'approved legacy backfill has bounded booking routing read authority'
 );
 SELECT is(
-  (SELECT string_agg(column_name::text, ',' ORDER BY ordinal_position)
-   FROM information_schema.columns
-   WHERE table_schema = 'public' AND table_name = 'customer_fixed_tour_cancellation_requests_v'),
-  'request_id,booking_id,status,reason,requested_at,decision_note,decided_at',
-  'customer projection exposes exactly seven sanitized columns'
+  (SELECT string_agg(column_name, ',' ORDER BY ordinal_position)
+   FROM information_schema.columns WHERE table_schema = 'private' AND table_name = 'booking_cancellations'),
+  'id,booking_id,customer_user_id,source_kind,reason_code,other_reason,request_idempotency_key,cancelled_at',
+  'private fact stores only the bounded cancellation authority'
 );
 SELECT is(
-  (SELECT string_agg(column_name::text, ',' ORDER BY ordinal_position)
-   FROM information_schema.columns
-   WHERE table_schema = 'public' AND table_name = 'admin_fixed_tour_cancellation_queue_v'),
-  'request_id,booking_id,booking_status,customer_display_name,title_en,title_vi,status,reason,requested_at,decision_note,decided_at',
-  'admin projection exposes exactly eleven sanitized columns'
+  (SELECT string_agg(column_name, ',' ORDER BY ordinal_position)
+   FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'customer_booking_cancellations_v'),
+  'id,booking_id,customer_user_id,source_kind,reason_code,other_reason,idempotency_key,cancelled_at',
+  'customer projection exposes exactly the sanitized fact'
+);
+SELECT is(
+  (SELECT string_agg(column_name, ',' ORDER BY ordinal_position)
+   FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'admin_booking_cancellations_v'),
+  'id,booking_id,customer_user_id,source_kind,reason_code,other_reason,idempotency_key,cancelled_at',
+  'administrator projection exposes exactly the sanitized fact'
 );
 SELECT ok(
-  (SELECT bool_and(NOT rolcanlogin AND NOT rolinherit AND NOT rolbypassrls AND NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole)
-   FROM pg_catalog.pg_roles
-   WHERE rolname IN (
-     'localens_cancellation_customer_rpc_owner',
-     'localens_cancellation_admin_rpc_owner',
-     'localens_cancellation_customer_projection_owner',
-     'localens_cancellation_admin_projection_owner',
-     'localens_cancellation_guard_owner'
-   )),
-  'all cancellation owners are least-privilege non-login roles'
+  (SELECT prosecdef AND proconfig @> ARRAY['search_path=""'] AND proconfig @> ARRAY['statement_timeout=5s']
+   FROM pg_proc WHERE oid = 'public.cancel_booking(uuid,text,text,text)'::regprocedure),
+  'cancel_booking is a bounded security definer'
+);
+SELECT is(
+  (SELECT rolname FROM pg_roles JOIN pg_proc ON pg_roles.oid = pg_proc.proowner
+   WHERE pg_proc.oid = 'public.cancel_booking(uuid,text,text,text)'::regprocedure),
+  'localens_cancellation_customer_rpc_owner',
+  'cancel_booking has the least-privilege customer owner'
 );
 SELECT ok(
-  (SELECT bool_and(prosecdef AND proconfig @> ARRAY['search_path=""'] AND proconfig @> ARRAY['statement_timeout=5s'])
-   FROM pg_catalog.pg_proc
-   WHERE oid IN (
-     'public.request_fixed_tour_cancellation(uuid,text,text)'::regprocedure,
-     'public.decide_fixed_tour_cancellation(uuid,text,text,text)'::regprocedure
-   )),
-  'both cancellation RPCs are bounded sanitized definers'
+  NOT has_function_privilege('authenticated', 'public.request_fixed_tour_cancellation(uuid,text,text)', 'EXECUTE')
+    AND NOT has_function_privilege('authenticated', 'public.decide_fixed_tour_cancellation(uuid,text,text,text)', 'EXECUTE'),
+  'legacy request and decision APIs are revoked'
+);
+SELECT ok(
+  to_regclass('public.customer_fixed_tour_cancellation_requests_v') IS NULL
+    AND to_regclass('public.admin_fixed_tour_cancellation_queue_v') IS NULL,
+  'legacy request projections are removed from the exposed schema'
+);
+SELECT ok(
+  NOT has_table_privilege('authenticated', 'private.fixed_tour_cancellation_requests', 'SELECT')
+    AND NOT has_table_privilege('localens_cancellation_customer_rpc_owner', 'private.fixed_tour_cancellation_requests', 'SELECT')
+    AND NOT has_table_privilege('localens_cancellation_admin_rpc_owner', 'private.fixed_tour_cancellation_requests', 'SELECT'),
+  'legacy table is an inaccessible private archive'
 );
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '', true);
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002601', 'role', 'authenticated')::text, true);
-SELECT ok((SELECT booking_id IS NOT NULL FROM public.begin_fixed_tour_booking('00000000-0000-0000-0000-000000002617', 1, 'en', 'cancel-a-approve')), 'customer A creates approval booking');
-SELECT ok((SELECT booking_id IS NOT NULL FROM public.begin_fixed_tour_booking('00000000-0000-0000-0000-000000002617', 1, 'en', 'cancel-a-reject')), 'customer A creates rejection booking');
-SELECT ok((SELECT booking_id IS NOT NULL FROM public.begin_fixed_tour_booking('00000000-0000-0000-0000-000000002617', 1, 'en', 'cancel-a-conflict')), 'customer A creates conflict booking');
-SELECT ok((SELECT booking_id IS NOT NULL FROM public.begin_fixed_tour_booking('00000000-0000-0000-0000-000000002617', 1, 'en', 'cancel-a-paid')), 'customer A creates paid booking');
-SELECT ok((SELECT booking_id IS NOT NULL FROM public.begin_fixed_tour_booking('00000000-0000-0000-0000-000000002617', 1, 'en', 'cancel-a-payment-wins')), 'customer A creates payment-wins booking');
+
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'unknown_reason', NULL, 'bad-reason')$$,
+  '22023', 'cancellation input rejected', 'unknown reason code is rejected'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', NULL, 'unexpected', 'bad-null-pair')$$,
+  '22023', 'cancellation input rejected', 'optional null reason forbids other text'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'trip_plan_changed', 'unexpected', 'bad-standard-pair')$$,
+  '22023', 'cancellation input rejected', 'standard reason forbids other text'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'other', ' x ', 'bad-other-pair')$$,
+  '22023', 'cancellation input rejected', 'other reason requires trimmed text of at least three characters'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'other', E'bad\ntext', 'bad-control-pair')$$,
+  '22023', 'cancellation input rejected', 'other reason rejects control characters'
+);
+
+SELECT ok(
+  (SELECT booking_status = 'cancelled' AND state = 'created' AND reason_code = 'trip_plan_changed'
+   FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'trip_plan_changed', NULL, 'cancel-dep-main')),
+  'customer cancels an owned departure booking with a standard reason'
+);
+SELECT ok(
+  (SELECT booking_status = 'cancelled' AND state = 'created' AND reason_code IS NULL AND other_reason IS NULL
+   FROM public.cancel_booking('00000000-0000-0000-0000-000000002702', NULL, NULL, 'cancel-dep-optional')),
+  'customer cancels with no reason'
+);
+SELECT is(
+  (SELECT state FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'trip_plan_changed', NULL, 'cancel-dep-main')),
+  'replayed', 'exact actor key booking and reason replay returns the immutable event'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'payment_unavailable', NULL, 'cancel-dep-main')$$,
+  'P0001', 'IDEMPOTENCY_CONFLICT', 'changed payload under the same key conflicts'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'trip_plan_changed', NULL, 'cancel-dep-other-key')$$,
+  'P0001', 'IDEMPOTENCY_CONFLICT', 'second changed key for one booking conflicts'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002703', 'trip_plan_changed', NULL, 'cancel-dep-main')$$,
+  'P0001', 'IDEMPOTENCY_CONFLICT', 'same actor key reused for another booking conflicts'
+);
+SELECT ok(
+  (SELECT booking_status = 'cancelled' AND state = 'created' AND source_kind = 'quote'
+      AND reason_code = 'other' AND other_reason = 'Schedule changed'
+   FROM public.cancel_booking('00000000-0000-0000-0000-000000002712', 'other', 'Schedule changed', 'cancel-quote-main')),
+  'customer cancels an owned personalized quote booking'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002713', NULL, NULL, 'cancel-quote-expired')$$,
+  'P0001', 'cancellation unavailable', 'expired quote cannot be cancelled'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002706', NULL, NULL, 'cancel-terminal')$$,
+  'P0001', 'cancellation unavailable', 'non-pending terminal booking cannot be cancelled'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002707', NULL, NULL, 'cancel-provider')$$,
+  'P0001', 'cancellation unavailable', 'provider session authority blocks cancellation'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002708', NULL, NULL, 'cancel-real-payment')$$,
+  'P0001', 'cancellation unavailable', 'real payment row blocks cancellation'
+);
+SELECT ok(
+  (SELECT payment_status = 'paid' FROM public.complete_simulated_fixed_tour_payment('00000000-0000-0000-0000-000000002705', 'payment-before-cancel')),
+  'simulated payment fixture terminalizes before cancellation'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002705', NULL, NULL, 'cancel-after-simulation')$$,
+  'P0001', 'cancellation unavailable', 'simulated receipt blocks cancellation'
+);
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002602', 'role', 'authenticated')::text, true);
-SELECT ok((SELECT booking_id IS NOT NULL FROM public.begin_fixed_tour_booking('00000000-0000-0000-0000-000000002617', 1, 'vi', 'cancel-b-own')), 'customer B creates own booking');
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002603', 'role', 'authenticated')::text, true);
-SELECT ok((SELECT booking_id IS NOT NULL FROM public.begin_fixed_tour_booking('00000000-0000-0000-0000-000000002617', 1, 'en', 'cancel-guide-own')), 'additive guide fixture creates booking through legacy checkout');
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002604', 'role', 'authenticated')::text, true);
-SELECT ok((SELECT booking_id IS NOT NULL FROM public.begin_fixed_tour_booking('00000000-0000-0000-0000-000000002617', 1, 'en', 'cancel-admin-own')), 'additive admin fixture creates booking through legacy checkout');
-RESET ROLE;
-
-CREATE TEMP TABLE cancellation_fixture_bookings AS
-SELECT idempotency_key AS label, booking_id, checkout_attempt_id
-FROM private.checkout_idempotency
-WHERE idempotency_key LIKE 'cancel-%';
-GRANT SELECT ON cancellation_fixture_bookings TO authenticated;
-
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002704', NULL, NULL, 'cancel-cross-owner')$$,
+  '42501', 'cancellation unavailable', 'cross-owner customer is denied'
+);
+SELECT is((SELECT count(*)::integer FROM public.customer_booking_cancellations_v), 0, 'cross-owner customer sees no cancellations');
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002603', 'role', 'authenticated')::text, true);
 SELECT throws_ok(
-  format('SELECT * FROM public.request_fixed_tour_cancellation(%L::uuid, %L, %L)',
-    (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-guide-own'), 'Guide must not cancel', 'guide-request-key'),
-  '42501', 'cancellation customer role required',
-  'guide with additive customer role is denied customer cancellation action'
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002710', NULL, NULL, 'cancel-guide')$$,
+  '42501', 'cancellation customer role required', 'guide cannot cancel a booking'
 );
+SELECT is((SELECT count(*)::integer FROM public.customer_booking_cancellations_v), 0, 'guide sees no customer cancellation facts');
+SELECT is((SELECT count(*)::integer FROM public.admin_booking_cancellations_v), 0, 'guide sees no administrator cancellation facts');
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002604', 'role', 'authenticated')::text, true);
 SELECT throws_ok(
-  format('SELECT * FROM public.request_fixed_tour_cancellation(%L::uuid, %L, %L)',
-    (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-admin-own'), 'Admin must not use customer action', 'admin-request-key'),
-  '42501', 'cancellation customer role required',
-  'admin with additive customer role is denied customer cancellation action'
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002711', NULL, NULL, 'cancel-admin')$$,
+  '42501', 'cancellation customer role required', 'administrator cannot use the customer mutation'
 );
-
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002601', 'role', 'authenticated')::text, true);
-SELECT ok(
-  (SELECT status = 'pending' AND state = 'created'
-   FROM public.request_fixed_tour_cancellation(
-     (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-approve'),
-     'Customer plans changed', 'cancel-request-approve')),
-  'customer creates one pending cancellation request'
-);
+SELECT ok((SELECT count(*) >= 3 FROM public.admin_booking_cancellations_v), 'exact administrator sees cancellation history');
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002605', 'role', 'authenticated')::text, true);
+SELECT is((SELECT count(*)::integer FROM public.admin_booking_cancellations_v), 0, 'mixed customer administrator is not exact administrator');
 RESET ROLE;
+
 SELECT results_eq(
-  $$SELECT bookings.status::text, holds.status::text
-    FROM cancellation_fixture_bookings fixtures
-    JOIN public.bookings bookings ON bookings.id = fixtures.booking_id
-    JOIN private.capacity_holds holds ON holds.booking_id = bookings.id
-    WHERE fixtures.label = 'cancel-a-approve'$$,
-  $$VALUES ('pending_payment'::text, 'active'::text)$$,
-  'request creation leaves booking and hold unchanged'
+  $$SELECT bookings.status::text, holds.status::text, attempts.status
+    FROM public.bookings AS bookings
+    JOIN private.capacity_holds AS holds ON holds.booking_id = bookings.id
+    JOIN private.checkout_attempts AS attempts ON attempts.booking_id = bookings.id
+    WHERE bookings.id = '00000000-0000-0000-0000-000000002701'$$,
+  $$VALUES ('cancelled'::text, 'released'::text, 'compensated'::text)$$,
+  'departure cancellation atomically releases hold and compensates attempt'
 );
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claim.sub', '', true);
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002601', 'role', 'authenticated')::text, true);
+SELECT results_eq(
+  $$SELECT bookings.status::text, quotes.status::text, attempts.status
+    FROM public.bookings AS bookings
+    JOIN public.custom_quotes AS quotes ON quotes.id = bookings.quote_id
+    JOIN private.checkout_attempts AS attempts ON attempts.booking_id = bookings.id
+    WHERE bookings.id = '00000000-0000-0000-0000-000000002712'$$,
+  $$VALUES ('cancelled'::text, 'revoked'::text, 'compensated'::text)$$,
+  'quote cancellation atomically revokes quote and compensates attempt'
+);
+
+SELECT throws_ok(
+  $$UPDATE private.booking_cancellations SET reason_code = 'payment_unavailable' WHERE booking_id = '00000000-0000-0000-0000-000000002701'$$,
+  '42501', 'booking cancellations are immutable', 'cancellation facts reject updates'
+);
+SELECT throws_ok(
+  $$DELETE FROM private.booking_cancellations WHERE booking_id = '00000000-0000-0000-0000-000000002701'$$,
+  '42501', 'booking cancellations are immutable', 'cancellation facts reject deletes'
+);
+SELECT throws_ok(
+  $$TRUNCATE private.booking_cancellations$$,
+  '42501', 'booking cancellations are immutable', 'cancellation facts reject truncation'
+);
+SELECT throws_ok(
+  $$INSERT INTO public.payments (
+      booking_id, attempt_id, owner_user_id, provider_session_id,
+      provider_payment_intent_id, provider_account_id, provider_endpoint_id,
+      mode, amount_minor, currency, status
+    ) VALUES (
+      '00000000-0000-0000-0000-000000002701', '00000000-0000-0000-0000-000000002801',
+      '00000000-0000-0000-0000-000000002601', 'cs_after_cancel', 'pi_after_cancel',
+      'acct_localens_test', 'we_localens_test', 'payment', 125000, 'vnd', 'pending'
+    )$$,
+  'P0001', 'CANCELLATION_EXISTS', 'real payment insert is rejected after cancellation'
+);
+SELECT throws_ok(
+  $$INSERT INTO private.simulated_payment_receipts (
+      booking_id, owner_user_id, checkout_attempt_id, idempotency_key,
+      result_booking_status, result_payment_status, amount_minor, currency, simulated_at
+    ) VALUES (
+      '00000000-0000-0000-0000-000000002701', '00000000-0000-0000-0000-000000002601',
+      '00000000-0000-0000-0000-000000002801', 'simulation-after-cancel',
+      'confirmed', 'paid', 125000, 'vnd', clock_timestamp()
+    )$$,
+  'P0001', 'CANCELLATION_EXISTS', 'simulated receipt insert is rejected after cancellation'
+);
+
+INSERT INTO private.fixed_tour_cancellation_requests (
+  id, booking_id, owner_user_id, checkout_attempt_id, reason,
+  request_idempotency_key, requested_at, status, decision_note, decided_by,
+  decision_idempotency_key, decision_booking_status, decided_at
+)
+VALUES
+  ('00000000-0000-0000-0000-000000002901', '00000000-0000-0000-0000-000000002714', '00000000-0000-0000-0000-000000002601', '00000000-0000-0000-0000-000000002814', 'Legacy approved reason', 'legacy-approved-key', clock_timestamp() - interval '1 day', 'approved', 'Approved before migration', '00000000-0000-0000-0000-000000002604', 'legacy-approved-decision', 'cancelled', clock_timestamp() - interval '12 hours'),
+  ('00000000-0000-0000-0000-000000002902', '00000000-0000-0000-0000-000000002715', '00000000-0000-0000-0000-000000002601', '00000000-0000-0000-0000-000000002815', 'Legacy pending reason', 'legacy-pending-key', clock_timestamp() - interval '1 day', 'pending', NULL, NULL, NULL, NULL, NULL),
+  ('00000000-0000-0000-0000-000000002903', '00000000-0000-0000-0000-000000002716', '00000000-0000-0000-0000-000000002601', '00000000-0000-0000-0000-000000002816', 'Legacy rejected reason', 'legacy-rejected-key', clock_timestamp() - interval '1 day', 'rejected', 'Rejected before migration', '00000000-0000-0000-0000-000000002604', 'legacy-rejected-decision', 'pending_payment', clock_timestamp() - interval '12 hours');
+SELECT is(private.backfill_approved_booking_cancellations(), 1, 'only approved legacy rows are backfilled');
+SELECT results_eq(
+  $$SELECT source_kind, reason_code, other_reason, request_idempotency_key
+    FROM private.booking_cancellations
+    WHERE booking_id = '00000000-0000-0000-0000-000000002714'$$,
+  $$VALUES ('departure'::text, 'other'::text, 'Legacy approved reason'::text, 'legacy-approved-key'::text)$$,
+  'approved legacy row becomes one immutable cancellation fact'
+);
+SELECT results_eq(
+  $$SELECT label, bookings.status::text
+    FROM cancellation_fixtures
+    JOIN public.bookings AS bookings ON bookings.id = cancellation_fixtures.booking_id
+    WHERE label IN ('legacy-pending', 'legacy-rejected') ORDER BY label$$,
+  $$VALUES ('legacy-pending'::text, 'pending_payment'::text), ('legacy-rejected'::text, 'pending_payment'::text)$$,
+  'pending and rejected legacy rows do not change bookings'
+);
 SELECT is(
-  (SELECT state FROM public.request_fixed_tour_cancellation(
-    (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-approve'),
-    'Customer plans changed', 'cancel-request-approve')),
-  'replayed', 'exact customer request replays'
+  (SELECT count(*)::integer FROM private.booking_cancellations
+   WHERE booking_id IN ('00000000-0000-0000-0000-000000002715', '00000000-0000-0000-0000-000000002716')),
+  0, 'pending and rejected legacy rows do not create cancellation facts'
 );
 SELECT throws_ok(
-  format('SELECT * FROM public.request_fixed_tour_cancellation(%L::uuid, %L, %L)',
-    (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-approve'),
-    'Changed reason', 'cancel-request-approve'),
-  'P0001', 'IDEMPOTENCY_CONFLICT', 'changed reason under the same key conflicts'
+  $$UPDATE private.fixed_tour_cancellation_requests SET decision_note = 'changed' WHERE id = '00000000-0000-0000-0000-000000002901'$$,
+  '42501', 'legacy cancellation archive is immutable', 'legacy archive rejects updates'
 );
-SELECT throws_ok(
-  format('SELECT * FROM public.request_fixed_tour_cancellation(%L::uuid, %L, %L)',
-    (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-approve'),
-    'Customer plans changed', 'cancel-request-other-key'),
-  'P0001', 'IDEMPOTENCY_CONFLICT', 'same booking with a different request key conflicts'
-);
-SELECT throws_ok(
-  format('SELECT * FROM public.request_fixed_tour_cancellation(%L::uuid, %L, %L)',
-    (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-conflict'),
-    'Customer plans changed', 'cancel-request-approve'),
-  'P0001', 'IDEMPOTENCY_CONFLICT', 'same customer request key reused for another booking conflicts'
-);
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002602', 'role', 'authenticated')::text, true);
-SELECT throws_ok(
-  format('SELECT * FROM public.request_fixed_tour_cancellation(%L::uuid, %L, %L)',
-    (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-reject'),
-    'Cross owner attempt', 'cross-owner-request'),
-  '42501', 'cancellation request unavailable', 'cross-owner customer request is denied'
-);
-SELECT results_eq(
-  $$SELECT count(*)::integer FROM public.customer_fixed_tour_cancellation_requests_v$$,
-  $$VALUES (0)$$, 'customer B cannot see customer A cancellation request'
-);
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002603', 'role', 'authenticated')::text, true);
-SELECT results_eq(
-  $$SELECT count(*)::integer FROM public.admin_fixed_tour_cancellation_queue_v$$,
-  $$VALUES (0)$$, 'guide cannot read the administrator cancellation queue'
-);
-RESET ROLE;
-
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claim.sub', '', true);
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002601', 'role', 'authenticated')::text, true);
-SELECT ok(
-  (SELECT status = 'pending' FROM public.request_fixed_tour_cancellation(
-    (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-reject'),
-    'Reject this request', 'cancel-request-reject')),
-  'customer creates request for rejection path'
-);
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002604', 'role', 'authenticated')::text, true);
-SELECT is((SELECT count(*)::integer FROM public.admin_fixed_tour_cancellation_queue_v), 2, 'admin sees sanitized cancellation queue');
-SELECT ok(
-  (SELECT request_status = 'rejected' AND booking_status = 'pending_payment' AND state = 'rejected'
-   FROM public.decide_fixed_tour_cancellation(
-     (SELECT request_id FROM public.admin_fixed_tour_cancellation_queue_v
-      WHERE booking_id = (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-reject')),
-     'rejected', 'Insufficient reason', 'cancel-decision-reject')),
-  'admin rejects one cancellation request'
-);
-RESET ROLE;
-SELECT results_eq(
-  $$SELECT bookings.status::text, holds.status::text, requests.status
-    FROM cancellation_fixture_bookings fixtures
-    JOIN public.bookings bookings ON bookings.id = fixtures.booking_id
-    JOIN private.capacity_holds holds ON holds.booking_id = bookings.id
-    JOIN private.fixed_tour_cancellation_requests requests ON requests.booking_id = bookings.id
-    WHERE fixtures.label = 'cancel-a-reject'$$,
-  $$VALUES ('pending_payment'::text, 'active'::text, 'rejected'::text)$$,
-  'rejection leaves booking and hold unchanged'
-);
-
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claim.sub', '', true);
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002601', 'role', 'authenticated')::text, true);
-SELECT ok(
-  (SELECT status = 'pending' AND state = 'replayed'
-   FROM public.request_fixed_tour_cancellation(
-     (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-reject'),
-     'Reject this request', 'cancel-request-reject')),
-  'customer request replay keeps the original pending response after rejection'
-);
-RESET ROLE;
-
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claim.sub', '', true);
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002604', 'role', 'authenticated')::text, true);
-SELECT ok(
-  (SELECT request_status = 'rejected' AND booking_status = 'pending_payment' AND state = 'replayed'
-   FROM public.decide_fixed_tour_cancellation(
-    (SELECT request_id FROM public.admin_fixed_tour_cancellation_queue_v
-     WHERE booking_id = (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-reject')),
-    'rejected', 'Insufficient reason', 'cancel-decision-reject')),
-  'exact administrator decision replays the decision-time booking snapshot'
-);
-SELECT throws_ok(
-  format('SELECT * FROM public.decide_fixed_tour_cancellation(%L::uuid, %L, %L, %L)',
-    (SELECT request_id FROM public.admin_fixed_tour_cancellation_queue_v
-     WHERE booking_id = (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-reject')),
-    'approved', 'Changed decision', 'cancel-decision-reject'),
-  'P0001', 'IDEMPOTENCY_CONFLICT', 'changed decision under same administrator key conflicts'
-);
-SELECT ok(
-  (SELECT request_status = 'approved' AND booking_status = 'cancelled' AND state = 'approved'
-   FROM public.decide_fixed_tour_cancellation(
-     (SELECT request_id FROM public.admin_fixed_tour_cancellation_queue_v
-      WHERE booking_id = (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-approve')),
-     'approved', 'Approved before payment', 'cancel-decision-approve')),
-  'admin approves one cancellation request'
-);
-RESET ROLE;
-SELECT results_eq(
-  $$SELECT bookings.status::text, holds.status::text, attempts.status, requests.status
-    FROM cancellation_fixture_bookings fixtures
-    JOIN public.bookings bookings ON bookings.id = fixtures.booking_id
-    JOIN private.capacity_holds holds ON holds.booking_id = bookings.id
-    JOIN private.checkout_attempts attempts ON attempts.booking_id = bookings.id
-    JOIN private.fixed_tour_cancellation_requests requests ON requests.booking_id = bookings.id
-    WHERE fixtures.label = 'cancel-a-approve'$$,
-  $$VALUES ('cancelled'::text, 'released'::text, 'compensated'::text, 'approved'::text)$$,
-  'approval atomically cancels booking, releases hold, and compensates attempt'
-);
-
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claim.sub', '', true);
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002601', 'role', 'authenticated')::text, true);
-SELECT ok(
-  (SELECT status = 'pending' AND state = 'replayed'
-   FROM public.request_fixed_tour_cancellation(
-     (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-approve'),
-     'Customer plans changed', 'cancel-request-approve')),
-  'customer request replay keeps the original pending response after approval'
-);
-RESET ROLE;
-
-SELECT throws_ok(
-  $sql$INSERT INTO public.payments (
-    booking_id, attempt_id, owner_user_id, provider_session_id,
-    provider_payment_intent_id, provider_account_id, provider_endpoint_id,
-    mode, amount_minor, currency, status
-  )
-  SELECT bookings.id, attempts.id, bookings.owner_user_id,
-    'cs_runtime_cancel_after_approval', 'pi_runtime_cancel_after_approval',
-    'acct_localens_test', 'we_localens_test', 'payment',
-    bookings.checkout_amount_minor, bookings.checkout_currency, 'pending'
-  FROM cancellation_fixture_bookings fixtures
-  JOIN public.bookings bookings ON bookings.id = fixtures.booking_id
-  JOIN private.checkout_attempts attempts ON attempts.booking_id = bookings.id
-  WHERE fixtures.label = 'cancel-a-approve'$sql$,
-  'P0001', 'CANCELLATION_APPROVED',
-  'real payment cannot be inserted after approved cancellation'
-);
-
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claim.sub', '', true);
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002601', 'role', 'authenticated')::text, true);
-SELECT ok((SELECT payment_status = 'paid' FROM public.complete_simulated_fixed_tour_payment(
-  (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-paid'), 'cancel-paid-simulation')), 'fixture terminalizes payment before request attempt');
-SELECT throws_ok(
-  format('SELECT * FROM public.request_fixed_tour_cancellation(%L::uuid, %L, %L)',
-    (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-paid'),
-    'Too late', 'cancel-request-after-payment'),
-  'P0001', 'cancellation request unavailable', 'non-pending booking cannot request cancellation'
-);
-
-SELECT ok(
-  (SELECT status = 'pending' FROM public.request_fixed_tour_cancellation(
-    (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-payment-wins'),
-    'Payment may win', 'cancel-request-payment-wins')),
-  'customer creates a request before payment wins'
-);
-SELECT ok(
-  (SELECT payment_status = 'paid' FROM public.complete_simulated_fixed_tour_payment(
-    (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-payment-wins'),
-    'cancel-payment-wins-simulation')),
-  'payment may terminalize while a cancellation request is pending'
-);
-SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002604', 'role', 'authenticated')::text, true);
-SELECT ok(
-  (SELECT request_status = 'rejected' AND booking_status = 'confirmed' AND state = 'rejected'
-   FROM public.decide_fixed_tour_cancellation(
-     (SELECT request_id FROM public.admin_fixed_tour_cancellation_queue_v
-      WHERE booking_id = (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-payment-wins')),
-     'rejected', 'Payment completed first', 'cancel-decision-payment-wins')),
-  'administrator rejection preserves the confirmed payment-winner state'
-);
-SELECT ok(
-  (SELECT request_status = 'rejected' AND booking_status = 'confirmed' AND state = 'replayed'
-   FROM public.decide_fixed_tour_cancellation(
-     (SELECT request_id FROM public.admin_fixed_tour_cancellation_queue_v
-      WHERE booking_id = (SELECT booking_id FROM cancellation_fixture_bookings WHERE label = 'cancel-a-payment-wins')),
-     'rejected', 'Payment completed first', 'cancel-decision-payment-wins')),
-  'payment-winner rejection replays the exact decision-time snapshot'
-);
-RESET ROLE;
 
 SELECT * FROM finish();
 ROLLBACK;

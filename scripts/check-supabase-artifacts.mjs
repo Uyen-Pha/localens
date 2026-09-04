@@ -418,7 +418,7 @@ export function databaseInventory(files) {
   const functionSignaturePattern = /\bALTER\s+FUNCTION\s+((?:public|private)\.[^;]+?)\s+OWNER\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
   const viewOwnerPattern = /\bALTER\s+VIEW\s+(public\.[A-Za-z_][A-Za-z0-9_]*)\s+OWNER\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
   const tableOwnerPattern = /\bALTER\s+TABLE\s+((?:public|private)\.[A-Za-z_][A-Za-z0-9_]*)\s+OWNER\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
-  const policyPattern = /\bCREATE\s+POLICY\s+([A-Za-z_][A-Za-z0-9_]*)\s+ON\s+((?:public|private)\.[A-Za-z_][A-Za-z0-9_]*)/gi;
+  const policyEventPattern = /\b(CREATE\s+POLICY|DROP\s+POLICY(?:\s+IF\s+EXISTS)?)\s+([A-Za-z_][A-Za-z0-9_]*)\s+ON\s+((?:public|private)\.[A-Za-z_][A-Za-z0-9_]*)/gi;
   for (const file of files) {
     const source = readFileSync(file.path, "utf8");
     for (const match of source.matchAll(objectEventPattern)) {
@@ -446,7 +446,11 @@ export function databaseInventory(files) {
       functionOwners.set(signature, match[2]);
     }
     for (const match of source.matchAll(viewOwnerPattern)) viewOwners.set(match[1].toLowerCase(), match[2]);
-    for (const match of source.matchAll(policyPattern)) policies.add(`${match[2].toLowerCase()}:${match[1].toLowerCase()}`);
+    for (const match of source.matchAll(policyEventPattern)) {
+      const key = `${match[3].toLowerCase()}:${match[2].toLowerCase()}`;
+      if (match[1].toLowerCase().startsWith("drop")) policies.delete(key);
+      else policies.add(key);
+    }
     for (const dynamicPolicy of parseDynamicPolicies(source)) {
       policies.add(`${dynamicPolicy.schema}.${dynamicPolicy.table}:${dynamicPolicy.policy}`);
       policyDefinitions.push({
