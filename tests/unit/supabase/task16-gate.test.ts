@@ -307,6 +307,29 @@ describe("Task16 generated database types", () => {
 });
 
 describe("Task16 generated database type normalization", () => {
+  it("accepts CRLF stored types when generated output uses LF", async () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
+    const cliPath = localSupabaseCliPath(rootDir);
+    const filePath = path.join(rootDir, "lib/infrastructure/supabase/database.types.ts");
+    mkdirSync(path.dirname(filePath), { recursive: true });
+    writeFileSync(filePath, "export type Database = {};\r\nexport type Marker = true;\r\n", "utf8");
+    try {
+      await expect(
+        checkGeneratedDatabaseTypes({
+          rootDir,
+          cliPath,
+          runner: async () => ({
+            status: 0,
+            stdout: "export type Database = {};\nexport type Marker = true;\n",
+            stderr: "",
+          }),
+        }),
+      ).resolves.toMatchObject({ ok: true, filePath });
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
+  });
+
   it("normalizes CLI line endings before checking generated type drift", async () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
     const cliPath = localSupabaseCliPath(rootDir);

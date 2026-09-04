@@ -78,7 +78,9 @@ export async function checkGeneratedDatabaseTypes(options = {}) {
   }
   const expected = requireNonEmptyOutput(await generateOutput({ ...options, rootDir, cliPath }));
   const actual = readFileSync(filePath, "utf8");
-  if (actual !== expected) {
+  const normalizedActual = actual.replace(/\r\n/g, "\n");
+  const normalizedExpected = expected.replace(/\r\n/g, "\n");
+  if (normalizedActual !== normalizedExpected) {
     throw typeError("GENERATED_TYPES_DRIFT", "database.types.ts differs from local Supabase schema output", { filePath });
   }
   return { ok: true, filePath };
