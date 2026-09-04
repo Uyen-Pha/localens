@@ -18,6 +18,8 @@ import {
   selectRuntimeItineraryBaseEnv,
   startFakeGeminiProvider,
 } from "@/scripts/run-runtime-itinerary-e2e.mjs";
+// @ts-expect-error The executable JavaScript boundary is covered by the focused process test below.
+import { startOwnedItineraryFunctions } from "@/scripts/run-runtime-itinerary-e2e.mjs";
 
 const ports = {
   api: 55431,
@@ -134,6 +136,63 @@ describe("isolated runtime itinerary runner", () => {
     } finally {
       await provider.stop();
     }
+  });
+
+  it("warms both authenticated Edge workers before declaring them ready", async () => {
+    const child = Object.assign(new EventEmitter(), { pid: 12345 });
+    const anonKey = "local-anon-jwt";
+    const origin = "http://127.0.0.1:55440";
+    const attempts = new Map<string, number>();
+    const probes: Array<{ name: string; headers: Headers }> = [];
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const name = new URL(String(input)).pathname.split("/").at(-1) ?? "";
+      const headers = new Headers(init?.headers);
+      probes.push({ name, headers });
+      if (
+        headers.get("Authorization") !== `Bearer ${anonKey}`
+        || headers.get("apikey") !== anonKey
+        || headers.get("Origin") !== origin
+      ) {
+        return Response.json({ message: "Bad Gateway" }, { status: 502 });
+      }
+      const attempt = (attempts.get(name) ?? 0) + 1;
+      attempts.set(name, attempt);
+      if (attempt === 1) {
+        return Response.json({ message: "Bad Gateway" }, { status: 502 });
+      }
+      return Response.json({
+        code: "INVALID_REQUEST",
+        messageKey: "gateway.invalid_request",
+        retryable: false,
+        correlationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      }, { status: 400 });
+    });
+    const stopChild = vi.fn(async () => undefined);
+
+    const functions = await startOwnedItineraryFunctions({
+      cwd: process.cwd(),
+      workdir: "C:/runtime-itinerary",
+      env: {},
+      envFile: "C:/runtime-itinerary/functions.env",
+      apiUrl: "http://127.0.0.1:55431",
+      anonKey,
+      origin,
+      cliPath: "supabase",
+      platform: "linux",
+      spawnChild: () => child as never,
+      fetchImpl,
+      stopChild,
+      timeoutMs: 1_000,
+    });
+
+    expect(attempts).toEqual(new Map([
+      ["recommend-itinerary", 2],
+      ["refine-itinerary", 2],
+    ]));
+    expect(probes).toHaveLength(4);
+    expect(probes.every(({ headers }) => headers.get("x-localens-device-id") === "runtime-readiness-probe")).toBe(true);
+    await functions.stop();
+    expect(stopChild).toHaveBeenCalledTimes(1);
   });
 
   it("builds and validates a nonstandard isolated Supabase configuration", () => {

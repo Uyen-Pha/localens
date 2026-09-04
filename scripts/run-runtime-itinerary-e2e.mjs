@@ -852,17 +852,34 @@ function localSupabaseProcessSpec({ cwd, workdir, env, cliPath, platform }) {
   };
 }
 
-async function functionRouteReady(fetchImpl, apiUrl, name) {
+const CORRELATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function functionRouteReady(fetchImpl, apiUrl, name, anonKey, origin) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 1_000);
   try {
     const response = await fetchImpl(`${apiUrl}/functions/v1/${name}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${anonKey}`,
+        apikey: anonKey,
+        Origin: origin,
+        "Content-Type": "application/json",
+        "x-localens-device-id": "runtime-readiness-probe",
+      },
       body: "{}",
       signal: controller.signal,
     });
-    return response.status === 401;
+    if (response.status !== 400) return false;
+    const body = await response.json();
+    return body !== null
+      && typeof body === "object"
+      && !Array.isArray(body)
+      && body.code === "INVALID_REQUEST"
+      && body.messageKey === "gateway.invalid_request"
+      && body.retryable === false
+      && typeof body.correlationId === "string"
+      && CORRELATION_ID_PATTERN.test(body.correlationId);
   } catch {
     return false;
   } finally {
@@ -876,6 +893,8 @@ export async function startOwnedItineraryFunctions({
   env,
   envFile,
   apiUrl,
+  anonKey,
+  origin,
   cliPath,
   platform = process.platform,
   spawnChild = spawn,
@@ -949,8 +968,8 @@ export async function startOwnedItineraryFunctions({
     const poll = async () => {
       if (settled) return;
       const ready = await Promise.all([
-        functionRouteReady(fetchImpl, apiUrl, "recommend-itinerary"),
-        functionRouteReady(fetchImpl, apiUrl, "refine-itinerary"),
+        functionRouteReady(fetchImpl, apiUrl, "recommend-itinerary", anonKey, origin),
+        functionRouteReady(fetchImpl, apiUrl, "refine-itinerary", anonKey, origin),
       ]);
       if (settled) return;
       if (ready.every(Boolean)) {
@@ -1223,6 +1242,8 @@ export async function runRuntimeItineraryE2E(options = {}) {
       env: controlEnv,
       envFile,
       apiUrl: runtime.apiUrl,
+      anonKey: runtime.anonKey,
+      origin: nextOrigin,
       cliPath,
       platform,
       signal,
