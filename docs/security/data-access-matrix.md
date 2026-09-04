@@ -14,6 +14,7 @@ Migration owner for default privileges: postgres
 | anon | false | false | browser-anonymous | none |
 | authenticated | false | false | browser-jwt | none |
 | localens_admin_rpc_owner | false | false | database-definer-owner | admin-gated state transitions |
+| localens_ai_quota_rpc_owner | false | false | database-definer-owner | service-role AI quota wrapper with helper-only authority |
 | localens_audit_guard_owner | false | false | database-definer-owner | append-only audit trigger |
 | localens_auth_trigger_owner | false | false | database-definer-owner | signup trigger only |
 | localens_availability_rpc_owner | false | false | database-definer-owner | hold-aware availability projection |
@@ -157,9 +158,12 @@ Migration owner for default privileges: postgres
 | public.admin_content_drafts_v | localens_content_admin_owner | admin-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.admin_custom_request_queue_v | localens_request_admin_rpc_owner | admin-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.admin_food_catalog_review_v | localens_admin_rpc_owner | admin-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
+| public.catalog_snapshot_areas_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt), service_role (login=false, bypassrls=true, edge-service-role) | false | true | none | migration-owner-only |
 | public.catalog_snapshot_food_items_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.catalog_snapshot_food_vendors_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
+| public.catalog_snapshot_place_display_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt), service_role (login=false, bypassrls=true, edge-service-role) | false | true | none | migration-owner-only |
 | public.catalog_snapshot_places_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
+| public.current_itinerary_snapshot_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt), service_role (login=false, bypassrls=true, edge-service-role) | false | true | none | migration-owner-only |
 | public.customer_booking_cancellations_v | localens_cancellation_customer_projection_owner | owner-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.customer_bookings_v | localens_booking_projection_owner | owner-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.customer_custom_quotes_v | localens_request_customer_rpc_owner | owner-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
@@ -182,6 +186,7 @@ Migration owner for default privileges: postgres
 | public.cancel_booking | localens_cancellation_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | exact customer cancels an eligible departure or quote booking | browser-jwt |
 | public.claim_guest_plan | localens_claim_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner claims guest plan | browser-jwt |
 | public.complete_simulated_fixed_tour_payment | localens_simulated_payment_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner completes fixed-tour thesis payment simulation | browser-jwt |
+| public.create_authenticated_trip_plan | localens_plan_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | customer creates an idempotent initial itinerary revision | browser-jwt |
 | public.create_custom_quote | localens_request_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin creates server-priced quote | browser-jwt |
 | public.fail_seo_publish | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | build marks failed | edge-internal-content-build |
 | public.finalize_seo_publish | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | build CAS finalizes release | edge-internal-content-build |
@@ -194,6 +199,7 @@ Migration owner for default privileges: postgres
 | public.publish_seo | localens_content_admin_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin creates one publishing release | browser-jwt |
 | public.read_seo_build_release | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | capability-scoped build read | edge-internal-content-build |
 | public.reconcile_payment | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | audited admin payment reconciliation | browser-jwt |
+| public.reserve_ai_quota | localens_ai_quota_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Edge reserves planner or Gemini quota through the helper-only wrapper | edge-service-role |
 | public.review_custom_request | localens_request_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin reviews request | browser-jwt |
 | public.review_food_catalog_item | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin reviews food evidence | browser-jwt |
 | public.submit_custom_request | localens_request_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner submits request | browser-jwt |
@@ -312,7 +318,7 @@ Enumerated internal functions: 106. All are non-API and must use a named NOLOGIN
 
 ## Explicit grants
 
-Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (657 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (671 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Dynamic policy semantics
 

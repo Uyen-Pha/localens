@@ -610,6 +610,38 @@ COMMIT;
     }
   });
 
+  it("requires the authenticated AI runtime migration and rollback-only pgTAP contract", () => {
+    const migrationPath = join(
+      repoRoot,
+      "supabase",
+      "migrations",
+      "20260904120000_authenticated_ai_runtime.sql",
+    );
+    const pgTapPath = join(
+      repoRoot,
+      "supabase",
+      "tests",
+      "database",
+      "authenticated_ai_runtime_test.sql",
+    );
+
+    expect(existsSync(migrationPath)).toBe(true);
+    expect(existsSync(pgTapPath)).toBe(true);
+
+    const migration = readFileSync(migrationPath, "utf8");
+    expect(migration).toMatch(/CREATE OR REPLACE VIEW public\.current_itinerary_snapshot_v\s+WITH \(security_invoker = false, security_barrier = true\)/i);
+    expect(migration).toMatch(/CREATE OR REPLACE VIEW public\.catalog_snapshot_areas_v\s+WITH \(security_invoker = false, security_barrier = true\)/i);
+    expect(migration).toMatch(/CREATE OR REPLACE VIEW public\.catalog_snapshot_place_display_v\s+WITH \(security_invoker = false, security_barrier = true\)/i);
+    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.create_authenticated_trip_plan\([\s\S]*?pg_advisory_xact_lock[\s\S]*?private\.persist_trip_plan_revision/i);
+    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.reserve_ai_quota\([\s\S]*?private\.reserve_quota/i);
+    expect(migration).not.toMatch(/GEMINI_API_KEY|SUPABASE_SERVICE_ROLE_KEY|AIza[0-9A-Za-z_-]{20,}/i);
+
+    const pgTap = readFileSync(pgTapPath, "utf8");
+    expect(pgTap).toMatch(/SELECT plan\(40\)/);
+    expect(pgTap).toMatch(/sixth Gemini reservation is rejected/i);
+    expect(pgTap).toMatch(/failed validation rolls back the empty plan row/i);
+  });
+
   it("keeps the local config API schemas explicit and free of remote credentials", () => {
     const config = readFileSync(join(repoRoot, "supabase", "config.toml"), "utf8");
     expect(config).toMatch(/schemas\s*=\s*\[\s*["']public["']\s*,\s*["']graphql_public["']\s*\]/);

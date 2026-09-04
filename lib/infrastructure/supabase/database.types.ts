@@ -185,6 +185,13 @@ export type Database = {
             foreignKeyName: "bookings_fx_snapshot_id_fkey"
             columns: ["fx_snapshot_id"]
             isOneToOne: false
+            referencedRelation: "current_itinerary_snapshot_v"
+            referencedColumns: ["fx_snapshot_id"]
+          },
+          {
+            foreignKeyName: "bookings_fx_snapshot_id_fkey"
+            columns: ["fx_snapshot_id"]
+            isOneToOne: false
             referencedRelation: "fx_snapshots"
             referencedColumns: ["id"]
           },
@@ -222,6 +229,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tour_versions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_travel_snapshot_id_fkey"
+            columns: ["travel_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "current_itinerary_snapshot_v"
+            referencedColumns: ["travel_snapshot_id"]
           },
           {
             foreignKeyName: "bookings_travel_snapshot_id_fkey"
@@ -267,6 +281,13 @@ export type Database = {
             columns: ["snapshot_id", "area_id"]
             isOneToOne: false
             referencedRelation: "catalog_snapshot_areas"
+            referencedColumns: ["snapshot_id", "area_id"]
+          },
+          {
+            foreignKeyName: "catalog_snapshot_area_translations_snapshot_id_area_id_fkey"
+            columns: ["snapshot_id", "area_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_snapshot_areas_v"
             referencedColumns: ["snapshot_id", "area_id"]
           },
         ]
@@ -1020,6 +1041,13 @@ export type Database = {
             referencedColumns: ["snapshot_id", "area_id"]
           },
           {
+            foreignKeyName: "catalog_snapshot_places_snapshot_id_area_id_fkey"
+            columns: ["snapshot_id", "area_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_snapshot_areas_v"
+            referencedColumns: ["snapshot_id", "area_id"]
+          },
+          {
             foreignKeyName: "catalog_snapshot_places_snapshot_id_fkey"
             columns: ["snapshot_id"]
             isOneToOne: false
@@ -1179,6 +1207,13 @@ export type Database = {
             foreignKeyName: "custom_quotes_fx_snapshot_id_fkey"
             columns: ["fx_snapshot_id"]
             isOneToOne: false
+            referencedRelation: "current_itinerary_snapshot_v"
+            referencedColumns: ["fx_snapshot_id"]
+          },
+          {
+            foreignKeyName: "custom_quotes_fx_snapshot_id_fkey"
+            columns: ["fx_snapshot_id"]
+            isOneToOne: false
             referencedRelation: "fx_snapshots"
             referencedColumns: ["id"]
           },
@@ -1214,6 +1249,13 @@ export type Database = {
             foreignKeyName: "custom_quotes_travel_snapshot_id_catalog_snapshot_id_fkey"
             columns: ["travel_snapshot_id", "catalog_snapshot_id"]
             isOneToOne: false
+            referencedRelation: "current_itinerary_snapshot_v"
+            referencedColumns: ["travel_snapshot_id", "catalog_snapshot_id"]
+          },
+          {
+            foreignKeyName: "custom_quotes_travel_snapshot_id_catalog_snapshot_id_fkey"
+            columns: ["travel_snapshot_id", "catalog_snapshot_id"]
+            isOneToOne: false
             referencedRelation: "travel_snapshots"
             referencedColumns: ["id", "catalog_snapshot_id"]
           },
@@ -1223,6 +1265,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "travel_snapshots_v"
             referencedColumns: ["snapshot_id", "catalog_snapshot_id"]
+          },
+          {
+            foreignKeyName: "custom_quotes_travel_snapshot_id_fkey"
+            columns: ["travel_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "current_itinerary_snapshot_v"
+            referencedColumns: ["travel_snapshot_id"]
           },
           {
             foreignKeyName: "custom_quotes_travel_snapshot_id_fkey"
@@ -2583,6 +2632,13 @@ export type Database = {
             foreignKeyName: "travel_snapshot_edges_snapshot_id_catalog_snapshot_id_fkey"
             columns: ["snapshot_id", "catalog_snapshot_id"]
             isOneToOne: false
+            referencedRelation: "current_itinerary_snapshot_v"
+            referencedColumns: ["travel_snapshot_id", "catalog_snapshot_id"]
+          },
+          {
+            foreignKeyName: "travel_snapshot_edges_snapshot_id_catalog_snapshot_id_fkey"
+            columns: ["snapshot_id", "catalog_snapshot_id"]
+            isOneToOne: false
             referencedRelation: "travel_snapshots"
             referencedColumns: ["id", "catalog_snapshot_id"]
           },
@@ -2788,6 +2844,13 @@ export type Database = {
             foreignKeyName: "trip_plan_revisions_fx_snapshot_id_fkey"
             columns: ["fx_snapshot_id"]
             isOneToOne: false
+            referencedRelation: "current_itinerary_snapshot_v"
+            referencedColumns: ["fx_snapshot_id"]
+          },
+          {
+            foreignKeyName: "trip_plan_revisions_fx_snapshot_id_fkey"
+            columns: ["fx_snapshot_id"]
+            isOneToOne: false
             referencedRelation: "fx_snapshots"
             referencedColumns: ["id"]
           },
@@ -2809,6 +2872,13 @@ export type Database = {
             foreignKeyName: "trip_plan_revisions_travel_snapshot_id_catalog_snapshot_id_fkey"
             columns: ["travel_snapshot_id", "catalog_snapshot_id"]
             isOneToOne: false
+            referencedRelation: "current_itinerary_snapshot_v"
+            referencedColumns: ["travel_snapshot_id", "catalog_snapshot_id"]
+          },
+          {
+            foreignKeyName: "trip_plan_revisions_travel_snapshot_id_catalog_snapshot_id_fkey"
+            columns: ["travel_snapshot_id", "catalog_snapshot_id"]
+            isOneToOne: false
             referencedRelation: "travel_snapshots"
             referencedColumns: ["id", "catalog_snapshot_id"]
           },
@@ -2818,6 +2888,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "travel_snapshots_v"
             referencedColumns: ["snapshot_id", "catalog_snapshot_id"]
+          },
+          {
+            foreignKeyName: "trip_plan_revisions_travel_snapshot_id_fkey"
+            columns: ["travel_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "current_itinerary_snapshot_v"
+            referencedColumns: ["travel_snapshot_id"]
           },
           {
             foreignKeyName: "trip_plan_revisions_travel_snapshot_id_fkey"
@@ -3094,6 +3171,22 @@ export type Database = {
           },
         ]
       }
+      catalog_snapshot_areas_v: {
+        Row: {
+          area_id: string | null
+          slug: string | null
+          snapshot_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_snapshot_areas_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalog_snapshot_food_items_v: {
         Row: {
           allergens: Json | null
@@ -3172,6 +3265,31 @@ export type Database = {
           },
         ]
       }
+      catalog_snapshot_place_display_v: {
+        Row: {
+          locale: Database["public"]["Enums"]["locale"] | null
+          place_id: string | null
+          snapshot_id: string | null
+          summary: string | null
+          title: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_snapshot_place_translations_snapshot_id_place_id_fkey"
+            columns: ["snapshot_id", "place_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_snapshot_places"
+            referencedColumns: ["snapshot_id", "place_id"]
+          },
+          {
+            foreignKeyName: "catalog_snapshot_place_translations_snapshot_id_place_id_fkey"
+            columns: ["snapshot_id", "place_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_snapshot_places_v"
+            referencedColumns: ["snapshot_id", "place_id"]
+          },
+        ]
+      }
       catalog_snapshot_places_v: {
         Row: {
           area_id: string | null
@@ -3195,8 +3313,37 @@ export type Database = {
             referencedColumns: ["snapshot_id", "area_id"]
           },
           {
+            foreignKeyName: "catalog_snapshot_places_snapshot_id_area_id_fkey"
+            columns: ["snapshot_id", "area_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_snapshot_areas_v"
+            referencedColumns: ["snapshot_id", "area_id"]
+          },
+          {
             foreignKeyName: "catalog_snapshot_places_snapshot_id_fkey"
             columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      current_itinerary_snapshot_v: {
+        Row: {
+          catalog_snapshot_id: string | null
+          fx_environment: string | null
+          fx_is_demo: boolean | null
+          fx_observed_at: string | null
+          fx_snapshot_id: string | null
+          fx_source: string | null
+          fx_vnd_per_usd: string | null
+          travel_published_at: string | null
+          travel_snapshot_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "travel_snapshots_catalog_snapshot_id_fkey"
+            columns: ["catalog_snapshot_id"]
             isOneToOne: false
             referencedRelation: "catalog_snapshots"
             referencedColumns: ["id"]
@@ -3356,6 +3503,13 @@ export type Database = {
             foreignKeyName: "bookings_fx_snapshot_id_fkey"
             columns: ["fx_snapshot_id"]
             isOneToOne: false
+            referencedRelation: "current_itinerary_snapshot_v"
+            referencedColumns: ["fx_snapshot_id"]
+          },
+          {
+            foreignKeyName: "bookings_fx_snapshot_id_fkey"
+            columns: ["fx_snapshot_id"]
+            isOneToOne: false
             referencedRelation: "fx_snapshots"
             referencedColumns: ["id"]
           },
@@ -3393,6 +3547,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tour_versions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_travel_snapshot_id_fkey"
+            columns: ["travel_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "current_itinerary_snapshot_v"
+            referencedColumns: ["travel_snapshot_id"]
           },
           {
             foreignKeyName: "bookings_travel_snapshot_id_fkey"
@@ -3715,6 +3876,13 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      create_authenticated_trip_plan: {
+        Args: { p_plan_id: string; persistence_dto: Json }
+        Returns: {
+          plan_id: string
+          revision_no: number
+        }[]
+      }
       create_custom_quote: {
         Args: {
           amount_vnd_minor: number
@@ -3896,6 +4064,21 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      reserve_ai_quota: {
+        Args: {
+          p_device_hash: string
+          p_ip_hash: string
+          p_kind: string
+          p_reservation_id: string
+        }
+        Returns: {
+          bucket_hashes: string[]
+          kind: string
+          period_start: string
+          reservation_id: string
+          state: string
+        }[]
       }
       review_custom_request: {
         Args: {

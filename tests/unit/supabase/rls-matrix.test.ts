@@ -45,6 +45,22 @@ describe("Task 13 RLS/RPC access matrix", () => {
     expect(() => execFileSync(process.execPath, [join(repoRoot, "scripts", "check-supabase-artifacts.mjs"), "--root", repoRoot], { encoding: "utf8" })).not.toThrow();
   });
 
+  it("keeps authenticated itinerary creation and AI quota behind separate least-privilege owners", () => {
+    const migration = readFileSync(
+      join(repoRoot, "supabase", "migrations", "20260904120000_authenticated_ai_runtime.sql"),
+      "utf8",
+    );
+
+    expect(migration).toMatch(/CREATE ROLE localens_ai_quota_rpc_owner[\s\S]*?NOLOGIN NOBYPASSRLS/i);
+    expect(migration).toMatch(/ALTER FUNCTION public\.create_authenticated_trip_plan\(uuid, jsonb\)\s+OWNER TO localens_plan_rpc_owner/i);
+    expect(migration).toMatch(/ALTER FUNCTION public\.reserve_ai_quota\(uuid, text, text, text\)\s+OWNER TO localens_ai_quota_rpc_owner/i);
+    expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.create_authenticated_trip_plan\(uuid, jsonb\)\s+TO authenticated/i);
+    expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.reserve_ai_quota\(uuid, text, text, text\)\s+TO service_role/i);
+    expect(migration).toMatch(/REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth FROM localens_ai_quota_rpc_owner/i);
+    expect(migration).toMatch(/REVOKE CREATE ON SCHEMA public FROM localens_plan_rpc_owner/i);
+    expect(migration).toMatch(/REVOKE CREATE ON SCHEMA public FROM localens_ai_quota_rpc_owner/i);
+  });
+
   it("serializes review locks with the existing food writer namespace and order", () => {
     const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260831100000_food_catalog_review.sql"), "utf8");
     expect(migration).not.toContain("localens:food-review:");
@@ -139,8 +155,8 @@ describe("Task 13 RLS/RPC access matrix", () => {
       internalFunctions: string[];
     };
     expect(matrix.tables).toHaveLength(83);
-    expect(matrix.views).toHaveLength(19);
-    expect(matrix.rpcs).toHaveLength(23);
+    expect(matrix.views).toHaveLength(22);
+    expect(matrix.rpcs).toHaveLength(25);
     expect(matrix.rpcs).toContainEqual(expect.objectContaining({
       name: "public.begin_fixed_tour_booking",
       signature: "public.begin_fixed_tour_booking(uuid,integer,public.locale,text)",

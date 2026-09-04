@@ -113,6 +113,12 @@
       "credential": "database-definer-owner",
       "bypassJustification": "quota reservation only"
     },
+    "localens_ai_quota_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "service-role AI quota wrapper with helper-only authority"
+    },
     "localens_request_customer_rpc_owner": {
       "rolcanlogin": false,
       "rolbypassrls": false,
@@ -1338,6 +1344,18 @@
       "securityBarrier": true
     },
     {
+      "name": "public.catalog_snapshot_areas_v",
+      "owner": "localens_catalog_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ],
+      "apiExposure": "published-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
       "name": "public.catalog_snapshot_food_items_v",
       "owner": "localens_catalog_rpc_owner",
       "readerRoles": [
@@ -1365,6 +1383,30 @@
       "readerRoles": [
         "anon",
         "authenticated"
+      ],
+      "apiExposure": "published-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.catalog_snapshot_place_display_v",
+      "owner": "localens_catalog_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ],
+      "apiExposure": "published-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.current_itinerary_snapshot_v",
+      "owner": "localens_catalog_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated",
+        "service_role"
       ],
       "apiExposure": "published-view",
       "securityInvoker": false,
@@ -1524,6 +1566,16 @@
         "authenticated"
       ],
       "writerOperation": "owner revision append",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.create_authenticated_trip_plan",
+      "signature": "public.create_authenticated_trip_plan(uuid,jsonb)",
+      "owner": "localens_plan_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "customer creates an idempotent initial itinerary revision",
       "credential": "browser-jwt"
     },
     {
@@ -1698,6 +1750,16 @@
       "credential": "browser-jwt"
     },
     {
+      "name": "public.reserve_ai_quota",
+      "signature": "public.reserve_ai_quota(uuid,text,text,text)",
+      "owner": "localens_ai_quota_rpc_owner",
+      "readerRoles": [
+        "service_role"
+      ],
+      "writerOperation": "Edge reserves planner or Gemini quota through the helper-only wrapper",
+      "credential": "edge-service-role"
+    },
+    {
       "name": "public.review_custom_request",
       "signature": "public.review_custom_request(uuid,public.request_status,text)",
       "owner": "localens_request_admin_rpc_owner",
@@ -1856,7 +1918,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 657,
+  "grantCount": 671,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }
