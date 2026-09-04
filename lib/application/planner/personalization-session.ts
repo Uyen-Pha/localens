@@ -123,10 +123,32 @@ function isPersonalizationEnvelope(value: unknown): value is PersonalizationEnve
   );
 }
 
+function bestEffortClearPlannerSession(storage: Storage): void {
+  for (const key of [PERSONALIZATION_SESSION_KEY, DEMO_PLANNER_SESSION_KEY]) {
+    try {
+      storage.removeItem(key);
+    } catch {
+      // Continue so a failure for one planner key cannot prevent cleanup of the other.
+    }
+  }
+}
+
+function isPlannerSessionClear(storage: Storage): boolean {
+  return (
+    storage.getItem(PERSONALIZATION_SESSION_KEY) === null &&
+    storage.getItem(DEMO_PLANNER_SESSION_KEY) === null
+  );
+}
+
 export function savePersonalizationRequest(request: PersonalizationRequest): boolean {
   if (typeof window === "undefined" || !isPersonalizationRequest(request)) return false;
 
+  let storage: Storage | null = null;
   try {
+    storage = window.sessionStorage;
+    bestEffortClearPlannerSession(storage);
+    if (!isPlannerSessionClear(storage)) throw new Error("Planner session cleanup failed");
+
     const savedAt = Date.now();
     const envelope: PersonalizationEnvelope = {
       version: 1,
@@ -137,10 +159,16 @@ export function savePersonalizationRequest(request: PersonalizationRequest): boo
       originalExpiresAt: savedAt + PERSONALIZATION_SESSION_TTL_MS,
     };
     const serialized = JSON.stringify(envelope);
-    window.sessionStorage.setItem(PERSONALIZATION_SESSION_KEY, serialized);
-    window.sessionStorage.removeItem(DEMO_PLANNER_SESSION_KEY);
-    return window.sessionStorage.getItem(PERSONALIZATION_SESSION_KEY) === serialized;
+    storage.setItem(PERSONALIZATION_SESSION_KEY, serialized);
+    if (
+      storage.getItem(PERSONALIZATION_SESSION_KEY) !== serialized ||
+      storage.getItem(DEMO_PLANNER_SESSION_KEY) !== null
+    ) {
+      throw new Error("Planner session verification failed");
+    }
+    return true;
   } catch {
+    if (storage) bestEffortClearPlannerSession(storage);
     return false;
   }
 }

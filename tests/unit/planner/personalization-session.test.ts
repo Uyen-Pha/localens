@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   clearPersonalizationRequest,
+  DEMO_PLANNER_SESSION_KEY,
+  PERSONALIZATION_SESSION_KEY,
   PERSONALIZATION_SESSION_TTL_MS,
   readPersonalizationState,
   readPersonalizationRequest,
@@ -66,6 +68,84 @@ describe("personalization session contract", () => {
     expect(second.handoffId).not.toBe(first.handoffId);
     expect(second.ownerScope).toBe("anonymous");
     expect(second.originalExpiresAt).toBeGreaterThan(Date.now());
+  });
+
+  it("clears stale planner state before committing a new handoff", () => {
+    window.sessionStorage.setItem(PERSONALIZATION_SESSION_KEY, "stale handoff");
+    window.sessionStorage.setItem(DEMO_PLANNER_SESSION_KEY, "stale demo plan");
+
+    expect(savePersonalizationRequest(request)).toBe(true);
+
+    expect(readPersonalizationRequest()).toEqual(request);
+    expect(window.sessionStorage.getItem(DEMO_PLANNER_SESSION_KEY)).toBeNull();
+  });
+
+  it("rolls back both planner keys when the handoff write fails after cleanup", () => {
+    window.sessionStorage.setItem(PERSONALIZATION_SESSION_KEY, "stale handoff");
+    window.sessionStorage.setItem(DEMO_PLANNER_SESSION_KEY, "stale demo plan");
+    const originalSetItem = Storage.prototype.setItem;
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key, value) {
+      if (key === PERSONALIZATION_SESSION_KEY) throw new Error("write blocked");
+      return originalSetItem.call(this, key, value);
+    });
+
+    try {
+      expect(savePersonalizationRequest(request)).toBe(false);
+      expect(window.sessionStorage.getItem(PERSONALIZATION_SESSION_KEY)).toBeNull();
+      expect(window.sessionStorage.getItem(DEMO_PLANNER_SESSION_KEY)).toBeNull();
+    } finally {
+      setItemSpy.mockRestore();
+    }
+  });
+
+  it("aborts and rolls back when stale demo cleanup fails partway", () => {
+    window.sessionStorage.setItem(PERSONALIZATION_SESSION_KEY, "stale handoff");
+    window.sessionStorage.setItem(DEMO_PLANNER_SESSION_KEY, "stale demo plan");
+    const originalRemoveItem = Storage.prototype.removeItem;
+    let rejectedOnce = false;
+    const removeItemSpy = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(function (this: Storage, key) {
+      if (key === DEMO_PLANNER_SESSION_KEY && !rejectedOnce) {
+        rejectedOnce = true;
+        throw new Error("cleanup blocked once");
+      }
+      return originalRemoveItem.call(this, key);
+    });
+
+    try {
+      expect(savePersonalizationRequest(request)).toBe(false);
+      expect(window.sessionStorage.getItem(PERSONALIZATION_SESSION_KEY)).toBeNull();
+      expect(window.sessionStorage.getItem(DEMO_PLANNER_SESSION_KEY)).toBeNull();
+    } finally {
+      removeItemSpy.mockRestore();
+    }
+  });
+
+  it("removes a newly written handoff when readback verification fails", () => {
+    const originalGetItem = Storage.prototype.getItem;
+    const originalSetItem = Storage.prototype.setItem;
+    let handoffWritten = false;
+    let rejectedReadback = false;
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key, value) {
+      const result = originalSetItem.call(this, key, value);
+      if (key === PERSONALIZATION_SESSION_KEY) handoffWritten = true;
+      return result;
+    });
+    const getItemSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(function (this: Storage, key) {
+      if (key === PERSONALIZATION_SESSION_KEY && handoffWritten && !rejectedReadback) {
+        rejectedReadback = true;
+        return "mismatched readback";
+      }
+      return originalGetItem.call(this, key);
+    });
+
+    try {
+      expect(savePersonalizationRequest(request)).toBe(false);
+      expect(window.sessionStorage.getItem(PERSONALIZATION_SESSION_KEY)).toBeNull();
+      expect(window.sessionStorage.getItem(DEMO_PLANNER_SESSION_KEY)).toBeNull();
+    } finally {
+      getItemSpy.mockRestore();
+      setItemSpy.mockRestore();
+    }
   });
 
   it("fails closed when session data is not a valid request", () => {

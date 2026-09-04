@@ -421,6 +421,31 @@ describe("PersonalizationForm", () => {
     expect(compositionHarness.loadPortalSurfaceComposition).toHaveBeenCalledTimes(2);
   });
 
+  it("retries the cached demo composition through its initialization boundary", async () => {
+    const copy = getDictionary("en").home.personalizationForm;
+    const initialized = Promise.reject<void>(new Error("storage unavailable"));
+    void initialized.catch(() => undefined);
+    const retryInitialization = vi.fn(async () => undefined);
+    const cachedComposition = {
+      mode: "demo" as const,
+      initialized,
+      retryInitialization,
+    };
+    compositionHarness.results = [cachedComposition];
+
+    render(<PersonalizationForm copy={copy} locale="en" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The secure planner handoff is unavailable. Try again.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: copy.submitLabel })).toBeEnabled());
+    expect(compositionHarness.loadPortalSurfaceComposition).toHaveBeenCalledTimes(2);
+    expect(retryInitialization).toHaveBeenCalledOnce();
+    expect(readOnlyApiHarness.createReadOnlyApi).toHaveBeenCalledOnce();
+  });
+
   it.each([
     ["malformed composition", () => ({ mode: "unexpected", initialized: Promise.resolve() })],
     ["rejected initialization", () => {

@@ -91,7 +91,7 @@ function optionalRequirement(formData: FormData, name: string): string[] {
 
 function isInitializedComposition(
   value: unknown,
-): value is { mode: "demo" | "supabase"; initialized: PromiseLike<void> } {
+): boolean {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as { mode?: unknown; initialized?: unknown };
   return (
@@ -102,14 +102,25 @@ function isInitializedComposition(
   );
 }
 
-async function resolveRuntimeSelection(): Promise<RuntimeSelection> {
+async function resolveRuntimeSelection(isRetry: boolean): Promise<RuntimeSelection> {
   const composition = await loadPortalSurfaceComposition();
   if (!isInitializedComposition(composition)) {
     throw new Error("Invalid portal surface composition");
   }
 
-  await composition.initialized;
-  if (composition.mode === "supabase") return { mode: "supabase" };
+  if (composition.mode === "supabase") {
+    await composition.initialized;
+    return { mode: "supabase" };
+  }
+
+  if (isRetry) {
+    if (typeof composition.retryInitialization !== "function") {
+      throw new Error("Demo composition cannot retry initialization");
+    }
+    await composition.retryInitialization();
+  } else {
+    await composition.initialized;
+  }
 
   const { createReadOnlyApi } = await import("@/lib/application/api/read-only-api");
   return { mode: "demo", readOnlyApi: createReadOnlyApi() };
@@ -168,7 +179,7 @@ export function PersonalizationForm({
     let disposed = false;
     setRuntimeSelection(null);
     setRuntimeLoadFailed(false);
-    runtimeLoadRef.current ??= resolveRuntimeSelection();
+    runtimeLoadRef.current ??= resolveRuntimeSelection(runtimeRetryKey > 0);
     void runtimeLoadRef.current
       .then((selection) => {
         if (!disposed) setRuntimeSelection(selection);
