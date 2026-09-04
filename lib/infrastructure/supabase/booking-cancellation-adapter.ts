@@ -38,9 +38,10 @@ const ADMIN_BOOKING_FIELDS = [
   "booking_id", "customer_user_id", "source_kind", "title_en", "title_vi", "booking_status", "created_at",
   "cancellation_id", "cancellation_reason_code", "cancellation_other_reason", "cancellation_idempotency_key", "cancelled_at",
 ] as const;
-const ADMIN_CANCELLATION_FIELDS = [
-  "cancellation_id", "cancellation_reason_code", "cancellation_other_reason", "cancellation_idempotency_key", "cancelled_at",
+const ADMIN_CANCELLATION_REQUIRED_FIELDS = [
+  "cancellation_id", "cancellation_idempotency_key", "cancelled_at",
 ] as const;
+const POSTGRES_UTC_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(?:Z|\+00:00)$/;
 
 export interface SupabaseBookingCancellationPort {
   cancelBooking(input: CancelBookingInput): Promise<CancelBookingResult>;
@@ -99,6 +100,28 @@ function exactRow(value: unknown, fields: readonly string[]): UnknownRecord {
   return value;
 }
 
+function normalizePostgresTimestamp(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const match = POSTGRES_UTC_TIMESTAMP.exec(value);
+  if (!match) return value;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+  if (
+    daysInMonth === undefined || day < 1 || day > daysInMonth
+    || hour > 23 || minute > 59 || second > 59
+  ) return value;
+
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : value;
+}
+
 function cancellationFromRow(value: unknown): BookingCancellation {
   const row = exactRow(value, CANCELLATION_FIELDS);
   const parsed = parseBookingCancellation({
@@ -109,7 +132,7 @@ function cancellationFromRow(value: unknown): BookingCancellation {
     reasonCode: row.reason_code,
     otherReason: row.other_reason,
     idempotencyKey: row.idempotency_key,
-    cancelledAt: row.cancelled_at,
+    cancelledAt: normalizePostgresTimestamp(row.cancelled_at),
   });
   if (!parsed.ok) throw portalFailure("INVALID_STORAGE");
   return parsed.value;
@@ -127,9 +150,11 @@ function cancellationRows(value: unknown): BookingCancellation[] {
 
 function adminBookingFromRow(value: unknown): AdminBookingManagementProjection {
   const row = exactRow(value, ADMIN_BOOKING_FIELDS);
-  const cancellationValues = ADMIN_CANCELLATION_FIELDS.map((field) => row[field]);
-  const hasNoCancellation = cancellationValues.every((field) => field === null);
-  const hasCompleteCancellation = cancellationValues.every((field) => field !== null);
+  const requiredCancellationValues = ADMIN_CANCELLATION_REQUIRED_FIELDS.map((field) => row[field]);
+  const hasNoCancellation = requiredCancellationValues.every((field) => field === null)
+    && row.cancellation_reason_code === null
+    && row.cancellation_other_reason === null;
+  const hasCompleteCancellation = requiredCancellationValues.every((field) => field !== null);
   if (!hasNoCancellation && !hasCompleteCancellation) throw portalFailure("INVALID_STORAGE");
 
   const parsed = parseAdminBookingManagementProjection({
@@ -139,7 +164,7 @@ function adminBookingFromRow(value: unknown): AdminBookingManagementProjection {
     titleEn: row.title_en,
     titleVi: row.title_vi,
     bookingStatus: row.booking_status,
-    createdAt: row.created_at,
+    createdAt: normalizePostgresTimestamp(row.created_at),
     cancellation: hasNoCancellation
       ? null
       : {
@@ -150,7 +175,7 @@ function adminBookingFromRow(value: unknown): AdminBookingManagementProjection {
         reasonCode: row.cancellation_reason_code,
         otherReason: row.cancellation_other_reason,
         idempotencyKey: row.cancellation_idempotency_key,
-        cancelledAt: row.cancelled_at,
+        cancelledAt: normalizePostgresTimestamp(row.cancelled_at),
       },
   });
   if (!parsed.ok) throw portalFailure("INVALID_STORAGE");
@@ -232,7 +257,7 @@ export function createSupabaseBookingCancellationAdapter(
           reasonCode: row.reason_code,
           otherReason: row.other_reason,
           idempotencyKey: row.idempotency_key,
-          cancelledAt: row.cancelled_at,
+          cancelledAt: normalizePostgresTimestamp(row.cancelled_at),
         },
         bookingStatus: row.booking_status,
         state: row.state,

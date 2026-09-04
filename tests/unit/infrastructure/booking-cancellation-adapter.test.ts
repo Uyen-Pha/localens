@@ -290,10 +290,92 @@ describe("Supabase booking cancellation adapter", () => {
   });
 
   it.each([
+    { label: "no reason", reasonCode: null, otherReason: null },
+    { label: "a standard reason", reasonCode: "trip_plan_changed", otherReason: null },
+    { label: "an other reason", reasonCode: "other", otherReason: "Schedule changed" },
+  ])("accepts an administrator cancellation with $label", async ({ reasonCode, otherReason }) => {
+    const { client } = clientDouble({
+      adminBookings: {
+        data: [adminBookingRow({
+          booking_status: "cancelled",
+          cancellation_id: ids.cancellation,
+          cancellation_reason_code: reasonCode,
+          cancellation_other_reason: otherReason,
+          cancellation_idempotency_key: "cancel-admin-booking-1",
+          cancelled_at: "2026-09-04T08:30:00.000Z",
+        })],
+        error: null,
+      },
+    });
+
+    await expect(
+      createSupabaseBookingCancellationAdapter(client as never).listAdminBookings(),
+    ).resolves.toMatchObject([{ cancellation: { reasonCode, otherReason } }]);
+  });
+
+  it("normalizes validated Postgres timestamps before applying canonical output contracts", async () => {
+    const postgresCreatedAt = "2026-09-04T08:00:00.123456+00:00";
+    const postgresCancelledAt = "2026-09-04T08:30:00.987654+00:00";
+    const { client } = clientDouble({
+      rpc: {
+        data: [{
+          ...cancellationRow({ cancelled_at: postgresCancelledAt }),
+          booking_status: "cancelled",
+          state: "created",
+        }],
+        error: null,
+      },
+      customer: {
+        data: [cancellationRow({ cancelled_at: postgresCancelledAt })],
+        error: null,
+      },
+      adminBookings: {
+        data: [adminBookingRow({
+          booking_status: "cancelled",
+          created_at: postgresCreatedAt,
+          cancellation_id: ids.cancellation,
+          cancellation_reason_code: "trip_plan_changed",
+          cancellation_idempotency_key: "cancel-admin-booking-1",
+          cancelled_at: postgresCancelledAt,
+        })],
+        error: null,
+      },
+    });
+    const adapter = createSupabaseBookingCancellationAdapter(client as never);
+
+    await expect(adapter.listOwnCancellations()).resolves.toMatchObject([
+      { cancelledAt: "2026-09-04T08:30:00.987Z" },
+    ]);
+    await expect(adapter.cancelBooking({
+      bookingId: ids.booking,
+      reasonCode: "trip_plan_changed",
+      otherReason: null,
+      idempotencyKey: "cancel-adapter-1",
+    })).resolves.toMatchObject({ cancellation: { cancelledAt: "2026-09-04T08:30:00.987Z" } });
+    await expect(adapter.listAdminBookings()).resolves.toMatchObject([{
+      createdAt: "2026-09-04T08:00:00.123Z",
+      cancellation: { cancelledAt: "2026-09-04T08:30:00.987Z" },
+    }]);
+  });
+
+  it.each([
     adminBookingRow({ private_payment_id: "secret" }),
     adminBookingRow({ cancellation_id: ids.cancellation }),
+    adminBookingRow({
+      booking_status: "cancelled",
+      cancellation_id: ids.cancellation,
+      cancellation_idempotency_key: "cancel-admin-booking-1",
+    }),
+    adminBookingRow({ cancellation_reason_code: "trip_plan_changed" }),
     adminBookingRow({ booking_status: "refunded" }),
     adminBookingRow({ created_at: "not-a-timestamp" }),
+    adminBookingRow({ created_at: "2026-02-30T08:00:00.123456+00:00" }),
+    adminBookingRow({
+      booking_status: "cancelled",
+      cancellation_id: ids.cancellation,
+      cancellation_idempotency_key: "cancel-admin-booking-1",
+      cancelled_at: "2026-02-30T08:30:00.987654+00:00",
+    }),
   ])("fails closed on malformed administrator booking row %#", async (row) => {
     const { client } = clientDouble({ adminBookings: { data: [row], error: null } });
     await expectPortalCode(
