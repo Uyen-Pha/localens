@@ -170,6 +170,8 @@ Migration owner for default privileges: postgres
 | public.customer_custom_requests_v | localens_request_customer_rpc_owner | owner-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.customer_payment_status_v | localens_payment_projection_owner | owner-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.customer_simulated_payment_status_v | localens_simulated_payment_projection_owner | owner-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
+| public.itinerary_fx_snapshot_history_v | localens_catalog_rpc_owner | published-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
+| public.itinerary_travel_snapshot_history_v | localens_catalog_rpc_owner | published-view | authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.latest_fx_snapshot_v | localens_catalog_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.published_content_release_v | localens_content_public_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | false | true | none | migration-owner-only |
 | public.published_tours_v | localens_tour_rpc_owner | published-view | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | true | true | public.tours:(id,slug,status); public.tour_versions:(id,tour_id,status,duration_minutes,price_vnd_per_person,inclusions,exclusions,cancellation_policy,source_url,verified_at,attribution,license,catalog_snapshot_id); public.tour_version_translations:(tour_version_id,locale,title,summary,meeting_point); public.tour_version_stops:(tour_version_id,catalog_snapshot_id,position,place_id); public.catalog_snapshot_places:(snapshot_id,place_id,slug); public.catalog_snapshot_place_translations:(snapshot_id,place_id,locale,title); public.catalog_snapshots:(id,status) | migration-owner-only |
@@ -180,6 +182,7 @@ Migration owner for default privileges: postgres
 | RPC | Owner | API reader/execute roles | Writer operation | Credential |
 | --- | --- | --- | --- | --- |
 | public.admin_user_summary | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin read only | browser-jwt |
+| public.advance_authenticated_trip_plan_revision | localens_plan_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | authenticated owner revision append through the audited compare-and-swap implementation | browser-jwt |
 | public.advance_trip_plan_revision | localens_plan_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner revision append | browser-jwt |
 | public.assign_fixed_departure_guide | localens_guide_assignment_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | administrator idempotently assigns a pure guide to a confirmed scheduled fixed departure | browser-jwt |
 | public.begin_fixed_tour_booking | localens_checkout_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner starts a fixed-tour capacity hold | browser-jwt |
@@ -318,7 +321,7 @@ Enumerated internal functions: 106. All are non-API and must use a named NOLOGIN
 
 ## Explicit grants
 
-Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (671 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (674 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Dynamic policy semantics
 

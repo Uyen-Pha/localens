@@ -637,7 +637,7 @@ COMMIT;
     expect(migration).not.toMatch(/GEMINI_API_KEY|SUPABASE_SERVICE_ROLE_KEY|AIza[0-9A-Za-z_-]{20,}/i);
 
     const pgTap = readFileSync(pgTapPath, "utf8");
-    expect(pgTap).toMatch(/SELECT plan\(40\)/);
+    expect(pgTap).toMatch(/SELECT plan\(49\)/);
     expect(pgTap).toMatch(/sixth Gemini reservation is rejected/i);
     expect(pgTap).toMatch(/failed validation rolls back the empty plan row/i);
   });
@@ -647,5 +647,56 @@ COMMIT;
     expect(config).toMatch(/schemas\s*=\s*\[\s*["']public["']\s*,\s*["']graphql_public["']\s*\]/);
     expect(config).not.toMatch(/schemas\s*=\s*["']public,graphql_public["']/);
     expect(config).not.toMatch(/service_role|anon_key|project_ref|project_id|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|remote/i);
+  });
+
+  it("ships authenticated recommend and refine Edge Function entrypoints with pinned imports", () => {
+    const functions = ["recommend-itinerary", "refine-itinerary"];
+    const expectedImports = {
+      "@/": "../../../",
+      "@supabase/supabase-js": "npm:@supabase/supabase-js@2.112.3",
+      zod: "npm:zod@4.4.3",
+    };
+
+    for (const functionName of functions) {
+      const directory = join(repoRoot, "supabase", "functions", functionName);
+      const indexPath = join(directory, "index.ts");
+      const denoPath = join(directory, "deno.json");
+      expect(existsSync(indexPath)).toBe(true);
+      expect(existsSync(denoPath)).toBe(true);
+
+      const source = readFileSync(indexPath, "utf8");
+      expect(source).toMatch(/Deno\.serve\s*\(/);
+      expect(source).toMatch(/parseItineraryEdgeEnv\s*\(\s*Deno\.env\.toObject\(\)\s*\)/);
+      expect(source).toMatch(new RegExp(`createSupabase${functionName === "recommend-itinerary" ? "Recommend" : "Refine"}Adapter\\s*\\([^;]*request`));
+      expect(source).toMatch(/function unavailableResponse\(\)[\s\S]*errorResponse\s*\(/);
+      expect(source).toMatch(/catch\s*\{\s*return unavailableResponse\(\);\s*\}/);
+      expect(source).not.toMatch(/error\.message|String\s*\(\s*error\s*\)|console\.(?:log|error)/);
+
+      const deno = JSON.parse(readFileSync(denoPath, "utf8")) as {
+        imports?: Record<string, string>;
+        unstable?: unknown;
+      };
+      expect(deno.imports).toMatchObject(expectedImports);
+      expect(deno.imports).toMatchObject({
+        "@/supabase/functions/_shared/edge-env": "../../../supabase/functions/_shared/edge-env.ts",
+        "@/supabase/functions/_shared/gateway": "../../../supabase/functions/_shared/gateway.ts",
+        "@/supabase/functions/_shared/supabase-itinerary-adapter": "../../../supabase/functions/_shared/supabase-itinerary-adapter.ts",
+        "@/lib/domain/itinerary/contracts": "../../../lib/domain/itinerary/contracts.ts",
+      });
+      expect(Object.entries(deno.imports ?? {})
+        .filter(([specifier]) => specifier.startsWith("@/") && specifier !== "@/")
+        .every(([, target]) => target.endsWith(".ts"))).toBe(true);
+      expect(deno.unstable).toBeUndefined();
+    }
+
+    const recommend = readFileSync(
+      join(repoRoot, "supabase", "functions", "recommend-itinerary", "index.ts"),
+      "utf8",
+    );
+    expect(recommend).toMatch(/createRecommendItineraryHandler\([\s\S]*requireAuthenticated:\s*true/);
+
+    const config = readFileSync(join(repoRoot, "supabase", "config.toml"), "utf8");
+    expect(config).toMatch(/\[functions\.recommend-itinerary\]\s*verify_jwt\s*=\s*true/);
+    expect(config).toMatch(/\[functions\.refine-itinerary\]\s*verify_jwt\s*=\s*true/);
   });
 });

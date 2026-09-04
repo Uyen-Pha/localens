@@ -173,6 +173,12 @@ function canonicalUtc(value: unknown): string | null {
   return new Date(epoch).toISOString();
 }
 
+function sameInstant(left: unknown, right: unknown): boolean {
+  const leftUtc = canonicalUtc(left);
+  const rightUtc = canonicalUtc(right);
+  return leftUtc !== null && rightUtc !== null && leftUtc === rightUtc;
+}
+
 function responseRows(response: unknown): unknown[] | null {
   if (!isRecord(response) || response.error !== null || !Array.isArray(response.data)) return null;
   return response.data;
@@ -530,19 +536,18 @@ function runtime(
     }
     let travelMeta: Record<string, unknown> | null;
     try {
-      travelMeta = oneRow(await clients.serviceClient.from("travel_snapshots")
-        .select("id,catalog_snapshot_id,published_at,status")
-        .eq("id", travelSnapshotId)
+      travelMeta = oneRow(await clients.userClient.from("itinerary_travel_snapshot_history_v")
+        .select("travel_snapshot_id,catalog_snapshot_id,travel_published_at")
+        .eq("travel_snapshot_id", travelSnapshotId)
         .eq("catalog_snapshot_id", catalogSnapshotId)
         .limit(2));
     } catch {
       return null;
     }
-    const asOfUtc = travelMeta === null ? null : canonicalUtc(travelMeta.published_at);
+    const asOfUtc = travelMeta === null ? null : canonicalUtc(travelMeta.travel_published_at);
     if (
-      travelMeta?.id !== travelSnapshotId
+      travelMeta?.travel_snapshot_id !== travelSnapshotId
       || travelMeta.catalog_snapshot_id !== catalogSnapshotId
-      || travelMeta.status !== "published"
       || asOfUtc === null
     ) {
       return null;
@@ -551,24 +556,24 @@ function runtime(
     let fxRow: Record<string, unknown> | null = null;
     if (fxSnapshotId !== null) {
       try {
-        const rawFx = oneRow(await clients.serviceClient.from("fx_snapshots")
-          .select("id,vnd_per_usd,source,observed_at,environment,is_demo")
-          .eq("id", fxSnapshotId)
+        const rawFx = oneRow(await clients.userClient.from("itinerary_fx_snapshot_history_v")
+          .select("fx_snapshot_id,fx_vnd_per_usd,fx_source,fx_observed_at,fx_environment,fx_is_demo")
+          .eq("fx_snapshot_id", fxSnapshotId)
           .limit(2));
-        if (rawFx === null || rawFx.environment !== "production" || rawFx.is_demo !== false) return null;
-        const numeric = rawFx.vnd_per_usd;
+        if (rawFx === null || rawFx.fx_environment !== "production" || rawFx.fx_is_demo !== false) return null;
+        const numeric = rawFx.fx_vnd_per_usd;
         const vndPerUsd = typeof numeric === "string"
           ? numeric
           : typeof numeric === "number" && Number.isFinite(numeric) ? numeric.toFixed(8) : null;
-        const observedAt = canonicalUtc(rawFx.observed_at);
+        const observedAt = canonicalUtc(rawFx.fx_observed_at);
         if (vndPerUsd === null || observedAt === null) return null;
         fxRow = {
-          id: rawFx.id,
+          id: rawFx.fx_snapshot_id,
           vnd_per_usd: vndPerUsd,
-          source: rawFx.source,
+          source: rawFx.fx_source,
           observed_at: observedAt,
-          environment: rawFx.environment,
-          is_demo: rawFx.is_demo,
+          environment: rawFx.fx_environment,
+          is_demo: rawFx.fx_is_demo,
         };
       } catch {
         return null;
@@ -706,8 +711,8 @@ function mapPreviousItems(
       || row.position !== index + 1
       || !isUuid(row.place_id)
       || row.place_id !== item.placeId
-      || row.start_at !== item.startAt
-      || row.end_at !== item.endAt
+      || !sameInstant(row.start_at, item.startAt)
+      || !sameInstant(row.end_at, item.endAt)
       || row.visit_duration_minutes !== item.visitDurationMinutes
     ) {
       return null;
@@ -867,7 +872,7 @@ export function createSupabaseRefineAdapter(
         );
         const persistence = toPlanRevisionInsert(engineInput, input.result, fingerprint, nextRevision);
         if (!persistence.ok) return refinementFailure("SNAPSHOT_MISMATCH");
-        const response = await shared.userClient.rpc("advance_trip_plan_revision", {
+        const response = await shared.userClient.rpc("advance_authenticated_trip_plan_revision", {
           plan_id: input.planId,
           base_revision_no: input.baseRevision,
           persistence_dto: persistence.value as unknown as Json,

@@ -319,6 +319,13 @@
     },
     {
       "objectType": "function",
+      "objectName": "public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
       "objectName": "public.advance_trip_plan_revision(uuid,integer,jsonb)",
       "privilege": "execute",
       "columns": [],
@@ -4006,6 +4013,20 @@
         "user_id"
       ],
       "grantee": "localens_guide_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.itinerary_fx_snapshot_history_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.itinerary_travel_snapshot_history_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
     },
     {
       "objectType": "table",

@@ -85,6 +85,19 @@ describe("itinerary Edge environment", () => {
     });
     expect(parsed.supabaseUrl).toBe("http://127.0.0.1:54321");
     expect(parsed.allowedOrigins).toEqual(["http://localhost:3200", "http://127.0.0.1:3000"]);
+
+    expect(parseItineraryEdgeEnv({
+      ...validSource,
+      SUPABASE_URL: "http://kong:8000",
+    }).supabaseUrl).toBe("http://kong:8000");
+    expect(() => parseItineraryEdgeEnv({
+      ...validSource,
+      SUPABASE_URL: "http://kong:8001",
+    })).toThrow(z.ZodError);
+    expect(() => parseItineraryEdgeEnv({
+      ...validSource,
+      ALLOWED_ORIGINS: "http://kong:8000",
+    })).toThrow(z.ZodError);
   });
 
   it("rejects missing, blank, padded, controlled, or weak server secrets", () => {

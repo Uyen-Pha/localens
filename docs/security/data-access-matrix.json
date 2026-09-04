@@ -1413,6 +1413,26 @@
       "securityBarrier": true
     },
     {
+      "name": "public.itinerary_fx_snapshot_history_v",
+      "owner": "localens_catalog_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "published-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
+      "name": "public.itinerary_travel_snapshot_history_v",
+      "owner": "localens_catalog_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "apiExposure": "published-view",
+      "securityInvoker": false,
+      "securityBarrier": true
+    },
+    {
       "name": "public.customer_bookings_v",
       "owner": "localens_booking_projection_owner",
       "readerRoles": [
@@ -1556,6 +1576,16 @@
         "authenticated"
       ],
       "writerOperation": "admin read only",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.advance_authenticated_trip_plan_revision",
+      "signature": "public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)",
+      "owner": "localens_plan_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "authenticated owner revision append through the audited compare-and-swap implementation",
       "credential": "browser-jwt"
     },
     {
@@ -1918,7 +1948,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 671,
+  "grantCount": 674,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }

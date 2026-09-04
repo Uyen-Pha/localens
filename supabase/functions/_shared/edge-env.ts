@@ -15,6 +15,7 @@ export interface ItineraryEdgeEnv {
 
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const LOCAL_SUPABASE_INTERNAL_ORIGIN = "http://kong:8000";
 const MAX_SECRET_LENGTH = 4096;
 const MAX_URL_LENGTH = 2048;
 const MAX_ALLOWED_ORIGINS = 8;
@@ -51,9 +52,12 @@ function normalizedEndpoint(value: string): string | null {
   }
 }
 
-const endpointSchema = z.string()
-  .refine((value) => normalizedEndpoint(value) !== null, "URL must be an HTTPS or loopback HTTP origin")
-  .transform((value) => normalizedEndpoint(value)!);
+const supabaseEndpointSchema = z.string()
+  .refine(
+    (value) => value === LOCAL_SUPABASE_INTERNAL_ORIGIN || normalizedEndpoint(value) !== null,
+    "URL must be an HTTPS, loopback HTTP, or local Supabase internal origin",
+  )
+  .transform((value) => value === LOCAL_SUPABASE_INTERNAL_ORIGIN ? value : normalizedEndpoint(value)!);
 
 const serverValueSchema = z.string()
   .min(1)
@@ -85,7 +89,7 @@ const allowedOriginsSchema = z.string()
   });
 
 const sourceSchema = z.object({
-  SUPABASE_URL: endpointSchema,
+  SUPABASE_URL: supabaseEndpointSchema,
   SUPABASE_ANON_KEY: serverValueSchema,
   SUPABASE_SERVICE_ROLE_KEY: serverValueSchema,
   LOCALLENS_QUOTA_HMAC_KEY: quotaKeySchema,

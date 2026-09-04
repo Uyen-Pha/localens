@@ -201,6 +201,12 @@ class FakeClient {
       catalog_snapshot_food_vendors_v: [foodVendorRow],
       catalog_snapshot_food_items_v: [foodItemRow],
       travel_snapshots_v: [travelRow],
+      itinerary_travel_snapshot_history_v: [{
+        travel_snapshot_id: ids.travel,
+        catalog_snapshot_id: ids.catalog,
+        travel_published_at: currentSnapshotRow.travel_published_at,
+      }],
+      itinerary_fx_snapshot_history_v: [],
       travel_snapshots: [{
         id: ids.travel,
         catalog_snapshot_id: ids.catalog,
@@ -231,7 +237,7 @@ class FakeClient {
       if (name === "create_authenticated_trip_plan") {
         return { data: [{ plan_id: args?.p_plan_id, revision_no: 1 }], error: null };
       }
-      if (name === "advance_trip_plan_revision") {
+      if (name === "advance_authenticated_trip_plan_revision") {
         return { data: [{ revision_id: ids.revision, revision_no: 2 }], error: null };
       }
       return { data: null, error: { code: "UNEXPECTED_RPC" } };
@@ -548,9 +554,9 @@ describe("Supabase itinerary adapter", () => {
       .resolves.toBe(dto.fingerprint);
   });
 
-  it("loads the owner-visible latest revision and exposes place UUIDs as stable lock item IDs", async () => {
+  it("loads the owner-visible latest revision, normalizes PostgREST timestamps, and exposes stable lock item IDs", async () => {
     const user = new FakeClient();
-    const service = new FakeClient();
+    const service = new FakeClient({ travel_snapshots: [] });
     const recommendAdapter = createSupabaseRecommendAdapter(
       config(user, service, { geminiEnabled: false, geminiApiKey: undefined }),
       request(),
@@ -578,8 +584,8 @@ describe("Supabase itinerary adapter", () => {
       revision_id: ids.revision,
       position: index + 1,
       place_id: item.placeId,
-      start_at: item.startAt,
-      end_at: item.endAt,
+      start_at: new Date(item.startAt).toISOString(),
+      end_at: new Date(item.endAt).toISOString(),
       visit_duration_minutes: item.visitDurationMinutes,
     }));
     service.events.length = 0;
@@ -619,7 +625,8 @@ describe("Supabase itinerary adapter", () => {
     expect(user.queryCalls.find((call) => call.table === "trip_plan_revisions")?.filters)
       .toEqual(expect.arrayContaining([["plan_id", ids.plan], ["revision_no", 1]]));
     expect(service.events[0]).toBe("rpc:reserve_ai_quota");
-    expect(service.events).toContain("from:travel_snapshots");
+    expect(user.events).toContain("from:itinerary_travel_snapshot_history_v");
+    expect(service.events).not.toContain("from:travel_snapshots");
   });
 
   it("commits refinement by CAS and redacts stale PostgreSQL errors", async () => {
@@ -689,12 +696,12 @@ describe("Supabase itinerary adapter", () => {
     await expect(adapter.commitRefinement(commitInput, context))
       .resolves.toEqual({ ok: true, revision: 2 });
 
-    expect(user.rpc).toHaveBeenCalledWith("advance_trip_plan_revision", expect.objectContaining({
+    expect(user.rpc).toHaveBeenCalledWith("advance_authenticated_trip_plan_revision", expect.objectContaining({
       plan_id: ids.plan,
       base_revision_no: 1,
       persistence_dto: expect.objectContaining({ revisionNo: 2, lockedPlaceIds: [ids.place] }),
     }));
-    const casCall = user.rpc.mock.calls.find(([name]) => name === "advance_trip_plan_revision");
+    const casCall = user.rpc.mock.calls.find(([name]) => name === "advance_authenticated_trip_plan_revision");
     const casDto = (casCall?.[1] as { persistence_dto: { fingerprint: string } }).persistence_dto;
     const lockedEngineInput: EngineInput = {
       ...engineInput,
@@ -703,7 +710,7 @@ describe("Supabase itinerary adapter", () => {
     await expect(fingerprintRevisionBinding(ids.plan, 2, lockedEngineInput, result, sha256))
       .resolves.toBe(casDto.fingerprint);
 
-    user.rpcImpl = async (name) => name === "advance_trip_plan_revision"
+    user.rpcImpl = async (name) => name === "advance_authenticated_trip_plan_revision"
       ? { data: null, error: { code: "P0001", message: "stale revision SQL detail" } }
       : { data: null, error: { code: "UNEXPECTED" } };
     const stale = await adapter.commitRefinement(commitInput, context);

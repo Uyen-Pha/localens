@@ -4,3 +4,9 @@ schemas = ["public", "graphql_public"]
 
 [db]
 major_version = 17
+
+[functions.recommend-itinerary]
+verify_jwt = true
+
+[functions.refine-itinerary]
+verify_jwt = true

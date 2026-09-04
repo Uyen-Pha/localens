@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(40);
+SELECT plan(49);
 
 GRANT USAGE ON SCHEMA extensions TO authenticated, service_role;
 SELECT set_config('search_path', 'public, extensions, pg_catalog', true);
@@ -234,6 +234,36 @@ SELECT extensions.is((
 SELECT extensions.is((SELECT count(*)::integer FROM public.current_itinerary_snapshot_v), 1, 'current bundle returns exactly one row');
 SELECT extensions.is((SELECT travel_snapshot_id::text FROM public.current_itinerary_snapshot_v), '00000000-0000-0000-0000-000000004114', 'current bundle deterministically chooses the latest travel snapshot');
 SELECT extensions.is((SELECT fx_snapshot_id::text || ':' || fx_environment || ':' || fx_is_demo::text FROM public.current_itinerary_snapshot_v), '00000000-0000-0000-0000-000000004115:production:false', 'current bundle ignores newer demo and stale production FX rows');
+SELECT extensions.ok(
+  to_regclass('public.itinerary_travel_snapshot_history_v') IS NOT NULL
+  AND to_regclass('public.itinerary_fx_snapshot_history_v') IS NOT NULL,
+  'authenticated refinement history projections exist'
+);
+SELECT extensions.is((
+  SELECT count(*)::integer
+  FROM pg_class
+  WHERE oid IN (
+    to_regclass('public.itinerary_travel_snapshot_history_v'),
+    to_regclass('public.itinerary_fx_snapshot_history_v')
+  )
+    AND pg_get_userbyid(relowner) = 'localens_catalog_rpc_owner'
+    AND 'security_barrier=true' = ANY(COALESCE(reloptions, '{}'::text[]))
+    AND 'security_invoker=false' = ANY(COALESCE(reloptions, '{}'::text[]))
+), 2, 'refinement history projections use the narrow catalog owner boundary');
+SELECT extensions.is((
+  SELECT count(*)::integer
+  FROM information_schema.role_table_grants
+  WHERE table_schema = 'public'
+    AND table_name IN ('itinerary_travel_snapshot_history_v', 'itinerary_fx_snapshot_history_v')
+    AND grantee = 'authenticated'
+    AND privilege_type = 'SELECT'
+), 2, 'only authenticated runtime clients receive history projection reads');
+SELECT extensions.ok(
+  COALESCE(pg_get_viewdef(to_regclass('public.itinerary_travel_snapshot_history_v'), true), '') LIKE '%status = ''published''%'
+  AND COALESCE(pg_get_viewdef(to_regclass('public.itinerary_fx_snapshot_history_v'), true), '') LIKE '%environment = ''production''%'
+  AND COALESCE(pg_get_viewdef(to_regclass('public.itinerary_fx_snapshot_history_v'), true), '') LIKE '%is_demo IS FALSE%',
+  'history projections expose only immutable published production facts'
+);
 
 SELECT extensions.ok(has_function_privilege('authenticated', 'public.create_authenticated_trip_plan(uuid,jsonb)', 'EXECUTE'), 'authenticated can create its initial itinerary revision');
 SELECT extensions.ok(
@@ -307,6 +337,25 @@ SELECT extensions.ok(
 );
 
 SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT set_config(
+  'request.jwt.claims',
+  jsonb_build_object('sub', '00000000-0000-0000-0000-000000004101', 'role', 'authenticated')::text,
+  true
+);
+SELECT extensions.is((
+  SELECT count(*)::integer
+  FROM public.trip_plans
+  WHERE id = '00000000-0000-0000-0000-000000004121'::uuid
+), 1, 'owner reads the plan through claims JSON used by PostgREST');
+SELECT extensions.is((
+  SELECT count(*)::integer
+  FROM public.trip_plan_revisions
+  WHERE plan_id = '00000000-0000-0000-0000-000000004121'::uuid
+), 1, 'owner reads the revision through claims JSON used by PostgREST');
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000004101', true);
 SELECT extensions.lives_ok($$
   SELECT *
@@ -368,6 +417,35 @@ SELECT extensions.is((
   FROM public.trip_plans
   WHERE id = '00000000-0000-0000-0000-000000004123'::uuid
 ), 0, 'failed validation rolls back the empty plan row');
+
+SELECT extensions.ok(
+  to_regprocedure('public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)') IS NOT NULL,
+  'authenticated refinement wrapper exists'
+);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT set_config(
+  'request.jwt.claims',
+  jsonb_build_object('sub', '00000000-0000-0000-0000-000000004101', 'role', 'authenticated')::text,
+  true
+);
+SELECT extensions.lives_ok($$
+  SELECT *
+  FROM public.advance_authenticated_trip_plan_revision(
+    '00000000-0000-0000-0000-000000004121'::uuid,
+    1,
+    jsonb_set(
+      jsonb_set((SELECT persistence_dto FROM ai_runtime_fixture), '{revisionNo}', to_jsonb(2), false),
+      '{fingerprint}', to_jsonb(repeat('d', 64)), false
+    )
+  )
+$$, 'authenticated customer advances through claims JSON used by PostgREST');
+RESET ROLE;
+SELECT extensions.is((
+  SELECT latest_revision_no
+  FROM public.trip_plans
+  WHERE id = '00000000-0000-0000-0000-000000004121'::uuid
+), 2, 'authenticated refinement wrapper advances exactly one revision');
 
 CREATE TEMP TABLE ai_runtime_quota (
   label text,
