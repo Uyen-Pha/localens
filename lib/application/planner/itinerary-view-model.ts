@@ -1,6 +1,8 @@
 import {
   ItineraryResultSchema,
+  type ItineraryItem,
   type ItineraryResult,
+  type ItineraryTotals,
   type Locale,
 } from "@/lib/domain/itinerary/contracts";
 import type {
@@ -31,12 +33,80 @@ export interface RuntimePlannerFoodItemDisplayRow {
   readonly title: string;
 }
 
+/** Decimal bigint values cross the untrusted Edge boundary as canonical VND strings. */
+export type RuntimePlannerWireMoney = string;
+
+export type RuntimePlannerWireFoodSelection = Omit<
+  NonNullable<ItineraryItem["foodSelection"]>,
+  "priceVndMin" | "priceVndMax"
+> & {
+  readonly priceVndMin: RuntimePlannerWireMoney;
+  readonly priceVndMax: RuntimePlannerWireMoney;
+};
+
+export type RuntimePlannerWireItem = Omit<
+  ItineraryItem,
+  | "travelCostVndBefore"
+  | "placeCostVnd"
+  | "foodSelection"
+  | "foodCostMinVnd"
+  | "foodCostMaxVnd"
+  | "payAtVendorMinVnd"
+  | "payAtVendorMaxVnd"
+  | "customerPayableVnd"
+> & {
+  readonly travelCostVndBefore: RuntimePlannerWireMoney;
+  readonly placeCostVnd: RuntimePlannerWireMoney;
+  readonly foodSelection: RuntimePlannerWireFoodSelection | null;
+  readonly foodCostMinVnd: RuntimePlannerWireMoney;
+  readonly foodCostMaxVnd: RuntimePlannerWireMoney;
+  readonly payAtVendorMinVnd: RuntimePlannerWireMoney;
+  readonly payAtVendorMaxVnd: RuntimePlannerWireMoney;
+  readonly customerPayableVnd: RuntimePlannerWireMoney;
+};
+
+export type RuntimePlannerWireTotals = Omit<
+  ItineraryTotals,
+  | "admissionCostVnd"
+  | "foodCostMinVnd"
+  | "foodCostMaxVnd"
+  | "travelCostVnd"
+  | "guideCostVnd"
+  | "payAtVendorMinVnd"
+  | "payAtVendorMaxVnd"
+  | "customerPayableVnd"
+  | "groupCostMinVnd"
+  | "groupCostMaxVnd"
+  | "groupCostVnd"
+> & {
+  readonly admissionCostVnd: RuntimePlannerWireMoney;
+  readonly foodCostMinVnd: RuntimePlannerWireMoney;
+  readonly foodCostMaxVnd: RuntimePlannerWireMoney;
+  readonly travelCostVnd: RuntimePlannerWireMoney;
+  readonly guideCostVnd: RuntimePlannerWireMoney;
+  readonly payAtVendorMinVnd: RuntimePlannerWireMoney;
+  readonly payAtVendorMaxVnd: RuntimePlannerWireMoney;
+  readonly customerPayableVnd: RuntimePlannerWireMoney;
+  readonly groupCostMinVnd: RuntimePlannerWireMoney;
+  readonly groupCostMaxVnd: RuntimePlannerWireMoney;
+  readonly groupCostVnd: RuntimePlannerWireMoney;
+};
+
+export type RuntimePlannerWireItineraryResult = Omit<
+  ItineraryResult,
+  "budgetVnd" | "items" | "totals"
+> & {
+  readonly budgetVnd: RuntimePlannerWireMoney;
+  readonly items: readonly RuntimePlannerWireItem[];
+  readonly totals: RuntimePlannerWireTotals;
+};
+
 export interface RuntimePlannerResponse {
   readonly advisoryOnly: true;
   readonly degraded: boolean;
   readonly messageKey?: RuntimePlannerMessageKey;
   readonly planId: string;
-  readonly proposal: ItineraryResult;
+  readonly proposal: RuntimePlannerWireItineraryResult;
   readonly rationales: Readonly<Record<string, string>>;
   readonly revision: number;
   readonly baseRevision?: number;
@@ -60,6 +130,8 @@ const MESSAGE_KEYS = new Set<RuntimePlannerMessageKey>([
   "itinerary.ai_aborted",
 ]);
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
+const CANONICAL_VND_PATTERN = /^(?:0|[1-9]\d*)$/;
+const MAX_SAFE_INTEGER = BigInt(Number.MAX_SAFE_INTEGER);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -83,6 +155,17 @@ function isText(value: unknown, maxLength = 2_000): value is string {
 
 function isSafeMoney(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function parseWireMoney(value: unknown): number | null {
+  if (typeof value !== "string" || !CANONICAL_VND_PATTERN.test(value)) return null;
+  try {
+    const parsed = BigInt(value);
+    if (parsed > MAX_SAFE_INTEGER) return null;
+    return Number(parsed);
+  } catch {
+    return null;
+  }
 }
 
 function isPositiveRevision(value: unknown): value is number {
@@ -165,6 +248,94 @@ function mapRationales(value: unknown, itemPlaceIds: readonly string[]): Readonl
   return rationales;
 }
 
+function mapWireFoodSelection(value: unknown): Record<string, unknown> | null {
+  if (value === null) return { foodSelection: null };
+  if (!isRecord(value)) return null;
+  const priceVndMin = parseWireMoney(value.priceVndMin);
+  const priceVndMax = parseWireMoney(value.priceVndMax);
+  if (priceVndMin === null || priceVndMax === null) return null;
+  return {
+    foodSelection: {
+      ...value,
+      priceVndMin,
+      priceVndMax,
+    },
+  };
+}
+
+function mapWireItem(value: unknown): Record<string, unknown> | null {
+  if (!isRecord(value)) return null;
+  const travelCostVndBefore = parseWireMoney(value.travelCostVndBefore);
+  const placeCostVnd = parseWireMoney(value.placeCostVnd);
+  const foodCostMinVnd = parseWireMoney(value.foodCostMinVnd);
+  const foodCostMaxVnd = parseWireMoney(value.foodCostMaxVnd);
+  const payAtVendorMinVnd = parseWireMoney(value.payAtVendorMinVnd);
+  const payAtVendorMaxVnd = parseWireMoney(value.payAtVendorMaxVnd);
+  const customerPayableVnd = parseWireMoney(value.customerPayableVnd);
+  const foodSelection = mapWireFoodSelection(value.foodSelection);
+  if (
+    travelCostVndBefore === null
+    || placeCostVnd === null
+    || foodCostMinVnd === null
+    || foodCostMaxVnd === null
+    || payAtVendorMinVnd === null
+    || payAtVendorMaxVnd === null
+    || customerPayableVnd === null
+    || foodSelection === null
+  ) return null;
+  return {
+    ...value,
+    ...foodSelection,
+    travelCostVndBefore,
+    placeCostVnd,
+    foodCostMinVnd,
+    foodCostMaxVnd,
+    payAtVendorMinVnd,
+    payAtVendorMaxVnd,
+    customerPayableVnd,
+  };
+}
+
+function mapWireTotals(value: unknown): Record<string, unknown> | null {
+  if (!isRecord(value)) return null;
+  const monetaryFields = [
+    "admissionCostVnd",
+    "foodCostMinVnd",
+    "foodCostMaxVnd",
+    "travelCostVnd",
+    "guideCostVnd",
+    "payAtVendorMinVnd",
+    "payAtVendorMaxVnd",
+    "customerPayableVnd",
+    "groupCostMinVnd",
+    "groupCostMaxVnd",
+    "groupCostVnd",
+  ] as const;
+  const converted: Record<string, number> = {};
+  for (const field of monetaryFields) {
+    const money = parseWireMoney(value[field]);
+    if (money === null) return null;
+    converted[field] = money;
+  }
+  return { ...value, ...converted };
+}
+
+function mapWireItineraryResult(value: unknown): ItineraryResult | null {
+  if (!isRecord(value) || !isDenseArray(value.items)) return null;
+  const budgetVnd = parseWireMoney(value.budgetVnd);
+  const totals = mapWireTotals(value.totals);
+  const items = value.items.map(mapWireItem);
+  if (budgetVnd === null || totals === null || items.some((item) => item === null)) return null;
+
+  const parsed = ItineraryResultSchema.safeParse({
+    ...value,
+    budgetVnd,
+    totals,
+    items,
+  });
+  return parsed.success ? parsed.data : null;
+}
+
 function mapFood(
   item: ItineraryResult["items"][number],
   row: RuntimePlannerDisplayRow,
@@ -210,18 +381,18 @@ export function toRuntimePlannerProposal(
   if ((response.baseRevision === undefined) !== (response.regeneration === undefined)) return null;
   if (response.baseRevision !== undefined && (!isPositiveRevision(response.baseRevision) || (response.regeneration !== "partial" && response.regeneration !== "full"))) return null;
 
-  const proposal = ItineraryResultSchema.safeParse(response.proposal);
-  if (!proposal.success || !isSafeMoney(proposal.data.budgetVnd)) return null;
-  const snapshotIds: RuntimePlannerSnapshotIds = proposal.data.snapshotIds;
+  const proposal = mapWireItineraryResult(response.proposal);
+  if (proposal === null || !isSafeMoney(proposal.budgetVnd)) return null;
+  const snapshotIds: RuntimePlannerSnapshotIds = proposal.snapshotIds;
   if (!isIdentifier(snapshotIds.catalog) || !isIdentifier(snapshotIds.travel) || (snapshotIds.fx !== null && !isIdentifier(snapshotIds.fx))) return null;
 
-  const placeIds = proposal.data.items.map((item) => item.placeId);
+  const placeIds = proposal.items.map((item) => item.placeId);
   const rowsByPlace = mapDisplayRows(displayRows, snapshotIds, locale, placeIds);
   const rationales = mapRationales(response.rationales, placeIds);
   if (rowsByPlace === null || rationales === null) return null;
 
   const items: RuntimePlannerItem[] = [];
-  for (const item of proposal.data.items) {
+  for (const item of proposal.items) {
     const row = rowsByPlace.get(item.placeId);
     if (row === undefined || !isSafeMoney(item.placeCostVnd) || !isSafeMoney(item.travelCostVndBefore) || !isSafeMoney(item.customerPayableVnd)) return null;
     const food = mapFood(item, row);
@@ -247,14 +418,14 @@ export function toRuntimePlannerProposal(
   return {
     planId: response.planId,
     revision: response.revision,
-    source: proposal.data.rankingSource,
+    source: proposal.rankingSource,
     degraded: response.degraded,
     ...(response.messageKey === undefined ? {} : { messageKey: response.messageKey as RuntimePlannerMessageKey }),
-    normalizedStartAt: proposal.data.normalizedStartAt,
+    normalizedStartAt: proposal.normalizedStartAt,
     rationales,
     items,
-    totals: proposal.data.totals,
-    budgetVnd: proposal.data.budgetVnd,
+    totals: proposal.totals,
+    budgetVnd: proposal.budgetVnd,
     snapshotIds,
   };
 }
