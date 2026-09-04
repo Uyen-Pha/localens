@@ -9,6 +9,7 @@ import {
   createMemorySessionStorage,
   type SessionStorageBoundary,
 } from "@/lib/infrastructure/demo/portal-repository";
+import type { CancelBookingInput, CancelBookingResult } from "@/lib/application/portal/contracts";
 
 const CLOCK = () => "2026-08-31T12:00:00.000Z";
 
@@ -48,6 +49,45 @@ function tamperWithValidIntegrity(
   delete body.integrity;
   envelope.integrity = { algorithm: "fnv1a32", digest: fnv1a32(canonical(body)) };
   storage.setItem(DEMO_PORTAL_STORAGE_KEY, JSON.stringify(envelope));
+}
+
+async function cancelBooking(
+  repo: ReturnType<typeof createDemoPortalRepository>,
+  input: CancelBookingInput,
+): Promise<CancelBookingResult> {
+  const operation = repo.customer.cancellations.cancelBooking;
+  if (operation === undefined) throw new Error("Expected the demo automatic-cancellation operation.");
+  return operation(input);
+}
+
+function makePendingDepartureCheckout(storage: SessionStorageBoundary): void {
+  tamperWithValidIntegrity(storage, (envelope) => {
+    const bookings = envelope.bookings as Array<Record<string, unknown>>;
+    const booking = bookings.find((entry) => entry.id === "demo-booking-cancellation");
+    if (booking === undefined) throw new Error("Expected the cancellation booking.");
+    booking.paymentStatus = "pending";
+  });
+}
+
+function makeAcceptedQuoteCancellable(storage: SessionStorageBoundary): void {
+  tamperWithValidIntegrity(storage, (envelope) => {
+    const requests = envelope.requests as Array<Record<string, unknown>>;
+    const request = requests.find((entry) => entry.id === "demo-request-personalized");
+    const bookings = envelope.bookings as Array<Record<string, unknown>>;
+    const booking = bookings.find((entry) => entry.id === "demo-booking-personalized");
+    if (request === undefined || booking === undefined) throw new Error("Expected the personalized quote fixture.");
+
+    request.status = "approved";
+    request.updatedAt = CLOCK();
+    request.latestDecisionAt = CLOCK();
+    const requestSnapshot = booking.personalizedRequest as Record<string, unknown>;
+    requestSnapshot.status = "approved";
+    requestSnapshot.updatedAt = CLOCK();
+    requestSnapshot.latestDecisionAt = CLOCK();
+    booking.status = "pending_payment";
+    booking.paymentStatus = null;
+    booking.quoteAcceptedAt = booking.createdAt;
+  });
 }
 
 const REQUEST_SNAPSHOT_TAMPERS: Array<{
@@ -92,6 +132,182 @@ describe("demo portal repository", () => {
     expect(repo.guide.assignments).not.toHaveProperty("listUsers");
     expect(repo.admin.bookings).not.toHaveProperty("listCustomerBookings");
     expect(repo.admin.cancellations).not.toHaveProperty("requestCancellation");
+  });
+
+  it("immediately cancels an owned pending departure and compensates its demo checkout exactly once", async () => {
+    const { storage, repo } = repository();
+    await repo.reset();
+    makePendingDepartureCheckout(storage);
+    await repo.session.selectDemoIdentity("demo-user-customer");
+
+    const input: CancelBookingInput = {
+      bookingId: "demo-booking-cancellation",
+      reasonCode: null,
+      otherReason: null,
+      idempotencyKey: "cancel-departure-001",
+    };
+    const created = await cancelBooking(repo, input);
+
+    expect(created).toEqual({
+      cancellation: {
+        id: "demo-booking-cancellation-event-1",
+        bookingId: "demo-booking-cancellation",
+        customerUserId: "demo-user-customer",
+        sourceKind: "departure",
+        reasonCode: null,
+        otherReason: null,
+        idempotencyKey: "cancel-departure-001",
+        cancelledAt: CLOCK(),
+      },
+      bookingStatus: "cancelled",
+      state: "created",
+    });
+    const customerBooking = (await repo.customer.account.listCustomerBookings())
+      .find((booking) => booking.id === input.bookingId);
+    expect(customerBooking).toMatchObject({
+      status: "cancelled",
+      paymentStatus: null,
+      cancellation: created.cancellation,
+    });
+
+    const replayed = await cancelBooking(repo, input);
+    expect(replayed).toEqual({ ...created, state: "replayed" });
+    const envelope = JSON.parse(storage.getItem(DEMO_PORTAL_STORAGE_KEY) ?? "null") as Record<string, unknown>;
+    expect(envelope.bookingCancellations).toEqual([created.cancellation]);
+
+    await repo.session.selectDemoIdentity("demo-user-admin");
+    const adminBooking = (await repo.admin.bookings.listAdminBookings())
+      .find((booking) => booking.id === input.bookingId);
+    expect(adminBooking?.cancellation).toEqual(created.cancellation);
+    expect(adminBooking?.cancellation).not.toHaveProperty("providerSessionId");
+    expect(adminBooking?.cancellation).not.toHaveProperty("checkoutAttemptId");
+  });
+
+  it("immediately cancels an owned accepted quote with an other reason and revokes checkout state", async () => {
+    const { storage, repo } = repository();
+    await repo.reset();
+    makeAcceptedQuoteCancellable(storage);
+    await repo.session.selectDemoIdentity("demo-user-customer");
+
+    const result = await cancelBooking(repo, {
+      bookingId: "demo-booking-personalized",
+      reasonCode: "other",
+      otherReason: "The arrival date changed.",
+      idempotencyKey: "cancel-quote-001",
+    });
+
+    expect(result).toEqual({
+      cancellation: {
+        id: "demo-booking-cancellation-event-1",
+        bookingId: "demo-booking-personalized",
+        customerUserId: "demo-user-customer",
+        sourceKind: "quote",
+        reasonCode: "other",
+        otherReason: "The arrival date changed.",
+        idempotencyKey: "cancel-quote-001",
+        cancelledAt: CLOCK(),
+      },
+      bookingStatus: "cancelled",
+      state: "created",
+    });
+    expect((await repo.customer.account.listCustomerBookings())
+      .find((booking) => booking.id === "demo-booking-personalized")).toMatchObject({
+      status: "cancelled",
+      paymentStatus: null,
+      quoteAcceptedAt: null,
+      cancellation: result.cancellation,
+    });
+  });
+
+  it("denies guide, admin, and cross-owner automatic cancellation", async () => {
+    for (const actorUserId of ["demo-user-guide", "demo-user-admin"] as const) {
+      const { repo } = repository();
+      await repo.reset();
+      await repo.session.selectDemoIdentity(actorUserId);
+      await expect(cancelBooking(repo, {
+        bookingId: "demo-booking-cancellation",
+        reasonCode: "trip_plan_changed",
+        otherReason: null,
+        idempotencyKey: `cancel-${actorUserId}`,
+      })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
+
+    const { repo } = repository();
+    await repo.reset();
+    await repo.session.selectDemoIdentity("demo-user-customer");
+    await expect(cancelBooking(repo, {
+      bookingId: "demo-booking-secondary-customer",
+      reasonCode: "trip_plan_changed",
+      otherReason: null,
+      idempotencyKey: "cancel-cross-owner-001",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it.each(["payment_processing", "confirmed", "payment_failed", "payment_review", "expired", "completed"] as const)(
+    "denies automatic cancellation when booking status is %s",
+    async (status) => {
+      const { storage, repo } = repository();
+      await repo.reset();
+      tamperWithValidIntegrity(storage, (envelope) => {
+        const bookings = envelope.bookings as Array<Record<string, unknown>>;
+        const booking = bookings.find((entry) => entry.id === "demo-booking-cancellation");
+        if (booking === undefined) throw new Error("Expected the cancellation booking.");
+        booking.status = status;
+      });
+      await repo.session.selectDemoIdentity("demo-user-customer");
+
+      await expect(cancelBooking(repo, {
+        bookingId: "demo-booking-cancellation",
+        reasonCode: "trip_plan_changed",
+        otherReason: null,
+        idempotencyKey: `cancel-status-${status}`,
+      })).rejects.toMatchObject({ code: "CONFLICT" });
+    },
+  );
+
+  it("rejects paid authority, changed idempotency payloads, second booking payloads, and second cancellation events", async () => {
+    const paid = repository();
+    await paid.repo.reset();
+    tamperWithValidIntegrity(paid.storage, (envelope) => {
+      const bookings = envelope.bookings as Array<Record<string, unknown>>;
+      const booking = bookings.find((entry) => entry.id === "demo-booking-cancellation");
+      if (booking === undefined) throw new Error("Expected the cancellation booking.");
+      booking.paymentStatus = "paid";
+    });
+    await paid.repo.session.selectDemoIdentity("demo-user-customer");
+    await expect(cancelBooking(paid.repo, {
+      bookingId: "demo-booking-cancellation",
+      reasonCode: null,
+      otherReason: null,
+      idempotencyKey: "cancel-paid-001",
+    })).rejects.toMatchObject({ code: "CONFLICT" });
+
+    const { storage, repo } = repository();
+    await repo.reset();
+    await repo.session.selectDemoIdentity("demo-user-customer");
+    const original: CancelBookingInput = {
+      bookingId: "demo-booking-cancellation",
+      reasonCode: "trip_plan_changed",
+      otherReason: null,
+      idempotencyKey: "cancel-conflict-001",
+    };
+    await cancelBooking(repo, original);
+    await expect(cancelBooking(repo, { ...original, reasonCode: "price_unsuitable" })).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(cancelBooking(repo, { ...original, idempotencyKey: "cancel-conflict-002" })).rejects.toMatchObject({ code: "CONFLICT" });
+
+    tamperWithValidIntegrity(storage, (envelope) => {
+      const bookings = envelope.bookings as Array<Record<string, unknown>>;
+      const booking = bookings.find((entry) => entry.id === "demo-booking-completed");
+      if (booking === undefined) throw new Error("Expected the completed booking.");
+      booking.status = "pending_payment";
+      booking.paymentStatus = null;
+      booking.assignedGuideUserId = null;
+      envelope.assignments = [];
+    });
+    await expect(cancelBooking(repo, { ...original, bookingId: "demo-booking-completed" })).rejects.toMatchObject({ code: "CONFLICT" });
+
+    const envelope = JSON.parse(storage.getItem(DEMO_PORTAL_STORAGE_KEY) ?? "null") as Record<string, unknown>;
+    expect(envelope.bookingCancellations).toHaveLength(1);
   });
 
   it("isolates private booking fields from customer rows while retaining them for admin rows", async () => {
@@ -268,6 +484,7 @@ describe("demo portal repository", () => {
     const envelope = JSON.parse(raw ?? "null") as Record<string, unknown>;
     expect(Object.keys(envelope).sort()).toEqual([
       "assignments",
+      "bookingCancellations",
       "bookings",
       "cancellations",
       "departures",
@@ -280,7 +497,7 @@ describe("demo portal repository", () => {
       "users",
       "version",
     ].sort());
-    expect(envelope.version).toBe(1);
+    expect(envelope.version).toBe(2);
     expect(envelope.sessionUserId).toBeNull();
   });
 

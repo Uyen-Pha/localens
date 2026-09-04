@@ -22,6 +22,41 @@ import type { DemoPlannerRevision } from "@/lib/application/planner/demo-planner
 
 export type PortalMode = "demo" | "production";
 
+export const CANCELLATION_REASON_CODES = Object.freeze([
+  "trip_plan_changed",
+  "wrong_tour_or_departure",
+  "booking_details_change",
+  "tour_details_unsuitable",
+  "price_unsuitable",
+  "payment_unavailable",
+  "other",
+] as const);
+export type CancellationReasonCode = (typeof CANCELLATION_REASON_CODES)[number];
+
+export interface CancelBookingInput {
+  bookingId: string;
+  reasonCode: CancellationReasonCode | null;
+  otherReason: string | null;
+  idempotencyKey: string;
+}
+
+export interface BookingCancellation {
+  id: string;
+  bookingId: string;
+  customerUserId: string;
+  sourceKind: CustomerBooking["sourceKind"];
+  reasonCode: CancellationReasonCode | null;
+  otherReason: string | null;
+  idempotencyKey: string;
+  cancelledAt: string;
+}
+
+export interface CancelBookingResult {
+  cancellation: BookingCancellation;
+  bookingStatus: "cancelled";
+  state: "created" | "replayed";
+}
+
 /** State for a cancellation request; booking status remains a domain status. */
 export type CancellationStatus = "pending" | "approved" | "rejected";
 export type CancellationDecision = Exclude<CancellationStatus, "pending">;
@@ -73,6 +108,8 @@ export interface CancellationDecisionInput {
 
 const PROFILE_TEXT_CONTROL = /[\u0000-\u001F\u007F-\u009F]/;
 const PORTAL_ID = /^[a-z0-9][a-z0-9-]{0,119}$/;
+const PORTAL_IDEMPOTENCY_KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/;
+const PORTAL_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})$/;
 const PORTAL_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PORTAL_NATIONALITY = /^\p{L}(?:[\p{L} .'-]*\p{L})?$/u;
 
@@ -96,6 +133,52 @@ function safeId(value: unknown, fieldPath: string): PortalValidationResult<strin
   return typeof value === "string" && PORTAL_ID.test(value)
     ? { ok: true, value }
     : invalidInput(fieldPath, "portal.input.id");
+}
+
+function safeIdempotencyKey(value: unknown, fieldPath: string): PortalValidationResult<string> {
+  return typeof value === "string" && PORTAL_IDEMPOTENCY_KEY.test(value)
+    ? { ok: true, value }
+    : invalidInput(fieldPath, "portal.input.idempotency_key");
+}
+
+function safeTimestamp(value: unknown, fieldPath: string): PortalValidationResult<string> {
+  return typeof value === "string" && PORTAL_TIMESTAMP.test(value) && Number.isFinite(Date.parse(value))
+    ? { ok: true, value }
+    : invalidInput(fieldPath, "portal.input.timestamp");
+}
+
+function isCancellationReasonCode(value: unknown): value is CancellationReasonCode {
+  return typeof value === "string" && (CANCELLATION_REASON_CODES as readonly string[]).includes(value);
+}
+
+function validateCancellationReasonPair(
+  reasonCode: unknown,
+  otherReason: unknown,
+  root: string,
+): PortalValidationResult<Pick<CancelBookingInput, "reasonCode" | "otherReason">> {
+  if (reasonCode === null) {
+    return otherReason === null
+      ? { ok: true, value: { reasonCode: null, otherReason: null } }
+      : invalidInput(`${root}.otherReason`, "portal.cancellation.reason_pair");
+  }
+  if (!isCancellationReasonCode(reasonCode)) {
+    return invalidInput(`${root}.reasonCode`, "portal.cancellation.reason_code");
+  }
+  if (reasonCode !== "other") {
+    return otherReason === null
+      ? { ok: true, value: { reasonCode, otherReason: null } }
+      : invalidInput(`${root}.otherReason`, "portal.cancellation.reason_pair");
+  }
+  if (
+    typeof otherReason !== "string" ||
+    otherReason.length < 3 ||
+    otherReason.length > 500 ||
+    otherReason !== otherReason.trim() ||
+    PROFILE_TEXT_CONTROL.test(otherReason)
+  ) {
+    return invalidInput(`${root}.otherReason`, "portal.cancellation.other_reason");
+  }
+  return { ok: true, value: { reasonCode, otherReason } };
 }
 
 function safeText(value: unknown, fieldPath: string, maximum: number, allowNull = false): PortalValidationResult<string | null> {
@@ -206,6 +289,82 @@ export function validateTourReviewInput(input: unknown): PortalValidationResult<
   return { ok: true, value: { bookingId: bookingId.value, rating: exact.value.rating, text: text.value } };
 }
 
+export function validateCancelBookingInput(input: unknown): PortalValidationResult<CancelBookingInput> {
+  const exact = exactInput(input, ["bookingId", "reasonCode", "otherReason", "idempotencyKey"]);
+  if (!exact.ok) return exact;
+  const bookingId = safeId(exact.value.bookingId, "input.bookingId");
+  if (!bookingId.ok) return bookingId;
+  const reason = validateCancellationReasonPair(exact.value.reasonCode, exact.value.otherReason, "input");
+  if (!reason.ok) return reason;
+  const idempotencyKey = safeIdempotencyKey(exact.value.idempotencyKey, "input.idempotencyKey");
+  if (!idempotencyKey.ok) return idempotencyKey;
+  return {
+    ok: true,
+    value: {
+      bookingId: bookingId.value,
+      reasonCode: reason.value.reasonCode,
+      otherReason: reason.value.otherReason,
+      idempotencyKey: idempotencyKey.value,
+    },
+  };
+}
+
+export function parseBookingCancellation(input: unknown): PortalValidationResult<BookingCancellation> {
+  const exact = exactInput(input, [
+    "id", "bookingId", "customerUserId", "sourceKind", "reasonCode", "otherReason", "idempotencyKey", "cancelledAt",
+  ]);
+  if (!exact.ok) return exact;
+  const id = safeId(exact.value.id, "input.id");
+  if (!id.ok) return id;
+  const bookingId = safeId(exact.value.bookingId, "input.bookingId");
+  if (!bookingId.ok) return bookingId;
+  const customerUserId = safeId(exact.value.customerUserId, "input.customerUserId");
+  if (!customerUserId.ok) return customerUserId;
+  if (exact.value.sourceKind !== "departure" && exact.value.sourceKind !== "quote") {
+    return invalidInput("input.sourceKind", "portal.cancellation.source_kind");
+  }
+  const reason = validateCancellationReasonPair(exact.value.reasonCode, exact.value.otherReason, "input");
+  if (!reason.ok) return reason;
+  const idempotencyKey = safeIdempotencyKey(exact.value.idempotencyKey, "input.idempotencyKey");
+  if (!idempotencyKey.ok) return idempotencyKey;
+  const cancelledAt = safeTimestamp(exact.value.cancelledAt, "input.cancelledAt");
+  if (!cancelledAt.ok) return cancelledAt;
+  return {
+    ok: true,
+    value: {
+      id: id.value,
+      bookingId: bookingId.value,
+      customerUserId: customerUserId.value,
+      sourceKind: exact.value.sourceKind,
+      reasonCode: reason.value.reasonCode,
+      otherReason: reason.value.otherReason,
+      idempotencyKey: idempotencyKey.value,
+      cancelledAt: cancelledAt.value,
+    },
+  };
+}
+
+export function parseCancelBookingResult(input: unknown): PortalValidationResult<CancelBookingResult> {
+  const exact = exactInput(input, ["cancellation", "bookingStatus", "state"]);
+  if (!exact.ok) return exact;
+  const cancellation = parseBookingCancellation(exact.value.cancellation);
+  if (!cancellation.ok) return cancellation;
+  if (exact.value.bookingStatus !== "cancelled") {
+    return invalidInput("input.bookingStatus", "portal.cancellation.booking_status");
+  }
+  if (exact.value.state !== "created" && exact.value.state !== "replayed") {
+    return invalidInput("input.state", "portal.cancellation.state");
+  }
+  return {
+    ok: true,
+    value: {
+      cancellation: cancellation.value,
+      bookingStatus: "cancelled",
+      state: exact.value.state,
+    },
+  };
+}
+
 export function validateCancellationRequestInput(input: unknown): PortalValidationResult<CancellationRequestInput> {
   const exact = exactInput(input, ["bookingId", "reason"]);
   if (!exact.ok) return exact;
@@ -287,6 +446,22 @@ export interface CancellationEligibilityInput {
   bookingOwnerUserId: string;
   bookingStatus: BookingStatus;
   hasPendingRequest: boolean;
+}
+
+export interface CancelBookingEligibilityInput {
+  actorRole: Role;
+  actorUserId: string;
+  bookingOwnerUserId: string;
+  bookingStatus: BookingStatus;
+}
+
+export function canCancelBooking(input: unknown): input is CancelBookingEligibilityInput {
+  if (!isRecord(input)) return false;
+  return input.actorRole === "customer" &&
+    typeof input.actorUserId === "string" && input.actorUserId.length > 0 &&
+    typeof input.bookingOwnerUserId === "string" && input.actorUserId === input.bookingOwnerUserId &&
+    (BOOKING_STATUS_VALUES as readonly string[]).includes(input.bookingStatus as string) &&
+    input.bookingStatus === "pending_payment";
 }
 
 export function canRequestCancellation(input: unknown): input is CancellationEligibilityInput {
@@ -395,6 +570,7 @@ export interface CustomerBookingView extends CustomerBooking {
   paymentStatus: PaymentStatus | null;
   /** Persisted only for personalized demo quotes; null for fixed bookings. */
   quoteAcceptedAt: string | null;
+  cancellation: BookingCancellation | null;
   cancellationRequest: CancellationRequest | null;
   review: TourReview | null;
 }
@@ -412,6 +588,8 @@ export interface CustomerAccountPort extends CustomerBookingPort {
 }
 
 export interface CustomerCancellationPort {
+  /** Transitional until the legacy request/decision UI and runtime ports are replaced. */
+  cancelBooking?(input: CancelBookingInput): Promise<CancelBookingResult>;
   requestCancellation(input: CancellationRequestInput): Promise<CancellationRequest>;
   listOwnCancellationRequests(): Promise<CancellationRequest[]>;
 }
@@ -568,6 +746,7 @@ export interface AdminBookingProjection extends CustomerBooking {
   ownerUserId: string;
   paymentStatus: PaymentStatus | null;
   assignedGuideUserId: string | null;
+  cancellation: BookingCancellation | null;
   cancellationRequestId: string | null;
   specialNeeds: string | null;
 }

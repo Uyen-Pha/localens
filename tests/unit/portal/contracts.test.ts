@@ -3,12 +3,17 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
+  CANCELLATION_REASON_CODES,
   PORTAL_PRODUCTION_GAP,
+  canCancelBooking,
   canRequestCancellation,
   canSubmitTourReview,
   canViewGuideAssignment,
   hasRoleCapability,
   isTourReviewEligible,
+  parseBookingCancellation,
+  parseCancelBookingResult,
+  validateCancelBookingInput,
   validateCancellationDecisionInput,
   validateCancellationRequestInput,
   validateCustomerAccountUpdate,
@@ -38,6 +43,130 @@ import type {
 } from "@/lib/domain/data/contracts";
 
 describe("portal contracts", () => {
+  const cancellationEvent = {
+    id: "demo-booking-cancellation-event-1",
+    bookingId: "demo-booking-cancellation",
+    customerUserId: "demo-user-customer",
+    sourceKind: "departure",
+    reasonCode: "trip_plan_changed",
+    otherReason: null,
+    idempotencyKey: "cancel-demo-booking-001",
+    cancelledAt: "2026-09-04T08:30:00.000Z",
+  } as const;
+
+  it("publishes the exact frozen automatic-cancellation reason catalog", () => {
+    expect(CANCELLATION_REASON_CODES).toEqual([
+      "trip_plan_changed",
+      "wrong_tour_or_departure",
+      "booking_details_change",
+      "tour_details_unsuitable",
+      "price_unsuitable",
+      "payment_unavailable",
+      "other",
+    ]);
+    expect(Object.isFrozen(CANCELLATION_REASON_CODES)).toBe(true);
+  });
+
+  it.each([
+    { bookingId: "demo-booking", reasonCode: null, otherReason: null, idempotencyKey: "cancel-booking-001" },
+    { bookingId: "demo-booking", reasonCode: "trip_plan_changed", otherReason: null, idempotencyKey: "cancel-booking-002" },
+    { bookingId: "demo-booking", reasonCode: "wrong_tour_or_departure", otherReason: null, idempotencyKey: "cancel-booking-003" },
+    { bookingId: "demo-booking", reasonCode: "booking_details_change", otherReason: null, idempotencyKey: "cancel-booking-004" },
+    { bookingId: "demo-booking", reasonCode: "tour_details_unsuitable", otherReason: null, idempotencyKey: "cancel-booking-005" },
+    { bookingId: "demo-booking", reasonCode: "price_unsuitable", otherReason: null, idempotencyKey: "cancel-booking-006" },
+    { bookingId: "demo-booking", reasonCode: "payment_unavailable", otherReason: null, idempotencyKey: "cancel-booking-007" },
+    { bookingId: "demo-booking", reasonCode: "other", otherReason: "abc", idempotencyKey: "cancel-booking-008" },
+    { bookingId: "demo-booking", reasonCode: "other", otherReason: "x".repeat(500), idempotencyKey: "cancel-booking-009" },
+  ])("accepts the exact automatic-cancellation input payload %#", (input) => {
+    expect(validateCancelBookingInput(input)).toEqual({ ok: true, value: input });
+  });
+
+  it.each([
+    [{ bookingId: "demo-booking", reasonCode: null, otherReason: "changed", idempotencyKey: "cancel-booking-101" }, "input.otherReason"],
+    [{ bookingId: "demo-booking", reasonCode: "trip_plan_changed", otherReason: "changed", idempotencyKey: "cancel-booking-102" }, "input.otherReason"],
+    [{ bookingId: "demo-booking", reasonCode: "other", otherReason: null, idempotencyKey: "cancel-booking-103" }, "input.otherReason"],
+    [{ bookingId: "demo-booking", reasonCode: "other", otherReason: "ab", idempotencyKey: "cancel-booking-104" }, "input.otherReason"],
+    [{ bookingId: "demo-booking", reasonCode: "other", otherReason: "x".repeat(501), idempotencyKey: "cancel-booking-105" }, "input.otherReason"],
+    [{ bookingId: "demo-booking", reasonCode: "other", otherReason: " padded ", idempotencyKey: "cancel-booking-106" }, "input.otherReason"],
+    [{ bookingId: "demo-booking", reasonCode: "other", otherReason: "bad\u0000reason", idempotencyKey: "cancel-booking-107" }, "input.otherReason"],
+    [{ bookingId: "demo-booking", reasonCode: "unknown", otherReason: null, idempotencyKey: "cancel-booking-108" }, "input.reasonCode"],
+    [{ bookingId: "Bad booking", reasonCode: null, otherReason: null, idempotencyKey: "cancel-booking-109" }, "input.bookingId"],
+    [{ bookingId: "demo-booking", reasonCode: null, otherReason: null, idempotencyKey: "bad key" }, "input.idempotencyKey"],
+    [{ bookingId: "demo-booking", reasonCode: null, otherReason: null, idempotencyKey: "cancel-booking-110", extra: true }, "input.extra"],
+  ] as const)("rejects invalid automatic-cancellation input %#", (input, fieldPath) => {
+    expect(validateCancelBookingInput(input)).toMatchObject({ ok: false, error: { fieldPath } });
+  });
+
+  it("allows only the owning customer to cancel a pending-payment booking", () => {
+    expect(canCancelBooking({
+      actorRole: "customer",
+      actorUserId: "demo-user-customer",
+      bookingOwnerUserId: "demo-user-customer",
+      bookingStatus: "pending_payment",
+    })).toBe(true);
+    expect(canCancelBooking({
+      actorRole: "customer",
+      actorUserId: "demo-user-secondary-customer",
+      bookingOwnerUserId: "demo-user-customer",
+      bookingStatus: "pending_payment",
+    })).toBe(false);
+    for (const actorRole of ["guide", "admin"] as const) {
+      expect(canCancelBooking({
+        actorRole,
+        actorUserId: "demo-user-customer",
+        bookingOwnerUserId: "demo-user-customer",
+        bookingStatus: "pending_payment",
+      })).toBe(false);
+    }
+    for (const bookingStatus of ["payment_processing", "confirmed", "payment_failed", "payment_review", "expired", "cancelled", "completed"] as const) {
+      expect(canCancelBooking({
+        actorRole: "customer",
+        actorUserId: "demo-user-customer",
+        bookingOwnerUserId: "demo-user-customer",
+        bookingStatus,
+      })).toBe(false);
+    }
+  });
+
+  it("parses exact immutable cancellation events and results", () => {
+    expect(parseBookingCancellation(cancellationEvent)).toEqual({ ok: true, value: cancellationEvent });
+    expect(parseCancelBookingResult({
+      cancellation: cancellationEvent,
+      bookingStatus: "cancelled",
+      state: "created",
+    })).toEqual({
+      ok: true,
+      value: {
+        cancellation: cancellationEvent,
+        bookingStatus: "cancelled",
+        state: "created",
+      },
+    });
+    expect(parseCancelBookingResult({
+      cancellation: cancellationEvent,
+      bookingStatus: "cancelled",
+      state: "replayed",
+    })).toMatchObject({ ok: true, value: { state: "replayed" } });
+  });
+
+  it.each([
+    { ...cancellationEvent, sourceKind: "request" },
+    { ...cancellationEvent, reasonCode: null, otherReason: "changed" },
+    { ...cancellationEvent, reasonCode: "other", otherReason: null },
+    { ...cancellationEvent, cancelledAt: "not-a-timestamp" },
+    { ...cancellationEvent, privateCheckoutId: "secret" },
+  ])("rejects malformed immutable cancellation event %#", (event) => {
+    expect(parseBookingCancellation(event)).toMatchObject({ ok: false });
+  });
+
+  it.each([
+    { cancellation: cancellationEvent, bookingStatus: "confirmed", state: "created" },
+    { cancellation: cancellationEvent, bookingStatus: "cancelled", state: "resumed" },
+    { cancellation: cancellationEvent, bookingStatus: "cancelled", state: "created", extra: true },
+  ])("rejects inconsistent automatic-cancellation result %#", (result) => {
+    expect(parseCancelBookingResult(result)).toMatchObject({ ok: false });
+  });
+
   it("reuses the domain state and projection types without alternate state literals", () => {
     const role: Role = "customer";
     const locale: Locale = "vi";
@@ -59,6 +188,7 @@ describe("portal contracts", () => {
       ...booking,
       paymentStatus,
       quoteAcceptedAt: null,
+      cancellation: null,
       cancellationRequest: null,
       review: null,
     };
