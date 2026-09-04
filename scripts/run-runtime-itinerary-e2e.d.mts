@@ -67,6 +67,30 @@ export function startFakeGeminiProvider(options: {
   stop: () => Promise<void>;
 }>;
 
+export function startOwnedItineraryFunctions(options: {
+  cwd: string;
+  workdir: string;
+  env: Record<string, string | undefined>;
+  envFile: string;
+  apiUrl: string;
+  anonKey: string;
+  origin: string;
+  cliPath: string;
+  platform?: NodeJS.Platform;
+  spawnChild?: (
+    command: string,
+    args: readonly string[],
+    options: Record<string, unknown>,
+  ) => unknown;
+  fetchImpl?: typeof fetch;
+  stopChild?: (
+    child: unknown,
+    options: { platform: NodeJS.Platform; ownedProcessGroup: boolean },
+  ) => Promise<void>;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}): Promise<{ stop: () => Promise<void> }>;
+
 export function parseIsolatedRuntimeStatus(
   output: string,
   ports: RuntimeItineraryPorts,

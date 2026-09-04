@@ -72,7 +72,7 @@ Record results only after the sequence finishes:
 | 2 | `corepack pnpm typecheck` | 2026-09-05T00:59:04.0657714+07:00 | 2026-09-05T00:59:19.5036199+07:00 | 0 | TypeScript completed with no errors. |
 | 3 | `corepack pnpm test:run --no-file-parallelism --testTimeout=30000` | 2026-09-05T00:59:27.1181705+07:00 | 2026-09-05T01:04:59.7703485+07:00 | 0 | Vitest: 121/121 files and 1496/1496 tests passed. |
 | 4 | `corepack pnpm db:verify` | 2026-09-05T01:13:54.5321721+07:00 | 2026-09-05T01:16:36.1293384+07:00 | 0 | Clean isolated checkout on the same SHA: 29 migrations; schema lint empty; pgTAP 19/19 files and 1669/1669 assertions; 10/10 two-session concurrency scenarios; generated types matched; owned stack stopped with backup. |
-| 5 | `LOCALENS_RUNTIME_BROWSER=chrome corepack pnpm test:e2e:runtime-itinerary` | 2026-09-05T01:18:10.0298760+07:00 | 2026-09-05T01:20:32.4076721+07:00 | 0 | Google Chrome: 3/3 full-stack scenarios passed; the runner reset and stopped only its nonstandard-port temporary Supabase project. |
+| 5 | `$env:LOCALENS_RUNTIME_BROWSER='chrome'; corepack pnpm test:e2e:runtime-itinerary` (PowerShell) | 2026-09-05T01:18:10.0298760+07:00 | 2026-09-05T01:20:32.4076721+07:00 | 0 | Google Chrome: 3/3 full-stack scenarios passed; the runner reset and stopped only its nonstandard-port temporary Supabase project. |
 | 6 | `corepack pnpm build:demo` | 2026-09-05T01:21:02.9254204+07:00 | 2026-09-05T01:21:24.7924417+07:00 | 0 | Next.js production build generated 24/24 static routes. |
 | 7 | `corepack pnpm build:supabase` | 2026-09-05T01:21:32.1300281+07:00 | 2026-09-05T01:21:50.3680522+07:00 | 0 | CI-equivalent build-only public variables; Next.js production build generated 24/24 static routes. |
 

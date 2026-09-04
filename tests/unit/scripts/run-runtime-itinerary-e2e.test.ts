@@ -17,9 +17,8 @@ import {
   runRuntimeItineraryE2EMain,
   selectRuntimeItineraryBaseEnv,
   startFakeGeminiProvider,
+  startOwnedItineraryFunctions,
 } from "@/scripts/run-runtime-itinerary-e2e.mjs";
-// @ts-expect-error The executable JavaScript boundary is covered by the focused process test below.
-import { startOwnedItineraryFunctions } from "@/scripts/run-runtime-itinerary-e2e.mjs";
 
 const ports = {
   api: 55431,
@@ -193,6 +192,46 @@ describe("isolated runtime itinerary runner", () => {
     expect(probes.every(({ headers }) => headers.get("x-localens-device-id") === "runtime-readiness-probe")).toBe(true);
     await functions.stop();
     expect(stopChild).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops the owned Edge process when either worker never becomes ready", async () => {
+    const child = Object.assign(new EventEmitter(), { pid: 12345 });
+    const stopChild = vi.fn(async () => undefined);
+    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+      const name = new URL(String(input)).pathname.split("/").at(-1);
+      if (name === "recommend-itinerary") {
+        return Response.json({
+          code: "INVALID_REQUEST",
+          messageKey: "gateway.invalid_request",
+          retryable: false,
+          correlationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        }, { status: 400 });
+      }
+      return Response.json({ message: "Bad Gateway" }, { status: 502 });
+    });
+
+    await expect(startOwnedItineraryFunctions({
+      cwd: process.cwd(),
+      workdir: "C:/runtime-itinerary",
+      env: {},
+      envFile: "C:/runtime-itinerary/functions.env",
+      apiUrl: "http://127.0.0.1:55431",
+      anonKey: "local-anon-jwt",
+      origin: "http://127.0.0.1:55440",
+      cliPath: "supabase",
+      platform: "linux",
+      spawnChild: () => child,
+      fetchImpl,
+      stopChild,
+      timeoutMs: 0,
+    })).rejects.toMatchObject({ code: "RUNTIME_ITINERARY_FUNCTIONS_TIMEOUT" });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(stopChild).toHaveBeenCalledTimes(1);
+    expect(stopChild).toHaveBeenCalledWith(child, {
+      platform: "linux",
+      ownedProcessGroup: true,
+    });
   });
 
   it("builds and validates a nonstandard isolated Supabase configuration", () => {
