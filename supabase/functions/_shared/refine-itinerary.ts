@@ -49,6 +49,10 @@ import {
 } from "@/lib/domain/food/contracts";
 import { calculateFoodSelectionCost, calculateItineraryCostBreakdown } from "@/lib/domain/itinerary/food-cost";
 import { multiplyVnd, sumVnd } from "@/lib/domain/itinerary/money";
+import {
+  normalizeRefinementSignals,
+  type RefinementSignals,
+} from "@/supabase/functions/_shared/refinement-signals";
 
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
 const TOKEN_MAX_LENGTH = 4096;
@@ -144,7 +148,7 @@ export type CanonicalPreviousItem = {
 } & ItineraryResult["items"][number];
 
 export interface RefinementRankRequest extends RankRequest {
-  feedback: string;
+  signals: RefinementSignals;
   scope: "partial" | "full";
   lockedPlaceIds: string[];
 }
@@ -880,7 +884,7 @@ export function createRefineItineraryHandler(
       const ranker: Ranker | undefined = inspectedPreparation.ranker
         ? (request, signal) => inspectedPreparation.ranker!({
             ...request,
-            feedback: inspectedPreparation.normalizedDelta.feedback,
+            signals: normalizeRefinementSignals(inspectedPreparation.normalizedDelta.feedback),
             scope: inspectedPreparation.normalizedDelta.scope,
             lockedPlaceIds: [...lockedPlaceIds],
           }, signal)

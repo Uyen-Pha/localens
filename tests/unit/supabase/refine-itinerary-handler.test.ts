@@ -409,7 +409,7 @@ describe("refine-itinerary Edge handler contract", () => {
 
   it("passes a minimal sorted allowlist payload with normalized refinement context", async () => {
     let received: {
-      feedback: string;
+      signals: RefinementRankRequest["signals"];
       scope: "partial" | "full";
       lockedPlaceIds: string[];
       rankRequest: RefinementRankRequest;
@@ -419,11 +419,11 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "Đi chậm hơn và bỏ đồ ăn", scope: "partial" as const },
         previousRevision,
         ranker: vi.fn(async (rankRequest: RefinementRankRequest) => {
           received = {
-            feedback: rankRequest.feedback,
+            signals: rankRequest.signals,
             scope: rankRequest.scope,
             lockedPlaceIds: [...rankRequest.lockedPlaceIds],
             rankRequest,
@@ -441,11 +441,14 @@ describe("refine-itinerary Edge handler contract", () => {
       correlationIdFactory: () => correlationId,
     });
 
-    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const response = await handler(request(validBody({
+      delta: { feedback: "Đi chậm hơn và bỏ đồ ăn", scope: "partial" },
+      guestToken: "guest-token-123456",
+    })));
 
     expect(response.status).toBe(200);
     expect(received).toEqual({
-      feedback: "More history, please",
+      signals: { pace: "slower", food: "remove", preferTypes: [], avoidTypes: [] },
       scope: "partial",
       lockedPlaceIds: [lockedPlaceId],
       rankRequest: expect.objectContaining({
@@ -457,12 +460,14 @@ describe("refine-itinerary Edge handler contract", () => {
       "allowedMenuItemIds",
       "allowedVendorIds",
       "candidates",
-      "feedback",
       "lockedPlaceIds",
       "pace",
       "priorityWeights",
       "scope",
+      "signals",
     ]);
+    expect(received?.rankRequest).not.toHaveProperty("feedback");
+    expect(JSON.stringify(received)).not.toContain("Đi chậm hơn và bỏ đồ ăn");
     for (const candidate of received?.rankRequest.candidates ?? []) {
       expect(Object.keys(candidate).sort()).toEqual([
         "areaId",

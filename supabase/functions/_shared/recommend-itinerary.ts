@@ -5,7 +5,7 @@
  * the only place allowed to bind guest capability, Turnstile, snapshots, and
  * database access. The handler delegates scheduling and all totals/time/hour
  * constraints to the existing authoritative domain engine, and returns an
- * advisory proposal only; it never creates a plan, booking, quote, or payment.
+ * persisted advisory proposal; it never creates a booking, quote, or payment.
  */
 
 import { z } from "zod";
@@ -35,6 +35,7 @@ import type { Ranker } from "@/lib/application/itinerary/ranking-port";
 
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
 const TOKEN_MAX_LENGTH = 4096;
+const uuidSchema = z.string().uuid();
 
 const capabilityTokenSchema = z
   .string()
@@ -49,7 +50,7 @@ const capabilityTokenSchema = z
 export const recommendItineraryBodySchema = z
   .object({
     input: itineraryRequestSchema,
-    turnstileToken: capabilityTokenSchema,
+    turnstileToken: capabilityTokenSchema.optional(),
     guestToken: capabilityTokenSchema.optional(),
   })
   .strict();
@@ -64,7 +65,7 @@ export interface RecommendationAdapterContext {
   /** An opaque guest capability; the adapter must hash/verify it server-side. */
   guestToken: string | null;
   /** An opaque Turnstile token; the adapter must verify action and hostname. */
-  turnstileToken: string;
+  turnstileToken: string | null;
 }
 
 export const RECOMMENDATION_ADAPTER_ERROR_CODES = [
@@ -97,6 +98,10 @@ export type RecommendationAdapterResolution =
   | { ok: true; input: unknown }
   | { ok: false; error: RecommendationAdapterFailure };
 
+export type RecommendationCommit =
+  | { ok: true; planId: string; revision: 1 }
+  | { ok: false; error: RecommendationAdapterFailure };
+
 /**
  * Injectable server-side boundary. `input` is deliberately unknown at this
  * boundary: the handler parses and compares it before allowing the engine to
@@ -112,20 +117,30 @@ export interface RecommendItineraryAdapter {
     input: ItineraryRequest,
     context: RecommendationAdapterContext,
   ) => Promise<RecommendationAdapterResolution>;
+  commitRecommendation: (
+    input: {
+      input: EngineInput;
+      result: ItineraryResult;
+    },
+    context: RecommendationAdapterContext,
+  ) => Promise<RecommendationCommit>;
   ranker?: Ranker;
 }
 
 export interface RecommendItineraryHandlerOptions {
   policy: GatewayPolicy;
   correlationIdFactory?: () => string;
+  requireAuthenticated?: boolean;
 }
 
 export interface RecommendItineraryResponse {
   advisoryOnly: true;
   degraded: boolean;
   messageKey?: Recommendation["messageKey"];
+  planId: string;
   proposal: ItineraryResult;
   rationales: Record<string, string>;
+  revision: 1;
 }
 
 const ADAPTER_ERROR_DEFINITIONS: Record<
@@ -296,6 +311,32 @@ function inspectResolution(value: unknown): InspectedResolution {
   }
 }
 
+type InspectedRecommendationCommit =
+  | { kind: "invalid" }
+  | { kind: "failure"; error: unknown }
+  | { kind: "success"; planId: string; revision: 1 };
+
+function inspectRecommendationCommit(value: unknown): InspectedRecommendationCommit {
+  try {
+    if (!isPlainObject(value) || typeof value.ok !== "boolean") return { kind: "invalid" };
+    if (value.ok === false) {
+      if (!hasExactKeys(value, ["ok", "error"])) return { kind: "invalid" };
+      return { kind: "failure", error: value.error };
+    }
+    if (
+      !hasExactKeys(value, ["ok", "planId", "revision"]) ||
+      typeof value.planId !== "string" ||
+      !uuidSchema.safeParse(value.planId).success ||
+      value.revision !== 1
+    ) {
+      return { kind: "invalid" };
+    }
+    return { kind: "success", planId: value.planId, revision: 1 };
+  } catch {
+    return { kind: "invalid" };
+  }
+}
+
 function semanticallyEqual(
   left: unknown,
   right: unknown,
@@ -393,25 +434,16 @@ function domainFailureResponse(
   );
 }
 
-function safeRecommendationResponse(
+function safeRecommendationResult(
   value: Recommendation,
   correlationId: string,
   corsHeaders: HeadersInit,
-): Response {
+): { ok: true; result: ItineraryResult } | { ok: false; response: Response } {
   const parsed = itineraryResultSchema.safeParse(value.result);
-  if (!parsed.success) return internalAdapterResponse(correlationId, corsHeaders, "ADAPTER_INVALID");
-
-  const responseBody: RecommendItineraryResponse = {
-    advisoryOnly: true,
-    degraded: value.degraded,
-    ...(value.messageKey ? { messageKey: value.messageKey } : {}),
-    proposal: parsed.data,
-    rationales: { ...value.rationales },
-  };
-  return jsonResponse(
-    responseBody,
-    { correlationId, corsHeaders },
-  );
+  if (!parsed.success) {
+    return { ok: false, response: internalAdapterResponse(correlationId, corsHeaders, "ADAPTER_INVALID") };
+  }
+  return { ok: true, result: parsed.data };
 }
 
 /** Build a public recommendation handler around a server-only adapter. */
@@ -461,18 +493,27 @@ export function createRecommendItineraryHandler(
       }
       principal = inspectedVerification.principal;
     }
+    if (options.requireAuthenticated === true && principal === null) {
+      return adapterFailureResponse(
+        { code: "AUTH_REQUIRED" },
+        gateway.correlationId,
+        gateway.corsHeaders,
+      );
+    }
+
+    const context: RecommendationAdapterContext = {
+      correlationId: gateway.correlationId,
+      principal,
+      guestToken: parsedBody.data.guestToken ?? null,
+      turnstileToken: parsedBody.data.turnstileToken ?? null,
+    };
 
     let resolution: RecommendationAdapterResolution;
     try {
       if (typeof adapter?.resolveEngineInput !== "function") {
         return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders);
       }
-      resolution = await adapter.resolveEngineInput(parsedBody.data.input, {
-        correlationId: gateway.correlationId,
-        principal,
-        guestToken: parsedBody.data.guestToken ?? null,
-        turnstileToken: parsedBody.data.turnstileToken,
-      });
+      resolution = await adapter.resolveEngineInput(parsedBody.data.input, context);
     } catch {
       return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders);
     }
@@ -513,7 +554,46 @@ export function createRecommendItineraryHandler(
         gateway.corsHeaders,
       );
     }
-    return safeRecommendationResponse(recommendation.value, gateway.correlationId, gateway.corsHeaders);
+    const safeResult = safeRecommendationResult(
+      recommendation.value,
+      gateway.correlationId,
+      gateway.corsHeaders,
+    );
+    if (!safeResult.ok) return safeResult.response;
+
+    let commit: RecommendationCommit;
+    try {
+      if (typeof adapter?.commitRecommendation !== "function") {
+        return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+      }
+      commit = await adapter.commitRecommendation({
+        input: engineInput.value,
+        result: safeResult.result,
+      }, context);
+    } catch {
+      return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders);
+    }
+    const inspectedCommit = inspectRecommendationCommit(commit);
+    if (inspectedCommit.kind === "invalid") {
+      return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+    }
+    if (inspectedCommit.kind === "failure") {
+      return adapterFailureResponse(inspectedCommit.error, gateway.correlationId, gateway.corsHeaders);
+    }
+
+    const responseBody: RecommendItineraryResponse = {
+      advisoryOnly: true,
+      degraded: recommendation.value.degraded,
+      ...(recommendation.value.messageKey ? { messageKey: recommendation.value.messageKey } : {}),
+      planId: inspectedCommit.planId,
+      proposal: safeResult.result,
+      rationales: { ...recommendation.value.rationales },
+      revision: inspectedCommit.revision,
+    };
+    return jsonResponse(responseBody, {
+      correlationId: gateway.correlationId,
+      corsHeaders: gateway.corsHeaders,
+    });
   };
 }
 

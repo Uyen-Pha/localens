@@ -10,6 +10,7 @@ import {
 } from "@/supabase/functions/_shared/recommend-itinerary";
 
 const correlationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const persistedPlanId = "11111111-1111-4111-8111-111111111111";
 const policy = {
   allowedOrigins: ["http://localhost:3000"],
   allowedMethods: ["POST", "OPTIONS"] as const,
@@ -42,6 +43,11 @@ function adapter(overrides: Partial<RecommendItineraryAdapter> = {}): RecommendI
       principal: { userId: "user-1" },
     })),
     resolveEngineInput: vi.fn(async () => ({ ok: true as const, input: itineraryFixture })),
+    commitRecommendation: vi.fn(async () => ({
+      ok: true as const,
+      planId: persistedPlanId,
+      revision: 1 as const,
+    })),
     ...overrides,
   };
 }
@@ -90,6 +96,8 @@ describe("recommend-itinerary Edge handler contract", () => {
     expect(body).toMatchObject({
       advisoryOnly: true,
       degraded: true,
+      planId: persistedPlanId,
+      revision: 1,
       proposal: {
         rankingSource: "deterministic",
         budgetVnd: 2_000_000,
@@ -107,6 +115,101 @@ describe("recommend-itinerary Edge handler contract", () => {
         turnstileToken: "turnstile-token-123456",
       },
     );
+    expect(service.commitRecommendation).toHaveBeenCalledTimes(1);
+  });
+
+  it("requires a verified customer before resolving an authoritative snapshot", async () => {
+    const service = adapter();
+    const handler = createRecommendItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+      requireAuthenticated: true,
+    });
+
+    const response = await handler(request(validBody()));
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AUTH_REQUIRED",
+      messageKey: "recommendation.auth_required",
+      retryable: false,
+      correlationId,
+    });
+    expect(service.resolveEngineInput).not.toHaveBeenCalled();
+    expect(service.commitRecommendation).not.toHaveBeenCalled();
+  });
+
+  it("persists a validated authenticated proposal and returns only its public plan binding", async () => {
+    const service = adapter();
+    const handler = createRecommendItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+      requireAuthenticated: true,
+    });
+
+    const response = await handler(request(validBody({ turnstileToken: undefined }), {
+      Authorization: "Bearer user-token-123",
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ planId: persistedPlanId, revision: 1 });
+    expect(Object.keys(body).sort()).toEqual([
+      "advisoryOnly",
+      "degraded",
+      "messageKey",
+      "planId",
+      "proposal",
+      "rationales",
+      "revision",
+    ]);
+    expect(service.resolveEngineInput).toHaveBeenCalledWith(
+      itineraryFixture.request,
+      {
+        correlationId,
+        principal: { userId: "user-1" },
+        guestToken: null,
+        turnstileToken: null,
+      },
+    );
+    expect(service.commitRecommendation).toHaveBeenCalledWith(
+      {
+        input: itineraryFixture,
+        result: expect.objectContaining({ rankingSource: "deterministic" }),
+      },
+      {
+        correlationId,
+        principal: { userId: "user-1" },
+        guestToken: null,
+        turnstileToken: null,
+      },
+    );
+  });
+
+  it("rejects a persistence result that does not bind a new plan to revision one", async () => {
+    const service = adapter({
+      commitRecommendation: vi.fn(async () => ({
+        ok: true as const,
+        planId: persistedPlanId,
+        revision: 2,
+      })) as unknown as RecommendItineraryAdapter["commitRecommendation"],
+    });
+    const handler = createRecommendItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+      requireAuthenticated: true,
+    });
+
+    const response = await handler(request(validBody(), {
+      Authorization: "Bearer user-token-123",
+    }));
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "ADAPTER_INVALID",
+      retryable: false,
+      correlationId,
+    });
   });
 
   it("accepts an optional valid Bearer token and never forwards an invalid one", async () => {
