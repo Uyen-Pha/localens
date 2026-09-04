@@ -241,10 +241,12 @@ async function buildRequest(client: RuntimeClient): Promise<ItineraryRequest> {
     partySize: 2,
     guideLanguage: "en",
     priorityWeights: {
-      history: 4,
-      traditional_craft: 3,
-      traditional_market: 2,
-      street_food: 1,
+      history: 0,
+      traditional_craft: 0,
+      traditional_market: 4,
+      // This gate isolates itinerary ranking. The shared fixed-tour fixture
+      // intentionally has no sellable vendor/menu rows for food selection.
+      street_food: 0,
     },
     pace: "balanced",
     dietaryRequirements: [],
