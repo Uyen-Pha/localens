@@ -13,6 +13,12 @@ const LOCAL_DATABASE_PORT = "54322";
 const RUNTIME_SERVER_URL = "http://127.0.0.1:3200/en/sign-in/";
 const RUNTIME_SERVER_TIMEOUT_MS = 120_000;
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const NEXT_DEVELOPMENT_ENV_FILES = Object.freeze([
+  ".env.development.local",
+  ".env.local",
+  ".env.development",
+  ".env",
+]);
 const PASSWORD_ENV = {
   customer: "LOCALENS_RUNTIME_CUSTOMER_PASSWORD",
   guide: "LOCALENS_RUNTIME_GUIDE_PASSWORD",
@@ -37,6 +43,16 @@ function selectRuntimeProcessEnv(env) {
     if (typeof env[key] === "string" && env[key].length > 0) selected[key] = env[key];
   }
   return selected;
+}
+
+function assertNoLoadableNextEnvFiles(cwd) {
+  for (const name of NEXT_DEVELOPMENT_ENV_FILES) {
+    if (!existsSync(path.join(cwd, name))) continue;
+    throw runtimeError(
+      "RUNTIME_AUTH_ENV_FILE_FORBIDDEN",
+      "owned runtime server refuses repository environment files that Next would load implicitly",
+    );
+  }
 }
 
 function parseStatusFields(output) {
@@ -344,70 +360,69 @@ async function confirmRuntimeServerEndpointStopped(fetchImpl, serverUrl, confirm
   }
 }
 
-function stopOwnedRuntimeServerPosix(child, {
+function ownedRuntimeProcessStillRunning(child, {
+  ownedProcessGroup,
+  killProcess,
+  platform,
+}) {
+  if (
+    platform !== "win32"
+    && ownedProcessGroup
+    && Number.isInteger(child.pid)
+    && child.pid > 0
+  ) {
+    try {
+      killProcess(-child.pid, 0);
+      return true;
+    } catch (error) {
+      return error?.code !== "ESRCH";
+    }
+  }
+  return child.exitCode === null && child.signalCode === null;
+}
+
+async function waitForOwnedRuntimeProcessStop(child, confirmMs, options) {
+  const deadline = Date.now() + confirmMs;
+  while (ownedRuntimeProcessStillRunning(child, options)) {
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) return false;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(25, remainingMs)));
+  }
+  return true;
+}
+
+async function stopOwnedRuntimeServerPosix(child, {
   graceMs,
   forceConfirmMs,
   ownedProcessGroup,
   killProcess,
   platform,
 }) {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let forceTimer;
-    let deadlineTimer;
-    const cleanup = () => {
-      if (forceTimer) clearTimeout(forceTimer);
-      if (deadlineTimer) clearTimeout(deadlineTimer);
-      child.removeListener("close", finish);
-    };
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve();
-    };
-    const fail = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(runtimeError(
-        "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
-        "owned runtime server could not be confirmed stopped",
-      ));
-    };
-    const forceStop = () => {
-      if (settled) return;
-      if (child.exitCode !== null || child.signalCode !== null) {
-        finish();
-        return;
-      }
-      if (!signalOwnedRuntimeServer(child, "SIGKILL", {
-        platform,
-        ownedProcessGroup,
-        killProcess,
-      })) {
-        fail();
-        return;
-      }
-      if (settled) return;
-      deadlineTimer = setTimeout(() => {
-        if (child.exitCode !== null || child.signalCode !== null) finish();
-        else fail();
-      }, forceConfirmMs);
-    };
-    child.once("close", finish);
-    if (!signalOwnedRuntimeServer(child, "SIGTERM", {
-      platform,
-      ownedProcessGroup,
-      killProcess,
-    })) {
-      forceStop();
-      return;
-    }
-    if (settled) return;
-    forceTimer = setTimeout(forceStop, graceMs);
+  const processOptions = { ownedProcessGroup, killProcess, platform };
+  if (!ownedRuntimeProcessStillRunning(child, processOptions)) return;
+
+  const termAccepted = signalOwnedRuntimeServer(child, "SIGTERM", {
+    platform,
+    ownedProcessGroup,
+    killProcess,
   });
+  if (termAccepted && await waitForOwnedRuntimeProcessStop(child, graceMs, processOptions)) return;
+
+  if (!ownedRuntimeProcessStillRunning(child, processOptions)) return;
+  const forceAccepted = signalOwnedRuntimeServer(child, "SIGKILL", {
+    platform,
+    ownedProcessGroup,
+    killProcess,
+  });
+  if (
+    !forceAccepted
+    || !await waitForOwnedRuntimeProcessStop(child, forceConfirmMs, processOptions)
+  ) {
+    throw runtimeError(
+      "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
+      "owned runtime server could not be confirmed stopped",
+    );
+  }
 }
 
 export async function stopOwnedRuntimeServer(child, {
@@ -420,15 +435,24 @@ export async function stopOwnedRuntimeServer(child, {
   ownedProcessGroup = false,
   killProcess = process.kill,
 } = {}) {
-  if (platform === "win32" && child.exitCode === null && child.signalCode === null) {
-    const treeStopAccepted = forceOwnedTree(child);
-    if (!treeStopAccepted && !serverUrl) {
+  if (platform === "win32") {
+    const rootRunning = child.exitCode === null && child.signalCode === null;
+    if (!rootRunning && !serverUrl) {
       throw runtimeError(
         "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
-        "owned runtime server process tree could not be stopped",
+        "owned runtime server process tree could not be confirmed after its root exited",
       );
     }
-    await waitForOwnedRuntimeServerClose(child, forceConfirmMs);
+    if (rootRunning) {
+      const treeStopAccepted = forceOwnedTree(child);
+      if (!treeStopAccepted && !serverUrl) {
+        throw runtimeError(
+          "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
+          "owned runtime server process tree could not be stopped",
+        );
+      }
+      await waitForOwnedRuntimeServerClose(child, forceConfirmMs);
+    }
   } else {
     await stopOwnedRuntimeServerPosix(child, {
       graceMs,
@@ -481,6 +505,7 @@ export async function startOwnedRuntimeServer(serverEnv, {
   if (!LOOPBACK_HOSTS.has(parsedServerUrl.hostname) || parsedServerUrl.port !== String(port)) {
     throw runtimeError("RUNTIME_AUTH_SERVER_CONFIG_INVALID", "owned runtime server must use its loopback port");
   }
+  assertNoLoadableNextEnvFiles(cwd);
   if (await runtimeServerResponds(fetchImpl, serverUrl, signal)) {
     throw runtimeError("RUNTIME_AUTH_SERVER_PORT_IN_USE", "runtime server endpoint is already occupied");
   }

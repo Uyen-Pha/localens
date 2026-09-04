@@ -128,6 +128,38 @@ function isLocalContainerSocket(value) {
   }
 }
 
+function defaultDockerContextProbe(command, args, { env }) {
+  return spawnSync(command, args, {
+    encoding: "utf8",
+    env,
+    windowsHide: true,
+  });
+}
+
+export function requireLocalDockerContext({
+  env = process.env,
+  probe = defaultDockerContextProbe,
+} = {}) {
+  if (!env.DOCKER_CONTEXT && env.DOCKER_HOST) return env.DOCKER_HOST;
+  const args = ["context", "inspect"];
+  if (env.DOCKER_CONTEXT) args.push(env.DOCKER_CONTEXT);
+  const result = probe("docker", args, { env });
+  let endpoint;
+  try {
+    const contexts = JSON.parse(String(result.stdout ?? ""));
+    endpoint = contexts?.[0]?.Endpoints?.docker?.Host;
+  } catch {
+    endpoint = undefined;
+  }
+  if (result.status !== 0 || !isLocalContainerSocket(endpoint)) {
+    throw runtimeError(
+      "RUNTIME_ITINERARY_CONTAINER_REMOTE",
+      "the isolated runtime requires a local container socket",
+    );
+  }
+  return endpoint;
+}
+
 export function selectRuntimeItineraryBaseEnv(env = process.env) {
   const selected = {};
   for (const key of BASE_ENV_ALLOWLIST) {
@@ -1062,10 +1094,10 @@ export async function runRuntimeItineraryE2E(options = {}) {
   const platform = options.platform ?? process.platform;
   const logger = options.logger ?? console.log;
   const runStep = options.runStep ?? runChildStep;
-  const prepareDocker = options.prepareDocker ?? ((dockerEnv) => ensureDockerCliOnPath({
-    env: dockerEnv,
-    platform,
-  }));
+  const prepareDocker = options.prepareDocker ?? ((dockerEnv) => {
+    ensureDockerCliOnPath({ env: dockerEnv, platform });
+    requireLocalDockerContext({ env: dockerEnv, probe: options.dockerContextProbe });
+  });
   const requirePinnedCli = options.requirePinnedCli ?? ((pinOptions) => requirePinnedLocalSupabase(pinOptions));
   const reservePorts = options.reservePorts ?? reserveRuntimeItineraryPorts;
   const prepareProject = options.prepareProject ?? prepareIsolatedSupabaseProject;

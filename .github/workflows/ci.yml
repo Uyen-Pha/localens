@@ -115,6 +115,11 @@ jobs:
 
       - name: Build Supabase runtime
         shell: bash
+        env:
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3200
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_build_only
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ci-build-only
         run: pnpm build:supabase > ci-logs/build-supabase.log 2>&1
 
       - name: Prepare redacted failure artifacts

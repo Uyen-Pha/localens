@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
 type WorkflowStep = {
+  env?: Record<string, unknown>;
   id?: string;
   if?: string;
   name?: string;
@@ -87,6 +88,13 @@ describe("release toolchain contract", () => {
       .toBeLessThan(runtimeCommands.indexOf("pnpm test:e2e:runtime-fixed-tour"));
 
     const runtimeSteps = jobs["runtime-local"]?.steps ?? [];
+    const buildStep = runtimeSteps.find((step) => step.name === "Build Supabase runtime");
+    expect(buildStep?.env).toEqual({
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3200",
+      NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_ci_build_only",
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: "ci-build-only",
+    });
     const redactStep = runtimeSteps.find((step) => step.name === "Prepare redacted failure artifacts");
     const uploadStep = runtimeSteps.find((step) => step.name === "Upload redacted runtime failure artifacts");
     expect(redactStep?.id).toBe("redact");

@@ -16,6 +16,15 @@ export function selectRuntimeItineraryBaseEnv(
   env?: Record<string, string | undefined>,
 ): Record<string, string>;
 
+export function requireLocalDockerContext(options?: {
+  env?: Record<string, string | undefined>;
+  probe?: (
+    command: string,
+    args: string[],
+    options: { env: Record<string, string | undefined> },
+  ) => { status: number | null; stdout?: string; stderr?: string };
+}): string;
+
 export function createRuntimeItinerarySecrets(
   env?: Record<string, string | undefined>,
   random?: (length: number) => Buffer,

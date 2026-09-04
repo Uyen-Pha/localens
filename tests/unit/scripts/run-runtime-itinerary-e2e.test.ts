@@ -12,6 +12,7 @@ import {
   createRuntimeItinerarySecrets,
   parseIsolatedRuntimeStatus,
   prepareIsolatedSupabaseProject,
+  requireLocalDockerContext,
   runRuntimeItineraryE2E,
   runRuntimeItineraryE2EMain,
   selectRuntimeItineraryBaseEnv,
@@ -57,6 +58,46 @@ describe("isolated runtime itinerary runner", () => {
     expect(() => selectRuntimeItineraryBaseEnv({
       DOCKER_HOST: "tcp://198.51.100.10:2375",
     })).toThrow(/local container socket/i);
+  });
+
+  it("rejects an explicit remote Docker context before runtime setup", () => {
+    const probe = vi.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify([{
+        Name: "production-remote",
+        Endpoints: { docker: { Host: "tcp://198.51.100.10:2375" } },
+      }]),
+      stderr: "",
+    }));
+
+    expect(() => requireLocalDockerContext({
+      env: { DOCKER_CONTEXT: "production-remote" },
+      probe,
+    })).toThrow(/local container socket/i);
+    expect(probe).toHaveBeenCalledWith(
+      "docker",
+      ["context", "inspect", "production-remote"],
+      expect.objectContaining({ env: { DOCKER_CONTEXT: "production-remote" } }),
+    );
+  });
+
+  it("rejects a remote current Docker context when no override is supplied", () => {
+    const probe = vi.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify([{
+        Name: "current-remote",
+        Endpoints: { docker: { Host: "ssh://builder.example.test" } },
+      }]),
+      stderr: "",
+    }));
+
+    expect(() => requireLocalDockerContext({ env: { PATH: "C:/tools" }, probe }))
+      .toThrow(/local container socket/i);
+    expect(probe).toHaveBeenCalledWith(
+      "docker",
+      ["context", "inspect"],
+      expect.objectContaining({ env: { PATH: "C:/tools" } }),
+    );
   });
 
   it("generates bounded test-only secrets without retaining caller credentials", () => {

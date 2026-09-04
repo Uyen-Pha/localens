@@ -1,10 +1,12 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 // @ts-expect-error The executable JavaScript boundary is covered by focused runtime tests.
 import { createRuntimeAuthPasswords, dockerCliDirectories, ensureDockerCliOnPath, parseLocalRuntimeStatus, requirePinnedLocalSupabase, runRuntimeAuthE2E, startOwnedRuntimeServer, stopOwnedRuntimeServer } from "@/scripts/run-runtime-auth-e2e.mjs";
@@ -15,6 +17,14 @@ const LOCAL_STATUS = [
   `PUBLISHABLE_KEY="publishable-${randomUUID()}"`,
   `SERVICE_ROLE_KEY="service-${randomUUID()}"`,
 ].join("\n");
+
+const temporaryPaths: string[] = [];
+
+afterEach(() => {
+  for (const target of temporaryPaths.splice(0)) {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
 
 describe("Task 6 runtime Auth runner", () => {
   it("accepts only the loopback Supabase status fields needed by browser and seed children", () => {
@@ -125,6 +135,25 @@ describe("Task 6 runtime Auth runner", () => {
     })).rejects.toThrow(/RUNTIME_AUTH_SERVER_PORT_IN_USE/);
     expect(spawnChild).not.toHaveBeenCalled();
   });
+
+  it.each([".env.local", ".env.development.local"])(
+    "fails closed before spawning when Next could reload %s",
+    async (envFile) => {
+      const cwd = mkdtempSync(path.join(tmpdir(), "localens-runtime-auth-env-test-"));
+      temporaryPaths.push(cwd);
+      writeFileSync(path.join(cwd, envFile), "NEXT_PUBLIC_SENTINEL=must-not-load\n", "utf8");
+      const spawnChild = vi.fn(() => {
+        throw new Error("spawn must not run");
+      });
+
+      await expect(startOwnedRuntimeServer({ NEXT_PUBLIC_LOCALLENS_RUNTIME: "supabase" }, {
+        cwd,
+        spawnChild,
+        fetchImpl: async () => ({ ok: false, status: 503 }),
+      })).rejects.toThrow(/RUNTIME_AUTH_ENV_FILE_FORBIDDEN/);
+      expect(spawnChild).not.toHaveBeenCalled();
+    },
+  );
 
   it("can start a directly-owned demo server on a caller-selected port", async () => {
     const child = Object.assign(new EventEmitter(), {
@@ -248,9 +277,15 @@ describe("Task 6 runtime Auth runner", () => {
       signalCode: null,
       kill: vi.fn(() => true),
     });
-    const killProcess = vi.fn((_pid: number, signal: NodeJS.Signals) => {
+    let groupAlive = true;
+    const killProcess = vi.fn((_pid: number, signal: NodeJS.Signals | 0) => {
+      if (signal === 0) {
+        if (groupAlive) return true;
+        throw Object.assign(new Error("missing process group"), { code: "ESRCH" });
+      }
       if (signal === "SIGTERM") {
         child.exitCode = 0;
+        groupAlive = false;
         queueMicrotask(() => child.emit("close", 0));
       }
       return true;
@@ -264,6 +299,40 @@ describe("Task 6 runtime Auth runner", () => {
 
     expect(killProcess).toHaveBeenCalledWith(-4321, "SIGTERM");
     expect(child.kill).not.toHaveBeenCalled();
+  });
+
+  it("waits for the complete owned POSIX process group after its leader exits", async () => {
+    const child = Object.assign(new EventEmitter(), {
+      pid: 4321,
+      exitCode: null as number | null,
+      signalCode: null,
+      kill: vi.fn(() => true),
+    });
+    let groupAlive = true;
+    const killProcess = vi.fn((_pid: number, signal: NodeJS.Signals | 0) => {
+      if (signal === 0) {
+        if (groupAlive) return true;
+        throw Object.assign(new Error("missing process group"), { code: "ESRCH" });
+      }
+      if (signal === "SIGTERM") {
+        child.exitCode = 0;
+        queueMicrotask(() => child.emit("close", 0));
+      }
+      if (signal === "SIGKILL") groupAlive = false;
+      return true;
+    });
+
+    await stopOwnedRuntimeServer(child, {
+      platform: "linux",
+      ownedProcessGroup: true,
+      killProcess,
+      graceMs: 1,
+      forceConfirmMs: 20,
+    });
+
+    expect(killProcess).toHaveBeenCalledWith(-4321, "SIGTERM");
+    expect(killProcess).toHaveBeenCalledWith(-4321, "SIGKILL");
+    expect(killProcess).toHaveBeenCalledWith(-4321, 0);
   });
 
   it("redacts shutdown signal exceptions instead of escaping from cleanup timers", async () => {
@@ -317,6 +386,23 @@ describe("Task 6 runtime Auth runner", () => {
       "http://127.0.0.1:3300/en/",
       expect.objectContaining({ redirect: "manual", signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it("fails closed on Windows when the root exited before its tree could be confirmed", async () => {
+    const child = Object.assign(new EventEmitter(), {
+      exitCode: 0,
+      signalCode: null,
+      pid: 4321,
+      kill: vi.fn(),
+    });
+    const forceOwnedTree = vi.fn(() => true);
+
+    await expect(stopOwnedRuntimeServer(child, {
+      platform: "win32",
+      forceOwnedTree,
+      forceConfirmMs: 20,
+    })).rejects.toThrow(/RUNTIME_AUTH_SERVER_CLEANUP_FAILED/);
+    expect(forceOwnedTree).not.toHaveBeenCalled();
   });
 
   it("bounds endpoint confirmation when a listener accepts but never answers", async () => {
