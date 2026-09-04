@@ -9,7 +9,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // @ts-expect-error The executable JavaScript boundary is covered by focused runtime tests.
-import { createRuntimeAuthPasswords, dockerCliDirectories, ensureDockerCliOnPath, parseLocalRuntimeStatus, requirePinnedLocalSupabase, runRuntimeAuthE2E, startOwnedRuntimeServer, stopOwnedRuntimeServer } from "@/scripts/run-runtime-auth-e2e.mjs";
+import { createRuntimeAuthPasswords, dockerCliDirectories, ensureDockerCliOnPath, forceOwnedRuntimeProcessTree, parseLocalRuntimeStatus, requirePinnedLocalSupabase, runRuntimeAuthE2E, startOwnedRuntimeServer, stopOwnedRuntimeServer } from "@/scripts/run-runtime-auth-e2e.mjs";
 
 const LOCAL_STATUS = [
   'API_URL="http://127.0.0.1:54321"',
@@ -136,7 +136,7 @@ describe("Task 6 runtime Auth runner", () => {
     expect(spawnChild).not.toHaveBeenCalled();
   });
 
-  it.each([".env.local", ".env.development.local"])(
+  it.each([".env", ".env.local", ".env.development", ".env.development.local"])(
     "fails closed before spawning when Next could reload %s",
     async (envFile) => {
       const cwd = mkdtempSync(path.join(tmpdir(), "localens-runtime-auth-env-test-"));
@@ -388,6 +388,22 @@ describe("Task 6 runtime Auth runner", () => {
     );
   });
 
+  it("does not report root-only Windows termination as tree cleanup", () => {
+    const child = {
+      pid: 4321,
+      kill: vi.fn(() => true),
+    };
+    const runTaskkill = vi.fn(() => ({ status: 1 }));
+
+    expect(forceOwnedRuntimeProcessTree(child, { runTaskkill })).toBe(false);
+    expect(runTaskkill).toHaveBeenCalledWith(
+      "taskkill",
+      ["/PID", "4321", "/T", "/F"],
+      expect.objectContaining({ stdio: "ignore", windowsHide: true }),
+    );
+    expect(child.kill).not.toHaveBeenCalled();
+  });
+
   it("fails closed on Windows when the root exited before its tree could be confirmed", async () => {
     const child = Object.assign(new EventEmitter(), {
       exitCode: 0,
@@ -405,6 +421,29 @@ describe("Task 6 runtime Auth runner", () => {
     expect(forceOwnedTree).not.toHaveBeenCalled();
   });
 
+  it("does not accept a closed endpoint as Windows process-tree evidence", async () => {
+    const child = Object.assign(new EventEmitter(), {
+      exitCode: 0,
+      signalCode: null,
+      pid: 4321,
+      kill: vi.fn(),
+    });
+    const forceOwnedTree = vi.fn(() => true);
+    const fetchImpl = vi.fn(async () => {
+      throw new Error("endpoint closed");
+    });
+
+    await expect(stopOwnedRuntimeServer(child, {
+      platform: "win32",
+      forceOwnedTree,
+      fetchImpl,
+      serverUrl: "http://127.0.0.1:3300/en/",
+      forceConfirmMs: 20,
+    })).rejects.toThrow(/RUNTIME_AUTH_SERVER_CLEANUP_FAILED/);
+    expect(forceOwnedTree).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("bounds endpoint confirmation when a listener accepts but never answers", async () => {
     const child = Object.assign(new EventEmitter(), {
       exitCode: 0,
@@ -415,7 +454,7 @@ describe("Task 6 runtime Auth runner", () => {
     const startedAt = Date.now();
 
     await expect(stopOwnedRuntimeServer(child, {
-      platform: "win32",
+      platform: "linux",
       fetchImpl,
       serverUrl: "http://127.0.0.1:3300/en/",
       forceConfirmMs: 20,

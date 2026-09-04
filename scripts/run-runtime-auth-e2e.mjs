@@ -291,14 +291,13 @@ function signalOwnedRuntimeServer(child, signal, {
   }
 }
 
-function forceOwnedRuntimeProcessTree(child) {
+export function forceOwnedRuntimeProcessTree(child, { runTaskkill = spawnSync } = {}) {
   if (!Number.isInteger(child.pid) || child.pid <= 0) return false;
-  const result = spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+  const result = runTaskkill("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
     stdio: "ignore",
     windowsHide: true,
   });
-  if (result.status === 0) return true;
-  return signalOwnedRuntimeServer(child, "SIGKILL");
+  return result.status === 0;
 }
 
 function waitForOwnedRuntimeServerClose(child, confirmMs) {
@@ -437,22 +436,20 @@ export async function stopOwnedRuntimeServer(child, {
 } = {}) {
   if (platform === "win32") {
     const rootRunning = child.exitCode === null && child.signalCode === null;
-    if (!rootRunning && !serverUrl) {
+    if (!rootRunning) {
       throw runtimeError(
         "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
         "owned runtime server process tree could not be confirmed after its root exited",
       );
     }
-    if (rootRunning) {
-      const treeStopAccepted = forceOwnedTree(child);
-      if (!treeStopAccepted && !serverUrl) {
-        throw runtimeError(
-          "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
-          "owned runtime server process tree could not be stopped",
-        );
-      }
-      await waitForOwnedRuntimeServerClose(child, forceConfirmMs);
+    const treeStopAccepted = forceOwnedTree(child);
+    if (!treeStopAccepted) {
+      throw runtimeError(
+        "RUNTIME_AUTH_SERVER_CLEANUP_FAILED",
+        "owned runtime server process tree could not be stopped",
+      );
     }
+    await waitForOwnedRuntimeServerClose(child, forceConfirmMs);
   } else {
     await stopOwnedRuntimeServerPosix(child, {
       graceMs,
