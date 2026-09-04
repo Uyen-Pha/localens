@@ -222,7 +222,10 @@ function ReviewCard({
   const [rejectionNote, setRejectionNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const previousRowContentKey = useRef(rowContentKey);
   useEffect(() => {
+    if (previousRowContentKey.current === rowContentKey) return;
+    previousRowContentKey.current = rowContentKey;
     setChecklist(INITIAL_CHECKLIST);
     setRejectionNote("");
     setMessage(null);

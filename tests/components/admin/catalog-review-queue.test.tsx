@@ -409,11 +409,17 @@ describe("admin catalog review queue", () => {
     render(<CatalogReviewLiveQueue locale="en" />);
     const card = await waitFor(() => screen.getByRole("article", { name: "Synthetic dish" }));
     for (const checkbox of within(card).getAllByRole("checkbox")) fireEvent.click(checkbox);
-    fireEvent.click(within(card).getByRole("button", { name: /approve.*sellable/i }));
+    const approve = within(card).getByRole("button", { name: /approve.*sellable/i });
+    await waitFor(() => expect(approve).toBeEnabled(), { timeout: 5_000 });
+    fireEvent.click(approve);
 
-    await waitFor(() => expect(screen.queryByRole("article", { name: "Synthetic dish" })).toBeNull());
+    await waitFor(() => expect(queueCalls).toBe(2), { timeout: 5_000 });
+    await waitFor(
+      () => expect(screen.getByRole("status")).toHaveTextContent("No catalog items are waiting for review."),
+      { timeout: 5_000 },
+    );
+    expect(screen.queryByRole("article", { name: "Synthetic dish" })).toBeNull();
     expect(rpc).toHaveBeenCalledWith("review_food_catalog_item", expect.any(Object));
-    expect(queueCalls).toBe(2);
   });
 
   it("blocks load more while the post-review page zero refresh is pending", async () => {
@@ -490,9 +496,11 @@ describe("admin catalog review queue", () => {
     const card = await waitFor(() => screen.getByRole("article", { name: "Synthetic dish" }));
     await waitFor(() => expect(screen.getByRole("button", { name: /load more/i })).toBeInTheDocument());
     for (const checkbox of within(card).getAllByRole("checkbox")) fireEvent.click(checkbox);
-    fireEvent.click(within(card).getByRole("button", { name: /approve.*sellable/i }));
+    const approve = within(card).getByRole("button", { name: /approve.*sellable/i });
+    await waitFor(() => expect(approve).toBeEnabled(), { timeout: 5_000 });
+    fireEvent.click(approve);
 
-    await waitFor(() => expect(queueCalls).toBe(2));
+    await waitFor(() => expect(queueCalls).toBe(2), { timeout: 5_000 });
     expect(screen.queryByRole("button", { name: /load more/i })).toBeNull();
     expect(rpc).not.toHaveBeenCalledWith("get_admin_food_catalog_review_queue", { p_limit: 25, p_offset: 25 });
 
