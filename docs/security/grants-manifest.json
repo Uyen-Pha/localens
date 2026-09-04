@@ -483,13 +483,6 @@
       "objectName": "auth",
       "privilege": "usage",
       "columns": [],
-      "grantee": "localens_cancellation_admin_projection_owner"
-    },
-    {
-      "objectType": "schema",
-      "objectName": "auth",
-      "privilege": "usage",
-      "columns": [],
       "grantee": "localens_cancellation_admin_rpc_owner"
     },
     {
@@ -1176,13 +1169,6 @@
       "objectName": "private.booking_cancellations",
       "privilege": "select",
       "columns": [],
-      "grantee": "localens_cancellation_admin_projection_owner"
-    },
-    {
-      "objectType": "table",
-      "objectName": "private.booking_cancellations",
-      "privilege": "select",
-      "columns": [],
       "grantee": "localens_cancellation_customer_projection_owner"
     },
     {
@@ -1198,6 +1184,22 @@
       "privilege": "select",
       "columns": [],
       "grantee": "localens_cancellation_guard_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.booking_cancellations",
+      "privilege": "select",
+      "columns": [
+        "booking_id",
+        "cancelled_at",
+        "customer_user_id",
+        "id",
+        "other_reason",
+        "reason_code",
+        "request_idempotency_key",
+        "source_kind"
+      ],
+      "grantee": "localens_cancellation_admin_projection_owner"
     },
     {
       "objectType": "table",
@@ -1942,13 +1944,6 @@
       "objectName": "private.user_roles",
       "privilege": "select",
       "columns": [],
-      "grantee": "localens_cancellation_admin_projection_owner"
-    },
-    {
-      "objectType": "table",
-      "objectName": "private.user_roles",
-      "privilege": "select",
-      "columns": [],
       "grantee": "localens_cancellation_admin_rpc_owner"
     },
     {
@@ -2036,6 +2031,16 @@
         "role",
         "user_id"
       ],
+      "grantee": "localens_cancellation_admin_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [
+        "role",
+        "user_id"
+      ],
       "grantee": "localens_guide_admin_projection_owner"
     },
     {
@@ -2101,6 +2106,13 @@
     {
       "objectType": "table",
       "objectName": "public.admin_booking_cancellations_v",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.admin_booking_management_v",
       "privilege": "select",
       "columns": [],
       "grantee": "authenticated"
@@ -2287,6 +2299,21 @@
       "objectName": "public.bookings",
       "privilege": "select",
       "columns": [
+        "created_at",
+        "id",
+        "owner_user_id",
+        "source_kind",
+        "status",
+        "title_en",
+        "title_vi"
+      ],
+      "grantee": "localens_cancellation_admin_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.bookings",
+      "privilege": "select",
+      "columns": [
         "departure_id",
         "id",
         "language",
@@ -2337,19 +2364,6 @@
         "tour_version_id"
       ],
       "grantee": "localens_guide_admin_projection_owner"
-    },
-    {
-      "objectType": "table",
-      "objectName": "public.bookings",
-      "privilege": "select",
-      "columns": [
-        "id",
-        "owner_user_id",
-        "status",
-        "title_en",
-        "title_vi"
-      ],
-      "grantee": "localens_cancellation_admin_projection_owner"
     },
     {
       "objectType": "table",
@@ -4210,16 +4224,6 @@
         "language"
       ],
       "grantee": "localens_identity_rpc_owner"
-    },
-    {
-      "objectType": "table",
-      "objectName": "public.profiles",
-      "privilege": "select",
-      "columns": [
-        "display_name",
-        "id"
-      ],
-      "grantee": "localens_cancellation_admin_projection_owner"
     },
     {
       "objectType": "table",

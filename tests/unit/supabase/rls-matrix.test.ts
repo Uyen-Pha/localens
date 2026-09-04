@@ -128,12 +128,18 @@ describe("Task 13 RLS/RPC access matrix", () => {
   it("enumerates the live final object surface and exact RPC signatures", () => {
     const matrix = JSON.parse(readFileSync(matrixPath, "utf8")) as {
       tables: Array<{ name: string; policies: string[]; forceRls: boolean }>;
-      views: Array<{ name: string; owner: string; securityInvoker: boolean; securityBarrier: boolean }>;
+      views: Array<{
+        name: string;
+        owner: string;
+        readerRoles: string[];
+        securityInvoker: boolean;
+        securityBarrier: boolean;
+      }>;
       rpcs: Array<{ name: string; signature: string; owner: string; readerRoles: string[] }>;
       internalFunctions: string[];
     };
     expect(matrix.tables).toHaveLength(83);
-    expect(matrix.views).toHaveLength(18);
+    expect(matrix.views).toHaveLength(19);
     expect(matrix.rpcs).toHaveLength(23);
     expect(matrix.rpcs).toContainEqual(expect.objectContaining({
       name: "public.begin_fixed_tour_booking",
@@ -157,6 +163,13 @@ describe("Task 13 RLS/RPC access matrix", () => {
       "public.request_fixed_tour_cancellation",
       "public.decide_fixed_tour_cancellation",
     ].includes(rpc.name))).toBe(false);
+    expect(matrix.views).toContainEqual(expect.objectContaining({
+      name: "public.admin_booking_management_v",
+      owner: "localens_cancellation_admin_projection_owner",
+      readerRoles: ["authenticated"],
+      securityInvoker: false,
+      securityBarrier: true,
+    }));
     expect(matrix.rpcs).toContainEqual(expect.objectContaining({
       name: "public.assign_fixed_departure_guide",
       signature: "public.assign_fixed_departure_guide(uuid,uuid,text)",

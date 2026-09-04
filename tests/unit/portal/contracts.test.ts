@@ -11,6 +11,7 @@ import {
   canViewGuideAssignment,
   hasRoleCapability,
   isTourReviewEligible,
+  parseAdminBookingManagementProjection,
   parseBookingCancellation,
   parseCancelBookingResult,
   validateCancelBookingInput,
@@ -21,6 +22,7 @@ import {
   type CustomerAccountPort,
   type CustomerAccountUpdate,
   type AdminBookingProjection,
+  type AdminBookingManagementProjection,
   type AdminBookingsPort,
   type DemoPortalIdentity,
   type DemoSessionPort,
@@ -166,6 +168,60 @@ describe("portal contracts", () => {
     { cancellation: cancellationEvent, bookingStatus: "cancelled", state: "created", extra: true },
   ])("rejects inconsistent automatic-cancellation result %#", (result) => {
     expect(parseCancelBookingResult(result)).toMatchObject({ ok: false });
+  });
+
+  it("parses the exact administrator booking-management projection with a nullable cancellation fact", () => {
+    const active = {
+      bookingId: "00000000-0000-0000-0000-000000004301",
+      customerUserId: "00000000-0000-0000-0000-000000004302",
+      sourceKind: "departure",
+      titleEn: "Markets and street food",
+      titleVi: "Chợ và ẩm thực đường phố",
+      bookingStatus: "pending_payment",
+      createdAt: "2026-09-04T08:30:00.000Z",
+      cancellation: null,
+    } as const satisfies AdminBookingManagementProjection;
+    const cancelled = {
+      ...active,
+      bookingStatus: "cancelled",
+      cancellation: {
+        ...cancellationEvent,
+        bookingId: active.bookingId,
+        customerUserId: active.customerUserId,
+      },
+    } as const satisfies AdminBookingManagementProjection;
+
+    expect(parseAdminBookingManagementProjection(active)).toEqual({ ok: true, value: active });
+    expect(parseAdminBookingManagementProjection(cancelled)).toEqual({ ok: true, value: cancelled });
+  });
+
+  it.each([
+    { field: "unknown field", value: { extra: "private" } },
+    { field: "source kind", value: { sourceKind: "request" } },
+    { field: "title", value: { titleEn: "" } },
+    { field: "status", value: { bookingStatus: "refunded" } },
+    { field: "timestamp", value: { createdAt: "not-a-timestamp" } },
+    {
+      field: "cancellation identity",
+      value: {
+        bookingStatus: "cancelled",
+        cancellation: { ...cancellationEvent, bookingId: "00000000-0000-0000-0000-000000004399" },
+      },
+    },
+    { field: "cancellation status", value: { cancellation: cancellationEvent } },
+  ])("rejects malformed administrator booking-management projection: $field", ({ value }) => {
+    const row = {
+      bookingId: "00000000-0000-0000-0000-000000004301",
+      customerUserId: "00000000-0000-0000-0000-000000004302",
+      sourceKind: "departure",
+      titleEn: "Markets and street food",
+      titleVi: "Chợ và ẩm thực đường phố",
+      bookingStatus: "pending_payment",
+      createdAt: "2026-09-04T08:30:00.000Z",
+      cancellation: null,
+      ...value,
+    };
+    expect(parseAdminBookingManagementProjection(row)).toMatchObject({ ok: false });
   });
 
   it("reuses the domain state and projection types without alternate state literals", () => {

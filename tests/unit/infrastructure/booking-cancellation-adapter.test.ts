@@ -6,6 +6,7 @@ import { createSupabaseBookingCancellationAdapter } from "@/lib/infrastructure/s
 const ids = {
   cancellation: "00000000-0000-0000-0000-000000004201",
   booking: "00000000-0000-0000-0000-000000004202",
+  secondBooking: "00000000-0000-0000-0000-000000004204",
   customer: "00000000-0000-0000-0000-000000004203",
 };
 
@@ -18,6 +19,22 @@ const cancellationRow = (overrides: Record<string, unknown> = {}) => ({
   other_reason: null,
   idempotency_key: "cancel-adapter-1",
   cancelled_at: "2026-09-04T08:30:00.000Z",
+  ...overrides,
+});
+
+const adminBookingRow = (overrides: Record<string, unknown> = {}) => ({
+  booking_id: ids.booking,
+  customer_user_id: ids.customer,
+  source_kind: "departure",
+  title_en: "Markets and street food",
+  title_vi: "Chợ và ẩm thực đường phố",
+  booking_status: "pending_payment",
+  created_at: "2026-09-04T08:00:00.000Z",
+  cancellation_id: null,
+  cancellation_reason_code: null,
+  cancellation_other_reason: null,
+  cancellation_idempotency_key: null,
+  cancelled_at: null,
   ...overrides,
 });
 
@@ -37,9 +54,11 @@ function clientDouble(options: {
   rpc?: { data: unknown; error: unknown };
   customer?: { data: unknown; error: unknown };
   admin?: { data: unknown; error: unknown };
+  adminBookings?: { data: unknown; error: unknown };
 } = {}) {
   const customerQuery = queryDouble(options.customer ?? { data: [cancellationRow()], error: null });
   const adminQuery = queryDouble(options.admin ?? { data: [cancellationRow({ source_kind: "quote" })], error: null });
+  const adminBookingsQuery = queryDouble(options.adminBookings ?? { data: [], error: null });
   const client = {
     auth: {
       getSession: vi.fn().mockResolvedValue(options.session ?? {
@@ -58,10 +77,11 @@ function clientDouble(options: {
     from: vi.fn((name: string) => {
       if (name === "customer_booking_cancellations_v") return customerQuery;
       if (name === "admin_booking_cancellations_v") return adminQuery;
+      if (name === "admin_booking_management_v") return adminBookingsQuery;
       throw new Error(`unexpected projection ${name}`);
     }),
   };
-  return { client, customerQuery, adminQuery };
+  return { client, customerQuery, adminQuery, adminBookingsQuery };
 }
 
 async function expectPortalCode(promise: Promise<unknown>, code: PortalError["code"]) {
@@ -207,6 +227,101 @@ describe("Supabase booking cancellation adapter", () => {
     expect((thrown as Error).message).not.toContain("secret");
     expect((thrown as Error).message).not.toContain("postgres://");
     expect(client.from).not.toHaveBeenCalled();
+  });
+
+  it("lists every administrator booking with exact nullable cancellation parsing", async () => {
+    const { client, adminBookingsQuery } = clientDouble({
+      adminBookings: {
+        data: [
+          adminBookingRow(),
+          adminBookingRow({
+            booking_id: ids.secondBooking,
+            source_kind: "quote",
+            booking_status: "cancelled",
+            cancellation_id: ids.cancellation,
+            cancellation_reason_code: "other",
+            cancellation_other_reason: "Schedule changed",
+            cancellation_idempotency_key: "cancel-admin-booking-1",
+            cancelled_at: "2026-09-04T08:30:00.000Z",
+          }),
+        ],
+        error: null,
+      },
+    });
+
+    await expect(createSupabaseBookingCancellationAdapter(client as never).listAdminBookings()).resolves.toEqual([
+      {
+        bookingId: ids.booking,
+        customerUserId: ids.customer,
+        sourceKind: "departure",
+        titleEn: "Markets and street food",
+        titleVi: "Chợ và ẩm thực đường phố",
+        bookingStatus: "pending_payment",
+        createdAt: "2026-09-04T08:00:00.000Z",
+        cancellation: null,
+      },
+      {
+        bookingId: ids.secondBooking,
+        customerUserId: ids.customer,
+        sourceKind: "quote",
+        titleEn: "Markets and street food",
+        titleVi: "Chợ và ẩm thực đường phố",
+        bookingStatus: "cancelled",
+        createdAt: "2026-09-04T08:00:00.000Z",
+        cancellation: {
+          id: ids.cancellation,
+          bookingId: ids.secondBooking,
+          customerUserId: ids.customer,
+          sourceKind: "quote",
+          reasonCode: "other",
+          otherReason: "Schedule changed",
+          idempotencyKey: "cancel-admin-booking-1",
+          cancelledAt: "2026-09-04T08:30:00.000Z",
+        },
+      },
+    ]);
+    expect(client.from).toHaveBeenCalledWith("admin_booking_management_v");
+    expect(adminBookingsQuery.select).toHaveBeenCalledWith(
+      "booking_id,customer_user_id,source_kind,title_en,title_vi,booking_status,created_at,cancellation_id,cancellation_reason_code,cancellation_other_reason,cancellation_idempotency_key,cancelled_at",
+    );
+    expect(adminBookingsQuery.order).toHaveBeenNthCalledWith(1, "created_at", { ascending: false });
+    expect(adminBookingsQuery.order).toHaveBeenNthCalledWith(2, "booking_id", { ascending: false });
+    expect(Object.hasOwn(adminBookingsQuery, "eq")).toBe(false);
+  });
+
+  it.each([
+    adminBookingRow({ private_payment_id: "secret" }),
+    adminBookingRow({ cancellation_id: ids.cancellation }),
+    adminBookingRow({ booking_status: "refunded" }),
+    adminBookingRow({ created_at: "not-a-timestamp" }),
+  ])("fails closed on malformed administrator booking row %#", async (row) => {
+    const { client } = clientDouble({ adminBookings: { data: [row], error: null } });
+    await expectPortalCode(
+      createSupabaseBookingCancellationAdapter(client as never).listAdminBookings(),
+      "INVALID_STORAGE",
+    );
+  });
+
+  it("maps administrator booking projection failures to a stable redacted error", async () => {
+    const { client } = clientDouble({
+      adminBookings: {
+        data: null,
+        error: { code: "08006", message: "postgres://admin:secret@127.0.0.1/localens" },
+      },
+    });
+
+    let thrown: unknown;
+    try {
+      await createSupabaseBookingCancellationAdapter(client as never).listAdminBookings();
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(PortalError);
+    expect(thrown).toMatchObject({ code: "STORAGE_UNAVAILABLE" });
+    expect((thrown as Error).message).toBe("The cancellation service is unavailable.");
+    expect((thrown as Error).message).not.toContain("secret");
+    expect((thrown as Error).message).not.toContain("postgres://");
   });
 
   it.each([

@@ -51,6 +51,17 @@ export interface BookingCancellation {
   cancelledAt: string;
 }
 
+export interface AdminBookingManagementProjection {
+  bookingId: string;
+  customerUserId: string;
+  sourceKind: CustomerBooking["sourceKind"];
+  titleEn: string;
+  titleVi: string;
+  bookingStatus: BookingStatus;
+  createdAt: string;
+  cancellation: BookingCancellation | null;
+}
+
 export interface CancelBookingResult {
   cancellation: BookingCancellation;
   bookingStatus: "cancelled";
@@ -326,6 +337,63 @@ export function parseBookingCancellation(input: unknown): PortalValidationResult
       otherReason: reason.value.otherReason,
       idempotencyKey: idempotencyKey.value,
       cancelledAt: cancelledAt.value,
+    },
+  };
+}
+
+export function parseAdminBookingManagementProjection(
+  input: unknown,
+): PortalValidationResult<AdminBookingManagementProjection> {
+  const exact = exactInput(input, [
+    "bookingId", "customerUserId", "sourceKind", "titleEn", "titleVi", "bookingStatus", "createdAt", "cancellation",
+  ]);
+  if (!exact.ok) return exact;
+  const bookingId = safeId(exact.value.bookingId, "input.bookingId");
+  if (!bookingId.ok) return bookingId;
+  const customerUserId = safeId(exact.value.customerUserId, "input.customerUserId");
+  if (!customerUserId.ok) return customerUserId;
+  if (exact.value.sourceKind !== "departure" && exact.value.sourceKind !== "quote") {
+    return invalidInput("input.sourceKind", "portal.booking.source_kind");
+  }
+  const titleEn = safeText(exact.value.titleEn, "input.titleEn", 240);
+  if (!titleEn.ok || titleEn.value === null) return titleEn as PortalValidationResult<never>;
+  const titleVi = safeText(exact.value.titleVi, "input.titleVi", 240);
+  if (!titleVi.ok || titleVi.value === null) return titleVi as PortalValidationResult<never>;
+  if (
+    typeof exact.value.bookingStatus !== "string" ||
+    !(BOOKING_STATUS_VALUES as readonly string[]).includes(exact.value.bookingStatus)
+  ) {
+    return invalidInput("input.bookingStatus", "portal.booking.status");
+  }
+  const createdAt = safeTimestamp(exact.value.createdAt, "input.createdAt");
+  if (!createdAt.ok) return createdAt;
+
+  let cancellation: BookingCancellation | null = null;
+  if (exact.value.cancellation !== null) {
+    const parsedCancellation = parseBookingCancellation(exact.value.cancellation);
+    if (!parsedCancellation.ok) return parsedCancellation;
+    if (
+      parsedCancellation.value.bookingId !== bookingId.value ||
+      parsedCancellation.value.customerUserId !== customerUserId.value ||
+      parsedCancellation.value.sourceKind !== exact.value.sourceKind ||
+      exact.value.bookingStatus !== "cancelled"
+    ) {
+      return invalidInput("input.cancellation", "portal.booking.cancellation_consistency");
+    }
+    cancellation = parsedCancellation.value;
+  }
+
+  return {
+    ok: true,
+    value: {
+      bookingId: bookingId.value,
+      customerUserId: customerUserId.value,
+      sourceKind: exact.value.sourceKind,
+      titleEn: titleEn.value,
+      titleVi: titleVi.value,
+      bookingStatus: exact.value.bookingStatus as BookingStatus,
+      createdAt: createdAt.value,
+      cancellation,
     },
   };
 }

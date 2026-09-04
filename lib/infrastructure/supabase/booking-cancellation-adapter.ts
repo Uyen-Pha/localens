@@ -2,10 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   PortalError,
+  parseAdminBookingManagementProjection,
   parseBookingCancellation,
   parseCancelBookingResult,
   validateCancelBookingInput,
   type BookingCancellation,
+  type AdminBookingManagementProjection,
   type CancelBookingInput,
   type CancelBookingResult,
   type PortalErrorCode,
@@ -28,12 +30,30 @@ const CANCELLATION_RESULT_FIELDS = [
   "booking_status",
   "state",
 ] as const;
+const ADMIN_BOOKING_COLUMNS = [
+  "booking_id", "customer_user_id", "source_kind", "title_en", "title_vi", "booking_status", "created_at",
+  "cancellation_id", "cancellation_reason_code", "cancellation_other_reason", "cancellation_idempotency_key", "cancelled_at",
+].join(",");
+const ADMIN_BOOKING_FIELDS = [
+  "booking_id", "customer_user_id", "source_kind", "title_en", "title_vi", "booking_status", "created_at",
+  "cancellation_id", "cancellation_reason_code", "cancellation_other_reason", "cancellation_idempotency_key", "cancelled_at",
+] as const;
+const ADMIN_CANCELLATION_FIELDS = [
+  "cancellation_id", "cancellation_reason_code", "cancellation_other_reason", "cancellation_idempotency_key", "cancelled_at",
+] as const;
 
 export interface SupabaseBookingCancellationPort {
   cancelBooking(input: CancelBookingInput): Promise<CancelBookingResult>;
   listOwnCancellations(): Promise<BookingCancellation[]>;
   listAdminCancellations(): Promise<BookingCancellation[]>;
 }
+
+export interface SupabaseAdminBookingManagementPort {
+  listAdminBookings(): Promise<AdminBookingManagementProjection[]>;
+}
+
+export type SupabaseBookingCancellationHistoryAdapter =
+  SupabaseBookingCancellationPort & SupabaseAdminBookingManagementPort;
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -105,6 +125,48 @@ function cancellationRows(value: unknown): BookingCancellation[] {
   return mapped;
 }
 
+function adminBookingFromRow(value: unknown): AdminBookingManagementProjection {
+  const row = exactRow(value, ADMIN_BOOKING_FIELDS);
+  const cancellationValues = ADMIN_CANCELLATION_FIELDS.map((field) => row[field]);
+  const hasNoCancellation = cancellationValues.every((field) => field === null);
+  const hasCompleteCancellation = cancellationValues.every((field) => field !== null);
+  if (!hasNoCancellation && !hasCompleteCancellation) throw portalFailure("INVALID_STORAGE");
+
+  const parsed = parseAdminBookingManagementProjection({
+    bookingId: row.booking_id,
+    customerUserId: row.customer_user_id,
+    sourceKind: row.source_kind,
+    titleEn: row.title_en,
+    titleVi: row.title_vi,
+    bookingStatus: row.booking_status,
+    createdAt: row.created_at,
+    cancellation: hasNoCancellation
+      ? null
+      : {
+        id: row.cancellation_id,
+        bookingId: row.booking_id,
+        customerUserId: row.customer_user_id,
+        sourceKind: row.source_kind,
+        reasonCode: row.cancellation_reason_code,
+        otherReason: row.cancellation_other_reason,
+        idempotencyKey: row.cancellation_idempotency_key,
+        cancelledAt: row.cancelled_at,
+      },
+  });
+  if (!parsed.ok) throw portalFailure("INVALID_STORAGE");
+  return parsed.value;
+}
+
+function adminBookingRows(value: unknown): AdminBookingManagementProjection[] {
+  if (!Array.isArray(value)) throw portalFailure("INVALID_STORAGE");
+  const mapped: AdminBookingManagementProjection[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.hasOwn(value, index)) throw portalFailure("INVALID_STORAGE");
+    mapped.push(adminBookingFromRow(value[index]));
+  }
+  return mapped;
+}
+
 async function requireSession(client: BookingCancellationClient): Promise<void> {
   let response: Awaited<ReturnType<BookingCancellationClient["auth"]["getSession"]>>;
   try {
@@ -130,7 +192,7 @@ async function responseData<T>(request: PromiseLike<{ data: T | null; error: unk
 
 export function createSupabaseBookingCancellationAdapter(
   client: BookingCancellationClient,
-): SupabaseBookingCancellationPort {
+): SupabaseBookingCancellationHistoryAdapter {
   async function listProjection(view: "customer_booking_cancellations_v" | "admin_booking_cancellations_v") {
     await requireSession(client);
     const data = await responseData(
@@ -180,5 +242,16 @@ export function createSupabaseBookingCancellationAdapter(
     },
     listOwnCancellations: () => listProjection("customer_booking_cancellations_v"),
     listAdminCancellations: () => listProjection("admin_booking_cancellations_v"),
+    async listAdminBookings() {
+      await requireSession(client);
+      const data = await responseData(
+        client
+          .from("admin_booking_management_v")
+          .select(ADMIN_BOOKING_COLUMNS)
+          .order("created_at", { ascending: false })
+          .order("booking_id", { ascending: false }),
+      );
+      return adminBookingRows(data);
+    },
   };
 }

@@ -1801,6 +1801,13 @@ export type Database = {
             foreignKeyName: "guide_assignments_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
+            referencedRelation: "admin_booking_management_v"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "guide_assignments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
@@ -1897,6 +1904,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "admin_booking_management_v"
+            referencedColumns: ["booking_id"]
+          },
           {
             foreignKeyName: "payments_booking_id_fkey"
             columns: ["booking_id"]
@@ -2928,6 +2942,13 @@ export type Database = {
             foreignKeyName: "booking_cancellations_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: true
+            referencedRelation: "admin_booking_management_v"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "booking_cancellations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
@@ -2946,6 +2967,23 @@ export type Database = {
             referencedColumns: ["booking_id"]
           },
         ]
+      }
+      admin_booking_management_v: {
+        Row: {
+          booking_id: string | null
+          booking_status: Database["public"]["Enums"]["booking_status"] | null
+          cancellation_id: string | null
+          cancellation_idempotency_key: string | null
+          cancellation_other_reason: string | null
+          cancellation_reason_code: string | null
+          cancelled_at: string | null
+          created_at: string | null
+          customer_user_id: string | null
+          source_kind: string | null
+          title_en: string | null
+          title_vi: string | null
+        }
+        Relationships: []
       }
       admin_content_drafts_v: {
         Row: {
@@ -3201,6 +3239,13 @@ export type Database = {
             foreignKeyName: "booking_cancellations_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: true
+            referencedRelation: "admin_booking_management_v"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "booking_cancellations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
@@ -3451,6 +3496,13 @@ export type Database = {
           updated_at: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "payments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "admin_booking_management_v"
+            referencedColumns: ["booking_id"]
+          },
           {
             foreignKeyName: "payments_booking_id_fkey"
             columns: ["booking_id"]

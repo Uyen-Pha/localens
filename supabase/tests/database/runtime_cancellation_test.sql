@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(63);
+SELECT plan(76);
 
 DELETE FROM auth.users
 WHERE id BETWEEN '00000000-0000-0000-0000-000000002601'::uuid
@@ -235,6 +235,76 @@ FROM cancellation_fixtures WHERE label = 'dep-real-payment';
 SELECT ok(to_regclass('private.booking_cancellations') IS NOT NULL, 'immutable booking cancellation table exists');
 SELECT ok(to_regclass('public.customer_booking_cancellations_v') IS NOT NULL, 'customer cancellation projection exists');
 SELECT ok(to_regclass('public.admin_booking_cancellations_v') IS NOT NULL, 'administrator cancellation projection exists');
+SELECT ok(to_regclass('public.admin_booking_management_v') IS NOT NULL, 'administrator booking management projection exists');
+SELECT is(
+  (SELECT string_agg(column_name, ',' ORDER BY ordinal_position)
+   FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'admin_booking_management_v'),
+  'booking_id,customer_user_id,source_kind,title_en,title_vi,booking_status,created_at,cancellation_id,cancellation_reason_code,cancellation_other_reason,cancellation_idempotency_key,cancelled_at',
+  'administrator booking management projection exposes exactly the bounded read model'
+);
+SELECT ok(
+  COALESCE((
+    SELECT pg_get_userbyid(relowner) = 'localens_cancellation_admin_projection_owner'
+      AND reloptions @> ARRAY['security_barrier=true', 'security_invoker=false']
+    FROM pg_class WHERE oid = to_regclass('public.admin_booking_management_v')
+  ), false),
+  'administrator booking management projection is a barrier owned by the no-login projection role'
+);
+SELECT ok(
+  has_table_privilege('authenticated', 'public.admin_booking_management_v', 'SELECT')
+    AND NOT has_table_privilege('anon', 'public.admin_booking_management_v', 'SELECT')
+    AND NOT has_table_privilege('service_role', 'public.admin_booking_management_v', 'SELECT'),
+  'only authenticated browser sessions receive projection select'
+);
+SELECT ok(
+  (SELECT array_agg(schemaname || '.' || tablename || '.' || policyname ORDER BY schemaname, tablename, policyname)
+   FROM pg_policies
+   WHERE roles = ARRAY['localens_cancellation_admin_projection_owner']::name[])
+    = ARRAY[
+      'private.booking_cancellations.booking_cancellations_admin_projection_select',
+      'private.user_roles.user_roles_cancellation_admin_projection_select',
+      'public.bookings.bookings_cancellation_admin_projection_select'
+    ],
+  'projection owner has only the three bounded select policies required by the view'
+);
+SELECT is(
+  (SELECT string_agg(column_name, ',' ORDER BY column_name)
+   FROM information_schema.column_privileges
+   WHERE grantee = 'localens_cancellation_admin_projection_owner'
+     AND table_schema = 'public' AND table_name = 'bookings' AND privilege_type = 'SELECT'),
+  'created_at,id,owner_user_id,source_kind,status,title_en,title_vi',
+  'projection owner receives exactly the required booking columns'
+);
+SELECT is(
+  (SELECT jsonb_object_agg(table_name, columns)
+   FROM (
+     SELECT table_schema || '.' || table_name AS table_name,
+       string_agg(column_name, ',' ORDER BY column_name) AS columns
+     FROM information_schema.column_privileges
+     WHERE grantee = 'localens_cancellation_admin_projection_owner'
+       AND privilege_type = 'SELECT'
+       AND (table_schema, table_name) IN (('private', 'booking_cancellations'), ('private', 'user_roles'))
+     GROUP BY table_schema, table_name
+   ) AS exact_privileges),
+  jsonb_build_object(
+    'private.booking_cancellations', 'booking_id,cancelled_at,customer_user_id,id,other_reason,reason_code,request_idempotency_key,source_kind',
+    'private.user_roles', 'role,user_id'
+  ),
+  'projection owner receives exactly the required cancellation and role columns'
+);
+SELECT ok(
+  NOT has_any_column_privilege('localens_cancellation_admin_projection_owner', 'public.profiles', 'SELECT')
+    AND NOT has_table_privilege('localens_cancellation_admin_projection_owner', 'public.bookings', 'INSERT')
+    AND NOT has_table_privilege('localens_cancellation_admin_projection_owner', 'public.bookings', 'UPDATE')
+    AND NOT has_table_privilege('localens_cancellation_admin_projection_owner', 'public.bookings', 'DELETE')
+    AND NOT has_table_privilege('localens_cancellation_admin_projection_owner', 'private.booking_cancellations', 'INSERT')
+    AND NOT has_table_privilege('localens_cancellation_admin_projection_owner', 'private.booking_cancellations', 'UPDATE')
+    AND NOT has_table_privilege('localens_cancellation_admin_projection_owner', 'private.booking_cancellations', 'DELETE')
+    AND NOT has_table_privilege('authenticated', 'public.bookings', 'INSERT')
+    AND NOT has_table_privilege('authenticated', 'public.bookings', 'UPDATE')
+    AND NOT has_table_privilege('authenticated', 'public.bookings', 'DELETE'),
+  'projection and browser roles have no unused profile read or booking/cancellation DML'
+);
 SELECT has_function('public', 'cancel_booking', ARRAY['uuid', 'text', 'text', 'text']);
 SELECT ok(
   (SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid = 'private.booking_cancellations'::regclass),
@@ -306,9 +376,12 @@ SELECT ok(
   'legacy table is an inaccessible private archive'
 );
 
+SELECT set_config('localens.expected_admin_booking_count', (SELECT count(*)::text FROM public.bookings), true);
+
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '', true);
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002601', 'role', 'authenticated')::text, true);
+SELECT is((SELECT count(*)::integer FROM public.admin_booking_management_v), 0, 'customer sees no administrator booking rows');
 
 SELECT throws_ok(
   $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'unknown_reason', NULL, 'bad-reason')$$,
@@ -440,14 +513,33 @@ SELECT throws_ok(
 );
 SELECT is((SELECT count(*)::integer FROM public.customer_booking_cancellations_v), 0, 'guide sees no customer cancellation facts');
 SELECT is((SELECT count(*)::integer FROM public.admin_booking_cancellations_v), 0, 'guide sees no administrator cancellation facts');
+SELECT is((SELECT count(*)::integer FROM public.admin_booking_management_v), 0, 'guide sees no administrator booking rows');
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002604', 'role', 'authenticated')::text, true);
 SELECT throws_ok(
   $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002711', NULL, NULL, 'cancel-admin')$$,
   '42501', 'cancellation customer role required', 'administrator cannot use the customer mutation'
 );
 SELECT ok((SELECT count(*) >= 3 FROM public.admin_booking_cancellations_v), 'exact administrator sees cancellation history');
+SELECT is(
+  (SELECT count(*)::integer FROM public.admin_booking_management_v),
+  current_setting('localens.expected_admin_booking_count')::integer,
+  'exact administrator sees every booking'
+);
+SELECT results_eq(
+  $$SELECT booking_id, booking_status::text, cancellation_id IS NOT NULL
+    FROM public.admin_booking_management_v
+    WHERE booking_id IN (
+      '00000000-0000-0000-0000-000000002701',
+      '00000000-0000-0000-0000-000000002703'
+    ) ORDER BY booking_id$$,
+  $$VALUES
+    ('00000000-0000-0000-0000-000000002701'::uuid, 'cancelled'::text, true),
+    ('00000000-0000-0000-0000-000000002703'::uuid, 'pending_payment'::text, false)$$,
+  'administrator booking management left join returns cancelled and non-cancelled rows'
+);
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002605', 'role', 'authenticated')::text, true);
 SELECT is((SELECT count(*)::integer FROM public.admin_booking_cancellations_v), 0, 'mixed customer administrator is not exact administrator');
+SELECT is((SELECT count(*)::integer FROM public.admin_booking_management_v), 0, 'mixed customer administrator sees no administrator booking rows');
 RESET ROLE;
 
 SELECT results_eq(
