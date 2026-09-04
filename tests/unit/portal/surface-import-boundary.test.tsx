@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabasePortalShell } from "@/lib/application/portal/supabase-shell";
@@ -75,5 +76,21 @@ describe("portal surface import boundary", () => {
     expect(await screen.findByText("Supabase surface module selected")).toBeInTheDocument();
     expect(moduleLoads.supabase).toBe(1);
     expect(moduleLoads.demo).toBe(0);
+  });
+
+  it.each([
+    "components/customer/supabase-planner-flow.tsx",
+    "lib/infrastructure/supabase/planner-runtime-adapter.ts",
+  ])("keeps %s free of static demo planner and storage-composition imports", async (path) => {
+    const source = await readFile(path, "utf8");
+    const staticImports = [...source.matchAll(/^\s*import(?:\s+type)?(?:[\s\S]*?\s+from)?\s*["']([^"']+)["'];?$/gm)]
+      .map((match) => match[1]);
+
+    expect(staticImports).not.toEqual(expect.arrayContaining([
+      expect.stringMatching(/demo-planner/),
+      expect.stringMatching(/lib\/infrastructure\/demo/),
+      expect.stringMatching(/lib\/application\/portal\/composition/),
+      expect.stringMatching(/components\/portals\/portal-session/),
+    ]));
   });
 });

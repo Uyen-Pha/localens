@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { PlannerFlow } from "@/components/customer/planner-flow";
+import { PlannerSurface } from "@/components/customer/planner-surface";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
@@ -35,7 +35,7 @@ export default async function PlannerPage({
 
   return (
     <div className="journey-page journey-page--planner">
-      <PlannerFlow locale={locale} copy={getDictionary(locale).planner} />
+      <PlannerSurface locale={locale} copy={getDictionary(locale).planner} />
     </div>
   );
 }

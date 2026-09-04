@@ -82,6 +82,7 @@ export type PlannerCopy = {
   heading: string;
   intro: string;
   simulatedDisclosure: string;
+  runtimeDisclosure: string;
   proposalOnly: string;
   preferencesHeading: string;
   preferenceDateLabel: string;
@@ -1067,6 +1068,7 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     heading: "Your personalized route proposal",
     intro: "Review the sequence, activities, timing, and estimated group cost before asking for a refinement.",
     simulatedDisclosure: "Simulated proposal only — form preferences stay in this browser tab; no backend authority, AI service, booking, or payment is connected.",
+    runtimeDisclosure: "The Supabase planner runtime is selected. This screen does not generate or save an itinerary yet.",
     proposalOnly: "This is a suggestion for discussion. It does not confirm or book a tour automatically.",
     preferencesHeading: "Preferences received from your form",
     preferenceDateLabel: "Date and start time (Ho Chi Minh City, UTC+07:00)",
@@ -1146,6 +1148,7 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     heading: "Đề xuất lịch trình cá nhân hóa",
     intro: "Xem trình tự, hoạt động, thời gian và chi phí nhóm dự kiến trước khi yêu cầu điều chỉnh.",
     simulatedDisclosure: "Chỉ là đề xuất mô phỏng — nhu cầu chỉ nằm trong tab trình duyệt này; chưa có quyền backend, dịch vụ AI, đặt tour hay thanh toán nào được kết nối.",
+    runtimeDisclosure: "Đang chọn runtime lập kế hoạch Supabase. Màn hình này chưa tạo hoặc lưu lịch trình.",
     proposalOnly: "Đây là gợi ý để trao đổi. Hệ thống không tự xác nhận hoặc đặt tour.",
     preferencesHeading: "Nhu cầu đã nhận từ biểu mẫu",
     preferenceDateLabel: "Ngày và giờ bắt đầu (Thành phố Hồ Chí Minh, UTC+07:00)",
