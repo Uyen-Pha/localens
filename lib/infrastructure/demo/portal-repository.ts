@@ -2719,7 +2719,7 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       getReport: engine.getReport,
     },
   };
-  const customer: CustomerPortalPorts = {
+  const customer: DemoPortalRepository["customer"] = {
     account: customerAccount,
     cancellations: customerCancellations,
     reviews: customerReviews,

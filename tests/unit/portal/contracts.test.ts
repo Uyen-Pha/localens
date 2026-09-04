@@ -154,6 +154,9 @@ describe("portal contracts", () => {
     { ...cancellationEvent, reasonCode: null, otherReason: "changed" },
     { ...cancellationEvent, reasonCode: "other", otherReason: null },
     { ...cancellationEvent, cancelledAt: "not-a-timestamp" },
+    { ...cancellationEvent, cancelledAt: "2026-02-30T08:30:00.000Z" },
+    { ...cancellationEvent, cancelledAt: "2026-09-04T15:30:00.000+07:00" },
+    { ...cancellationEvent, cancelledAt: "2026-09-04T08:30:00Z" },
     { ...cancellationEvent, privateCheckoutId: "secret" },
   ])("rejects malformed immutable cancellation event %#", (event) => {
     expect(parseBookingCancellation(event)).toMatchObject({ ok: false });

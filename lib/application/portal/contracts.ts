@@ -109,7 +109,7 @@ export interface CancellationDecisionInput {
 const PROFILE_TEXT_CONTROL = /[\u0000-\u001F\u007F-\u009F]/;
 const PORTAL_ID = /^[a-z0-9][a-z0-9-]{0,119}$/;
 const PORTAL_IDEMPOTENCY_KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/;
-const PORTAL_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})$/;
+const PORTAL_UTC_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const PORTAL_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PORTAL_NATIONALITY = /^\p{L}(?:[\p{L} .'-]*\p{L})?$/u;
 
@@ -142,7 +142,8 @@ function safeIdempotencyKey(value: unknown, fieldPath: string): PortalValidation
 }
 
 function safeTimestamp(value: unknown, fieldPath: string): PortalValidationResult<string> {
-  return typeof value === "string" && PORTAL_TIMESTAMP.test(value) && Number.isFinite(Date.parse(value))
+  const parsed = typeof value === "string" && PORTAL_UTC_TIMESTAMP.test(value) ? Date.parse(value) : Number.NaN;
+  return typeof value === "string" && Number.isFinite(parsed) && new Date(parsed).toISOString() === value
     ? { ok: true, value }
     : invalidInput(fieldPath, "portal.input.timestamp");
 }
