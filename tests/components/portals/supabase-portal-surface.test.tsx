@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PortalSurface } from "@/components/portals/portal-surface";
 import {
   PortalError,
+  type BookingCancellation,
   type PortalIdentity,
   type RuntimeSessionPort,
 } from "@/lib/application/portal/contracts";
@@ -34,7 +35,7 @@ const COPY = {
     submit: "Sign in",
     authError: "We could not sign you in. Check your details and try again.",
     runtimeHeading: "Your secure portal",
-    disclosure: "Secure runtime connected. Customer bookings, cancellation decisions, and fixed-departure guide assignments use authoritative local runtime data.",
+    disclosure: "Secure runtime connected. Customer bookings, cancellation history, and fixed-departure guide assignments use authoritative local runtime data.",
     accessDenied: "Access denied",
     ownPortal: "Open your portal",
     serviceTitle: "Service unavailable",
@@ -48,7 +49,7 @@ const COPY = {
     submit: "Đăng nhập",
     authError: "Không thể đăng nhập. Hãy kiểm tra thông tin và thử lại.",
     runtimeHeading: "Cổng bảo mật của bạn",
-    disclosure: "Runtime bảo mật đã kết nối. Booking khách hàng, quyết định hủy và phân công hướng dẫn viên cho tour cố định dùng dữ liệu runtime cục bộ chính thức.",
+    disclosure: "Runtime bảo mật đã kết nối. Booking khách hàng, lịch sử hủy và phân công hướng dẫn viên cho tour cố định dùng dữ liệu runtime cục bộ chính thức.",
     accessDenied: "Truy cập bị từ chối",
     ownPortal: "Mở cổng của bạn",
     serviceTitle: "Dịch vụ không khả dụng",
@@ -153,10 +154,17 @@ function shellFor(
   session = new MemoryRuntimeSession(),
   fixedTourOverrides: Partial<SupabasePortalShell["fixedTour"]> = {},
   assignmentOverrides: Partial<SupabasePortalShell["guideAssignments"]> = {},
+  cancellationOverrides: Partial<SupabasePortalShell["bookingCancellations"]> = {},
 ): SupabasePortalShell {
   return {
     mode: "supabase",
     session,
+    bookingCancellations: {
+      cancelBooking: async () => { throw new Error("not used by the portal shell test"); },
+      listOwnCancellations: async () => [],
+      listAdminCancellations: async () => [],
+      ...cancellationOverrides,
+    },
     fixedTour: {
       listPublishedTours: async () => [],
       listAvailability: async () => [],
@@ -166,14 +174,6 @@ function shellFor(
       listOwnBookings: async () => [],
       listOwnPaymentStatuses: async () => [],
       completeSimulatedPayment: async () => {
-        throw new Error("not used by the portal shell test");
-      },
-      listOwnCancellationRequests: async () => [],
-      requestCancellation: async () => {
-        throw new Error("not used by the portal shell test");
-      },
-      listCancellationQueue: async () => [],
-      decideCancellation: async () => {
         throw new Error("not used by the portal shell test");
       },
       ...fixedTourOverrides,
@@ -391,33 +391,32 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
     expect(screen.getByLabelText(copy.password)).toBeInTheDocument();
   });
 
-  it("mounts the runtime cancellation queue only for an administrator", async () => {
+  it("mounts read-only booking cancellation history only for an administrator", async () => {
     const session = new MemoryRuntimeSession();
     session.seed(ACCOUNTS[2].identity);
-    const listCancellationQueue = vi.fn(async () => [{
-      requestId: "77777777-7777-4777-8777-777777777777",
+    const cancellation: BookingCancellation = {
+      id: "77777777-7777-4777-8777-777777777777",
       bookingId: "11111111-1111-4111-8111-111111111111",
-      bookingStatus: "pending_payment" as const,
-      customerDisplayName: "Runtime Traveler",
-      titleEn: "Runtime Saigon walk",
-      titleVi: "Dạo Sài Gòn runtime",
-      status: "pending" as const,
-      reason: "My schedule changed.",
-      requestedAt: "2099-09-05T02:06:00.000Z",
-      decisionNote: null,
-      decidedAt: null,
-    }]);
+      customerUserId: "88888888-8888-4888-8888-888888888888",
+      sourceKind: "departure",
+      reasonCode: "trip_plan_changed",
+      otherReason: null,
+      idempotencyKey: "admin-history-key",
+      cancelledAt: "2099-09-05T02:06:00.000Z",
+    };
+    const listAdminCancellations = vi.fn(async () => [cancellation]);
     renderSurface({
       locale,
-      shell: shellFor(session, { listCancellationQueue }),
+      shell: shellFor(session, {}, {}, { listAdminCancellations }),
       expectedRole: "admin",
     });
 
     expect(await screen.findByRole("heading", {
-      name: locale === "vi" ? "Yêu cầu hủy booking" : "Cancellation requests",
+      name: locale === "vi" ? "Quản lý đơn đặt tour" : "Booking management",
     })).toBeInTheDocument();
-    expect(screen.getByText(locale === "vi" ? "Dạo Sài Gòn runtime" : "Runtime Saigon walk")).toBeInTheDocument();
-    expect(listCancellationQueue).toHaveBeenCalledTimes(1);
+    expect((await screen.findAllByText(cancellation.bookingId)).length).toBeGreaterThan(0);
+    expect(listAdminCancellations).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: /approve|reject|duyệt|từ chối/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", {
       name: locale === "vi" ? "Các giữ chỗ tour cố định của bạn" : "Your fixed-tour holds",
     })).not.toBeInTheDocument();

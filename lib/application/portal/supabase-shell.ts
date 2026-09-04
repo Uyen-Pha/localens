@@ -25,17 +25,14 @@ type SupabaseRuntimeConfig = Extract<BrowserRuntimeConfig, { mode: "supabase" }>
 export interface SupabasePortalShell extends FixedTourRuntimeComposition {
   readonly mode: "supabase";
   readonly session: RuntimeSessionPort;
+  readonly bookingCancellations: SupabaseBookingCancellationPort;
   readonly guideAssignments: RuntimeGuideAssignmentPort;
   readonly initialized: Promise<void>;
 }
 
-export type SupabasePortalShellWithBookingCancellations = SupabasePortalShell & {
-  readonly bookingCancellations: SupabaseBookingCancellationPort;
-};
-
 export function createSupabasePortalShell(
   config: SupabaseRuntimeConfig,
-): SupabasePortalShellWithBookingCancellations {
+): SupabasePortalShell {
   try {
     const client = createBrowserSupabaseClient({
       NEXT_PUBLIC_SUPABASE_URL: config.supabaseUrl,

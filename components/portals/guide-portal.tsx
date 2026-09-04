@@ -265,7 +265,7 @@ export function GuidePortal({
                       </dl>
                       {assignment.cancellationStatus ? (
                         <p className={styles.notice} role="status">
-                          {copy.cancellationNotice}: {copy.cancellationStatusLabels[assignment.cancellationStatus]}
+                          {copy.cancellationNotice}: {copy.statusLabels.cancelled}
                         </p>
                       ) : null}
                     </article>
@@ -296,7 +296,7 @@ export function GuidePortal({
                         <div><dt>{copy.tourLanguage}</dt><dd>{assignment.language === "vi" ? copy.vietnamese : copy.english}</dd></div>
                         <div><dt>{copy.accessibilityNeeds}</dt><dd>{assignment.specialNeeds ?? copy.noneRecorded}</dd></div>
                         <div><dt>{copy.assignmentStatus}</dt><dd>{copy.assignmentStatusLabels[assignment.assignmentStatus]}</dd></div>
-                        <div><dt>{copy.cancellationNotice}</dt><dd>{assignment.cancellationStatus === null ? copy.noneRecorded : copy.cancellationStatusLabels[assignment.cancellationStatus]}</dd></div>
+                        <div><dt>{copy.cancellationNotice}</dt><dd>{assignment.cancellationStatus === null ? copy.noneRecorded : copy.statusLabels.cancelled}</dd></div>
                       </dl>
                     </article>
                   ))}

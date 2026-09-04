@@ -34,8 +34,7 @@ function productionBindings(): PortalPortBindings {
         listCustomRequests: sentinel,
       },
       cancellations: {
-        requestCancellation: sentinel,
-        listOwnCancellationRequests: sentinel,
+        cancelBooking: sentinel,
       },
       reviews: {
         submitTourReview: sentinel,
@@ -68,10 +67,6 @@ function productionBindings(): PortalPortBindings {
       },
       bookings: {
         listAdminBookings: sentinel,
-      },
-      cancellations: {
-        listCancellationRequests: sentinel,
-        decideCancellation: sentinel,
       },
       assignments: {
         assignGuideToFixedDeparture: sentinel,
@@ -152,7 +147,7 @@ describe("portal composition", () => {
     expect(first.admin.personalizedRequests).not.toBe(first.session);
     expect(first.demoQuotes).not.toBe(first.session);
     expect(first.admin.bookings).not.toBe(first.session);
-    expect(first.admin.cancellations).not.toBe(first.session);
+    expect(first.admin).not.toHaveProperty("cancellations");
     expect(first.admin.assignments).not.toBe(first.session);
     expect(first.admin.reporting).not.toBe(first.session);
     expect(first.resetDemo).toEqual(expect.any(Function));
@@ -291,7 +286,7 @@ describe("portal composition", () => {
     expect(composition.admin.catalog).toBe(ports.admin.catalog);
     expect(composition.admin.personalizedRequests).toBe(ports.admin.personalizedRequests);
     expect(composition.admin.bookings).toBe(ports.admin.bookings);
-    expect(composition.admin.cancellations).toBe(ports.admin.cancellations);
+    expect(composition.admin).not.toHaveProperty("cancellations");
     expect(composition.admin.assignments).toBe(ports.admin.assignments);
     expect(composition.admin.reporting).toBe(ports.admin.reporting);
   });

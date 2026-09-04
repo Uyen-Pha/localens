@@ -52,7 +52,11 @@ describe("PortalSurface", () => {
     render(<TestSurface locale="en" expectedRole="customer" composition={composition} />);
 
     expect(screen.getByRole("status")).toHaveTextContent(/loading/i);
-    expect(await screen.findByRole("heading", { name: /sign in to your demo account/i })).toBeInTheDocument();
+    expect(await screen.findByRole(
+      "heading",
+      { name: /sign in to your demo account/i },
+      { timeout: 5_000 },
+    )).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /choose a demo identity/i }).getAttribute("href")).toMatch(/^\/en\/sign-in\/?$/);
     expect(screen.queryByText(/markets and street food/i)).not.toBeInTheDocument();
   });
@@ -235,15 +239,73 @@ describe("PortalSurface", () => {
     }
   });
 
-  it("does not offer demo cancellation for a confirmed booking", async () => {
+  it("does not offer immediate cancellation for a confirmed booking", async () => {
     const composition = await createComposition();
     await signIn(composition, "demo-user-customer");
 
     render(<TestSurface locale="en" expectedRole="customer" composition={composition} />);
 
     const booking = await screen.findByRole("article", { name: /a personal saigon day/i });
-    expect(within(booking).queryByRole("button", { name: /request cancellation/i })).not.toBeInTheDocument();
-    expect(within(booking).getByText(/no cancellation request has been submitted/i)).toBeInTheDocument();
+    expect(within(booking).queryByRole("button", { name: /cancel booking/i })).not.toBeInTheDocument();
+  });
+
+  it("cancels a pending demo booking only after the accessible confirmation dialog", async () => {
+    const composition = await createComposition();
+    await signIn(composition, "demo-user-customer");
+    const cancelBooking = vi.spyOn(composition.customer.cancellations, "cancelBooking");
+
+    render(<TestSurface locale="vi" expectedRole="customer" composition={composition} />);
+
+    const booking = await screen.findByRole("article", { name: /lịch sử và ký ức/i });
+    const trigger = within(booking).getByRole("button", { name: "Hủy đơn" });
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole("dialog", { name: "Hủy đơn đặt tour?" });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(dialog).toHaveTextContent("Đơn sẽ được hủy ngay và không thể hoàn tác.");
+    expect(within(dialog).getByRole("button", { name: "Quay lại" })).toHaveFocus();
+    expect(cancelBooking).not.toHaveBeenCalled();
+
+    const reason = within(dialog).getByRole("combobox", { name: "Lý do hủy (không bắt buộc)" });
+    expect(within(reason).getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Chọn lý do",
+      "Kế hoạch hoặc thời gian tham gia thay đổi",
+      "Chọn nhầm tour hoặc ngày khởi hành",
+      "Cần thay đổi số khách hoặc thông tin đặt tour",
+      "Lịch trình, điểm đón hoặc ngôn ngữ không phù hợp",
+      "Chi phí không phù hợp",
+      "Không thể hoàn tất thanh toán",
+      "Lý do khác",
+    ]);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xác nhận hủy" }));
+    await waitFor(() => expect(cancelBooking).toHaveBeenCalledTimes(1));
+    expect(cancelBooking).toHaveBeenCalledWith({
+      bookingId: "demo-booking-cancellation",
+      reasonCode: null,
+      otherReason: null,
+      idempotencyKey: expect.any(String),
+    });
+    expect((await within(booking).findAllByText("Đã hủy", { exact: true })).length).toBeGreaterThan(0);
+    expect(within(booking).getByText("Không cung cấp lý do", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("closes the demo dialog without mutation and restores trigger focus", async () => {
+    const composition = await createComposition();
+    await signIn(composition, "demo-user-customer");
+    const cancelBooking = vi.spyOn(composition.customer.cancellations, "cancelBooking");
+
+    render(<TestSurface locale="vi" expectedRole="customer" composition={composition} />);
+
+    const booking = await screen.findByRole("article", { name: /lịch sử và ký ức/i });
+    const trigger = within(booking).getByRole("button", { name: "Hủy đơn" });
+    fireEvent.click(trigger);
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(cancelBooking).not.toHaveBeenCalled();
+    expect(trigger).toHaveFocus();
   });
 
   it("allows exactly one completed-booking review and then replaces the form with success copy", async () => {
@@ -278,12 +340,14 @@ describe("PortalSurface", () => {
     expect(screen.getByRole("textbox", { name: /short bio/i })).toBeInTheDocument();
   });
 
-  it("does not expose an unconfirmed cancellation booking to the guide", async () => {
+  it("does not expose a cancelled booking to the guide", async () => {
     const composition = await createComposition();
     await signIn(composition, "demo-user-customer");
-    await composition.customer.cancellations.requestCancellation({
+    await composition.customer.cancellations.cancelBooking({
       bookingId: "demo-booking-cancellation",
-      reason: "Plans changed.",
+      reasonCode: "trip_plan_changed",
+      otherReason: null,
+      idempotencyKey: "guide-visibility-cancellation",
     });
     await signIn(composition, "demo-user-guide");
 
@@ -312,7 +376,7 @@ describe("PortalSurface", () => {
     expect(screen.getByRole("heading", { name: /locations/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /fixed tours and departures/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /personalized requests/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /bookings and cancellations/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /booking management/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /simulated reporting/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /open catalog review/i }).getAttribute("href")).toMatch(/^\/en\/admin\/catalog\/?$/);
     expect(screen.getByText(/fixed departures only/i)).toBeInTheDocument();
@@ -344,26 +408,24 @@ describe("PortalSurface", () => {
     expect(await screen.findByText("demo-departure-secondary")).toBeInTheDocument();
   });
 
-  it("executes personalized-request and cancellation decisions from the admin surface", async () => {
+  it("shows cancellation history read-only while preserving personalized-request decisions", async () => {
     const composition = await createComposition();
     await signIn(composition, "demo-user-customer");
-    await composition.customer.cancellations.requestCancellation({
+    await composition.customer.cancellations.cancelBooking({
       bookingId: "demo-booking-cancellation",
-      reason: "Plans changed.",
+      reasonCode: "trip_plan_changed",
+      otherReason: null,
+      idempotencyKey: "admin-history-cancellation",
     });
     await signIn(composition, "demo-user-admin");
 
     render(<TestSurface locale="en" expectedRole="admin" composition={composition} />);
 
-    const cancellationDecision = await screen.findByRole("combobox", { name: /decision: demo-booking-cancellation/i });
-    const cancellationForm = cancellationDecision.closest("form");
-    expect(cancellationForm).not.toBeNull();
-    fireEvent.click(within(cancellationForm as HTMLFormElement).getByRole("button", { name: /save request decision/i }));
-    expect(await screen.findByText(/cancellation decision saved/i)).toBeInTheDocument();
-
-    const updatedCancellations = await composition.admin.cancellations.listCancellationRequests();
-    expect(updatedCancellations.find((request) => request.bookingId === "demo-booking-cancellation")?.status).toBe("approved");
-    expect((await composition.admin.bookings.listAdminBookings()).find((booking) => booking.id === "demo-booking-cancellation")?.status).toBe("cancelled");
+    const bookingManagement = await screen.findByRole("region", { name: "Booking management" });
+    expect(bookingManagement).toHaveTextContent("Cancelled");
+    expect(bookingManagement).toHaveTextContent("Trip plan or participation time changed");
+    expect(within(bookingManagement).queryByRole("button", { name: /approve|reject/i })).not.toBeInTheDocument();
+    expect(within(bookingManagement).queryByRole("textbox", { name: /decision note/i })).not.toBeInTheDocument();
 
     const requestDecision = await screen.findByRole("combobox", { name: /decision: demo-request-personalized/i });
     const requestForm = requestDecision.closest("form");

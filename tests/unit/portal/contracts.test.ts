@@ -5,8 +5,8 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   CANCELLATION_REASON_CODES,
   PORTAL_PRODUCTION_GAP,
+  ROLE_CAPABILITIES,
   canCancelBooking,
-  canRequestCancellation,
   canSubmitTourReview,
   canViewGuideAssignment,
   hasRoleCapability,
@@ -14,8 +14,6 @@ import {
   parseBookingCancellation,
   parseCancelBookingResult,
   validateCancelBookingInput,
-  validateCancellationDecisionInput,
-  validateCancellationRequestInput,
   validateCustomerAccountUpdate,
   validateGuideProfileUpdate,
   validateTourReviewInput,
@@ -192,7 +190,6 @@ describe("portal contracts", () => {
       paymentStatus,
       quoteAcceptedAt: null,
       cancellation: null,
-      cancellationRequest: null,
       review: null,
     };
 
@@ -211,11 +208,17 @@ describe("portal contracts", () => {
 
   it("defines a frozen production-gap description for every unsupported seam", () => {
     expect(Object.isFrozen(PORTAL_PRODUCTION_GAP)).toBe(true);
-    expect(PORTAL_PRODUCTION_GAP.cancellation).toMatch(/migration\/RPC\/RLS/i);
     expect(PORTAL_PRODUCTION_GAP.tourReview).toMatch(/migration\/RPC\/RLS/i);
     expect(PORTAL_PRODUCTION_GAP.profile).toMatch(/migration\/RPC\/RLS/i);
     expect(PORTAL_PRODUCTION_GAP.adminCrud).toMatch(/migration\/RPC\/RLS/i);
     expect(PORTAL_PRODUCTION_GAP.personalizedTourGuideAssignment).toMatch(/not supported.*current production RPC/i);
+  });
+
+  it("exposes direct customer cancellation and no administrator decision capability", () => {
+    expect(ROLE_CAPABILITIES.customer).toContain("customer_booking_cancel");
+    expect(ROLE_CAPABILITIES.customer).not.toContain("customer_cancellation_request");
+    expect(ROLE_CAPABILITIES.admin).toContain("admin_cancellation_read");
+    expect(ROLE_CAPABILITIES.admin).not.toContain("admin_cancellation_decide");
   });
 
   it("keeps production sessions neutral and demo identity selection demo-only", async () => {
@@ -304,7 +307,7 @@ describe("portal contracts", () => {
     expect(validateCustomerAccountUpdate({})).toMatchObject({ ok: false });
   });
 
-  it("validates tour review and cancellation inputs with strict fields and policy", () => {
+  it("validates tour review inputs with strict fields and policy", () => {
     expect(validateTourReviewInput({ bookingId: "demo-booking", rating: 5, text: "Great tour." })).toMatchObject({ ok: true });
     expect(validateTourReviewInput({ bookingId: "demo-booking", rating: 0, text: "No." })).toMatchObject({ ok: false });
     expect(validateTourReviewInput({ bookingId: "demo-booking", rating: 5, text: " " })).toMatchObject({ ok: false });
@@ -312,14 +315,6 @@ describe("portal contracts", () => {
       ok: false,
       error: { fieldPath: "input.extra" },
     });
-    expect(validateCancellationRequestInput({ bookingId: "demo-booking", reason: "Plans changed." })).toMatchObject({ ok: true });
-    expect(validateCancellationRequestInput({ bookingId: "demo-booking", reason: "bad\u0000reason" })).toMatchObject({ ok: false });
-    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "approved", note: null })).toMatchObject({ ok: true });
-    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "approved", note: "Approved with a record." })).toMatchObject({ ok: true });
-    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "rejected", note: null })).toMatchObject({ ok: true });
-    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "rejected", note: "Policy keeps this booking." })).toMatchObject({ ok: true });
-    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "approved", note: "bad\u0000note" })).toMatchObject({ ok: false });
-    expect(validateCancellationDecisionInput({ requestId: "demo-cancellation", decision: "rejected", note: "x".repeat(1001) })).toMatchObject({ ok: false });
   });
 
   it("keeps customer and admin booking projections on distinct actor-safe methods", () => {
@@ -336,20 +331,14 @@ describe("portal contracts", () => {
     expect(adminPort).not.toHaveProperty("listCustomerBookings");
   });
 
-  it("centralizes actor capability, ownership/completion/review, cancellation, and guide visibility policy", () => {
+  it("centralizes actor capability, ownership/completion/review, and guide visibility policy", () => {
     expect(hasRoleCapability("customer", "customer_profile_update")).toBe(true);
-    expect(hasRoleCapability("guide", "admin_cancellation_decide")).toBe(false);
+    expect(hasRoleCapability("guide", "admin_cancellation_read")).toBe(false);
     expect(hasRoleCapability("admin", "not-a-capability")).toBe(false);
     expect(isTourReviewEligible({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus: "completed", hasExistingReview: false })).toBe(true);
     expect(canSubmitTourReview({ actorUserId: "customer", bookingOwnerUserId: "other", bookingStatus: "completed", hasExistingReview: false })).toBe(false);
     expect(isTourReviewEligible({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus: "confirmed", hasExistingReview: false })).toBe(false);
     expect(canSubmitTourReview({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus: "completed", hasExistingReview: true })).toBe(false);
-    expect(canRequestCancellation({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus: "pending_payment", hasPendingRequest: false })).toBe(true);
-    for (const bookingStatus of ["payment_processing", "payment_review", "confirmed"] as const) {
-      expect(canRequestCancellation({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus, hasPendingRequest: false })).toBe(false);
-    }
-    expect(canRequestCancellation({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus: "pending_payment", hasPendingRequest: true })).toBe(false);
-    expect(canRequestCancellation({ actorUserId: "customer", bookingOwnerUserId: "customer", bookingStatus: "completed", hasPendingRequest: false })).toBe(false);
     expect(canViewGuideAssignment({ actorRole: "guide", actorUserId: "guide-1", assignedGuideUserId: "guide-1" })).toBe(true);
     expect(canViewGuideAssignment({ actorRole: "guide", actorUserId: "guide-1", assignedGuideUserId: "guide-2" })).toBe(false);
     expect(canViewGuideAssignment({ actorRole: "admin", actorUserId: "admin", assignedGuideUserId: "guide-1" })).toBe(false);

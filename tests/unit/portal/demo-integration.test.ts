@@ -194,7 +194,7 @@ describe("demo portal integration boundary", () => {
     expect(primaryIds).not.toContain(secondary.bookingId);
   });
 
-  it("keeps an assigned paid booking visible to its guide but outside the cancellation-request window", async () => {
+  it("keeps an assigned paid booking visible to its guide but outside the immediate-cancellation window", async () => {
     const value = await composition();
     await value.session.selectDemoIdentity("demo-user-customer");
     await value.demoIntegration.syncFixedBooking(fixedBookingInput("paid"));
@@ -208,9 +208,11 @@ describe("demo portal integration boundary", () => {
     expect(bookings.find((booking) => booking.id === fixedBookingInput().bookingId)?.assignedGuideUserId).toBe("demo-user-guide");
 
     await value.session.selectDemoIdentity("demo-user-customer");
-    await expect(value.customer.cancellations.requestCancellation({
+    await expect(value.customer.cancellations.cancelBooking({
       bookingId: fixedBookingInput().bookingId,
-      reason: "Plans changed.",
+      reasonCode: null,
+      otherReason: null,
+      idempotencyKey: "cancel-paid-assigned-001",
     })).rejects.toMatchObject({ code: "CONFLICT" });
 
     await value.session.selectDemoIdentity("demo-user-guide");

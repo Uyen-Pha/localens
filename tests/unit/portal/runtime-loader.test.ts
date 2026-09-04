@@ -199,10 +199,6 @@ describe("portal runtime loader", () => {
       listOwnBookings: vi.fn(),
       listOwnPaymentStatuses: vi.fn(),
       completeSimulatedPayment: vi.fn(),
-      listOwnCancellationRequests: vi.fn(),
-      requestCancellation: vi.fn(),
-      listCancellationQueue: vi.fn(),
-      decideCancellation: vi.fn(),
     };
     const createBrowserSupabaseClient = vi.fn().mockReturnValue(client);
     const createSupabasePortalSessionAdapter = vi.fn().mockReturnValue(session);

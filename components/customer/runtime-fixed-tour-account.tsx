@@ -4,13 +4,26 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   FixedTourRuntimeError,
-  type FixedTourCancellationRequest,
   type FixedTourPaymentStatus,
   type FixedTourRuntimePort,
 } from "@/lib/application/fixed-tour/contracts";
+import {
+  PortalError,
+  type BookingCancellation,
+} from "@/lib/application/portal/contracts";
 import type { CustomerBooking } from "@/lib/domain/data/contracts";
 import type { Locale } from "@/lib/i18n/config";
+import type { SupabaseBookingCancellationPort } from "@/lib/infrastructure/supabase/booking-cancellation-adapter";
+import {
+  bookingCancellationCopy,
+  cancellationReasonLabel,
+} from "@/lib/i18n/booking-cancellation";
 import { fixedTourRuntimeCopy } from "@/lib/i18n/fixed-tour-runtime";
+
+import {
+  BookingCancellationDialog,
+  type BookingCancellationReasonValue,
+} from "@/components/customer/booking-cancellation-dialog";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -60,24 +73,27 @@ function cancellationKey(bookingId: string): string {
 export function RuntimeFixedTourAccount({
   locale,
   fixedTour,
+  bookingCancellations,
 }: {
   locale: Locale;
   fixedTour: FixedTourRuntimePort;
+  bookingCancellations: SupabaseBookingCancellationPort;
 }) {
   const copy = fixedTourRuntimeCopy(locale);
+  const cancellationCopy = bookingCancellationCopy(locale);
   const [state, setState] = useState<LoadState>("loading");
   const [bookings, setBookings] = useState<CustomerBooking[]>([]);
   const [payments, setPayments] = useState<FixedTourPaymentStatus[]>([]);
-  const [cancellations, setCancellations] = useState<FixedTourCancellationRequest[]>([]);
+  const [cancellations, setCancellations] = useState<BookingCancellation[]>([]);
   const [retryKey, setRetryKey] = useState(0);
   const [submittingBookingId, setSubmittingBookingId] = useState<string | null>(null);
   const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
   const [openCancellationId, setOpenCancellationId] = useState<string | null>(null);
-  const [cancellationReason, setCancellationReason] = useState("");
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [cancellationMessage, setCancellationMessage] = useState<string | null>(null);
   const [cancellationError, setCancellationError] = useState<string | null>(null);
+  const cancellationTriggerRef = useRef<HTMLElement | null>(null);
   const cancellationStatusRef = useRef<HTMLParagraphElement>(null);
 
   const load = useCallback(async () => {
@@ -86,7 +102,7 @@ export function RuntimeFixedTourAccount({
       const [nextBookings, nextPayments, nextCancellations] = await Promise.all([
         fixedTour.listOwnBookings(),
         fixedTour.listOwnPaymentStatuses(),
-        fixedTour.listOwnCancellationRequests(),
+        bookingCancellations.listOwnCancellations(),
       ]);
       setBookings(nextBookings);
       setPayments(nextPayments);
@@ -100,7 +116,7 @@ export function RuntimeFixedTourAccount({
       setState("error");
       return false;
     }
-  }, [fixedTour]);
+  }, [bookingCancellations, fixedTour]);
 
   useEffect(() => { void load(); }, [load, retryKey]);
   useEffect(() => {
@@ -135,32 +151,37 @@ export function RuntimeFixedTourAccount({
   }
 
   function cancellationErrorText(error: unknown): string {
-    if (!(error instanceof FixedTourRuntimeError)) return copy.cancellationUnavailable;
-    if (error.code === "CONFLICT") return copy.cancellationConflict;
-    if (error.code === "IDEMPOTENCY_CONFLICT") return copy.cancellationIdempotencyConflict;
-    if (error.code === "FORBIDDEN" || error.code === "UNAUTHENTICATED") return copy.cancellationDenied;
-    return copy.cancellationUnavailable;
+    if (!(error instanceof PortalError)) return cancellationCopy.unavailable;
+    if (error.code === "CONFLICT" || error.code === "NOT_FOUND") return cancellationCopy.conflict;
+    if (error.code === "FORBIDDEN" || error.code === "UNAUTHENTICATED") return cancellationCopy.denied;
+    if (error.code === "INVALID_INPUT") return cancellationCopy.invalid;
+    return cancellationCopy.unavailable;
   }
 
-  async function requestCancellation(bookingId: string): Promise<void> {
-    const reason = cancellationReason.trim();
-    if (reason.length === 0 || reason.length > 1000 || cancellingBookingId !== null || submittingBookingId !== null) return;
+  async function cancelBooking(bookingId: string, reason: BookingCancellationReasonValue): Promise<void> {
+    if (cancellingBookingId !== null || submittingBookingId !== null) return;
     setCancellingBookingId(bookingId);
     setCancellationMessage(null);
     setCancellationError(null);
     try {
-      await fixedTour.requestCancellation({
+      await bookingCancellations.cancelBooking({
         bookingId,
-        reason,
+        reasonCode: reason.reasonCode,
+        otherReason: reason.otherReason,
         idempotencyKey: cancellationKey(bookingId),
       });
       if (await load()) {
         setOpenCancellationId(null);
-        setCancellationReason("");
-        setCancellationMessage(copy.cancellationSent);
+        setCancellationMessage(cancellationCopy.success);
       }
     } catch (error) {
-      setCancellationError(cancellationErrorText(error));
+      const message = cancellationErrorText(error);
+      setCancellationError(message);
+      if (error instanceof PortalError && (error.code === "CONFLICT" || error.code === "NOT_FOUND")) {
+        await load();
+        setOpenCancellationId(null);
+        setCancellationError(message);
+      }
     } finally {
       setCancellingBookingId(null);
     }
@@ -192,7 +213,7 @@ export function RuntimeFixedTourAccount({
             const payment = paymentByBooking.get(booking.id);
             const cancellation = cancellationByBooking.get(booking.id);
             const canPay = booking.status === "pending_payment" && payment === undefined;
-            const canRequestCancellation = booking.status === "pending_payment" && cancellation === undefined;
+            const canCancel = booking.status === "pending_payment" && cancellation === undefined;
             const paymentLabel = payment?.paymentStatus === "paid"
               ? copy.paymentPaid
               : payment === undefined && booking.status === "pending_payment"
@@ -226,63 +247,39 @@ export function RuntimeFixedTourAccount({
                     ) : null}
                   </section>
                 ) : null}
-                <section aria-labelledby={`runtime-cancellation-${booking.id}`}>
-                  <h4 id={`runtime-cancellation-${booking.id}`}>{copy.cancellationHeading}</h4>
-                  {cancellation ? (
+                {cancellation ? (
+                  <section aria-labelledby={`runtime-cancellation-${booking.id}`}>
+                    <h4 id={`runtime-cancellation-${booking.id}`}>{cancellationCopy.cancelledStatus}</h4>
                     <dl>
-                      <div>
-                        <dt>{copy.cancellationStatus}</dt>
-                        <dd>{copy.cancellationStatusLabels[cancellation.status]}</dd>
-                      </div>
-                      <div><dt>{copy.reason}</dt><dd>{cancellation.reason}</dd></div>
-                      {cancellation.decisionNote ? (
-                        <div><dt>{copy.cancellationDecisionNote}</dt><dd>{cancellation.decisionNote}</dd></div>
-                      ) : null}
+                      <div><dt>{cancellationCopy.cancelledAt}</dt><dd>{formatDate(cancellation.cancelledAt, locale)}</dd></div>
+                      <div><dt>{cancellationCopy.reason}</dt><dd>{cancellationReasonLabel(cancellation.reasonCode, locale)}</dd></div>
+                      {cancellation.otherReason ? <div><dt>{cancellationCopy.otherLabel}</dt><dd>{cancellation.otherReason}</dd></div> : null}
                     </dl>
-                  ) : canRequestCancellation ? (
-                    openCancellationId === booking.id ? (
-                      <form onSubmit={(event) => { event.preventDefault(); void requestCancellation(booking.id); }}>
-                        <p role="note" aria-label={copy.cancellationWorkflowLabel}>{copy.cancellationDisclosure}</p>
-                        <label>
-                          <span>{copy.cancellationReason}</span>
-                          <textarea
-                            autoFocus
-                            aria-describedby={`runtime-cancellation-hint-${booking.id}`}
-                            value={cancellationReason}
-                            maxLength={1000}
-                            disabled={mutationPending}
-                            required
-                            onChange={(event) => setCancellationReason(event.target.value)}
-                          />
-                        </label>
-                        <small id={`runtime-cancellation-hint-${booking.id}`}>{copy.cancellationReasonHint}</small>
-                        <div>
-                          <button
-                            type="submit"
-                            disabled={mutationPending || cancellationReason.trim().length === 0}
-                          >
-                            {copy.sendCancellation}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={mutationPending}
-                            onClick={() => { setOpenCancellationId(null); setCancellationReason(""); }}
-                          >
-                            {copy.closeCancellation}
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={mutationPending}
-                        onClick={() => { setCancellationError(null); setOpenCancellationId(booking.id); }}
-                      >
-                        {copy.requestCancellation}
-                      </button>
-                    )
-                  ) : null}
-                </section>
+                  </section>
+                ) : canCancel ? (
+                  <button
+                    type="button"
+                    disabled={mutationPending}
+                    onClick={(event) => {
+                      cancellationTriggerRef.current = event.currentTarget;
+                      setCancellationError(null);
+                      setOpenCancellationId(booking.id);
+                    }}
+                  >
+                    {cancellationCopy.trigger}
+                  </button>
+                ) : null}
+                {openCancellationId === booking.id ? (
+                  <BookingCancellationDialog
+                    locale={locale}
+                    bookingTitle={title}
+                    submitting={cancellingBookingId === booking.id}
+                    error={cancellationError}
+                    returnFocus={cancellationTriggerRef.current}
+                    onClose={() => setOpenCancellationId(null)}
+                    onConfirm={(reason) => void cancelBooking(booking.id, reason)}
+                  />
+                ) : null}
               </article>
             );
           })}
@@ -296,7 +293,7 @@ export function RuntimeFixedTourAccount({
       {paymentError ? <p role="alert">{paymentError}</p> : null}
       {(cancellingBookingId !== null || cancellationMessage !== null) ? (
         <p ref={cancellationStatusRef} role="status" aria-live="polite" tabIndex={-1}>
-          {cancellingBookingId !== null ? copy.sendingCancellation : cancellationMessage}
+          {cancellingBookingId !== null ? cancellationCopy.confirming : cancellationMessage}
         </p>
       ) : null}
       {cancellationError ? <p role="alert">{cancellationError}</p> : null}

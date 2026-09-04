@@ -11,7 +11,6 @@ const ids = {
   booking: "00000000-0000-0000-0000-000000000105",
   catalog: "00000000-0000-0000-0000-000000000106",
   travel: "00000000-0000-0000-0000-000000000107",
-  cancellation: "00000000-0000-0000-0000-000000000108",
 };
 
 function tourRow(overrides: Record<string, unknown> = {}) {
@@ -100,56 +99,6 @@ function paymentResultRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function cancellationRequestRow(overrides: Record<string, unknown> = {}) {
-  return {
-    request_id: ids.cancellation,
-    booking_id: ids.booking,
-    status: "pending",
-    reason: "My schedule changed.",
-    requested_at: "2099-09-05T01:06:00.000Z",
-    decision_note: null,
-    decided_at: null,
-    ...overrides,
-  };
-}
-
-function cancellationQueueRow(overrides: Record<string, unknown> = {}) {
-  return {
-    ...cancellationRequestRow(),
-    booking_status: "pending_payment",
-    customer_display_name: "Runtime Traveler",
-    title_en: "Markets and street food",
-    title_vi: "Chợ và ẩm thực đường phố",
-    ...overrides,
-  };
-}
-
-function cancellationRequestResultRow(overrides: Record<string, unknown> = {}) {
-  const row = cancellationRequestRow();
-  return {
-    request_id: row.request_id,
-    booking_id: row.booking_id,
-    status: row.status,
-    reason: row.reason,
-    requested_at: row.requested_at,
-    state: "created",
-    ...overrides,
-  };
-}
-
-function cancellationDecisionResultRow(overrides: Record<string, unknown> = {}) {
-  return {
-    request_id: ids.cancellation,
-    booking_id: ids.booking,
-    request_status: "approved",
-    booking_status: "cancelled",
-    decision_note: "Approved before payment.",
-    decided_at: "2099-09-05T01:07:00.000Z",
-    state: "approved",
-    ...overrides,
-  };
-}
-
 type QueryResponse = { data: unknown; error: unknown };
 
 function queryDouble(response: QueryResponse) {
@@ -170,31 +119,23 @@ function clientDouble({
   tours = { data: [tourRow()], error: null },
   bookings = { data: [bookingRow()], error: null },
   payments = { data: [paymentStatusRow()], error: null },
-  cancellations = { data: [cancellationRequestRow()], error: null },
-  cancellationQueue = { data: [cancellationQueueRow()], error: null },
   rpc = {},
   session = { data: { session: { user: { id: "customer-a" } } }, error: null },
 }: {
   tours?: QueryResponse;
   bookings?: QueryResponse;
   payments?: QueryResponse;
-  cancellations?: QueryResponse;
-  cancellationQueue?: QueryResponse;
   rpc?: Record<string, QueryResponse>;
   session?: QueryResponse;
 } = {}) {
   const tourQuery = queryDouble(tours);
   const bookingQuery = queryDouble(bookings);
   const paymentQuery = queryDouble(payments);
-  const cancellationQuery = queryDouble(cancellations);
-  const cancellationQueueQuery = queryDouble(cancellationQueue);
   const client = {
     auth: { getSession: vi.fn().mockResolvedValue(session) },
     from: vi.fn((relation: string) => {
       if (relation === "published_tours_v") return tourQuery;
       if (relation === "customer_simulated_payment_status_v") return paymentQuery;
-      if (relation === "customer_fixed_tour_cancellation_requests_v") return cancellationQuery;
-      if (relation === "admin_fixed_tour_cancellation_queue_v") return cancellationQueueQuery;
       return bookingQuery;
     }),
     rpc: vi.fn((name: string) => Promise.resolve(
@@ -202,10 +143,6 @@ function clientDouble({
         ? { data: [availabilityRow()], error: null }
         : name === "complete_simulated_fixed_tour_payment"
           ? { data: [paymentResultRow()], error: null }
-        : name === "request_fixed_tour_cancellation"
-          ? { data: [cancellationRequestResultRow()], error: null }
-        : name === "decide_fixed_tour_cancellation"
-          ? { data: [cancellationDecisionResultRow()], error: null }
         : {
             data: [{
               booking_id: ids.booking,
@@ -216,7 +153,7 @@ function clientDouble({
           }),
     )),
   };
-  return { client, tourQuery, bookingQuery, paymentQuery, cancellationQuery, cancellationQueueQuery };
+  return { client, tourQuery, bookingQuery, paymentQuery };
 }
 
 function expectCode(error: unknown, code: FixedTourRuntimeError["code"]): void {
@@ -499,92 +436,6 @@ describe("Supabase fixed-tour runtime adapter", () => {
     );
     expect(invalid.client.auth.getSession).not.toHaveBeenCalled();
     expect(invalid.client.rpc).not.toHaveBeenCalled();
-  });
-
-  it("reads exact customer and administrator cancellation projections without browser-authored owner filters", async () => {
-    const { client, cancellationQuery, cancellationQueueQuery } = clientDouble();
-    const adapter = createSupabaseFixedTourRuntimeAdapter(client as never);
-
-    await expect(adapter.listOwnCancellationRequests()).resolves.toEqual([{
-      requestId: ids.cancellation,
-      bookingId: ids.booking,
-      status: "pending",
-      reason: "My schedule changed.",
-      requestedAt: "2099-09-05T01:06:00.000Z",
-      decisionNote: null,
-      decidedAt: null,
-    }]);
-    await expect(adapter.listCancellationQueue()).resolves.toMatchObject([{
-      requestId: ids.cancellation,
-      bookingStatus: "pending_payment",
-      customerDisplayName: "Runtime Traveler",
-    }]);
-    expect(client.from).toHaveBeenCalledWith("customer_fixed_tour_cancellation_requests_v");
-    expect(client.from).toHaveBeenCalledWith("admin_fixed_tour_cancellation_queue_v");
-    expect(cancellationQuery.select).toHaveBeenCalledWith(
-      "request_id,booking_id,status,reason,requested_at,decision_note,decided_at",
-    );
-    expect(cancellationQueueQuery.select).toHaveBeenCalledWith(
-      "request_id,booking_id,booking_status,customer_display_name,title_en,title_vi,status,reason,requested_at,decision_note,decided_at",
-    );
-    expect(cancellationQuery.eq).not.toHaveBeenCalled();
-    expect(cancellationQueueQuery.eq).not.toHaveBeenCalled();
-  });
-
-  it("sends exact role-scoped cancellation request and decision RPC payloads", async () => {
-    const { client } = clientDouble();
-    const adapter = createSupabaseFixedTourRuntimeAdapter(client as never);
-
-    await expect(adapter.requestCancellation({
-      bookingId: ids.booking,
-      reason: "My schedule changed.",
-      idempotencyKey: "cancellation-request-1",
-    })).resolves.toMatchObject({ requestId: ids.cancellation, status: "pending", state: "created" });
-    expect(client.rpc).toHaveBeenCalledWith("request_fixed_tour_cancellation", {
-      booking_id: ids.booking,
-      reason: "My schedule changed.",
-      idempotency_key: "cancellation-request-1",
-    });
-
-    await expect(adapter.decideCancellation({
-      requestId: ids.cancellation,
-      decision: "approved",
-      note: "Approved before payment.",
-      idempotencyKey: "cancellation-decision-1",
-    })).resolves.toMatchObject({ requestStatus: "approved", bookingStatus: "cancelled", state: "approved" });
-    expect(client.rpc).toHaveBeenCalledWith("decide_fixed_tour_cancellation", {
-      request_id: ids.cancellation,
-      decision: "approved",
-      note: "Approved before payment.",
-      idempotency_key: "cancellation-decision-1",
-    });
-  });
-
-  it("fails closed on malformed cancellation rows, results, and unauthenticated calls", async () => {
-    const malformedView = clientDouble({ cancellations: { data: [cancellationRequestRow({ owner_user_id: "leak" })], error: null } });
-    await expectRejectCode(
-      createSupabaseFixedTourRuntimeAdapter(malformedView.client as never).listOwnCancellationRequests(),
-      "INVALID_RESPONSE",
-    );
-
-    const malformedResult = clientDouble({ rpc: { request_fixed_tour_cancellation: {
-      data: [cancellationRequestResultRow({ state: "approved" })], error: null,
-    } } });
-    await expectRejectCode(
-      createSupabaseFixedTourRuntimeAdapter(malformedResult.client as never).requestCancellation({
-        bookingId: ids.booking,
-        reason: "My schedule changed.",
-        idempotencyKey: "cancellation-request-2",
-      }),
-      "INVALID_RESPONSE",
-    );
-
-    const unauthenticated = clientDouble({ session: { data: { session: null }, error: null } });
-    await expectRejectCode(
-      createSupabaseFixedTourRuntimeAdapter(unauthenticated.client as never).listCancellationQueue(),
-      "UNAUTHENTICATED",
-    );
-    expect(unauthenticated.client.from).not.toHaveBeenCalled();
   });
 
   it.each([

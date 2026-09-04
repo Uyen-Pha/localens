@@ -57,10 +57,6 @@ export interface CancelBookingResult {
   state: "created" | "replayed";
 }
 
-/** State for a cancellation request; booking status remains a domain status. */
-export type CancellationStatus = "pending" | "approved" | "rejected";
-export type CancellationDecision = Exclude<CancellationStatus, "pending">;
-
 export type PortalErrorCode =
   | "INVALID_INPUT"
   | "UNAUTHENTICATED"
@@ -93,17 +89,6 @@ export interface TourReviewInput {
   bookingId: string;
   rating: number;
   text: string;
-}
-
-export interface CancellationRequestInput {
-  bookingId: string;
-  reason: string;
-}
-
-export interface CancellationDecisionInput {
-  requestId: string;
-  decision: CancellationDecision;
-  note: string | null;
 }
 
 const PROFILE_TEXT_CONTROL = /[\u0000-\u001F\u007F-\u009F]/;
@@ -366,33 +351,10 @@ export function parseCancelBookingResult(input: unknown): PortalValidationResult
   };
 }
 
-export function validateCancellationRequestInput(input: unknown): PortalValidationResult<CancellationRequestInput> {
-  const exact = exactInput(input, ["bookingId", "reason"]);
-  if (!exact.ok) return exact;
-  const bookingId = safeId(exact.value.bookingId, "input.bookingId");
-  if (!bookingId.ok) return bookingId;
-  const reason = safeText(exact.value.reason, "input.reason", 1000);
-  if (!reason.ok || reason.value === null) return reason as PortalValidationResult<never>;
-  return { ok: true, value: { bookingId: bookingId.value, reason: reason.value } };
-}
-
-export function validateCancellationDecisionInput(input: unknown): PortalValidationResult<CancellationDecisionInput> {
-  const exact = exactInput(input, ["requestId", "decision", "note"]);
-  if (!exact.ok) return exact;
-  const requestId = safeId(exact.value.requestId, "input.requestId");
-  if (!requestId.ok) return requestId;
-  if (exact.value.decision !== "approved" && exact.value.decision !== "rejected") {
-    return invalidInput("input.decision", "portal.cancellation.decision");
-  }
-  const note = safeText(exact.value.note, "input.note", 1000, true);
-  if (!note.ok) return note as PortalValidationResult<never>;
-  return { ok: true, value: { requestId: requestId.value, decision: exact.value.decision, note: note.value } };
-}
-
 export type PortalCapability =
   | "customer_profile_read"
   | "customer_profile_update"
-  | "customer_cancellation_request"
+  | "customer_booking_cancel"
   | "customer_review_submit"
   | "guide_profile_read"
   | "guide_profile_update"
@@ -404,16 +366,15 @@ export type PortalCapability =
   | "admin_requests_review"
   | "admin_bookings_read"
   | "admin_cancellation_read"
-  | "admin_cancellation_decide"
   | "admin_fixed_departure_assign"
   | "admin_reporting_read";
 
 export const ROLE_CAPABILITIES: Readonly<Record<Role, readonly PortalCapability[]>> = Object.freeze({
-  customer: Object.freeze(["customer_profile_read", "customer_profile_update", "customer_cancellation_request", "customer_review_submit"] as const) as readonly PortalCapability[],
+  customer: Object.freeze(["customer_profile_read", "customer_profile_update", "customer_booking_cancel", "customer_review_submit"] as const) as readonly PortalCapability[],
   guide: Object.freeze(["guide_profile_read", "guide_profile_update", "guide_assignments_read"] as const) as readonly PortalCapability[],
   admin: Object.freeze([
     "admin_users_read", "admin_users_role_update", "admin_catalog_read", "admin_requests_read",
-    "admin_requests_review", "admin_bookings_read", "admin_cancellation_read", "admin_cancellation_decide",
+    "admin_requests_review", "admin_bookings_read", "admin_cancellation_read",
     "admin_fixed_departure_assign", "admin_reporting_read",
   ] as const) as readonly PortalCapability[],
 } as const);
@@ -442,13 +403,6 @@ export function isTourReviewEligible(input: unknown): input is TourReviewEligibi
 
 export const canSubmitTourReview = isTourReviewEligible;
 
-export interface CancellationEligibilityInput {
-  actorUserId: string;
-  bookingOwnerUserId: string;
-  bookingStatus: BookingStatus;
-  hasPendingRequest: boolean;
-}
-
 export interface CancelBookingEligibilityInput {
   actorRole: Role;
   actorUserId: string;
@@ -463,15 +417,6 @@ export function canCancelBooking(input: unknown): input is CancelBookingEligibil
     typeof input.bookingOwnerUserId === "string" && input.actorUserId === input.bookingOwnerUserId &&
     (BOOKING_STATUS_VALUES as readonly string[]).includes(input.bookingStatus as string) &&
     input.bookingStatus === "pending_payment";
-}
-
-export function canRequestCancellation(input: unknown): input is CancellationEligibilityInput {
-  if (!isRecord(input)) return false;
-  return typeof input.actorUserId === "string" && typeof input.bookingOwnerUserId === "string" &&
-    input.actorUserId.length > 0 && input.actorUserId === input.bookingOwnerUserId &&
-    (BOOKING_STATUS_VALUES as readonly string[]).includes(input.bookingStatus as string) &&
-    input.bookingStatus === "pending_payment" &&
-    input.hasPendingRequest === false;
 }
 
 export interface GuideAssignmentVisibilityInput {
@@ -546,17 +491,6 @@ export interface CustomerAccountUpdate {
   language?: Locale;
 }
 
-export interface CancellationRequest {
-  id: string;
-  bookingId: string;
-  customerUserId: string;
-  reason: string;
-  status: CancellationStatus;
-  createdAt: string;
-  decidedAt: string | null;
-  decisionNote: string | null;
-}
-
 export interface TourReview {
   id: string;
   bookingId: string;
@@ -572,7 +506,6 @@ export interface CustomerBookingView extends CustomerBooking {
   /** Persisted only for personalized demo quotes; null for fixed bookings. */
   quoteAcceptedAt: string | null;
   cancellation: BookingCancellation | null;
-  cancellationRequest: CancellationRequest | null;
   review: TourReview | null;
 }
 
@@ -589,29 +522,12 @@ export interface CustomerAccountPort extends CustomerBookingPort {
 }
 
 export interface CustomerCancellationPort {
-  /** Transitional until the legacy request/decision UI and runtime ports are replaced. */
-  cancelBooking?(input: CancelBookingInput): Promise<CancelBookingResult>;
-  requestCancellation(input: CancellationRequestInput): Promise<CancellationRequest>;
-  listOwnCancellationRequests(): Promise<CancellationRequest[]>;
+  cancelBooking(input: CancelBookingInput): Promise<CancelBookingResult>;
 }
 
 export interface CustomerTourReviewPort {
   submitTourReview(input: TourReviewInput): Promise<TourReview>;
   listOwnReviews(): Promise<TourReview[]>;
-}
-
-export interface AdminCancellationDecision {
-  request: CancellationRequest;
-  booking: AdminBookingProjection;
-}
-
-export interface AdminCancellationPort {
-  listCancellationRequests(): Promise<CancellationRequest[]>;
-  decideCancellation(input: {
-    requestId: string;
-    decision: CancellationDecision;
-    note: string | null;
-  }): Promise<AdminCancellationDecision>;
 }
 
 export interface GuideProfile {
@@ -636,8 +552,8 @@ export type GuideAssignedTour = GuideAssignedBooking & {
   /** Catalog duration is an estimate; it must not be used as a confirmed end time. */
   catalogDurationMinutes?: number;
   specialNeeds: string | null;
-  /** Cancellation state is projected only for this guide's own assignment. */
-  cancellationStatus: CancellationStatus | null;
+  /** A cancelled booking is never projected as an active guide assignment. */
+  cancellationStatus: "cancelled" | null;
 };
 
 export interface GuideProfilePort {
@@ -748,7 +664,6 @@ export interface AdminBookingProjection extends CustomerBooking {
   paymentStatus: PaymentStatus | null;
   assignedGuideUserId: string | null;
   cancellation: BookingCancellation | null;
-  cancellationRequestId: string | null;
   specialNeeds: string | null;
 }
 
@@ -771,7 +686,6 @@ export interface AdminReportProjection {
   confirmedBookingCount: number;
   completedBookingCount: number;
   paidBookingCount: number;
-  pendingCancellationCount: number;
   simulated: true;
 }
 
@@ -796,7 +710,6 @@ export interface AdminPortalPorts {
   catalog: AdminCatalogPort;
   personalizedRequests: AdminPersonalizedRequestsPort;
   bookings: AdminBookingsPort;
-  cancellations: AdminCancellationPort;
   assignments: AdminGuideAssignmentPort;
   reporting: AdminReportingPort;
 }
@@ -810,7 +723,6 @@ export interface PortalPortBindings {
 
 /** Metadata only: these capabilities are not claimed as production implementations. */
 export const PORTAL_PRODUCTION_GAP = Object.freeze({
-  cancellation: "Cancellation still requires production migration/RPC/RLS.",
   tourReview: "Tour review still requires production migration/RPC/RLS.",
   profile: "Customer and guide profile updates still require production migration/RPC/RLS.",
   adminCrud: "Administrator CRUD still requires production migration/RPC/RLS.",

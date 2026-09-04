@@ -37,13 +37,10 @@ import {
   canCancelBooking,
   parseBookingCancellation,
   validateCancelBookingInput,
-  validateCancellationDecisionInput,
-  validateCancellationRequestInput,
   validateCustomerAccountUpdate,
   validateGuideProfileUpdate,
   validateTourReviewInput,
   type AdminBookingProjection,
-  type AdminCancellationDecision,
   type AdminDepartureProjection,
   type AdminFixedTourProjection,
   type AdminLocationProjection,
@@ -56,7 +53,6 @@ import {
   type BookingCancellation,
   type CancelBookingInput,
   type CancelBookingResult,
-  type CancellationRequest,
   type CustomerAccount,
   type CustomerAccountPort,
   type CustomerBookingView,
@@ -86,10 +82,10 @@ import type {
 export { PortalError };
 
 /** The only key owned by the demo portal repository. */
-export const PORTAL_DEMO_STORAGE_KEY = "locallens.portal.demo.v2" as const;
+export const PORTAL_DEMO_STORAGE_KEY = "locallens.portal.demo.v3" as const;
 /** Compatibility alias retained for the first demo test contract. */
 export const DEMO_PORTAL_STORAGE_KEY = PORTAL_DEMO_STORAGE_KEY;
-export const PORTAL_DEMO_STORAGE_VERSION = 2 as const;
+export const PORTAL_DEMO_STORAGE_VERSION = 3 as const;
 
 export interface PortalSessionStorage {
   getItem(key: string): string | null;
@@ -123,13 +119,11 @@ type DemoBookingRecord = CustomerBooking & {
   ownerUserId: string;
   paymentStatus: PaymentStatus | null;
   assignedGuideUserId: string | null;
-  cancellationRequestId: string | null;
   specialNeeds: string | null;
   quoteAcceptedAt: string | null;
   personalizedRequest: DemoRequestRecord | null;
 };
 
-type DemoCancellationRecord = CancellationRequest;
 type DemoBookingCancellationRecord = BookingCancellation;
 type DemoReviewRecord = TourReview;
 
@@ -152,7 +146,6 @@ type DemoEnvelopeBody = {
   requests: DemoRequestRecord[];
   bookings: DemoBookingRecord[];
   bookingCancellations: DemoBookingCancellationRecord[];
-  cancellations: DemoCancellationRecord[];
   reviews: DemoReviewRecord[];
   assignments: DemoAssignmentRecord[];
   locations: DemoLocationRecord[];
@@ -170,9 +163,7 @@ type DemoEnvelope = DemoEnvelopeBody & {
 export interface DemoPortalRepository {
   readonly session: DemoSessionPort;
   readonly customer: Omit<CustomerPortalPorts, "cancellations"> & {
-    readonly cancellations: CustomerCancellationPort & {
-      cancelBooking(input: CancelBookingInput): Promise<CancelBookingResult>;
-    };
+    readonly cancellations: CustomerCancellationPort;
   };
   readonly guide: GuidePortalPorts;
   readonly admin: AdminPortalPorts;
@@ -222,7 +213,6 @@ const NATIONALITY_PATTERN = /^\p{L}(?:[\p{L} .'-]*\p{L})?$/u;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})$/;
 const CONTROL_PATTERN = /[\u0000-\u001F\u007F-\u009F]/;
-const CANCELLABLE_BOOKING_STATUSES = ["pending_payment"] as const;
 
 const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
   id: string;
@@ -287,7 +277,6 @@ const ENVELOPE_FIELDS = [
   "requests",
   "bookings",
   "bookingCancellations",
-  "cancellations",
   "reviews",
   "assignments",
   "locations",
@@ -338,20 +327,9 @@ const BOOKING_FIELDS = [
   "ownerUserId",
   "paymentStatus",
   "assignedGuideUserId",
-  "cancellationRequestId",
   "specialNeeds",
   "quoteAcceptedAt",
   "personalizedRequest",
-] as const;
-const CANCELLATION_FIELDS = [
-  "id",
-  "bookingId",
-  "customerUserId",
-  "reason",
-  "status",
-  "createdAt",
-  "decidedAt",
-  "decisionNote",
 ] as const;
 const BOOKING_CANCELLATION_FIELDS = [
   "id",
@@ -573,10 +551,6 @@ function safeNullableMoney(value: unknown, path: string): string | null {
   return value === null ? null : safeMoney(value, path);
 }
 
-function isCancellableBookingStatus(value: string): boolean {
-  return (CANCELLABLE_BOOKING_STATUSES as readonly string[]).includes(value);
-}
-
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
@@ -738,7 +712,6 @@ function bodyForIntegrity(envelope: DemoEnvelope): DemoEnvelopeBody {
     requests: envelope.requests,
     bookings: envelope.bookings,
     bookingCancellations: envelope.bookingCancellations,
-    cancellations: envelope.cancellations,
     reviews: envelope.reviews,
     assignments: envelope.assignments,
     locations: envelope.locations,
@@ -849,26 +822,9 @@ function parseBooking(value: unknown, path: string): DemoBookingRecord {
       ? null
       : safeEnum(row.paymentStatus, PAYMENT_STATUS_VALUES, `${path}.paymentStatus`, "payment status"),
     assignedGuideUserId: safeNullableId(row.assignedGuideUserId, `${path}.assignedGuideUserId`),
-    cancellationRequestId: safeNullableId(row.cancellationRequestId, `${path}.cancellationRequestId`),
     specialNeeds: nullableStorageText(row.specialNeeds, `${path}.specialNeeds`, 1_000),
     quoteAcceptedAt: safeNullableTimestamp(row.quoteAcceptedAt, `${path}.quoteAcceptedAt`),
     personalizedRequest: row.personalizedRequest === null ? null : parseRequest(row.personalizedRequest, `${path}.personalizedRequest`),
-  };
-}
-
-function parseCancellation(value: unknown, path: string): DemoCancellationRecord {
-  const row = exactRecord(value, CANCELLATION_FIELDS, path);
-  const status = row.status;
-  if (status !== "pending" && status !== "approved" && status !== "rejected") invalidStorage(`${path}.status`, "Invalid cancellation status");
-  return {
-    id: safeId(row.id, `${path}.id`),
-    bookingId: safeId(row.bookingId, `${path}.bookingId`),
-    customerUserId: safeId(row.customerUserId, `${path}.customerUserId`),
-    reason: safeText(row.reason, `${path}.reason`, 1_000),
-    status,
-    createdAt: safeTimestamp(row.createdAt, `${path}.createdAt`),
-    decidedAt: safeNullableTimestamp(row.decidedAt, `${path}.decidedAt`),
-    decisionNote: nullableStorageText(row.decisionNote, `${path}.decisionNote`, 1_000),
   };
 }
 
@@ -952,7 +908,6 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
   const departures = new Map(envelope.departures.map((departure) => [departure.id, departure]));
   const tours = new Map(envelope.fixedTours.map((tour) => [tour.versionId, tour]));
   const automaticCancellations = new Map(envelope.bookingCancellations.map((event) => [event.bookingId, event]));
-  const cancellations = new Map(envelope.cancellations.map((request) => [request.id, request]));
   const assignments = new Map(envelope.assignments.map((assignment) => [assignment.bookingId, assignment]));
   const reviews = new Map<string, DemoReviewRecord>();
 
@@ -1050,23 +1005,12 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
     } else if (assignments.has(booking.id)) {
       invalidStorage(`bookings.${booking.id}.assignedGuideUserId`, "Missing booking assignment reference");
     }
-    if (booking.cancellationRequestId !== null) {
-      const cancellation = cancellations.get(booking.cancellationRequestId);
-      if (!cancellation || cancellation.bookingId !== booking.id || cancellation.customerUserId !== booking.ownerUserId) {
-        invalidStorage(`bookings.${booking.id}.cancellationRequestId`, "Cancellation reference mismatch");
-      }
-    }
-    const linkedCancellations = envelope.cancellations.filter((request) => request.bookingId === booking.id);
-    const hasApprovedCancellation = linkedCancellations.some((request) => request.status === "approved");
     const automaticCancellation = automaticCancellations.get(booking.id);
-    if ((hasApprovedCancellation || automaticCancellation !== undefined) !== (booking.status === "cancelled")) {
+    if ((automaticCancellation !== undefined) !== (booking.status === "cancelled")) {
       invalidStorage(`bookings.${booking.id}.status`, "Cancellation fact and booking status must agree");
     }
-    if (booking.status === "cancelled") {
-      const cancellation = booking.cancellationRequestId === null ? null : cancellations.get(booking.cancellationRequestId);
-      if (automaticCancellation === undefined && (!cancellation || cancellation.status !== "approved")) {
-        invalidStorage(`bookings.${booking.id}.status`, "Cancelled booking requires an authoritative cancellation fact");
-      }
+    if (booking.status === "cancelled" && automaticCancellation === undefined) {
+      invalidStorage(`bookings.${booking.id}.status`, "Cancelled booking requires an authoritative cancellation fact");
     }
   }
 
@@ -1084,29 +1028,6 @@ function validateCrossReferences(envelope: DemoEnvelope): void {
     }
     if (booking.sourceKind === "quote" && booking.quoteAcceptedAt !== null) {
       invalidStorage(`bookingCancellations.${event.id}`, "Cancelled quote must revoke its accepted checkout state");
-    }
-  }
-
-  for (const cancellation of envelope.cancellations) {
-    const booking = bookings.get(cancellation.bookingId);
-    const owner = users.get(cancellation.customerUserId);
-    if (!booking || !owner || owner.role !== "customer" || booking.ownerUserId !== cancellation.customerUserId) {
-      invalidStorage(`cancellations.${cancellation.id}`, "Cancellation ownership reference mismatch");
-    }
-    if (cancellation.status === "pending" && booking.cancellationRequestId !== cancellation.id) {
-      invalidStorage(`cancellations.${cancellation.id}`, "Pending cancellation must be the latest booking request");
-    }
-    if (cancellation.status === "pending") {
-      if (cancellation.decidedAt !== null || cancellation.decisionNote !== null) invalidStorage(`cancellations.${cancellation.id}`, "Pending cancellation cannot have a decision");
-      if (!isCancellableBookingStatus(booking.status)) {
-        invalidStorage(`cancellations.${cancellation.id}`, "Pending cancellation requires a cancellable booking");
-      }
-    } else if (cancellation.decidedAt === null) {
-      invalidStorage(`cancellations.${cancellation.id}.decidedAt`, "Decided cancellation requires a timestamp");
-    } else if (cancellation.status === "approved" && booking.status !== "cancelled") {
-      invalidStorage(`cancellations.${cancellation.id}`, "Approved cancellation requires a cancelled booking");
-    } else if (cancellation.status === "rejected" && booking.status === "cancelled" && booking.cancellationRequestId === cancellation.id) {
-      invalidStorage(`cancellations.${cancellation.id}`, "Rejected cancellation cannot leave a booking cancelled");
     }
   }
 
@@ -1154,7 +1075,6 @@ function parseEnvelope(raw: string): DemoEnvelope {
     bookings: denseArray(root.bookings, "root.bookings").map((entry, index) => parseBooking(entry, `root.bookings[${index}]`)),
     bookingCancellations: denseArray(root.bookingCancellations, "root.bookingCancellations")
       .map((entry, index) => parseAutomaticCancellation(entry, `root.bookingCancellations[${index}]`)),
-    cancellations: denseArray(root.cancellations, "root.cancellations").map((entry, index) => parseCancellation(entry, `root.cancellations[${index}]`)),
     reviews: denseArray(root.reviews, "root.reviews").map((entry, index) => parseReview(entry, `root.reviews[${index}]`)),
     assignments: denseArray(root.assignments, "root.assignments").map((entry, index) => parseAssignment(entry, `root.assignments[${index}]`)),
     locations: denseArray(root.locations, "root.locations").map((entry, index) => parseLocation(entry, `root.locations[${index}]`)),
@@ -1171,7 +1091,6 @@ function parseEnvelope(raw: string): DemoEnvelope {
   ensureUnique(envelope.bookingCancellations.map((event) => event.id), "root.bookingCancellations");
   ensureUnique(envelope.bookingCancellations.map((event) => event.bookingId), "root.bookingCancellations.bookingId");
   ensureUnique(envelope.bookingCancellations.map((event) => `${event.customerUserId}:${event.idempotencyKey}`), "root.bookingCancellations.idempotencyKey");
-  ensureUnique(envelope.cancellations.map((request) => request.id), "root.cancellations");
   ensureUnique(envelope.reviews.map((review) => review.id), "root.reviews");
   ensureUnique(envelope.assignments.map((assignment) => assignment.bookingId), "root.assignments");
   ensureUnique(envelope.locations.map((location) => location.id), "root.locations");
@@ -1339,7 +1258,6 @@ function createFixtureBody(): DemoEnvelopeBody {
       ownerUserId: "demo-user-customer",
       paymentStatus: "paid",
       assignedGuideUserId: "demo-user-guide",
-      cancellationRequestId: null,
       specialNeeds: "Step-free route requested.",
       quoteAcceptedAt: null,
       personalizedRequest: null,
@@ -1370,7 +1288,6 @@ function createFixtureBody(): DemoEnvelopeBody {
       ownerUserId: "demo-user-customer",
       paymentStatus: null,
       assignedGuideUserId: null,
-      cancellationRequestId: null,
       specialNeeds: null,
       quoteAcceptedAt: null,
       personalizedRequest: null,
@@ -1401,7 +1318,6 @@ function createFixtureBody(): DemoEnvelopeBody {
       ownerUserId: "demo-user-secondary-customer",
       paymentStatus: "paid",
       assignedGuideUserId: null,
-      cancellationRequestId: null,
       specialNeeds: null,
       quoteAcceptedAt: null,
       personalizedRequest: null,
@@ -1432,7 +1348,6 @@ function createFixtureBody(): DemoEnvelopeBody {
       ownerUserId: "demo-user-customer",
       paymentStatus: "paid",
       assignedGuideUserId: null,
-      cancellationRequestId: null,
       specialNeeds: null,
       quoteAcceptedAt: DEMO_PERSONALIZED_QUOTE_FIXTURE.createdAt,
       personalizedRequest: clone(seededRequest),
@@ -1455,7 +1370,6 @@ function createFixtureBody(): DemoEnvelopeBody {
     requests,
     bookings,
     bookingCancellations: [],
-    cancellations: [],
     reviews: [],
     assignments,
     locations,
@@ -1518,16 +1432,12 @@ function toCustomerBookingView(envelope: DemoEnvelope, booking: DemoBookingRecor
   const cancellation = envelope.bookingCancellations.find((event) =>
     event.bookingId === booking.id && event.customerUserId === booking.ownerUserId,
   ) ?? null;
-  const cancellationRequest = booking.cancellationRequestId === null
-    ? null
-    : envelope.cancellations.find((request) => request.id === booking.cancellationRequestId) ?? null;
   const review = envelope.reviews.find((entry) => entry.bookingId === booking.id) ?? null;
   return {
     ...toCustomerBooking(booking),
     paymentStatus: booking.paymentStatus,
     quoteAcceptedAt: booking.quoteAcceptedAt,
     cancellation: cancellation === null ? null : clone(cancellation),
-    cancellationRequest: cancellationRequest === null ? null : clone(cancellationRequest),
     review: review === null ? null : clone(review),
   };
 }
@@ -1569,7 +1479,6 @@ function toAdminBooking(envelope: DemoEnvelope, booking: DemoBookingRecord): Adm
     paymentStatus: booking.paymentStatus,
     assignedGuideUserId: booking.assignedGuideUserId,
     cancellation: cancellation === null ? null : clone(cancellation),
-    cancellationRequestId: booking.cancellationRequestId,
     specialNeeds: booking.specialNeeds,
   };
 }
@@ -1630,11 +1539,6 @@ function toGuideAssignment(
   }
   const departure = envelope.departures.find((entry) => entry.id === booking.sourceId);
   if (!departure) throw new Error("Cannot project an assignment without a departure.");
-  const cancellation = booking.cancellationRequestId === null
-    ? null
-    : envelope.cancellations.find((request) =>
-      request.id === booking.cancellationRequestId && request.bookingId === booking.id && request.customerUserId === booking.ownerUserId,
-    ) ?? null;
   return {
     bookingId: booking.id,
     tourVersionId: booking.tourVersionId,
@@ -1650,7 +1554,7 @@ function toGuideAssignment(
     dietaryFlags: [],
     assignmentStatus: assignment.assignmentStatus,
     specialNeeds: assignment.specialNeeds,
-    cancellationStatus: cancellation?.status ?? null,
+    cancellationStatus: null,
   };
 }
 
@@ -1677,18 +1581,6 @@ function readValidatedGuideProfileUpdate(input: unknown) {
 
 function readValidatedCancelBooking(input: unknown): CancelBookingInput {
   const result = validateCancelBookingInput(input);
-  if (!result.ok) invalidInput(result.error.messageKey);
-  return result.value;
-}
-
-function readValidatedCancellationRequest(input: unknown) {
-  const result = validateCancellationRequestInput(input);
-  if (!result.ok) invalidInput(result.error.messageKey);
-  return result.value;
-}
-
-function readValidatedCancellationDecision(input: unknown) {
-  const result = validateCancellationDecisionInput(input);
   if (!result.ok) invalidInput(result.error.messageKey);
   return result.value;
 }
@@ -2109,7 +2001,6 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
         ownerUserId: actor.userId,
         paymentStatus: nextPaymentStatus,
         assignedGuideUserId: null,
-        cancellationRequestId: null,
         specialNeeds: null,
         quoteAcceptedAt: null,
         personalizedRequest: null,
@@ -2240,7 +2131,6 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
         ownerUserId: request.ownerUserId,
         paymentStatus: null,
         assignedGuideUserId: null,
-        cancellationRequestId: null,
         specialNeeds: request.specialNeeds,
         quoteAcceptedAt: null,
         personalizedRequest: clone(request),
@@ -2369,8 +2259,7 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
         conflict("The cancellation idempotency key conflicts with an earlier payload.");
       }
       if (
-        envelope.bookingCancellations.some((event) => event.bookingId === booking.id) ||
-        envelope.cancellations.some((request) => request.bookingId === booking.id)
+        envelope.bookingCancellations.some((event) => event.bookingId === booking.id)
       ) {
         conflict("A cancellation payload already exists for this booking.");
       }
@@ -2403,39 +2292,6 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       validateCrossReferences(envelope);
       writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
       return clone({ cancellation: event, bookingStatus: "cancelled", state: "created" });
-    },
-
-    async requestCancellation(input: unknown): Promise<CancellationRequest> {
-      const requestInput = readValidatedCancellationRequest(input);
-      const envelope = readEnvelope();
-      const actor = actorWithRole(envelope, "customer", "requestCancellation");
-      const booking = findBooking(envelope, requestInput.bookingId);
-      if (booking.ownerUserId !== actor.userId) forbidden("customer", "requestCancellation for another customer");
-      const hasRequest = envelope.cancellations.some((request) => request.bookingId === booking.id);
-      if (hasRequest) conflict("A cancellation request already exists for this booking.");
-      if (!isCancellableBookingStatus(booking.status)) {
-        conflict("This booking cannot request cancellation in its current state.");
-      }
-      const request: DemoCancellationRecord = {
-        id: `demo-cancellation-${envelope.cancellations.length + 1}`,
-        bookingId: booking.id,
-        customerUserId: actor.userId,
-        reason: requestInput.reason,
-        status: "pending",
-        createdAt: timestamp(),
-        decidedAt: null,
-        decisionNote: null,
-      };
-      envelope.cancellations.push(request);
-      booking.cancellationRequestId = request.id;
-      writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
-      return clone(request);
-    },
-
-    async listOwnCancellationRequests(): Promise<CancellationRequest[]> {
-      const envelope = readEnvelope();
-      const actor = actorWithRole(envelope, "customer", "listOwnCancellationRequests");
-      return clone(envelope.cancellations.filter((request) => request.customerUserId === actor.userId));
     },
 
     async submitTourReview(input: unknown): Promise<TourReview> {
@@ -2580,28 +2436,6 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       return clone(toAdminRequest(request));
     },
 
-    async listCancellationRequests(): Promise<CancellationRequest[]> {
-      const envelope = readEnvelope();
-      actorWithRole(envelope, "admin", "listCancellationRequests");
-      return clone(envelope.cancellations);
-    },
-
-    async decideCancellation(input: unknown): Promise<AdminCancellationDecision> {
-      const decisionInput = readValidatedCancellationDecision(input);
-      const envelope = readEnvelope();
-      actorWithRole(envelope, "admin", "decideCancellation");
-      const request = envelope.cancellations.find((entry) => entry.id === decisionInput.requestId);
-      if (!request) notFound("Cancellation request", decisionInput.requestId);
-      if (request.status !== "pending") conflict("This cancellation request has already been decided.");
-      const booking = findBooking(envelope, request.bookingId);
-      request.status = decisionInput.decision;
-      request.decidedAt = timestamp();
-      request.decisionNote = decisionInput.note;
-      if (decisionInput.decision === "approved") booking.status = "cancelled";
-      writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
-      return clone({ request, booking: toAdminBooking(envelope, booking) });
-    },
-
     async listAdminBookings(): Promise<AdminBookingProjection[]> {
       const envelope = readEnvelope();
       actorWithRole(envelope, "admin", "listAdminBookings");
@@ -2654,7 +2488,6 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
         confirmedBookingCount: envelope.bookings.filter((booking) => booking.status === "confirmed").length,
         completedBookingCount: envelope.bookings.filter((booking) => booking.status === "completed").length,
         paidBookingCount: envelope.bookings.filter((booking) => booking.paymentStatus === "paid").length,
-        pendingCancellationCount: envelope.cancellations.filter((request) => request.status === "pending").length,
         simulated: true,
       };
       return clone(report);
@@ -2672,12 +2505,8 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
     listCustomerBookings: engine.listCustomerBookings,
     listCustomRequests: engine.listCustomRequests,
   };
-  const customerCancellations: CustomerCancellationPort & {
-    cancelBooking(input: CancelBookingInput): Promise<CancelBookingResult>;
-  } = {
+  const customerCancellations: CustomerCancellationPort = {
     cancelBooking: engine.cancelBooking,
-    requestCancellation: engine.requestCancellation,
-    listOwnCancellationRequests: engine.listOwnCancellationRequests,
   };
   const customerReviews: CustomerTourReviewPort = {
     submitTourReview: engine.submitTourReview,
@@ -2707,10 +2536,6 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
     },
     bookings: {
       listAdminBookings: engine.listAdminBookings,
-    },
-    cancellations: {
-      listCancellationRequests: engine.listCancellationRequests,
-      decideCancellation: engine.decideCancellation,
     },
     assignments: {
       assignGuideToFixedDeparture: engine.assignGuideToFixedDeparture,

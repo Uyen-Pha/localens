@@ -46,58 +46,6 @@ export interface FixedTourPaymentStatus {
   simulatedAt: string;
 }
 
-export type FixedTourCancellationStatus = "pending" | "approved" | "rejected";
-export type FixedTourCancellationDecision = Exclude<FixedTourCancellationStatus, "pending">;
-
-export interface FixedTourCancellationRequestInput {
-  bookingId: string;
-  reason: string;
-  idempotencyKey: string;
-}
-
-export interface FixedTourCancellationRequestResult {
-  requestId: string;
-  bookingId: string;
-  status: "pending";
-  reason: string;
-  requestedAt: string;
-  state: "created" | "replayed";
-}
-
-export interface FixedTourCancellationRequest {
-  requestId: string;
-  bookingId: string;
-  status: FixedTourCancellationStatus;
-  reason: string;
-  requestedAt: string;
-  decisionNote: string | null;
-  decidedAt: string | null;
-}
-
-export interface FixedTourCancellationQueueItem extends FixedTourCancellationRequest {
-  bookingStatus: BookingStatus;
-  customerDisplayName: string;
-  titleEn: string;
-  titleVi: string;
-}
-
-export interface FixedTourCancellationDecisionInput {
-  requestId: string;
-  decision: FixedTourCancellationDecision;
-  note: string | null;
-  idempotencyKey: string;
-}
-
-export interface FixedTourCancellationDecisionResult {
-  requestId: string;
-  bookingId: string;
-  requestStatus: FixedTourCancellationDecision;
-  bookingStatus: BookingStatus;
-  decisionNote: string | null;
-  decidedAt: string;
-  state: FixedTourCancellationDecision | "replayed";
-}
-
 export interface FixedTourRuntimePort {
   listPublishedTours(locale: Locale): Promise<PublishedTour[]>;
   listAvailability(): Promise<LiveDepartureAvailability[]>;
@@ -105,10 +53,6 @@ export interface FixedTourRuntimePort {
   listOwnBookings(): Promise<CustomerBooking[]>;
   listOwnPaymentStatuses(): Promise<FixedTourPaymentStatus[]>;
   completeSimulatedPayment(input: CompleteSimulatedPaymentInput): Promise<CompleteSimulatedPaymentResult>;
-  listOwnCancellationRequests(): Promise<FixedTourCancellationRequest[]>;
-  requestCancellation(input: FixedTourCancellationRequestInput): Promise<FixedTourCancellationRequestResult>;
-  listCancellationQueue(): Promise<FixedTourCancellationQueueItem[]>;
-  decideCancellation(input: FixedTourCancellationDecisionInput): Promise<FixedTourCancellationDecisionResult>;
 }
 
 export type FixedTourRuntimeErrorCode =
@@ -172,21 +116,6 @@ const PAYMENT_STATUS_FIELDS = [
   "currency",
   "simulatedAt",
 ] as const;
-const CANCELLATION_REQUEST_INPUT_FIELDS = ["bookingId", "reason", "idempotencyKey"] as const;
-const CANCELLATION_REQUEST_RESULT_FIELDS = [
-  "requestId", "bookingId", "status", "reason", "requestedAt", "state",
-] as const;
-const CANCELLATION_REQUEST_FIELDS = [
-  "requestId", "bookingId", "status", "reason", "requestedAt", "decisionNote", "decidedAt",
-] as const;
-const CANCELLATION_QUEUE_FIELDS = [
-  ...CANCELLATION_REQUEST_FIELDS,
-  "bookingStatus", "customerDisplayName", "titleEn", "titleVi",
-] as const;
-const CANCELLATION_DECISION_INPUT_FIELDS = ["requestId", "decision", "note", "idempotencyKey"] as const;
-const CANCELLATION_DECISION_RESULT_FIELDS = [
-  "requestId", "bookingId", "requestStatus", "bookingStatus", "decisionNote", "decidedAt", "state",
-] as const;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/;
 const TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/;
@@ -202,9 +131,6 @@ const BOOKING_STATUSES = new Set<BookingStatus>([
 ]);
 const PAYMENT_STATES = new Set(["completed", "expired", "replayed"] as const);
 const CURRENCIES = new Set<CheckoutCurrency>(["vnd", "usd"]);
-const CANCELLATION_STATUSES = new Set<FixedTourCancellationStatus>(["pending", "approved", "rejected"]);
-const CANCELLATION_DECISIONS = new Set<FixedTourCancellationDecision>(["approved", "rejected"]);
-const TEXT_CONTROL_PATTERN = /[\u0000-\u001F\u007F-\u009F]/;
 const MAX_SAFE_MONEY = BigInt(Number.MAX_SAFE_INTEGER);
 
 type UnknownRecord = Record<string, unknown>;
@@ -285,33 +211,6 @@ function isSafeMoney(value: unknown): value is string {
   } catch {
     return false;
   }
-}
-
-function isSafeText(value: unknown, maximum = 1_000): value is string {
-  return typeof value === "string" && value.length >= 1 && value.length <= maximum &&
-    value === value.trim() && !TEXT_CONTROL_PATTERN.test(value);
-}
-
-function isSafeNullableText(value: unknown, maximum = 1_000): value is string | null {
-  return value === null || isSafeText(value, maximum);
-}
-
-function isIdempotencyKey(value: unknown): value is string {
-  return typeof value === "string" && IDEMPOTENCY_KEY_PATTERN.test(value);
-}
-
-function isCancellationStatus(value: unknown): value is FixedTourCancellationStatus {
-  return typeof value === "string" && CANCELLATION_STATUSES.has(value as FixedTourCancellationStatus);
-}
-
-function hasConsistentDecisionFacts(
-  status: FixedTourCancellationStatus,
-  decisionNote: unknown,
-  decidedAt: unknown,
-): boolean {
-  if (!isSafeNullableText(decisionNote)) return false;
-  if (status === "pending") return decisionNote === null && decidedAt === null;
-  return decidedAt !== null && isCanonicalTimestamp(decidedAt);
 }
 
 export function parseFixedTourBeginBookingInput(
@@ -490,146 +389,4 @@ export function parseFixedTourPaymentStatus(
       simulatedAt: fields.value.simulatedAt,
     },
   };
-}
-
-export function parseFixedTourCancellationRequestInput(
-  value: unknown,
-): FixedTourContractResult<FixedTourCancellationRequestInput> {
-  const fields = exactFields(value, CANCELLATION_REQUEST_INPUT_FIELDS, "input");
-  if (!fields.ok) return fields;
-  if (!isCanonicalUuid(fields.value.bookingId)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "input.bookingId");
-  if (!isSafeText(fields.value.reason)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "input.reason");
-  if (!isIdempotencyKey(fields.value.idempotencyKey)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "input.idempotencyKey");
-  return { ok: true, value: {
-    bookingId: fields.value.bookingId,
-    reason: fields.value.reason,
-    idempotencyKey: fields.value.idempotencyKey,
-  } };
-}
-
-export function parseFixedTourCancellationRequestResult(
-  value: unknown,
-): FixedTourContractResult<FixedTourCancellationRequestResult> {
-  const fields = exactFields(value, CANCELLATION_REQUEST_RESULT_FIELDS, "result");
-  if (!fields.ok) return fields;
-  if (!isCanonicalUuid(fields.value.requestId)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.requestId");
-  if (!isCanonicalUuid(fields.value.bookingId)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.bookingId");
-  if (fields.value.status !== "pending") return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.status");
-  if (!isSafeText(fields.value.reason)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.reason");
-  if (!isCanonicalTimestamp(fields.value.requestedAt)) return invalid("INVALID_TIMESTAMP", "data.timestamp.invalid", "result.requestedAt");
-  if (fields.value.state !== "created" && fields.value.state !== "replayed") {
-    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.state");
-  }
-  return { ok: true, value: {
-    requestId: fields.value.requestId,
-    bookingId: fields.value.bookingId,
-    status: fields.value.status,
-    reason: fields.value.reason,
-    requestedAt: fields.value.requestedAt,
-    state: fields.value.state,
-  } };
-}
-
-export function parseFixedTourCancellationRequest(
-  value: unknown,
-): FixedTourContractResult<FixedTourCancellationRequest> {
-  const fields = exactFields(value, CANCELLATION_REQUEST_FIELDS, "row");
-  if (!fields.ok) return fields;
-  if (!isCanonicalUuid(fields.value.requestId)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "row.requestId");
-  if (!isCanonicalUuid(fields.value.bookingId)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "row.bookingId");
-  if (!isCancellationStatus(fields.value.status)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "row.status");
-  if (!isSafeText(fields.value.reason)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "row.reason");
-  if (!isCanonicalTimestamp(fields.value.requestedAt)) return invalid("INVALID_TIMESTAMP", "data.timestamp.invalid", "row.requestedAt");
-  if (!hasConsistentDecisionFacts(fields.value.status, fields.value.decisionNote, fields.value.decidedAt)) {
-    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "row.decidedAt");
-  }
-  return { ok: true, value: {
-    requestId: fields.value.requestId,
-    bookingId: fields.value.bookingId,
-    status: fields.value.status,
-    reason: fields.value.reason,
-    requestedAt: fields.value.requestedAt,
-    decisionNote: fields.value.decisionNote as string | null,
-    decidedAt: fields.value.decidedAt as string | null,
-  } };
-}
-
-export function parseFixedTourCancellationQueueItem(
-  value: unknown,
-): FixedTourContractResult<FixedTourCancellationQueueItem> {
-  const fields = exactFields(value, CANCELLATION_QUEUE_FIELDS, "row");
-  if (!fields.ok) return fields;
-  const request = parseFixedTourCancellationRequest({
-    requestId: fields.value.requestId,
-    bookingId: fields.value.bookingId,
-    status: fields.value.status,
-    reason: fields.value.reason,
-    requestedAt: fields.value.requestedAt,
-    decisionNote: fields.value.decisionNote,
-    decidedAt: fields.value.decidedAt,
-  });
-  if (!request.ok) return request;
-  if (!isBookingStatus(fields.value.bookingStatus)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "row.bookingStatus");
-  for (const field of ["customerDisplayName", "titleEn", "titleVi"] as const) {
-    if (!isSafeText(fields.value[field], 500)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", `row.${field}`);
-  }
-  return { ok: true, value: {
-    ...request.value,
-    bookingStatus: fields.value.bookingStatus as BookingStatus,
-    customerDisplayName: fields.value.customerDisplayName as string,
-    titleEn: fields.value.titleEn as string,
-    titleVi: fields.value.titleVi as string,
-  } };
-}
-
-export function parseFixedTourCancellationDecisionInput(
-  value: unknown,
-): FixedTourContractResult<FixedTourCancellationDecisionInput> {
-  const fields = exactFields(value, CANCELLATION_DECISION_INPUT_FIELDS, "input");
-  if (!fields.ok) return fields;
-  if (!isCanonicalUuid(fields.value.requestId)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "input.requestId");
-  if (typeof fields.value.decision !== "string" || !CANCELLATION_DECISIONS.has(fields.value.decision as FixedTourCancellationDecision)) {
-    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "input.decision");
-  }
-  if (!isSafeNullableText(fields.value.note)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "input.note");
-  if (!isIdempotencyKey(fields.value.idempotencyKey)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "input.idempotencyKey");
-  return { ok: true, value: {
-    requestId: fields.value.requestId,
-    decision: fields.value.decision as FixedTourCancellationDecision,
-    note: fields.value.note,
-    idempotencyKey: fields.value.idempotencyKey,
-  } };
-}
-
-export function parseFixedTourCancellationDecisionResult(
-  value: unknown,
-): FixedTourContractResult<FixedTourCancellationDecisionResult> {
-  const fields = exactFields(value, CANCELLATION_DECISION_RESULT_FIELDS, "result");
-  if (!fields.ok) return fields;
-  if (!isCanonicalUuid(fields.value.requestId)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.requestId");
-  if (!isCanonicalUuid(fields.value.bookingId)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.bookingId");
-  if (typeof fields.value.requestStatus !== "string" || !CANCELLATION_DECISIONS.has(fields.value.requestStatus as FixedTourCancellationDecision)) {
-    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.requestStatus");
-  }
-  if (!isBookingStatus(fields.value.bookingStatus)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.bookingStatus");
-  if (!isSafeNullableText(fields.value.decisionNote)) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.decisionNote");
-  if (!isCanonicalTimestamp(fields.value.decidedAt)) return invalid("INVALID_TIMESTAMP", "data.timestamp.invalid", "result.decidedAt");
-  if (fields.value.state !== "approved" && fields.value.state !== "rejected" && fields.value.state !== "replayed") {
-    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.state");
-  }
-  const approvedFacts = fields.value.requestStatus === "approved" && fields.value.bookingStatus === "cancelled";
-  const rejectedFacts = fields.value.requestStatus === "rejected";
-  if (!approvedFacts && !rejectedFacts) return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.bookingStatus");
-  if (fields.value.state !== "replayed" && fields.value.state !== fields.value.requestStatus) {
-    return invalid("INVALID_SHAPE", "fixedTour.contract.invalid_shape", "result.state");
-  }
-  return { ok: true, value: {
-    requestId: fields.value.requestId,
-    bookingId: fields.value.bookingId,
-    requestStatus: fields.value.requestStatus as FixedTourCancellationDecision,
-    bookingStatus: fields.value.bookingStatus as BookingStatus,
-    decisionNote: fields.value.decisionNote,
-    decidedAt: fields.value.decidedAt,
-    state: fields.value.state,
-  } };
 }

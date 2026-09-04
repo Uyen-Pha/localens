@@ -14,10 +14,9 @@ import type {
   AdminReportProjection,
   AdminRequestDecision,
   AdminUserProjection,
-  CancellationDecision,
-  CancellationRequest,
   DemoPortalIdentity,
 } from "@/lib/application/portal/contracts";
+import { cancellationReasonLabel } from "@/lib/i18n/booking-cancellation";
 
 import { portalCopy, roleLabel } from "@/components/portals/portal-copy";
 import { PortalNav, PortalNotice } from "@/components/portals/portal-chrome";
@@ -30,7 +29,6 @@ interface AdminPortalData {
   departures: AdminDepartureProjection[];
   requests: AdminPersonalizedRequestProjection[];
   bookings: AdminBookingProjection[];
-  cancellations: CancellationRequest[];
   report: AdminReportProjection;
 }
 
@@ -78,18 +76,17 @@ function titleForTour(tour: AdminFixedTourProjection): string {
 }
 
 async function loadAdminData(composition: DemoPortalComposition): Promise<AdminPortalData> {
-  const [users, locations, fixedTours, departures, requests, bookings, cancellations, report] = await Promise.all([
+  const [users, locations, fixedTours, departures, requests, bookings, report] = await Promise.all([
     composition.admin.users.listUsers(),
     composition.admin.catalog.listLocations(),
     composition.admin.catalog.listFixedTours(),
     composition.admin.catalog.listDepartures(),
     composition.admin.personalizedRequests.listPersonalizedRequests(),
     composition.admin.bookings.listAdminBookings(),
-    composition.admin.cancellations.listCancellationRequests(),
     composition.admin.reporting.getReport(),
   ]);
 
-  return { users, locations, fixedTours, departures, requests, bookings, cancellations, report };
+  return { users, locations, fixedTours, departures, requests, bookings, report };
 }
 
 export function AdminPortal({
@@ -113,8 +110,6 @@ export function AdminPortal({
   const [roleDrafts, setRoleDrafts] = useState<Record<string, Role>>({});
   const [requestDecisions, setRequestDecisions] = useState<Record<string, AdminRequestDecision>>({});
   const [requestNotes, setRequestNotes] = useState<Record<string, string>>({});
-  const [cancellationDecisions, setCancellationDecisions] = useState<Record<string, CancellationDecision>>({});
-  const [cancellationNotes, setCancellationNotes] = useState<Record<string, string>>({});
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, string>>({});
 
   async function refresh(): Promise<void> {
@@ -191,31 +186,6 @@ export function AdminPortal({
     }
   }
 
-  async function saveCancellationDecision(
-    event: FormEvent<HTMLFormElement>,
-    request: CancellationRequest,
-  ): Promise<void> {
-    event.preventDefault();
-    const decision = cancellationDecisions[request.id] ?? "approved";
-    const note = cancellationNotes[request.id]?.trim() || null;
-    setActionKey(`cancellation:${request.id}`);
-    setActionMessage(null);
-    setActionError(null);
-    try {
-      await composition.admin.cancellations.decideCancellation({
-        requestId: request.id,
-        decision,
-        note,
-      });
-      await refresh();
-      setActionMessage(copy.cancellationDecisionSaved);
-    } catch {
-      setActionError(copy.cancellationDecisionError);
-    } finally {
-      setActionKey(null);
-    }
-  }
-
   async function saveAssignment(
     event: FormEvent<HTMLFormElement>,
     booking: AdminBookingProjection,
@@ -240,7 +210,6 @@ export function AdminPortal({
   const guides = data?.users.filter((user) => user.role === "guide") ?? [];
   const departureById = new Map((data?.departures ?? []).map((departure) => [departure.id, departure]));
   const tourByVersionId = new Map((data?.fixedTours ?? []).map((tour) => [tour.versionId, tour]));
-  const cancellationByBookingId = new Map((data?.cancellations ?? []).map((request) => [request.bookingId, request]));
   const assignableBookings = (data?.bookings ?? []).filter(
     (booking) => booking.status === "confirmed" && booking.sourceKind === "departure" && departureById.get(booking.sourceId)?.status === "scheduled",
   );
@@ -486,7 +455,7 @@ export function AdminPortal({
               ) : (
                 <ul className={styles.list}>
                   {data.bookings.map((booking) => {
-                    const cancellation = cancellationByBookingId.get(booking.id);
+                    const cancellation = booking.cancellation;
                     return (
                       <li className={styles.bookingCard} key={booking.id}>
                         <div className={styles.cardTitleLine}>
@@ -503,42 +472,18 @@ export function AdminPortal({
                           <div><dt>{copy.role}</dt><dd>{booking.assignedGuideUserId ?? copy.noneRecorded}</dd></div>
                         </dl>
                         {cancellation ? (
-                          <div className={styles.notice}>
-                            <p><strong>{copy.cancellationHeading}:</strong> {copy.cancellationStatusLabels[cancellation.status]}</p>
-                            {cancellation.status === "pending" ? (
-                              <form className={styles.inlineForm} onSubmit={(event) => void saveCancellationDecision(event, cancellation)}>
-                                <label>
-                                  <span>{copy.decision}</span>
-                                  <select
-                                    aria-label={`${copy.decision}: ${booking.id}`}
-                                    value={cancellationDecisions[cancellation.id] ?? "approved"}
-                                    onChange={(event) => setCancellationDecisions((current) => ({ ...current, [cancellation.id]: event.target.value as CancellationDecision }))}
-                                  >
-                                    <option value="approved">{copy.approved}</option>
-                                    <option value="rejected">{copy.rejected}</option>
-                                  </select>
-                                </label>
-                                <label>
-                                  <span>{copy.cancellationNote}</span>
-                                  <textarea
-                                    aria-label={`${copy.cancellationNote}: ${booking.id}`}
-                                    value={cancellationNotes[cancellation.id] ?? ""}
-                                    onChange={(event) => setCancellationNotes((current) => ({ ...current, [cancellation.id]: event.target.value }))}
-                                  />
-                                </label>
-                                <button className={styles.button} type="submit" disabled={actionKey === `cancellation:${cancellation.id}`}>
-                                  {actionKey === `cancellation:${cancellation.id}` ? copy.saving : copy.saveDecision}
-                                </button>
-                              </form>
-                            ) : null}
-                          </div>
+                          <dl className={styles.facts}>
+                            <div><dt>{copy.cancellationHeading}</dt><dd>{copy.statusLabels.cancelled}</dd></div>
+                            <div><dt>{copy.cancelledAt}</dt><dd>{formatDateTime(cancellation.cancelledAt, locale)}</dd></div>
+                            <div><dt>{copy.cancellationReason}</dt><dd>{cancellationReasonLabel(cancellation.reasonCode, locale)}</dd></div>
+                            {cancellation.otherReason ? <div><dt>{copy.otherReason}</dt><dd>{cancellation.otherReason}</dd></div> : null}
+                          </dl>
                         ) : null}
                       </li>
                     );
                   })}
                 </ul>
               )}
-              {data.cancellations.length === 0 ? <p className={styles.empty}>{copy.noCancellationRequests}</p> : null}
             </section>
 
             <section className={`${styles.card} ${styles.span8}`} aria-labelledby="admin-assignments-heading">
@@ -610,7 +555,6 @@ export function AdminPortal({
                 <div className={styles.metric}><dt>{copy.confirmedCount}</dt><dd>{data.report.confirmedBookingCount}</dd></div>
                 <div className={styles.metric}><dt>{copy.completedCount}</dt><dd>{data.report.completedBookingCount}</dd></div>
                 <div className={styles.metric}><dt>{copy.paidCount}</dt><dd>{data.report.paidBookingCount}</dd></div>
-                <div className={styles.metric}><dt>{copy.pendingCancellationCount}</dt><dd>{data.report.pendingCancellationCount}</dd></div>
               </dl>
               <p className={styles.notice} role="note">{copy.reportDisclosure}</p>
               <div className={styles.actions}>

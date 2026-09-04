@@ -11,7 +11,7 @@ vi.mock("@/lib/supabase/client", () => ({
 import { createSupabasePortalShell } from "@/lib/application/portal/supabase-shell";
 
 describe("Supabase cancellation composition", () => {
-  it("exposes the generic booking cancellation adapter alongside legacy Task 3 seams", () => {
+  it("exposes generic cancellation without legacy request or decision seams", () => {
     const shell = createSupabasePortalShell({
       mode: "supabase",
       supabaseUrl: "http://127.0.0.1:54321",
@@ -21,7 +21,9 @@ describe("Supabase cancellation composition", () => {
     expect(shell.bookingCancellations.cancelBooking).toBeTypeOf("function");
     expect(shell.bookingCancellations.listOwnCancellations).toBeTypeOf("function");
     expect(shell.bookingCancellations.listAdminCancellations).toBeTypeOf("function");
-    expect(shell.fixedTour.requestCancellation).toBeTypeOf("function");
-    expect(shell.fixedTour.decideCancellation).toBeTypeOf("function");
+    expect(shell.fixedTour).not.toHaveProperty("requestCancellation");
+    expect(shell.fixedTour).not.toHaveProperty("listOwnCancellationRequests");
+    expect(shell.fixedTour).not.toHaveProperty("listCancellationQueue");
+    expect(shell.fixedTour).not.toHaveProperty("decideCancellation");
   });
 });

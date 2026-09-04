@@ -82,10 +82,6 @@ function fixedTour(overrides: Partial<FixedTourRuntimePort> = {}): FixedTourRunt
       simulatedAt: "2099-09-05T02:05:00.000Z",
       state: "completed" as const,
     })),
-    listOwnCancellationRequests: vi.fn(async () => []),
-    requestCancellation: vi.fn(async () => { throw new Error("not used"); }),
-    listCancellationQueue: vi.fn(async () => []),
-    decideCancellation: vi.fn(async () => { throw new Error("not used"); }),
     ...overrides,
   };
 }
@@ -112,6 +108,11 @@ function shell(port: FixedTourRuntimePort, current: PortalIdentity | null): Supa
     mode: "supabase",
     initialized: Promise.resolve(),
     session,
+    bookingCancellations: {
+      cancelBooking: async () => { throw new Error("not used"); },
+      listOwnCancellations: async () => [],
+      listAdminCancellations: async () => [],
+    },
     fixedTour: port,
     guideAssignments: {
       listAdminQueue: async () => [],

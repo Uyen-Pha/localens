@@ -6,13 +6,17 @@ import {
   FixedTourRuntimeError,
   type CompleteSimulatedPaymentInput,
   type CompleteSimulatedPaymentResult,
-  type FixedTourCancellationRequest,
-  type FixedTourCancellationRequestInput,
-  type FixedTourCancellationRequestResult,
   type FixedTourPaymentStatus,
   type FixedTourRuntimePort,
 } from "@/lib/application/fixed-tour/contracts";
+import {
+  PortalError,
+  type BookingCancellation,
+  type CancelBookingInput,
+  type CancelBookingResult,
+} from "@/lib/application/portal/contracts";
 import type { CustomerBooking } from "@/lib/domain/data/contracts";
+import type { SupabaseBookingCancellationPort } from "@/lib/infrastructure/supabase/booking-cancellation-adapter";
 
 const booking: CustomerBooking = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -56,19 +60,20 @@ const completed: CompleteSimulatedPaymentResult = {
   state: "completed",
 };
 
-const cancellationRequest: FixedTourCancellationRequest = {
-  requestId: "77777777-7777-4777-8777-777777777777",
+const cancellation: BookingCancellation = {
+  id: "77777777-7777-4777-8777-777777777777",
   bookingId: booking.id,
-  status: "pending",
-  reason: "My schedule changed.",
-  requestedAt: "2099-09-05T02:06:00.000Z",
-  decisionNote: null,
-  decidedAt: null,
+  customerUserId: "88888888-8888-4888-8888-888888888888",
+  sourceKind: "departure",
+  reasonCode: "trip_plan_changed",
+  otherReason: null,
+  idempotencyKey: "runtime-cancellation-key",
+  cancelledAt: "2099-09-05T02:06:00.000Z",
 };
 
-const requestedCancellation: FixedTourCancellationRequestResult = {
-  ...cancellationRequest,
-  status: "pending",
+const cancelled: CancelBookingResult = {
+  cancellation,
+  bookingStatus: "cancelled",
   state: "created",
 };
 
@@ -76,14 +81,10 @@ function port({
   bookings = vi.fn(async () => [booking]),
   payments = vi.fn(async () => [] as FixedTourPaymentStatus[]),
   complete = vi.fn(async () => completed),
-  cancellations = vi.fn(async () => [] as FixedTourCancellationRequest[]),
-  requestCancellation = vi.fn(async () => requestedCancellation),
 }: {
   bookings?: FixedTourRuntimePort["listOwnBookings"];
   payments?: FixedTourRuntimePort["listOwnPaymentStatuses"];
   complete?: FixedTourRuntimePort["completeSimulatedPayment"];
-  cancellations?: FixedTourRuntimePort["listOwnCancellationRequests"];
-  requestCancellation?: FixedTourRuntimePort["requestCancellation"];
 } = {}): FixedTourRuntimePort {
   return {
     listPublishedTours: async () => [],
@@ -92,11 +93,19 @@ function port({
     listOwnBookings: bookings,
     listOwnPaymentStatuses: payments,
     completeSimulatedPayment: complete,
-    listOwnCancellationRequests: cancellations,
-    requestCancellation,
-    listCancellationQueue: async () => [],
-    decideCancellation: async () => { throw new Error("not used"); },
   };
+}
+
+function cancellationPort({
+  own = vi.fn(async () => [] as BookingCancellation[]),
+  admin = vi.fn(async () => [] as BookingCancellation[]),
+  cancel = vi.fn(async () => cancelled),
+}: {
+  own?: SupabaseBookingCancellationPort["listOwnCancellations"];
+  admin?: SupabaseBookingCancellationPort["listAdminCancellations"];
+  cancel?: SupabaseBookingCancellationPort["cancelBooking"];
+} = {}): SupabaseBookingCancellationPort {
+  return { listOwnCancellations: own, listAdminCancellations: admin, cancelBooking: cancel };
 }
 
 afterEach(() => {
@@ -105,112 +114,148 @@ afterEach(() => {
 });
 
 describe("runtime fixed-tour account", () => {
-  it.each([
-    {
-      locale: "en" as const,
-      bookingState: "Awaiting confirmation",
-      action: "Request cancellation",
-      disclosure: /administrator reviews and decides/i,
-      reason: "Cancellation reason",
-      submit: "Send cancellation request",
-    },
-    {
-      locale: "vi" as const,
-      bookingState: "Chờ xác nhận",
-      action: "Yêu cầu hủy booking",
-      disclosure: /quản trị viên xem xét và quyết định/i,
-      reason: "Lý do hủy",
-      submit: "Gửi yêu cầu hủy",
-    },
-  ])("offers an explicit administrator-decided cancellation request in $locale", async ({
-    locale,
-    bookingState,
-    action,
-    disclosure,
-    reason,
-    submit,
-  }) => {
-    render(<RuntimeFixedTourAccount locale={locale} fixedTour={port()} />);
+  it("opens the Vietnamese immediate-cancellation dialog without mutating", async () => {
+    const cancel = vi.fn(async () => cancelled);
+    render(<RuntimeFixedTourAccount locale="vi" fixedTour={port()} bookingCancellations={cancellationPort({ cancel })} />);
 
-    expect(await screen.findByText(bookingState, { exact: true })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: action }));
-    expect(screen.getByRole("note", { name: /cancellation|hủy/i })).toHaveTextContent(disclosure);
-    expect(screen.getByRole("textbox", { name: reason })).toHaveFocus();
-    expect(screen.getByRole("button", { name: submit })).toBeDisabled();
+    expect(await screen.findByText("Chờ xác nhận", { exact: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hủy đơn" }));
+    expect(screen.getByRole("dialog", { name: "Hủy đơn đặt tour?" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Quay lại" })).toHaveFocus();
+    expect(cancel).not.toHaveBeenCalled();
   });
 
-  it("sends only booking, reason and idempotency, then reloads all authoritative account data", async () => {
-    const bookings = vi.fn(async () => [booking]);
+  it("validates, trims, and clears the conditional other reason", async () => {
+    const cancel = vi.fn(async () => cancelled);
+    render(<RuntimeFixedTourAccount locale="vi" fixedTour={port()} bookingCancellations={cancellationPort({ cancel })} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Hủy đơn" }));
+    const reason = screen.getByRole("combobox", { name: "Lý do hủy (không bắt buộc)" });
+    fireEvent.change(reason, { target: { value: "other" } });
+    const other = screen.getByRole("textbox", { name: "Mô tả lý do khác *" });
+    fireEvent.change(other, { target: { value: "  ab  " } });
+    expect(screen.getByRole("button", { name: "Xác nhận hủy" })).toBeDisabled();
+
+    fireEvent.change(other, { target: { value: "  Đổi kế hoạch riêng  " } });
+    fireEvent.change(reason, { target: { value: "price_unsuitable" } });
+    expect(screen.queryByRole("textbox", { name: "Mô tả lý do khác *" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận hủy" }));
+
+    await waitFor(() => expect(cancel).toHaveBeenCalledWith(expect.objectContaining({
+      reasonCode: "price_unsuitable",
+      otherReason: null,
+    })));
+  });
+
+  it("traps focus, makes the background inert, and restores the trigger on Escape", async () => {
+    const { container } = render(
+      <RuntimeFixedTourAccount locale="vi" fixedTour={port()} bookingCancellations={cancellationPort()} />,
+    );
+
+    const trigger = await screen.findByRole("button", { name: "Hủy đơn" });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    const confirm = screen.getByRole("button", { name: "Xác nhận hủy" });
+    expect(container).toHaveAttribute("inert");
+
+    confirm.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(screen.getByRole("button", { name: "Đóng" })).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(container).not.toHaveAttribute("inert");
+    expect(document.body.style.overflow).toBe("");
+    expect(trigger).toHaveFocus();
+  });
+
+  it("reuses one idempotency key when a retry succeeds", async () => {
+    const cancel = vi.fn()
+      .mockRejectedValueOnce(new PortalError("STORAGE_UNAVAILABLE", "secret"))
+      .mockResolvedValueOnce(cancelled);
+    render(<RuntimeFixedTourAccount locale="en" fixedTour={port()} bookingCancellations={cancellationPort({ cancel })} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("could not be completed");
+    fireEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+
+    await waitFor(() => expect(cancel).toHaveBeenCalledTimes(2));
+    expect(cancel.mock.calls[0]?.[0].idempotencyKey).toBe(cancel.mock.calls[1]?.[0].idempotencyKey);
+  });
+
+  it("submits nullable reasons and reloads authoritative bookings and history", async () => {
+    const bookings = vi.fn()
+      .mockResolvedValueOnce([booking])
+      .mockResolvedValueOnce([{ ...booking, status: "cancelled" as const }]);
     const payments = vi.fn(async () => [] as FixedTourPaymentStatus[]);
-    const cancellations = vi.fn()
+    const own = vi.fn()
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([cancellationRequest]);
-    const requestCancellation = vi.fn<
-      (input: FixedTourCancellationRequestInput) => Promise<FixedTourCancellationRequestResult>
-    >(async () => requestedCancellation);
-    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({
-      bookings,
-      payments,
-      cancellations,
-      requestCancellation,
-    })} />);
+      .mockResolvedValueOnce([cancellation]);
+    const cancel = vi.fn<(input: CancelBookingInput) => Promise<CancelBookingResult>>(async () => cancelled);
+    render(<RuntimeFixedTourAccount
+      locale="en"
+      fixedTour={port({ bookings, payments })}
+      bookingCancellations={cancellationPort({ own, cancel })}
+    />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Request cancellation" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Cancellation reason" }), {
-      target: { value: "  My schedule changed.  " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send cancellation request" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
 
-    await waitFor(() => expect(requestCancellation).toHaveBeenCalledTimes(1));
-    const input = requestCancellation.mock.calls[0]?.[0];
-    expect(Object.keys(input ?? {}).sort()).toEqual(["bookingId", "idempotencyKey", "reason"]);
-    expect(input).toMatchObject({
+    await waitFor(() => expect(cancel).toHaveBeenCalledTimes(1));
+    expect(cancel).toHaveBeenCalledWith({
       bookingId: booking.id,
-      reason: "My schedule changed.",
+      reasonCode: null,
+      otherReason: null,
       idempotencyKey: expect.any(String),
     });
-    expect(await screen.findByText("Pending administrator decision", { exact: true })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Cancellation request sent for administrator review.");
+    expect((await screen.findAllByText("Cancelled", { exact: true })).length).toBeGreaterThan(0);
+    expect(screen.getByText("Trip plan or participation time changed", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Booking cancelled");
     expect(screen.getByRole("status")).toHaveFocus();
     expect(bookings).toHaveBeenCalledTimes(2);
     expect(payments).toHaveBeenCalledTimes(2);
-    expect(cancellations).toHaveBeenCalledTimes(2);
-    expect(screen.queryByRole("button", { name: "Request cancellation" })).not.toBeInTheDocument();
+    expect(own).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
   });
 
-  it("disables payment and cancellation mutations together while a cancellation request is pending", async () => {
-    const pending = new Promise<FixedTourCancellationRequestResult>(() => undefined);
-    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({
-      requestCancellation: vi.fn(() => pending),
-    })} />);
+  it("blocks duplicate confirmation while cancellation is pending", async () => {
+    const pending = new Promise<CancelBookingResult>(() => undefined);
+    const cancel = vi.fn(() => pending);
+    render(<RuntimeFixedTourAccount locale="en" fixedTour={port()} bookingCancellations={cancellationPort({ cancel })} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Request cancellation" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Cancellation reason" }), {
-      target: { value: "Schedule changed" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send cancellation request" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }));
+    const confirm = screen.getByRole("button", { name: "Confirm cancellation" });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Sending cancellation request");
-    expect(screen.getByRole("button", { name: "Send cancellation request" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Complete simulated payment" })).toBeDisabled();
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(confirm).toBeDisabled();
   });
 
   it.each([
-    ["CONFLICT", /booking state changed/i],
-    ["IDEMPOTENCY_CONFLICT", /conflicts with an earlier cancellation request/i],
+    ["CONFLICT", /can no longer be cancelled/i],
+    ["INVALID_INPUT", /check the cancellation reason/i],
     ["FORBIDDEN", /not permitted/i],
   ] as const)("shows a stable browser-safe %s cancellation error", async (code, message) => {
-    const requestCancellation = vi.fn(async () => { throw new FixedTourRuntimeError(code); });
-    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({ requestCancellation })} />);
+    const cancel = vi.fn(async () => { throw new PortalError(code, "secret P0001"); });
+    const bookings = vi.fn()
+      .mockResolvedValueOnce([booking])
+      .mockResolvedValueOnce(code === "CONFLICT" ? [{ ...booking, status: "confirmed" as const }] : [booking]);
+    render(<RuntimeFixedTourAccount
+      locale="en"
+      fixedTour={port({ bookings })}
+      bookingCancellations={cancellationPort({ cancel })}
+    />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Request cancellation" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Cancellation reason" }), {
-      target: { value: "Schedule changed" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send cancellation request" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
     expect(document.body).not.toHaveTextContent("P0001");
+    if (code === "CONFLICT") {
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument());
+    }
   });
 
   it.each([
@@ -224,33 +269,23 @@ describe("runtime fixed-tour account", () => {
   ] as const)("never offers cancellation outside pending_payment: %s", async (status) => {
     render(<RuntimeFixedTourAccount locale="en" fixedTour={port({
       bookings: vi.fn(async () => [{ ...booking, status }]),
-    })} />);
+    })} bookingCancellations={cancellationPort()} />);
 
     await screen.findByRole("heading", { name: booking.titleEn });
-    expect(screen.queryByRole("button", { name: "Request cancellation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
   });
 
-  it.each(["pending", "approved", "rejected"] as const)(
-    "renders authoritative cancellation state %s and never duplicates the request action",
-    async (status) => {
-      render(<RuntimeFixedTourAccount locale="en" fixedTour={port({
-        cancellations: vi.fn(async () => [{
-          ...cancellationRequest,
-          status,
-          decisionNote: status === "pending" ? null : "Reviewed.",
-          decidedAt: status === "pending" ? null : "2099-09-05T02:10:00.000Z",
-        }]),
-      })} />);
+  it("renders immutable cancellation history and never duplicates the action", async () => {
+    render(<RuntimeFixedTourAccount
+      locale="en"
+      fixedTour={port({ bookings: vi.fn(async () => [{ ...booking, status: "cancelled" as const }]) })}
+      bookingCancellations={cancellationPort({ own: vi.fn(async () => [cancellation]) })}
+    />);
 
-      expect(await screen.findByText({
-        pending: "Pending administrator decision",
-        approved: "Approved by administrator",
-        rejected: "Rejected by administrator",
-      }[status], { exact: true })).toBeInTheDocument();
-      expect(screen.getByText(cancellationRequest.reason, { exact: true })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Request cancellation" })).not.toBeInTheDocument();
-    },
-  );
+    expect((await screen.findAllByText("Cancelled", { exact: true })).length).toBeGreaterThan(0);
+    expect(screen.getByText("Trip plan or participation time changed", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
+  });
 
   it.each([
     {
@@ -277,7 +312,7 @@ describe("runtime fixed-tour account", () => {
     action,
     disclosure,
   }) => {
-    render(<RuntimeFixedTourAccount locale={locale} fixedTour={port()} />);
+    render(<RuntimeFixedTourAccount locale={locale} fixedTour={port()} bookingCancellations={cancellationPort()} />);
 
     const article = await screen.findByRole("article", { name: title });
     expect(article).toHaveTextContent(pending);
@@ -296,7 +331,7 @@ describe("runtime fixed-tour account", () => {
     const complete = vi.fn<
       (input: CompleteSimulatedPaymentInput) => Promise<CompleteSimulatedPaymentResult>
     >(async () => completed);
-    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({ bookings, payments, complete })} />);
+    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({ bookings, payments, complete })} bookingCancellations={cancellationPort()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Complete simulated payment" }));
     await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
@@ -319,7 +354,7 @@ describe("runtime fixed-tour account", () => {
     const payments = vi.fn()
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([paidStatus]);
-    render(<RuntimeFixedTourAccount locale="vi" fixedTour={port({ bookings, payments })} />);
+    render(<RuntimeFixedTourAccount locale="vi" fixedTour={port({ bookings, payments })} bookingCancellations={cancellationPort()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Hoàn tất thanh toán mô phỏng" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(
@@ -348,7 +383,7 @@ describe("runtime fixed-tour account", () => {
       paymentStatus: null,
       state: "expired" as const,
     }));
-    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({ bookings, payments, complete })} />);
+    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({ bookings, payments, complete })} bookingCancellations={cancellationPort()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Complete simulated payment" }));
     expect(await screen.findByText("Expired", { exact: true })).toBeInTheDocument();
@@ -375,7 +410,7 @@ describe("runtime fixed-tour account", () => {
       paymentStatus: null,
       state: "expired" as const,
     }));
-    render(<RuntimeFixedTourAccount locale="vi" fixedTour={port({ bookings, payments, complete })} />);
+    render(<RuntimeFixedTourAccount locale="vi" fixedTour={port({ bookings, payments, complete })} bookingCancellations={cancellationPort()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Hoàn tất thanh toán mô phỏng" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(
@@ -394,7 +429,7 @@ describe("runtime fixed-tour account", () => {
     render(<RuntimeFixedTourAccount locale="en" fixedTour={port({
       bookings: vi.fn(async () => [booking, second]),
       complete,
-    })} />);
+    })} bookingCancellations={cancellationPort()} />);
 
     const actions = await screen.findAllByRole("button", { name: "Complete simulated payment" });
     fireEvent.click(actions[0]!);
@@ -409,7 +444,7 @@ describe("runtime fixed-tour account", () => {
     ["SERVICE_UNAVAILABLE", /could not be completed/i],
   ] as const)("shows a stable browser-safe %s payment error", async (code, message) => {
     const complete = vi.fn(async () => { throw new FixedTourRuntimeError(code); });
-    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({ complete })} />);
+    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({ complete })} bookingCancellations={cancellationPort()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Complete simulated payment" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
@@ -422,7 +457,7 @@ describe("runtime fixed-tour account", () => {
     ["FORBIDDEN", /không được phép/i],
   ] as const)("shows the Vietnamese browser-safe %s payment error", async (code, message) => {
     const complete = vi.fn(async () => { throw new FixedTourRuntimeError(code); });
-    render(<RuntimeFixedTourAccount locale="vi" fixedTour={port({ complete })} />);
+    render(<RuntimeFixedTourAccount locale="vi" fixedTour={port({ complete })} bookingCancellations={cancellationPort()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Hoàn tất thanh toán mô phỏng" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
@@ -441,7 +476,7 @@ describe("runtime fixed-tour account", () => {
     render(<RuntimeFixedTourAccount locale="en" fixedTour={port({
       bookings: vi.fn(async () => [{ ...booking, status }]),
       payments: vi.fn(async () => status === "confirmed" ? [paidStatus] : []),
-    })} />);
+    })} bookingCancellations={cancellationPort()} />);
 
     await screen.findByRole("heading", { name: booking.titleEn });
     expect(screen.queryByRole("button", { name: "Complete simulated payment" })).not.toBeInTheDocument();
@@ -459,7 +494,7 @@ describe("runtime fixed-tour account", () => {
     render(<RuntimeFixedTourAccount locale="vi" fixedTour={port({
       bookings: vi.fn(async () => [{ ...booking, status }]),
       payments: vi.fn(async () => status === "confirmed" ? [paidStatus] : []),
-    })} />);
+    })} bookingCancellations={cancellationPort()} />);
 
     await screen.findByRole("heading", { name: booking.titleVi });
     expect(screen.queryByRole("button", { name: "Hoàn tất thanh toán mô phỏng" })).not.toBeInTheDocument();

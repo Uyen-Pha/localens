@@ -128,10 +128,10 @@ describe("demo portal repository", () => {
     expect(repo).not.toHaveProperty("listBookingsForAdmin");
     expect(repo.customer.account).not.toHaveProperty("selectDemoIdentity");
     expect(repo.customer.account).not.toHaveProperty("listAdminBookings");
-    expect(repo.customer.cancellations).not.toHaveProperty("decideCancellation");
+    expect(repo.customer.cancellations).toEqual(expect.objectContaining({ cancelBooking: expect.any(Function) }));
     expect(repo.guide.assignments).not.toHaveProperty("listUsers");
     expect(repo.admin.bookings).not.toHaveProperty("listCustomerBookings");
-    expect(repo.admin.cancellations).not.toHaveProperty("requestCancellation");
+    expect(repo.admin).not.toHaveProperty("cancellations");
   });
 
   it("immediately cancels an owned pending departure and compensates its demo checkout exactly once", async () => {
@@ -331,7 +331,6 @@ describe("demo portal repository", () => {
       ownerUserId: "demo-user-customer",
       assignedGuideUserId: "demo-user-guide",
       specialNeeds: "Step-free route requested.",
-      cancellationRequestId: null,
     });
   });
 
@@ -365,82 +364,6 @@ describe("demo portal repository", () => {
       phone: "+84901234567",
       language: "vi",
     });
-  });
-
-  it("allows either cancellation decision with or without a note", async () => {
-    const approvedFixture = repository();
-    await approvedFixture.repo.reset();
-    await approvedFixture.repo.session.selectDemoIdentity("demo-user-customer");
-    const approvedRequest = await approvedFixture.repo.customer.cancellations.requestCancellation({
-      bookingId: "demo-booking-cancellation",
-      reason: "Plans changed.",
-    });
-    await approvedFixture.repo.session.selectDemoIdentity("demo-user-admin");
-    await expect(approvedFixture.repo.admin.cancellations.decideCancellation({
-      requestId: approvedRequest.id,
-      decision: "approved",
-      note: "Approved with a record.",
-    })).resolves.toMatchObject({
-      request: { status: "approved", decisionNote: "Approved with a record." },
-      booking: { status: "cancelled" },
-    });
-
-    const rejectedFixture = repository();
-    await rejectedFixture.repo.reset();
-    await rejectedFixture.repo.session.selectDemoIdentity("demo-user-customer");
-    const rejectedRequest = await rejectedFixture.repo.customer.cancellations.requestCancellation({
-      bookingId: "demo-booking-cancellation",
-      reason: "Plans changed.",
-    });
-    await rejectedFixture.repo.session.selectDemoIdentity("demo-user-admin");
-    await expect(rejectedFixture.repo.admin.cancellations.decideCancellation({
-      requestId: rejectedRequest.id,
-      decision: "rejected",
-      note: null,
-    })).resolves.toMatchObject({
-      request: { status: "rejected", decisionNote: null },
-      booking: { status: "pending_payment" },
-    });
-  });
-
-  it("rejects recomputed-integrity pending cancellations linked to completed bookings", async () => {
-    const { storage, repo } = repository();
-    await repo.reset();
-    await repo.session.selectDemoIdentity("demo-user-customer");
-    await repo.customer.cancellations.requestCancellation({
-      bookingId: "demo-booking-cancellation",
-      reason: "Plans changed.",
-    });
-
-    tamperWithValidIntegrity(storage, (envelope) => {
-      const bookings = envelope.bookings as Array<Record<string, unknown>>;
-      const booking = bookings.find((entry) => entry.id === "demo-booking-cancellation");
-      if (!booking) throw new Error("Expected the cancellation booking.");
-      booking.status = "completed";
-    });
-
-    await expect(repo.customer.account.listCustomerBookings()).rejects.toMatchObject({ code: "INVALID_STORAGE" });
-  });
-
-  it("rejects recomputed-integrity approved cancellations linked to confirmed bookings", async () => {
-    const { storage, repo } = repository();
-    await repo.reset();
-    await repo.session.selectDemoIdentity("demo-user-customer");
-    const request = await repo.customer.cancellations.requestCancellation({
-      bookingId: "demo-booking-cancellation",
-      reason: "Plans changed.",
-    });
-    await repo.session.selectDemoIdentity("demo-user-admin");
-    await repo.admin.cancellations.decideCancellation({ requestId: request.id, decision: "approved", note: null });
-
-    tamperWithValidIntegrity(storage, (envelope) => {
-      const bookings = envelope.bookings as Array<Record<string, unknown>>;
-      const booking = bookings.find((entry) => entry.id === "demo-booking-cancellation");
-      if (!booking) throw new Error("Expected the cancellation booking.");
-      booking.status = "confirmed";
-    });
-
-    await expect(repo.admin.cancellations.listCancellationRequests()).rejects.toMatchObject({ code: "INVALID_STORAGE" });
   });
 
   it.each(REQUEST_SNAPSHOT_TAMPERS)("rejects a recomputed-integrity quote when the independent request $label diverges from its booking snapshot", async ({ mutate }) => {
@@ -486,7 +409,6 @@ describe("demo portal repository", () => {
       "assignments",
       "bookingCancellations",
       "bookings",
-      "cancellations",
       "departures",
       "fixedTours",
       "integrity",
@@ -497,7 +419,7 @@ describe("demo portal repository", () => {
       "users",
       "version",
     ].sort());
-    expect(envelope.version).toBe(2);
+    expect(envelope.version).toBe(3);
     expect(envelope.sessionUserId).toBeNull();
   });
 
@@ -641,7 +563,12 @@ describe("demo portal repository", () => {
       language: "vi",
     });
     await expect(repo.customer.account.updateAccount({ role: "admin" } as never)).rejects.toMatchObject({ code: "INVALID_INPUT" });
-    await expect(repo.customer.cancellations.requestCancellation({ bookingId: "demo-booking-secondary-customer", reason: "Not mine." })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(cancelBooking(repo, {
+      bookingId: "demo-booking-secondary-customer",
+      reasonCode: null,
+      otherReason: null,
+      idempotencyKey: "cancel-not-owned-001",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(repo.customer.reviews.submitTourReview({ bookingId: "demo-booking-secondary-customer", rating: 5, text: "Not mine." })).rejects.toMatchObject({ code: "FORBIDDEN" });
     const primaryBookings = await repo.customer.account.listCustomerBookings();
     expect(primaryBookings.map((booking) => booking.id)).not.toContain("demo-booking-secondary-customer");
@@ -654,59 +581,6 @@ describe("demo portal repository", () => {
     await repo.session.selectDemoIdentity("demo-user-guide");
     await expect(repo.customer.account.getAccount()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(repo.guide.profile.updateGuideProfile({ email: "forged@example.invalid" } as never)).rejects.toMatchObject({ code: "INVALID_INPUT" });
-  });
-
-  it("separates a customer cancellation request from the admin booking decision", async () => {
-    const { repo } = repository();
-    await repo.reset();
-    await repo.session.selectDemoIdentity("demo-user-customer");
-
-    await expect(repo.customer.cancellations.requestCancellation({
-      bookingId: "demo-booking-personalized",
-      reason: "Confirmed bookings are outside the cancellation-request window.",
-    })).rejects.toMatchObject({ code: "CONFLICT" });
-
-    const before = (await repo.customer.account.listCustomerBookings()).find((booking) => booking.id === "demo-booking-cancellation");
-    expect(before).toMatchObject({ status: "pending_payment", paymentStatus: null });
-    const request = await repo.customer.cancellations.requestCancellation({ bookingId: "demo-booking-cancellation", reason: "Plans changed." });
-    expect(request).toMatchObject({ status: "pending", bookingId: "demo-booking-cancellation" });
-    expect((await repo.customer.account.listCustomerBookings()).find((booking) => booking.id === request.bookingId)).toMatchObject({
-      status: before?.status,
-      paymentStatus: before?.paymentStatus,
-    });
-    await expect(repo.customer.cancellations.requestCancellation({ bookingId: request.bookingId, reason: "Again." })).rejects.toMatchObject({ code: "CONFLICT" });
-    await expect(repo.admin.cancellations.decideCancellation({ requestId: request.id, decision: "approved", note: null })).rejects.toMatchObject({ code: "FORBIDDEN" });
-
-    await repo.session.selectDemoIdentity("demo-user-admin");
-    const rejected = await repo.admin.cancellations.decideCancellation({ requestId: request.id, decision: "rejected", note: "Policy keeps this booking." });
-    expect(rejected.request.status).toBe("rejected");
-    expect(rejected.booking).toMatchObject({ status: "pending_payment", paymentStatus: null });
-  });
-
-  it("keeps a rejected cancellation linked and rejects a second request", async () => {
-    const { repo } = repository();
-    await repo.reset();
-    await repo.session.selectDemoIdentity("demo-user-customer");
-    const first = await repo.customer.cancellations.requestCancellation({
-      bookingId: "demo-booking-cancellation",
-      reason: "First plan change.",
-    });
-    await repo.session.selectDemoIdentity("demo-user-admin");
-    await repo.admin.cancellations.decideCancellation({ requestId: first.id, decision: "rejected", note: null });
-
-    await repo.session.selectDemoIdentity("demo-user-customer");
-    await expect(repo.customer.cancellations.requestCancellation({
-      bookingId: "demo-booking-cancellation",
-      reason: "Second plan change.",
-    })).rejects.toMatchObject({ code: "CONFLICT" });
-    await expect(repo.customer.account.listCustomerBookings()).resolves.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "demo-booking-cancellation",
-          cancellationRequest: expect.objectContaining({ id: first.id, status: "rejected" }),
-        }),
-      ]),
-    );
   });
 
   it("allows exactly one review only for an owned completed booking", async () => {

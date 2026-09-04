@@ -1,18 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import type {
-  CustomerAccount,
-  CustomerBookingView,
-  DemoPortalIdentity,
+import {
+  PortalError,
+  type CustomerAccount,
+  type CustomerBookingView,
+  type DemoPortalIdentity,
 } from "@/lib/application/portal/contracts";
 import type { CustomerCustomRequest } from "@/lib/domain/data/contracts";
 import type { DemoPortalComposition } from "@/lib/application/portal/composition";
 
 import { PortalNav, PortalNotice } from "@/components/portals/portal-chrome";
+import {
+  BookingCancellationDialog,
+  type BookingCancellationReasonValue,
+} from "@/components/customer/booking-cancellation-dialog";
 import { portalCopy } from "@/components/portals/portal-copy";
+import {
+  bookingCancellationCopy,
+  cancellationReasonLabel,
+} from "@/lib/i18n/booking-cancellation";
 import styles from "@/components/portals/portal.module.css";
 
 export interface CustomerPortalData {
@@ -56,6 +65,18 @@ function statusClass(status: string): string {
   return `${styles.status} ${styles.statusNeutral}`;
 }
 
+function cancellationKey(bookingId: string): string {
+  const storageKey = `localens.booking-cancellation:${bookingId}`;
+  const existing = window.sessionStorage.getItem(storageKey);
+  if (existing) return existing;
+  const suffix = typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  const generated = `booking-cancellation-${suffix}`;
+  window.sessionStorage.setItem(storageKey, generated);
+  return generated;
+}
+
 export function CustomerPortal({
   locale,
   composition,
@@ -68,6 +89,7 @@ export function CustomerPortal({
   onSignOut: () => void;
 }) {
   const copy = portalCopy(locale);
+  const cancellationCopy = bookingCancellationCopy(locale);
   const [data, setData] = useState<CustomerPortalData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -82,12 +104,13 @@ export function CustomerPortal({
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [profileError, setProfileError] = useState(false);
   const [openCancellation, setOpenCancellation] = useState<string | null>(null);
-  const [cancellationReason, setCancellationReason] = useState("");
   const [actionKey, setActionKey] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [submittedReviewId, setSubmittedReviewId] = useState<string | null>(null);
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, { rating: string; text: string }>>({});
+  const cancellationStatusRef = useRef<HTMLParagraphElement>(null);
+  const cancellationTriggerRef = useRef<HTMLElement | null>(null);
 
   async function refresh(): Promise<void> {
     setLoading(true);
@@ -114,6 +137,10 @@ export function CustomerPortal({
     // The composition is stable for the lifetime of this role surface.
   }, [composition]);
 
+  useEffect(() => {
+    if (actionMessage === cancellationCopy.success) cancellationStatusRef.current?.focus();
+  }, [actionMessage, cancellationCopy.success]);
+
   async function saveProfile(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setProfileBusy(true);
@@ -137,21 +164,35 @@ export function CustomerPortal({
     }
   }
 
-  async function sendCancellation(bookingId: string): Promise<void> {
+  async function sendCancellation(bookingId: string, reason: BookingCancellationReasonValue): Promise<void> {
+    if (actionKey !== null) return;
     setActionKey(`cancel:${bookingId}`);
     setActionError(null);
     setActionMessage(null);
     try {
-      await composition.customer.cancellations.requestCancellation({
+      await composition.customer.cancellations.cancelBooking({
         bookingId,
-        reason: cancellationReason,
+        reasonCode: reason.reasonCode,
+        otherReason: reason.otherReason,
+        idempotencyKey: cancellationKey(bookingId),
       });
       await refresh();
       setOpenCancellation(null);
-      setCancellationReason("");
-      setActionMessage(copy.cancellationSent);
-    } catch {
-      setActionError(copy.cancellationError);
+      setActionMessage(cancellationCopy.success);
+    } catch (caught) {
+      const message = caught instanceof PortalError && (caught.code === "CONFLICT" || caught.code === "NOT_FOUND")
+        ? cancellationCopy.conflict
+        : caught instanceof PortalError && (caught.code === "FORBIDDEN" || caught.code === "UNAUTHENTICATED")
+          ? cancellationCopy.denied
+          : caught instanceof PortalError && caught.code === "INVALID_INPUT"
+            ? cancellationCopy.invalid
+            : cancellationCopy.unavailable;
+      setActionError(message);
+      if (caught instanceof PortalError && (caught.code === "CONFLICT" || caught.code === "NOT_FOUND")) {
+        await refresh();
+        setOpenCancellation(null);
+        setActionError(message);
+      }
     } finally {
       setActionKey(null);
     }
@@ -289,7 +330,7 @@ export function CustomerPortal({
                 <span className={styles.eyebrow}>{data.bookings.length}</span>
               </div>
               <p className={styles.sectionIntro}>{copy.bookingsIntro}</p>
-              {actionMessage ? <p className={styles.success} role="status">{actionMessage}</p> : null}
+              {actionMessage ? <p ref={cancellationStatusRef} tabIndex={-1} className={styles.success} role="status">{actionMessage}</p> : null}
               {actionError ? <p className={styles.error} role="alert">{actionError}</p> : null}
               {data.bookings.length === 0 ? (
                 <p className={styles.empty}>{copy.noBookings}</p>
@@ -297,8 +338,7 @@ export function CustomerPortal({
                 <div className={styles.list}>
                   {data.bookings.map((booking) => {
                     const title = titleForBooking(booking, locale);
-                    const cancellation = booking.cancellationRequest;
-                    const cancellationOpen = openCancellation === booking.id;
+                    const cancellation = booking.cancellation;
                     const reviewDraft = reviewDrafts[booking.id] ?? { rating: "5", text: "" };
                     const canCancel = booking.status === "pending_payment" && cancellation === null;
                     return (
@@ -320,46 +360,43 @@ export function CustomerPortal({
                         </dl>
                         <p className={styles.notice} role="note">{copy.simulatedPayment}</p>
 
-                        <section aria-labelledby={`customer-cancellation-${booking.id}`}>
-                          <div className={styles.cardTitleLine}>
-                            <h3 id={`customer-cancellation-${booking.id}`}>{copy.cancellationHeading}</h3>
-                            {cancellation ? <span className={statusClass(cancellation.status)}>{copy.cancellationStatusLabels[cancellation.status]}</span> : null}
-                          </div>
-                          {cancellation ? (
-                            <p className={styles.notice} role="status">
-                              {cancellation.status === "pending" ? copy.cancellationPending : cancellation.status === "approved" ? copy.cancellationApproved : copy.cancellationRejected}
-                            </p>
-                          ) : canCancel ? (
-                            cancellationOpen ? (
-                              <form className={styles.inlineForm} onSubmit={(event) => { event.preventDefault(); void sendCancellation(booking.id); }}>
-                                <label>
-                                  <span>{copy.cancellationReason}</span>
-                                  <textarea
-                                    aria-describedby={`customer-cancellation-hint-${booking.id}`}
-                                    aria-label={copy.cancellationReason}
-                                    value={cancellationReason}
-                                    onChange={(event) => setCancellationReason(event.target.value)}
-                                    placeholder={copy.cancellationReasonHint}
-                                    required
-                                  />
-                                </label>
-                                <small className={styles.hint} id={`customer-cancellation-hint-${booking.id}`}>{copy.cancellationReasonHint}</small>
-                                <div className={styles.actions}>
-                                  <button className={`${styles.button} ${styles.buttonDanger}`} type="submit" disabled={actionKey === `cancel:${booking.id}`}>
-                                    {actionKey === `cancel:${booking.id}` ? copy.saving : copy.sendCancellation}
-                                  </button>
-                                  <button className={`${styles.button} ${styles.buttonSecondary}`} type="button" onClick={() => { setOpenCancellation(null); setCancellationReason(""); }}>
-                                    {copy.cancelForm}
-                                  </button>
-                                </div>
-                              </form>
-                            ) : (
-                              <button className={`${styles.button} ${styles.buttonSecondary}`} type="button" onClick={() => setOpenCancellation(booking.id)}>
-                                {copy.requestCancellation}
-                              </button>
-                            )
-                          ) : <p className={styles.empty}>{copy.noCancellation}</p>}
-                        </section>
+                        {cancellation ? (
+                          <section aria-labelledby={`customer-cancellation-${booking.id}`}>
+                            <div className={styles.cardTitleLine}>
+                              <h3 id={`customer-cancellation-${booking.id}`}>{cancellationCopy.cancelledStatus}</h3>
+                              <span className={`${styles.status} ${styles.statusCoral}`}>{cancellationCopy.cancelledStatus}</span>
+                            </div>
+                            <dl className={styles.facts}>
+                              <div><dt>{cancellationCopy.cancelledAt}</dt><dd>{formatDate(cancellation.cancelledAt, locale)}</dd></div>
+                              <div><dt>{cancellationCopy.reason}</dt><dd>{cancellationReasonLabel(cancellation.reasonCode, locale)}</dd></div>
+                              {cancellation.otherReason ? <div><dt>{cancellationCopy.otherLabel}</dt><dd>{cancellation.otherReason}</dd></div> : null}
+                            </dl>
+                          </section>
+                        ) : canCancel ? (
+                          <button
+                            className={`${styles.button} ${styles.buttonSecondary}`}
+                            type="button"
+                            disabled={actionKey !== null}
+                            onClick={(event) => {
+                              cancellationTriggerRef.current = event.currentTarget;
+                              setActionError(null);
+                              setOpenCancellation(booking.id);
+                            }}
+                          >
+                            {cancellationCopy.trigger}
+                          </button>
+                        ) : null}
+                        {openCancellation === booking.id ? (
+                          <BookingCancellationDialog
+                            locale={locale}
+                            bookingTitle={title}
+                            submitting={actionKey === `cancel:${booking.id}`}
+                            error={actionError}
+                            returnFocus={cancellationTriggerRef.current}
+                            onClose={() => setOpenCancellation(null)}
+                            onConfirm={(reason) => void sendCancellation(booking.id, reason)}
+                          />
+                        ) : null}
 
                         <section aria-labelledby={`customer-review-${booking.id}`}>
                           <div className={styles.cardTitleLine}>

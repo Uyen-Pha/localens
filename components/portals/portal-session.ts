@@ -105,7 +105,6 @@ function createLazyDemoComposition(): DemoPortalComposition {
       catalog: lazyPort(["admin", "catalog"]),
       personalizedRequests: lazyPort(["admin", "personalizedRequests"]),
       bookings: lazyPort(["admin", "bookings"]),
-      cancellations: lazyPort(["admin", "cancellations"]),
       assignments: lazyPort(["admin", "assignments"]),
       reporting: lazyPort(["admin", "reporting"]),
     },

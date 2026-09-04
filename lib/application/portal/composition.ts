@@ -96,8 +96,7 @@ function assertCompleteProductionBindings(value: unknown): asserts value is Port
     "listCustomRequests",
   ]);
   requirePort(value.customer.cancellations, "customer.cancellations", [
-    "requestCancellation",
-    "listOwnCancellationRequests",
+    "cancelBooking",
   ]);
   requirePort(value.customer.reviews, "customer.reviews", [
     "submitTourReview",
@@ -116,10 +115,6 @@ function assertCompleteProductionBindings(value: unknown): asserts value is Port
     "reviewPersonalizedRequest",
   ]);
   requirePort(value.admin.bookings, "admin.bookings", ["listAdminBookings"]);
-  requirePort(value.admin.cancellations, "admin.cancellations", [
-    "listCancellationRequests",
-    "decideCancellation",
-  ]);
   requirePort(value.admin.assignments, "admin.assignments", ["assignGuideToFixedDeparture"]);
   requirePort(value.admin.reporting, "admin.reporting", ["getReport"]);
 }

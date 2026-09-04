@@ -28,9 +28,9 @@ const RuntimeFixedTourAccount = lazy(async () => {
   return { default: module.RuntimeFixedTourAccount };
 });
 
-const RuntimeCancellationQueue = lazy(async () => {
-  const module = await import("@/components/admin/runtime-cancellation-queue");
-  return { default: module.RuntimeCancellationQueue };
+const RuntimeBookingManagement = lazy(async () => {
+  const module = await import("@/components/admin/runtime-booking-management");
+  return { default: module.RuntimeBookingManagement };
 });
 
 const RuntimeGuideAssignmentQueue = lazy(async () => {
@@ -253,13 +253,17 @@ function RuntimeRoleShell({
         {actionError ? <p className={styles.error} role="alert">{actionError}</p> : null}
         {session.role === "customer" ? (
           <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
-            <RuntimeFixedTourAccount locale={locale} fixedTour={composition.fixedTour} />
+            <RuntimeFixedTourAccount
+              locale={locale}
+              fixedTour={composition.fixedTour}
+              bookingCancellations={composition.bookingCancellations}
+            />
           </Suspense>
         ) : null}
         {session.role === "admin" ? (
           <>
             <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
-              <RuntimeCancellationQueue locale={locale} fixedTour={composition.fixedTour} />
+              <RuntimeBookingManagement locale={locale} history={composition.bookingCancellations} />
             </Suspense>
             <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
               <RuntimeGuideAssignmentQueue locale={locale} assignments={composition.guideAssignments} />
