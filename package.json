@@ -16,7 +16,7 @@
     "build:demo": "node scripts/run-next-mode.mjs build demo",
     "build:supabase": "node scripts/run-next-mode.mjs build supabase",
     "lint": "eslint . --max-warnings=0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest",
     "test:run": "vitest run",
     "test:e2e": "node scripts/run-demo-e2e.mjs",
