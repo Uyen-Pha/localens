@@ -21,6 +21,7 @@ afterEach(() => {
 
 const copy = getDictionary("vi").planner;
 const DYNAMIC_IMPORT_TIMEOUT_MS = 5_000;
+const DYNAMIC_IMPORT_TEST_TIMEOUT_MS = 10_000;
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -83,7 +84,7 @@ describe("PlannerSurface", () => {
     expect(await screen.findByText(copy.simulatedDisclosure, {}, {
       timeout: DYNAMIC_IMPORT_TIMEOUT_MS,
     })).toBeVisible();
-  });
+  }, DYNAMIC_IMPORT_TEST_TIMEOUT_MS);
 
   it("renders the Supabase planner with the runtime disclosure", async () => {
     mocks.loadPortalSurfaceComposition.mockResolvedValue(supabaseComposition());
@@ -93,7 +94,7 @@ describe("PlannerSurface", () => {
     expect(await screen.findByText(copy.runtimeDisclosure, {}, {
       timeout: DYNAMIC_IMPORT_TIMEOUT_MS,
     })).toBeVisible();
-  });
+  }, DYNAMIC_IMPORT_TEST_TIMEOUT_MS);
 
   it("keeps an unavailable composition recoverable through a user-triggered retry", async () => {
     mocks.loadPortalSurfaceComposition
@@ -111,7 +112,7 @@ describe("PlannerSurface", () => {
       timeout: DYNAMIC_IMPORT_TIMEOUT_MS,
     })).toBeVisible();
     expect(mocks.loadPortalSurfaceComposition).toHaveBeenCalledTimes(2);
-  });
+  }, DYNAMIC_IMPORT_TEST_TIMEOUT_MS);
 
   it("fails closed when composition initialization rejects", async () => {
     const composition = supabaseComposition();
@@ -125,7 +126,7 @@ describe("PlannerSurface", () => {
     })).toBeVisible();
     expect(screen.queryByText(copy.runtimeDisclosure)).not.toBeInTheDocument();
     expect(screen.queryByText(copy.simulatedDisclosure)).not.toBeInTheDocument();
-  }, DYNAMIC_IMPORT_TIMEOUT_MS + 1_000);
+  }, DYNAMIC_IMPORT_TEST_TIMEOUT_MS);
 
   it("ignores a late composition completion after unmount", async () => {
     const compositionLoad = deferred<SupabasePortalShell>();
