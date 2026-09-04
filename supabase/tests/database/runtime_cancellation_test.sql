@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT no_plan();
+SELECT plan(63);
 
 DELETE FROM auth.users
 WHERE id BETWEEN '00000000-0000-0000-0000-000000002601'::uuid
@@ -330,6 +330,46 @@ SELECT throws_ok(
   $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'other', E'bad\ntext', 'bad-control-pair')$$,
   '22023', 'cancellation input rejected', 'other reason rejects control characters'
 );
+SELECT throws_ok(
+  format(
+    $query$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002706', %L, NULL, %L)$query$,
+    reason_code,
+    'accepted-standard-' || ordinality
+  ),
+  'P0001',
+  'cancellation unavailable',
+  format('standard reason code %s is accepted', reason_code)
+)
+FROM unnest(ARRAY[
+  'trip_plan_changed',
+  'wrong_tour_or_departure',
+  'booking_details_change',
+  'tour_details_unsuitable',
+  'price_unsuitable',
+  'payment_unavailable'
+]::text[]) WITH ORDINALITY AS accepted_reasons(reason_code, ordinality);
+SELECT throws_ok(
+  format(
+    $query$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002706', 'other', %L, %L)$query$,
+    repeat('x', reason_length),
+    'accepted-other-' || reason_length
+  ),
+  'P0001',
+  'cancellation unavailable',
+  format('other reason length %s is accepted', reason_length)
+)
+FROM unnest(ARRAY[3, 500]) AS accepted_lengths(reason_length);
+SELECT throws_ok(
+  format(
+    $query$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002706', 'other', %L, %L)$query$,
+    repeat('x', reason_length),
+    'rejected-other-' || reason_length
+  ),
+  '22023',
+  'cancellation input rejected',
+  format('other reason length %s is rejected', reason_length)
+)
+FROM unnest(ARRAY[2, 501]) AS rejected_lengths(reason_length);
 
 SELECT ok(
   (SELECT booking_status = 'cancelled' AND state = 'created' AND reason_code = 'trip_plan_changed'

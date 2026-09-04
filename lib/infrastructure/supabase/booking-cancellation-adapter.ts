@@ -106,7 +106,12 @@ function cancellationRows(value: unknown): BookingCancellation[] {
 }
 
 async function requireSession(client: BookingCancellationClient): Promise<void> {
-  const response = await client.auth.getSession();
+  let response: Awaited<ReturnType<BookingCancellationClient["auth"]["getSession"]>>;
+  try {
+    response = await client.auth.getSession();
+  } catch {
+    throw portalFailure("STORAGE_UNAVAILABLE");
+  }
   if (response.error) throw databaseError(response.error);
   if (!response.data.session) throw portalFailure("UNAUTHENTICATED");
 }

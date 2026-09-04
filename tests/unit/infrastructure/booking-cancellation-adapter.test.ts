@@ -188,6 +188,27 @@ describe("Supabase booking cancellation adapter", () => {
     );
   });
 
+  it("maps rejected auth session reads to a redacted storage-unavailable error", async () => {
+    const { client } = clientDouble();
+    client.auth.getSession.mockRejectedValueOnce(
+      new Error("postgres://storage-user:secret@127.0.0.1/localens transport failed"),
+    );
+
+    let thrown: unknown;
+    try {
+      await createSupabaseBookingCancellationAdapter(client as never).listOwnCancellations();
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(PortalError);
+    expect(thrown).toMatchObject({ code: "STORAGE_UNAVAILABLE" });
+    expect((thrown as Error).message).toBe("The cancellation service is unavailable.");
+    expect((thrown as Error).message).not.toContain("secret");
+    expect((thrown as Error).message).not.toContain("postgres://");
+    expect(client.from).not.toHaveBeenCalled();
+  });
+
   it.each([
     [{ code: "22023", message: "cancellation input rejected" }, "INVALID_INPUT"],
     [{ code: "42501", message: "cancellation customer role required" }, "FORBIDDEN"],
