@@ -29,7 +29,7 @@ export interface PlannerSurfaceProps {
 }
 
 async function loadSelectedPlanner(composition: PlannerComposition): Promise<LoadedPlanner> {
-  void composition.initialized.catch(() => undefined);
+  await composition.initialized;
 
   if (composition.mode === "demo") {
     const { PlannerFlow } = await import("@/components/customer/planner-flow");

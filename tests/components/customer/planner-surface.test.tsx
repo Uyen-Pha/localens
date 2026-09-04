@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PlannerSurface } from "@/components/customer/planner-surface";
@@ -20,6 +20,15 @@ afterEach(() => {
 });
 
 const copy = getDictionary("vi").planner;
+const DYNAMIC_IMPORT_TIMEOUT_MS = 5_000;
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
 
 function demoComposition(): DemoPortalComposition {
   return {
@@ -71,7 +80,9 @@ describe("PlannerSurface", () => {
 
     render(<PlannerSurface locale="vi" copy={copy} />);
 
-    expect(await screen.findByText(copy.simulatedDisclosure)).toBeVisible();
+    expect(await screen.findByText(copy.simulatedDisclosure, {}, {
+      timeout: DYNAMIC_IMPORT_TIMEOUT_MS,
+    })).toBeVisible();
   });
 
   it("renders the Supabase planner with the runtime disclosure", async () => {
@@ -79,7 +90,9 @@ describe("PlannerSurface", () => {
 
     render(<PlannerSurface locale="vi" copy={copy} />);
 
-    expect(await screen.findByText(copy.runtimeDisclosure)).toBeVisible();
+    expect(await screen.findByText(copy.runtimeDisclosure, {}, {
+      timeout: DYNAMIC_IMPORT_TIMEOUT_MS,
+    })).toBeVisible();
   });
 
   it("keeps an unavailable composition recoverable through a user-triggered retry", async () => {
@@ -89,10 +102,49 @@ describe("PlannerSurface", () => {
 
     render(<PlannerSurface locale="vi" copy={copy} />);
 
-    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(await screen.findByRole("alert", {}, {
+      timeout: DYNAMIC_IMPORT_TIMEOUT_MS,
+    })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
 
-    expect(await screen.findByText(copy.runtimeDisclosure)).toBeVisible();
+    expect(await screen.findByText(copy.runtimeDisclosure, {}, {
+      timeout: DYNAMIC_IMPORT_TIMEOUT_MS,
+    })).toBeVisible();
     expect(mocks.loadPortalSurfaceComposition).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails closed when composition initialization rejects", async () => {
+    const composition = supabaseComposition();
+    Object.assign(composition, { initialized: Promise.reject(new Error("initialization failed")) });
+    mocks.loadPortalSurfaceComposition.mockResolvedValue(composition);
+
+    render(<PlannerSurface locale="vi" copy={copy} />);
+
+    expect(await screen.findByRole("alert", {}, {
+      timeout: DYNAMIC_IMPORT_TIMEOUT_MS,
+    })).toBeVisible();
+    expect(screen.queryByText(copy.runtimeDisclosure)).not.toBeInTheDocument();
+    expect(screen.queryByText(copy.simulatedDisclosure)).not.toBeInTheDocument();
+  }, DYNAMIC_IMPORT_TIMEOUT_MS + 1_000);
+
+  it("ignores a late composition completion after unmount", async () => {
+    const compositionLoad = deferred<SupabasePortalShell>();
+    mocks.loadPortalSurfaceComposition.mockReturnValue(compositionLoad.promise);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const { container, unmount } = render(<PlannerSurface locale="vi" copy={copy} />);
+
+      unmount();
+      await act(async () => {
+        compositionLoad.resolve(supabaseComposition());
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(container).toBeEmptyDOMElement();
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
