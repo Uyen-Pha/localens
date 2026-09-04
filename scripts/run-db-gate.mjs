@@ -94,7 +94,7 @@ export async function runDbGate(options = {}) {
   const env = options.env ?? process.env;
   const args = options.args ?? [];
   assertNoRemoteMode(args);
-  const cliPath = requireLocalSupabaseCli({ cwd, cliPath: options.cliPath });
+  const cliPath = requireLocalSupabaseCli({ cwd, cliPath: options.cliPath, platform });
   const runner = options.runner ?? runPackageScript;
   const calls = [];
   let failure = null;
