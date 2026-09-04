@@ -19,12 +19,21 @@ const SAFE_TEXT_EXTENSIONS = new Set([
 ]);
 const MAX_TEXT_BYTES = 10 * 1024 * 1024;
 const REDACTIONS = [
+  [
+    /-----BEGIN (?:RSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY-----/g,
+    "[REDACTED_PRIVATE_KEY]",
+  ],
   [/postgres(?:ql)?:\/\/[^\s"'<>]+/gi, "[REDACTED_DATABASE_URL]"],
   [/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_JWT]"],
   [/\bsb_(?:secret|publishable)_[A-Za-z0-9_-]+\b/g, "[REDACTED_SUPABASE_KEY]"],
+  [/\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g, "[REDACTED_GITHUB_TOKEN]"],
   [/(PASSWORD|SECRET|SERVICE_ROLE_KEY|ACCESS_TOKEN)=([^\s"'<>]+)/gi, "$1=[REDACTED]"],
-  [/(Authorization\s*[:=]\s*)(?:Bearer\s+)?[^\s"',;<>]+/gi, "$1[REDACTED]"],
+  [/(Authorization\s*[:=]\s*)(?:(?:Bearer|Basic)\s+)?[^\s"',;<>]+/gi, "$1[REDACTED]"],
   [/(Cookie\s*[:=]\s*)[^\r\n]+/gi, "$1[REDACTED]"],
+  [
+    /((?:"|')?[A-Z0-9_]*(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY|API_KEY|APIKEY)(?:"|')?\s*[:=]\s*(?:"|')?)[^"'\s,;<>]+/gi,
+    "$1[REDACTED]",
+  ],
   [/((?:api[-_]?key|apikey)\s*[:=]\s*)[^\s"',;<>]+/gi, "$1[REDACTED]"],
 ];
 

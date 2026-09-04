@@ -6,6 +6,7 @@ describe("demo Playwright server isolation", () => {
   it("owns a clean non-manual port through the signal-forwarding Next wrapper", () => {
     expect(config.testIgnore).toEqual([
       "runtime-auth.spec.ts",
+      "runtime-itinerary.spec.ts",
       "runtime-fixed-tour.spec.ts",
       "runtime-guide-assignment.spec.ts",
     ]);

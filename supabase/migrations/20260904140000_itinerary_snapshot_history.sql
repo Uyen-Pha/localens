@@ -47,11 +47,14 @@ GRANT SELECT ON public.itinerary_travel_snapshot_history_v,
   public.itinerary_fx_snapshot_history_v
 TO authenticated;
 
-RESET ROLE;
+-- Keep the explicit ownership declarations inside the creator role.  They are
+-- redundant at runtime but make the generated access matrix auditable without
+-- asking the migration runner to reassign an object it does not own.
 ALTER VIEW public.itinerary_travel_snapshot_history_v
 OWNER TO localens_catalog_rpc_owner;
 ALTER VIEW public.itinerary_fx_snapshot_history_v
 OWNER TO localens_catalog_rpc_owner;
+RESET ROLE;
 REVOKE CREATE ON SCHEMA public FROM localens_catalog_rpc_owner;
 
 COMMIT;

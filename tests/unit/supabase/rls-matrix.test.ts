@@ -155,8 +155,30 @@ describe("Task 13 RLS/RPC access matrix", () => {
       internalFunctions: string[];
     };
     expect(matrix.tables).toHaveLength(83);
-    expect(matrix.views).toHaveLength(22);
-    expect(matrix.rpcs).toHaveLength(25);
+    expect(matrix.views).toHaveLength(24);
+    expect(matrix.rpcs).toHaveLength(26);
+    expect(matrix.views).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: "public.itinerary_fx_snapshot_history_v",
+        owner: "localens_catalog_rpc_owner",
+        readerRoles: ["authenticated"],
+        securityInvoker: false,
+        securityBarrier: true,
+      }),
+      expect.objectContaining({
+        name: "public.itinerary_travel_snapshot_history_v",
+        owner: "localens_catalog_rpc_owner",
+        readerRoles: ["authenticated"],
+        securityInvoker: false,
+        securityBarrier: true,
+      }),
+    ]));
+    expect(matrix.rpcs).toContainEqual(expect.objectContaining({
+      name: "public.advance_authenticated_trip_plan_revision",
+      signature: "public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)",
+      owner: "localens_plan_rpc_owner",
+      readerRoles: ["authenticated"],
+    }));
     expect(matrix.rpcs).toContainEqual(expect.objectContaining({
       name: "public.begin_fixed_tour_booking",
       signature: "public.begin_fixed_tour_booking(uuid,integer,public.locale,text)",

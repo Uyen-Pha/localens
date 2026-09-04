@@ -10,6 +10,7 @@ export default defineConfig({
   testDir: "./tests/e2e",
   testIgnore: [
     "runtime-auth.spec.ts",
+    "runtime-itinerary.spec.ts",
     "runtime-fixed-tour.spec.ts",
     "runtime-guide-assignment.spec.ts",
   ],

@@ -527,6 +527,44 @@ describe("Supabase itinerary adapter", () => {
     expect(provider).not.toHaveBeenCalled();
   });
 
+  it("passes the validated local fake-provider endpoint into the Gemini ranker", async () => {
+    const user = new FakeClient();
+    const service = new FakeClient();
+    const provider = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      void _input;
+      void _init;
+      return new Response(JSON.stringify({
+        candidates: [{
+          content: {
+            parts: [{ text: JSON.stringify({
+              orderedIds: [ids.place],
+              rationales: { [ids.place]: "Verified history fit." },
+              foodSelections: [],
+            }) }],
+          },
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const endpointBase = "http://host.docker.internal:55431/v1beta";
+    const adapter = createSupabaseRecommendAdapter(
+      config(user, service, { fetchImpl: provider, geminiEndpointBase: endpointBase }),
+      request(),
+    );
+    const resolved = await resolveInput(adapter);
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+
+    const recommendation = await recommendItinerary(resolved.input, { ranker: adapter.ranker });
+
+    expect(recommendation).toMatchObject({
+      ok: true,
+      value: { degraded: false, result: { rankingSource: "ai" } },
+    });
+    expect(String(provider.mock.calls[0]?.[0])).toBe(
+      `${endpointBase}/models/gemini-3.6-flash:generateContent`,
+    );
+  });
+
   it("generates a plan id before fingerprinting and persists revision one through the authenticated RPC", async () => {
     const user = new FakeClient();
     const service = new FakeClient();

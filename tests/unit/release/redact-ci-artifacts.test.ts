@@ -31,11 +31,29 @@ describe("CI failure artifact redactor", () => {
     mkdirSync(results);
 
     const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature";
+    const githubToken = "ghp_unsafeGithubTokenFixture1234567890";
+    const genericToken = "unsafe-generic-control-token";
+    const basicCredential = Buffer.from("unsafe-user:unsafe-password").toString("base64");
+    const privateKey = [
+      "-----BEGIN PRIVATE KEY-----",
+      "unsafe-private-key-material",
+      "-----END PRIVATE KEY-----",
+    ].join("\n");
+    const encryptedPrivateKey = [
+      "-----BEGIN ENCRYPTED PRIVATE KEY-----",
+      "unsafe-encrypted-private-key-material",
+      "-----END ENCRYPTED PRIVATE KEY-----",
+    ].join("\n");
     writeFileSync(join(logs, "runtime.log"), [
       "DATABASE_URL=postgresql://postgres:unsafe@127.0.0.1:54322/postgres",
       `Authorization: Bearer ${jwt}`,
+      `Authorization: Basic ${basicCredential}`,
       "SUPABASE_SERVICE_ROLE_KEY=sb_secret_unsafe-value",
       "ACCESS_TOKEN=unsafe-token",
+      `GITHUB_TOKEN=${githubToken}`,
+      `LOCALENS_RUNTIME_GEMINI_CONTROL_TOKEN=${genericToken}`,
+      privateKey,
+      encryptedPrivateKey,
     ].join("\n"));
     const embeddedZip = Buffer.from(`archive:${jwt}:sb_secret_inside-html-archive`).toString("base64");
     writeFileSync(
@@ -59,6 +77,11 @@ describe("CI failure artifact redactor", () => {
     const safeReport = readFileSync(join(output, "playwright-report", "summary.json"), "utf8");
     expect(safeLog).not.toContain("unsafe");
     expect(safeLog).not.toContain(jwt);
+    expect(safeLog).not.toContain(githubToken);
+    expect(safeLog).not.toContain(genericToken);
+    expect(safeLog).not.toContain(basicCredential);
+    expect(safeLog).not.toContain("BEGIN PRIVATE KEY");
+    expect(safeLog).not.toContain("BEGIN ENCRYPTED PRIVATE KEY");
     expect(safeLog).toContain("[REDACTED_DATABASE_URL]");
     expect(safeLog).toContain("[REDACTED]");
     expect(safeReport).not.toContain(jwt);

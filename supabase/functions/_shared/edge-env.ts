@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { GEMINI_MODEL } from "@/supabase/functions/_shared/gemini-ranker";
+import {
+  GEMINI_ENDPOINT_BASE,
+  GEMINI_MODEL,
+  normalizeGeminiEndpointBase,
+} from "@/supabase/functions/_shared/gemini-ranker";
 
 export interface ItineraryEdgeEnv {
   readonly supabaseUrl: string;
@@ -11,6 +15,7 @@ export interface ItineraryEdgeEnv {
   readonly geminiEnabled: boolean;
   readonly geminiApiKey?: string;
   readonly geminiModel: typeof GEMINI_MODEL;
+  readonly geminiEndpointBase: string;
 }
 
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
@@ -66,6 +71,15 @@ const serverValueSchema = z.string()
 
 const quotaKeySchema = serverValueSchema.min(32);
 
+const geminiTestEndpointSchema = z.string().transform((value, context) => {
+  try {
+    return normalizeGeminiEndpointBase(value);
+  } catch {
+    context.addIssue({ code: "custom", message: "Invalid local Gemini test endpoint" });
+    return z.NEVER;
+  }
+});
+
 const allowedOriginsSchema = z.string()
   .min(1)
   .max(MAX_ALLOWED_ORIGINS_LENGTH)
@@ -97,12 +111,20 @@ const sourceSchema = z.object({
   LOCALLENS_GEMINI_ENABLED: z.enum(["0", "1"]),
   GEMINI_API_KEY: serverValueSchema.optional(),
   GEMINI_MODEL: z.literal(GEMINI_MODEL).optional(),
+  LOCALLENS_GEMINI_TEST_ENDPOINT_BASE: geminiTestEndpointSchema.optional(),
 }).superRefine((value, context) => {
   if (value.LOCALLENS_GEMINI_ENABLED === "1" && value.GEMINI_API_KEY === undefined) {
     context.addIssue({
       code: "custom",
       message: "Gemini API key is required while Gemini is enabled",
       path: ["GEMINI_API_KEY"],
+    });
+  }
+  if (value.LOCALLENS_GEMINI_ENABLED === "0" && value.LOCALLENS_GEMINI_TEST_ENDPOINT_BASE !== undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "Local Gemini test endpoint requires Gemini to be enabled",
+      path: ["LOCALLENS_GEMINI_TEST_ENDPOINT_BASE"],
     });
   }
 });
@@ -120,5 +142,6 @@ export function parseItineraryEdgeEnv(source: unknown): ItineraryEdgeEnv {
     geminiEnabled,
     ...(geminiEnabled ? { geminiApiKey: parsed.GEMINI_API_KEY! } : {}),
     geminiModel: GEMINI_MODEL,
+    geminiEndpointBase: parsed.LOCALLENS_GEMINI_TEST_ENDPOINT_BASE ?? GEMINI_ENDPOINT_BASE,
   };
 }

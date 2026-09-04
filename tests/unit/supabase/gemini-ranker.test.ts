@@ -236,4 +236,31 @@ describe("Gemini itinerary ranker", () => {
       fetchImpl: responseFetch(geminiEnvelope(validRankResponse)),
     } as unknown as GeminiRankerConfig)).toThrow("model");
   });
+
+  it("accepts only a bounded container-to-host endpoint for the local fake provider", async () => {
+    const fetchImpl = responseFetch(geminiEnvelope(validRankResponse));
+    const endpointBase = "http://host.docker.internal:55431/v1beta";
+    const rank = createGeminiRanker({
+      ...rankerConfig(fetchImpl),
+      endpointBase,
+    });
+
+    await rank(validRankRequest, new AbortController().signal);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toBe(
+      `${endpointBase}/models/gemini-3.6-flash:generateContent`,
+    );
+
+    for (const value of [
+      "http://example.com:55431/v1beta",
+      "https://example.com/v1beta",
+      "http://host.docker.internal/v1beta",
+      "http://user:password@host.docker.internal:55431/v1beta",
+      "http://host.docker.internal:55431/other",
+    ]) {
+      expect(() => createGeminiRanker({
+        ...rankerConfig(fetchImpl),
+        endpointBase: value,
+      })).toThrow("endpoint");
+    }
+  });
 });

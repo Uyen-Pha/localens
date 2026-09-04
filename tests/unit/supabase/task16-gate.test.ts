@@ -17,6 +17,15 @@ import { requireLocalSupabaseCli, runLocalSupabase } from "@/scripts/supabase-lo
 import { exitCodeForError } from "@/scripts/run-db-gate.mjs";
 import { resolve as resolvePath } from "node:path";
 
+function localSupabaseCliPath(rootDir: string): string {
+  return path.join(
+    rootDir,
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "supabase.cmd" : "supabase",
+  );
+}
+
 describe("Task16 database gate", () => {
   it("runs the local gate in order and always stops after success", async () => {
     const calls: string[] = [];
@@ -74,6 +83,7 @@ describe("Task16 database gate", () => {
     await expect(
       runDbGate({
         cwd: "C:/repo",
+        platform: "win32",
         cliPath: "C:/repo/node_modules/.bin/supabase.cmd",
         runner: async (spec: { name: string }) => {
           calls.push(spec.name);
@@ -189,7 +199,7 @@ describe("Task16 database gate", () => {
 describe("Task16 generated database types", () => {
   it("does not create a generated file when the CLI returns no output", async () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
-    const cliPath = path.join(rootDir, "node_modules", ".bin", "supabase.cmd");
+    const cliPath = localSupabaseCliPath(rootDir);
     try {
       await expect(
         writeGeneratedDatabaseTypes({
@@ -207,7 +217,7 @@ describe("Task16 generated database types", () => {
 
   it("uses local-only type generation and atomically writes non-empty output", async () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
-    const cliPath = path.join(rootDir, "node_modules", ".bin", "supabase.cmd");
+    const cliPath = localSupabaseCliPath(rootDir);
     const calls: Array<{ args: string[] }> = [];
     try {
       await writeGeneratedDatabaseTypes({
@@ -230,7 +240,7 @@ describe("Task16 generated database types", () => {
 
   it("fails type drift checking without creating the missing target", async () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
-    const cliPath = path.join(rootDir, "node_modules", ".bin", "supabase.cmd");
+    const cliPath = localSupabaseCliPath(rootDir);
     try {
       await expect(
         checkGeneratedDatabaseTypes({
@@ -248,7 +258,7 @@ describe("Task16 generated database types", () => {
 
   it("detects drift in an existing generated file without replacing it", async () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
-    const cliPath = path.join(rootDir, "node_modules", ".bin", "supabase.cmd");
+    const cliPath = localSupabaseCliPath(rootDir);
     const filePath = path.join(rootDir, "lib/infrastructure/supabase/database.types.ts");
     mkdirSync(path.dirname(filePath), { recursive: true });
     writeFileSync(filePath, "export type Database = { previous: true };\n", "utf8");
@@ -268,7 +278,7 @@ describe("Task16 generated database types", () => {
 
   it("preserves the previous generated file across failed and empty generation", async () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
-    const cliPath = path.join(rootDir, "node_modules", ".bin", "supabase.cmd");
+    const cliPath = localSupabaseCliPath(rootDir);
     const filePath = path.join(rootDir, "lib/infrastructure/supabase/database.types.ts");
     mkdirSync(path.dirname(filePath), { recursive: true });
     writeFileSync(filePath, "export type Database = { previous: true };\n", "utf8");
@@ -299,7 +309,7 @@ describe("Task16 generated database types", () => {
 describe("Task16 generated database type normalization", () => {
   it("normalizes CLI line endings before checking generated type drift", async () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "localens-task16-"));
-    const cliPath = path.join(rootDir, "node_modules", ".bin", "supabase.cmd");
+    const cliPath = localSupabaseCliPath(rootDir);
     const filePath = path.join(rootDir, "lib/infrastructure/supabase/database.types.ts");
     mkdirSync(path.dirname(filePath), { recursive: true });
     writeFileSync(filePath, "export type Database = {};\n", "utf8");

@@ -74,12 +74,17 @@ describe("release toolchain contract", () => {
     for (const command of [
       "pnpm db:verify",
       "pnpm test:e2e:runtime-auth",
+      "pnpm test:e2e:runtime-itinerary",
       "pnpm test:e2e:runtime-fixed-tour",
       "pnpm test:e2e:runtime-guide-assignment",
       "pnpm build:supabase",
     ]) {
       expect(runtimeCommands).toContain(command);
     }
+    expect(runtimeCommands.indexOf("pnpm test:e2e:runtime-auth"))
+      .toBeLessThan(runtimeCommands.indexOf("pnpm test:e2e:runtime-itinerary"));
+    expect(runtimeCommands.indexOf("pnpm test:e2e:runtime-itinerary"))
+      .toBeLessThan(runtimeCommands.indexOf("pnpm test:e2e:runtime-fixed-tour"));
 
     const runtimeSteps = jobs["runtime-local"]?.steps ?? [];
     const redactStep = runtimeSteps.find((step) => step.name === "Prepare redacted failure artifacts");

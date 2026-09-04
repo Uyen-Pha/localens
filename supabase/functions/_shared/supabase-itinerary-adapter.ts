@@ -47,6 +47,7 @@ export interface SupabaseItineraryAdapterConfig {
   readonly quotaHmacKey: string;
   readonly geminiEnabled: boolean;
   readonly geminiApiKey?: string;
+  readonly geminiEndpointBase?: string;
   readonly fetchImpl?: typeof fetch;
   readonly randomUuid?: () => string;
   readonly cryptoImpl?: Pick<Crypto, "randomUUID" | "subtle">;
@@ -600,6 +601,7 @@ function runtime(
     ? createGeminiRanker({
         apiKey: config.geminiApiKey ?? "",
         ...(config.fetchImpl === undefined ? {} : { fetchImpl: config.fetchImpl }),
+        ...(config.geminiEndpointBase === undefined ? {} : { endpointBase: config.geminiEndpointBase }),
       })
     : undefined;
 

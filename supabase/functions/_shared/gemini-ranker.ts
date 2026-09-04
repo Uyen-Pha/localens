@@ -8,7 +8,14 @@ import type { RefinementRankRequest } from "@/supabase/functions/_shared/refine-
 
 export const GEMINI_MODEL = "gemini-3.6-flash" as const;
 
-const GEMINI_ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta" as const;
+export const GEMINI_ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta" as const;
+const LOCAL_TEST_PROVIDER_HOSTS = new Set([
+  "localhost",
+  "127.0.0.1",
+  "[::1]",
+  "host.docker.internal",
+  "host.containers.internal",
+]);
 const MAX_RESPONSE_BYTES = 65_536;
 const MAX_API_KEY_LENGTH = 4096;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
@@ -23,7 +30,43 @@ export interface GeminiRankerConfig {
   readonly apiKey: string;
   readonly model?: typeof GEMINI_MODEL;
   readonly fetchImpl?: typeof fetch;
-  readonly endpointBase?: typeof GEMINI_ENDPOINT_BASE;
+  readonly endpointBase?: string;
+}
+
+export function normalizeGeminiEndpointBase(value: string): string {
+  if (value === GEMINI_ENDPOINT_BASE) return value;
+  if (
+    typeof value !== "string"
+    || value.length === 0
+    || value.length > 2048
+    || value !== value.trim()
+    || CONTROL_CHARACTER_PATTERN.test(value)
+  ) {
+    throw new Error("Invalid Gemini endpoint");
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("Invalid Gemini endpoint");
+  }
+  const port = Number(parsed.port);
+  if (
+    parsed.protocol !== "http:"
+    || !LOCAL_TEST_PROVIDER_HOSTS.has(parsed.hostname)
+    || parsed.port === ""
+    || !Number.isSafeInteger(port)
+    || port < 1024
+    || port > 65_535
+    || parsed.pathname !== "/v1beta"
+    || parsed.username !== ""
+    || parsed.password !== ""
+    || parsed.search !== ""
+    || parsed.hash !== ""
+  ) {
+    throw new Error("Invalid Gemini endpoint");
+  }
+  return `${parsed.origin}/v1beta`;
 }
 
 const RESPONSE_JSON_SCHEMA = {
@@ -221,7 +264,7 @@ function extractModelJson(envelope: unknown): unknown {
 
 function validateConfig(config: GeminiRankerConfig): {
   apiKey: string;
-  endpointBase: typeof GEMINI_ENDPOINT_BASE;
+  endpointBase: string;
   fetchImpl: typeof fetch;
 } {
   if (
@@ -235,14 +278,12 @@ function validateConfig(config: GeminiRankerConfig): {
   if (config.model !== undefined && config.model !== GEMINI_MODEL) {
     throw new Error("Invalid Gemini model");
   }
-  if (config.endpointBase !== undefined && config.endpointBase !== GEMINI_ENDPOINT_BASE) {
-    throw new Error("Invalid Gemini endpoint");
-  }
+  const endpointBase = normalizeGeminiEndpointBase(config.endpointBase ?? GEMINI_ENDPOINT_BASE);
   const fetchImpl = config.fetchImpl ?? globalThis.fetch;
   if (typeof fetchImpl !== "function") throw new Error("Invalid Gemini fetch implementation");
   return {
     apiKey: config.apiKey,
-    endpointBase: GEMINI_ENDPOINT_BASE,
+    endpointBase,
     fetchImpl,
   };
 }

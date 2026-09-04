@@ -68,7 +68,7 @@ describe("Task 6 runtime Auth runner", () => {
       },
     });
 
-    expect(env.Path.split(path.delimiter)[0]).toBe(expectedDirectory);
+    expect(env.Path.split(path.win32.delimiter)[0]).toBe(expectedDirectory);
     expect(probes).toHaveLength(2);
   });
 
@@ -160,6 +160,7 @@ describe("Task 6 runtime Auth runner", () => {
         "3300",
       ]),
       expect.objectContaining({
+        detached: true,
         env: expect.objectContaining({
           LOCALLENS_NEXT_DIST_DIR: ".next/e2e-demo-3300",
           NEXT_PUBLIC_LOCALLENS_RUNTIME: "demo",
@@ -225,6 +226,31 @@ describe("Task 6 runtime Auth runner", () => {
       .rejects.toThrow(/RUNTIME_AUTH_SERVER_CLEANUP_FAILED/);
     expect(child.kill).toHaveBeenNthCalledWith(1, "SIGTERM");
     expect(child.kill).toHaveBeenNthCalledWith(2, "SIGKILL");
+  });
+
+  it("signals the owned POSIX process group instead of only the immediate child", async () => {
+    const child = Object.assign(new EventEmitter(), {
+      pid: 4321,
+      exitCode: null as number | null,
+      signalCode: null,
+      kill: vi.fn(() => true),
+    });
+    const killProcess = vi.fn((_pid: number, signal: NodeJS.Signals) => {
+      if (signal === "SIGTERM") {
+        child.exitCode = 0;
+        queueMicrotask(() => child.emit("close", 0));
+      }
+      return true;
+    });
+
+    await stopOwnedRuntimeServer(child, {
+      platform: "linux",
+      ownedProcessGroup: true,
+      killProcess,
+    });
+
+    expect(killProcess).toHaveBeenCalledWith(-4321, "SIGTERM");
+    expect(child.kill).not.toHaveBeenCalled();
   });
 
   it("redacts shutdown signal exceptions instead of escaping from cleanup timers", async () => {

@@ -242,8 +242,20 @@ function runChildStep(spec) {
   });
 }
 
-function signalOwnedRuntimeServer(child, signal) {
+function signalOwnedRuntimeServer(child, signal, {
+  platform = process.platform,
+  ownedProcessGroup = false,
+  killProcess = process.kill,
+} = {}) {
   try {
+    if (
+      platform !== "win32"
+      && ownedProcessGroup
+      && Number.isInteger(child.pid)
+      && child.pid > 0
+    ) {
+      return killProcess(-child.pid, signal);
+    }
     return child.kill(signal);
   } catch {
     return false;
@@ -319,7 +331,13 @@ async function confirmRuntimeServerEndpointStopped(fetchImpl, serverUrl, confirm
   }
 }
 
-function stopOwnedRuntimeServerPosix(child, { graceMs, forceConfirmMs }) {
+function stopOwnedRuntimeServerPosix(child, {
+  graceMs,
+  forceConfirmMs,
+  ownedProcessGroup,
+  killProcess,
+  platform,
+}) {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -351,7 +369,11 @@ function stopOwnedRuntimeServerPosix(child, { graceMs, forceConfirmMs }) {
         finish();
         return;
       }
-      if (!signalOwnedRuntimeServer(child, "SIGKILL")) {
+      if (!signalOwnedRuntimeServer(child, "SIGKILL", {
+        platform,
+        ownedProcessGroup,
+        killProcess,
+      })) {
         fail();
         return;
       }
@@ -362,7 +384,11 @@ function stopOwnedRuntimeServerPosix(child, { graceMs, forceConfirmMs }) {
       }, forceConfirmMs);
     };
     child.once("close", finish);
-    if (!signalOwnedRuntimeServer(child, "SIGTERM")) {
+    if (!signalOwnedRuntimeServer(child, "SIGTERM", {
+      platform,
+      ownedProcessGroup,
+      killProcess,
+    })) {
       forceStop();
       return;
     }
@@ -378,6 +404,8 @@ export async function stopOwnedRuntimeServer(child, {
   forceOwnedTree = forceOwnedRuntimeProcessTree,
   fetchImpl = fetch,
   serverUrl,
+  ownedProcessGroup = false,
+  killProcess = process.kill,
 } = {}) {
   if (platform === "win32" && child.exitCode === null && child.signalCode === null) {
     const treeStopAccepted = forceOwnedTree(child);
@@ -389,17 +417,35 @@ export async function stopOwnedRuntimeServer(child, {
     }
     await waitForOwnedRuntimeServerClose(child, forceConfirmMs);
   } else {
-    await stopOwnedRuntimeServerPosix(child, { graceMs, forceConfirmMs });
+    await stopOwnedRuntimeServerPosix(child, {
+      graceMs,
+      forceConfirmMs,
+      ownedProcessGroup,
+      killProcess,
+      platform,
+    });
   }
   await confirmRuntimeServerEndpointStopped(fetchImpl, serverUrl, forceConfirmMs);
 }
 
-async function runtimeServerResponds(fetchImpl, serverUrl = RUNTIME_SERVER_URL) {
+async function runtimeServerResponds(fetchImpl, serverUrl = RUNTIME_SERVER_URL, signal) {
+  let onAbort;
   try {
-    const response = await fetchImpl(serverUrl, { redirect: "manual" });
+    if (signal?.aborted) throw new Error();
+    const request = fetchImpl(serverUrl, { redirect: "manual", ...(signal ? { signal } : {}) });
+    const cancellation = signal ? new Promise((_, reject) => {
+      onAbort = () => reject(new Error());
+      signal.addEventListener("abort", onAbort, { once: true });
+      if (signal.aborted) onAbort();
+    }) : null;
+    const response = await (cancellation ? Promise.race([request, cancellation]) : request);
+    if (signal?.aborted) throw new Error();
     return response.ok || (response.status >= 300 && response.status < 400);
   } catch {
+    if (signal?.aborted) throw runtimeError("RUNTIME_AUTH_SERVER_ABORTED", "owned runtime startup was cancelled");
     return false;
+  } finally {
+    if (onAbort) signal.removeEventListener("abort", onAbort);
   }
 }
 
@@ -412,6 +458,7 @@ export async function startOwnedRuntimeServer(serverEnv, {
   serverUrl = RUNTIME_SERVER_URL,
   platform = process.platform,
   forceOwnedTree = forceOwnedRuntimeProcessTree,
+  signal,
 } = {}) {
   if (!["demo", "supabase"].includes(mode) || !Number.isInteger(port) || port < 1 || port > 65_535) {
     throw runtimeError("RUNTIME_AUTH_SERVER_CONFIG_INVALID", "owned runtime server configuration is invalid");
@@ -420,9 +467,10 @@ export async function startOwnedRuntimeServer(serverEnv, {
   if (!LOOPBACK_HOSTS.has(parsedServerUrl.hostname) || parsedServerUrl.port !== String(port)) {
     throw runtimeError("RUNTIME_AUTH_SERVER_CONFIG_INVALID", "owned runtime server must use its loopback port");
   }
-  if (await runtimeServerResponds(fetchImpl, serverUrl)) {
+  if (await runtimeServerResponds(fetchImpl, serverUrl, signal)) {
     throw runtimeError("RUNTIME_AUTH_SERVER_PORT_IN_USE", "runtime server endpoint is already occupied");
   }
+  if (signal?.aborted) throw runtimeError("RUNTIME_AUTH_SERVER_ABORTED", "owned runtime startup was cancelled");
   const child = spawnChild(process.execPath, [
     path.join(cwd, "node_modules", "next", "dist", "bin", "next"),
     "dev",
@@ -439,6 +487,7 @@ export async function startOwnedRuntimeServer(serverEnv, {
     },
     stdio: "inherit",
     windowsHide: true,
+    detached: platform !== "win32",
   });
 
   return new Promise((resolve, reject) => {
@@ -446,6 +495,7 @@ export async function startOwnedRuntimeServer(serverEnv, {
     let timer;
     let onClose;
     let onError;
+    const onAbort = () => fail(runtimeError("RUNTIME_AUTH_SERVER_ABORTED", "owned runtime startup was cancelled"));
     const deadline = Date.now() + RUNTIME_SERVER_TIMEOUT_MS;
     const fail = (error) => {
       if (settled) return;
@@ -453,11 +503,18 @@ export async function startOwnedRuntimeServer(serverEnv, {
       if (timer) clearTimeout(timer);
       child.removeListener("close", onClose);
       child.removeListener("error", onError);
+      signal?.removeEventListener("abort", onAbort);
       const rejectStartup = (cleanupError) => {
         if (cleanupError) error.serverCleanupError = cleanupError;
         reject(error);
       };
-      void stopOwnedRuntimeServer(child, { fetchImpl, serverUrl, platform, forceOwnedTree }).then(
+      void stopOwnedRuntimeServer(child, {
+        fetchImpl,
+        serverUrl,
+        platform,
+        forceOwnedTree,
+        ownedProcessGroup: platform !== "win32",
+      }).then(
         () => rejectStartup(),
         (cleanupError) => rejectStartup(cleanupError),
       );
@@ -469,23 +526,32 @@ export async function startOwnedRuntimeServer(serverEnv, {
     onError = () => fail(runtimeError("RUNTIME_AUTH_SERVER_FAILED", "owned runtime server could not be started"));
     child.once("error", onError);
     child.once("close", onClose);
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) { onAbort(); return; }
 
     const poll = async () => {
+      if (settled) return;
       try {
-        if (await runtimeServerResponds(fetchImpl, serverUrl)) {
+        const responds = await runtimeServerResponds(fetchImpl, serverUrl, signal);
+        if (settled) return;
+        if (responds) {
           settled = true;
           child.removeListener("close", onClose);
+          child.removeListener("error", onError);
+          signal?.removeEventListener("abort", onAbort);
           resolve({ stop: () => stopOwnedRuntimeServer(child, {
             fetchImpl,
             serverUrl,
             platform,
             forceOwnedTree,
+            ownedProcessGroup: platform !== "win32",
           }) });
           return;
         }
       } catch {
         // The owned server is still starting; retry until the bounded deadline.
       }
+      if (settled) return;
       if (Date.now() >= deadline) {
         fail(runtimeError("RUNTIME_AUTH_SERVER_TIMEOUT", "owned runtime server did not become ready"));
         return;

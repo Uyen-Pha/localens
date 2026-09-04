@@ -6,7 +6,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { GEMINI_MODEL } from "@/supabase/functions/_shared/gemini-ranker";
+import {
+  GEMINI_ENDPOINT_BASE,
+  GEMINI_MODEL,
+} from "@/supabase/functions/_shared/gemini-ranker";
 import { parseItineraryEdgeEnv } from "@/supabase/functions/_shared/edge-env";
 
 const validSource = {
@@ -31,6 +34,7 @@ describe("itinerary Edge environment", () => {
       geminiEnabled: true,
       geminiApiKey: validSource.GEMINI_API_KEY,
       geminiModel: GEMINI_MODEL,
+      geminiEndpointBase: GEMINI_ENDPOINT_BASE,
     });
   });
 
@@ -54,6 +58,32 @@ describe("itinerary Edge environment", () => {
     });
     expect(disabled).toMatchObject({ geminiEnabled: false, geminiModel: GEMINI_MODEL });
     expect(disabled).not.toHaveProperty("geminiApiKey");
+  });
+
+  it("accepts a test provider only on an explicit local container bridge", () => {
+    const endpointBase = "http://host.docker.internal:55431/v1beta";
+    expect(parseItineraryEdgeEnv({
+      ...validSource,
+      LOCALLENS_GEMINI_TEST_ENDPOINT_BASE: endpointBase,
+    }).geminiEndpointBase).toBe(endpointBase);
+
+    for (const value of [
+      "http://example.com:55431/v1beta",
+      "https://host.docker.internal:55431/v1beta",
+      "http://host.docker.internal/v1beta",
+      "http://host.containers.internal:55431/other",
+    ]) {
+      expect(() => parseItineraryEdgeEnv({
+        ...validSource,
+        LOCALLENS_GEMINI_TEST_ENDPOINT_BASE: value,
+      })).toThrow(z.ZodError);
+    }
+    expect(() => parseItineraryEdgeEnv({
+      ...validSource,
+      LOCALLENS_GEMINI_ENABLED: "0",
+      GEMINI_API_KEY: undefined,
+      LOCALLENS_GEMINI_TEST_ENDPOINT_BASE: endpointBase,
+    })).toThrow(z.ZodError);
   });
 
   it("parses a bounded comma-separated HTTPS origin allowlist", () => {
@@ -123,6 +153,7 @@ describe("itinerary Edge environment", () => {
       "LOCALLENS_GEMINI_ENABLED",
       "GEMINI_API_KEY",
       "GEMINI_MODEL",
+      "LOCALLENS_GEMINI_TEST_ENDPOINT_BASE",
     ]) {
       expect(example).toMatch(new RegExp(`^${key}=(?:\\r?\\n|$)`, "m"));
     }

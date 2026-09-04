@@ -101,6 +101,10 @@ jobs:
         shell: bash
         run: pnpm test:e2e:runtime-auth > ci-logs/runtime-auth.log 2>&1
 
+      - name: Verify authenticated AI itinerary runtime
+        shell: bash
+        run: pnpm test:e2e:runtime-itinerary > ci-logs/runtime-itinerary.log 2>&1
+
       - name: Verify runtime fixed-tour booking and payment
         shell: bash
         run: pnpm test:e2e:runtime-fixed-tour > ci-logs/runtime-fixed-tour.log 2>&1
