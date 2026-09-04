@@ -150,12 +150,14 @@ function PlannerProposal({
   copy,
   proposal,
   lockedItemIds,
+  controlsDisabled,
   onToggleLock,
 }: {
   locale: Locale;
   copy: PlannerCopy;
   proposal: RuntimePlannerProposal;
   lockedItemIds: ReadonlySet<string>;
+  controlsDisabled: boolean;
   onToggleLock: (itemId: string) => void;
 }) {
   const runtimeCopy = RUNTIME_COPY[locale];
@@ -184,6 +186,7 @@ function PlannerProposal({
                     className="button button--secondary planner-timeline__lock"
                     type="button"
                     aria-pressed={locked}
+                    disabled={controlsDisabled}
                     onClick={() => onToggleLock(item.placeId)}
                   >
                     {locked ? copy.unlockLabel : copy.lockLabel}: {item.title}
@@ -249,6 +252,7 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
   const [feedback, setFeedback] = useState("");
   const [scope, setScope] = useState<"partial" | "full">("partial");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [needsFreshRevision, setNeedsFreshRevision] = useState(false);
   const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
   const retryIntentRef = useRef<RetryIntent | null>(null);
@@ -291,8 +295,6 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
     : uiState.status === "error"
       ? uiState.previous
       : undefined;
-  const staleBlocked = uiState.status === "error" && uiState.error.code === "STALE_REVISION";
-
   async function execute(operation: PendingOperation, previous?: RuntimePlannerProposal) {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
@@ -308,6 +310,7 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
         : await planner.refine(operation.request, locale);
       if (!mountedRef.current) return;
       if (!result.ok) {
+        if (result.error.code === "STALE_REVISION") setNeedsFreshRevision(true);
         setUiState(previous === undefined
           ? { status: "error", error: result.error }
           : { status: "error", error: result.error, previous });
@@ -336,7 +339,7 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
   }
 
   function toggleLock(itemId: string) {
-    if (inFlightRef.current || staleBlocked) return;
+    if (inFlightRef.current || needsFreshRevision) return;
     setLockedItemIds((current) => {
       const next = new Set(current);
       if (next.has(itemId)) next.delete(itemId);
@@ -347,7 +350,7 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
 
   function submitRefinement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (currentProposal === undefined || staleBlocked || inFlightRef.current) return;
+    if (currentProposal === undefined || needsFreshRevision || inFlightRef.current) return;
     const normalizedFeedback = feedback.trim();
     if (normalizedFeedback.length === 0) {
       setValidationError(copy.feedbackRequiredMessage);
@@ -364,7 +367,13 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
 
   function retryLastOperation() {
     const intent = retryIntentRef.current;
-    if (intent === null || uiState.status !== "error" || !uiState.error.retryable) return;
+    if (
+      intent === null
+      || uiState.status !== "error"
+      || !uiState.error.retryable
+      || uiState.error.code === "STALE_REVISION"
+      || (needsFreshRevision && intent.kind !== "refresh")
+    ) return;
     if (intent.kind === "refresh") {
       void refreshLatest(intent.previous);
       return;
@@ -384,6 +393,7 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
         setUiState({ status: "error", error: result.error, previous });
         return;
       }
+      setNeedsFreshRevision(false);
       setUiState({ status: "ready", proposal: result.value });
       setLockedItemIds((current) => {
         const available = new Set(result.value.items.map((item) => item.placeId));
@@ -459,7 +469,7 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
               {copy.refreshLabel}
             </button>
           ) : null}
-          {uiState.error.retryable ? (
+          {uiState.error.retryable && uiState.error.code !== "STALE_REVISION" ? (
             <button className="button button--secondary" type="button" onClick={retryLastOperation}>
               {runtimeCopy.retry}
             </button>
@@ -482,6 +492,7 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
             copy={copy}
             proposal={currentProposal}
             lockedItemIds={lockedItemIds}
+            controlsDisabled={needsFreshRevision}
             onToggleLock={toggleLock}
           />
           <form className="planner-flow__refine" onSubmit={submitRefinement} noValidate>
@@ -516,7 +527,7 @@ export function SupabasePlannerFlow({ locale, copy, planner }: SupabasePlannerFl
             <button
               className="button button--primary"
               type="submit"
-              disabled={uiState.status === "loading" || staleBlocked}
+              disabled={uiState.status === "loading" || needsFreshRevision}
             >
               {uiState.status === "loading" && uiState.operation === "refine" ? copy.refiningLabel : copy.refineLabel}
             </button>

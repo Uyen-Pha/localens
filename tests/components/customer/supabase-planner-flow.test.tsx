@@ -319,7 +319,7 @@ describe("SupabasePlannerFlow", () => {
   it("refreshes a stale revision before allowing the customer to submit again", async () => {
     saveValidHandoff();
     const refine = vi.fn()
-      .mockResolvedValueOnce({ ok: false, error: runtimeError("STALE_REVISION", false) })
+      .mockResolvedValueOnce({ ok: false, error: runtimeError("STALE_REVISION", true) })
       .mockResolvedValueOnce({ ok: true, value: proposal({ revision: 3 }) });
     const getPlan = vi.fn(async () => ({ ok: true as const, value: proposal({ revision: 2 }) }));
     const port = plannerPort({ refine, getPlan });
@@ -333,8 +333,11 @@ describe("SupabasePlannerFlow", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("changed elsewhere");
     expect(refine).toHaveBeenCalledTimes(1);
+    expect(getPlan).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Refresh latest proposal" }));
     expect(await screen.findByRole("heading", { name: "Revision 2" })).toBeVisible();
+    expect(getPlan).toHaveBeenCalledTimes(1);
     expect(getPlan).toHaveBeenCalledWith("20000000-0000-4000-8000-000000000001", "en");
 
     fireEvent.click(screen.getByRole("button", { name: "Create revised proposal" }));
@@ -342,10 +345,10 @@ describe("SupabasePlannerFlow", () => {
     expect(refine.mock.calls[1]?.[0]).toMatchObject({ baseRevision: 2 });
   });
 
-  it("retries a failed stale readback without replaying the rejected refinement", async () => {
+  it("keeps stale controls blocked while a failed readback is retried", async () => {
     saveValidHandoff();
     const refine = vi.fn()
-      .mockResolvedValueOnce({ ok: false, error: runtimeError("STALE_REVISION", false) })
+      .mockResolvedValueOnce({ ok: false, error: runtimeError("STALE_REVISION", true) })
       .mockResolvedValueOnce({ ok: true, value: proposal({ revision: 3 }) });
     const getPlan = vi.fn()
       .mockResolvedValueOnce({ ok: false, error: runtimeError("SERVICE_UNAVAILABLE", true) })
@@ -360,11 +363,26 @@ describe("SupabasePlannerFlow", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Refresh latest proposal" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("network connection");
+    const lock = screen.getByRole("button", { name: "Lock stop: History Museum" });
+    const refineButton = screen.getByRole("button", { name: "Create revised proposal" });
+    const refineForm = refineButton.closest("form");
+    expect(lock).toBeDisabled();
+    expect(refineButton).toBeDisabled();
+    expect(refineForm).not.toBeNull();
+
+    fireEvent.click(lock);
+    fireEvent.submit(refineForm!);
+    expect(lock).toHaveAttribute("aria-pressed", "false");
+    expect(refine).toHaveBeenCalledTimes(1);
+    expect(getPlan).toHaveBeenCalledTimes(1);
+
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     expect(await screen.findByRole("heading", { name: "Revision 2" })).toBeVisible();
     expect(getPlan).toHaveBeenCalledTimes(2);
     expect(refine).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Lock stop: History Museum" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Create revised proposal" })).toBeEnabled();
   });
 
   it("blocks a duplicate refinement while its first mutation is pending", async () => {
