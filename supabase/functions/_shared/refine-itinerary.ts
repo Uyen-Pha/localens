@@ -32,6 +32,10 @@ import {
   recommendItinerary,
   type Recommendation,
 } from "@/lib/application/itinerary/recommend";
+import {
+  serializeItineraryWireResponse,
+  type ItineraryWireResponse,
+} from "@/supabase/functions/_shared/itinerary-wire-response";
 import type {
   RankRequest,
   RankResponse,
@@ -261,7 +265,7 @@ export interface RefineItineraryResponse {
   baseRevision: number;
   degraded: boolean;
   planId: string;
-  proposal: ItineraryResult;
+  proposal: ItineraryWireResponse;
   regeneration: "partial" | "full";
   revision: number;
   messageKey?: Recommendation["messageKey"];
@@ -939,7 +943,7 @@ export function createRefineItineraryHandler(
       baseRevision: input.baseRevision,
       degraded: recommendation.value.degraded,
       planId: input.planId,
-      proposal: result.data,
+      proposal: serializeItineraryWireResponse(result.data),
       regeneration: input.delta.scope,
       revision: inspectedCommit.revision,
       ...(recommendation.value.messageKey ? { messageKey: recommendation.value.messageKey } : {}),

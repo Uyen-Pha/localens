@@ -31,6 +31,10 @@ import {
   recommendItinerary,
   type Recommendation,
 } from "@/lib/application/itinerary/recommend";
+import {
+  serializeItineraryWireResponse,
+  type ItineraryWireResponse,
+} from "@/supabase/functions/_shared/itinerary-wire-response";
 import type { Ranker } from "@/lib/application/itinerary/ranking-port";
 
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
@@ -138,7 +142,7 @@ export interface RecommendItineraryResponse {
   degraded: boolean;
   messageKey?: Recommendation["messageKey"];
   planId: string;
-  proposal: ItineraryResult;
+  proposal: ItineraryWireResponse;
   rationales: Record<string, string>;
   revision: 1;
 }
@@ -586,7 +590,7 @@ export function createRecommendItineraryHandler(
       degraded: recommendation.value.degraded,
       ...(recommendation.value.messageKey ? { messageKey: recommendation.value.messageKey } : {}),
       planId: inspectedCommit.planId,
-      proposal: safeResult.result,
+      proposal: serializeItineraryWireResponse(safeResult.result),
       rationales: { ...recommendation.value.rationales },
       revision: inspectedCommit.revision,
     };

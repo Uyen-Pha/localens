@@ -27,6 +27,12 @@ import { PortalSurface } from "@/components/portals/portal-surface";
 const shell: SupabasePortalShell = {
   mode: "supabase",
   initialized: Promise.resolve(),
+  planner: {
+    getSession: async () => null,
+    recommend: async () => ({ ok: false, error: { code: "SERVICE_UNAVAILABLE", messageKey: "planner.service_unavailable", retryable: true, correlationId: "00000000-0000-4000-8000-000000000000" } }),
+    refine: async () => ({ ok: false, error: { code: "SERVICE_UNAVAILABLE", messageKey: "planner.service_unavailable", retryable: true, correlationId: "00000000-0000-4000-8000-000000000000" } }),
+    getPlan: async () => ({ ok: false, error: { code: "SERVICE_UNAVAILABLE", messageKey: "planner.service_unavailable", retryable: true, correlationId: "00000000-0000-4000-8000-000000000000" } }),
+  },
   fixedTour: {
     listPublishedTours: async () => [],
     listAvailability: async () => [],

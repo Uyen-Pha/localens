@@ -19,12 +19,15 @@ import {
   type SupabaseBookingCancellationHistoryAdapter,
 } from "@/lib/infrastructure/supabase/booking-cancellation-adapter";
 import type { RuntimeGuideAssignmentPort } from "@/lib/application/guide-assignment/contracts";
+import type { RuntimePlannerPort } from "@/lib/application/planner/runtime-planner";
+import { createSupabasePlannerRuntimeAdapter } from "@/lib/infrastructure/supabase/planner-runtime-adapter";
 
 type SupabaseRuntimeConfig = Extract<BrowserRuntimeConfig, { mode: "supabase" }>;
 
 export interface SupabasePortalShell extends FixedTourRuntimeComposition {
   readonly mode: "supabase";
   readonly session: RuntimeSessionPort;
+  readonly planner: RuntimePlannerPort;
   readonly bookingCancellations: SupabaseBookingCancellationHistoryAdapter;
   readonly guideAssignments: RuntimeGuideAssignmentPort;
   readonly initialized: Promise<void>;
@@ -42,6 +45,7 @@ export function createSupabasePortalShell(
     return {
       mode: "supabase",
       session: createSupabasePortalSessionAdapter(client),
+      planner: createSupabasePlannerRuntimeAdapter(client),
       bookingCancellations: createSupabaseBookingCancellationAdapter(client),
       ...createFixedTourRuntimeComposition(createSupabaseFixedTourRuntimeAdapter(client)),
       guideAssignments: createSupabaseRuntimeGuideAssignmentAdapter(client),

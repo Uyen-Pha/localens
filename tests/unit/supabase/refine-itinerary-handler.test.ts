@@ -198,6 +198,41 @@ describe("refine-itinerary Edge handler contract", () => {
     );
   });
 
+  it("serializes every validated VND money field as a canonical decimal string on the wire", async () => {
+    const handler = createRefineItineraryHandler(adapter(), {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const body = await (await handler(request(validBody({ guestToken: "guest-token-123456" })))).json();
+
+    expect(body.proposal.budgetVnd).toMatch(/^(?:0|[1-9]\d*)$/);
+    for (const field of [
+      "travelCostVndBefore",
+      "placeCostVnd",
+      "foodCostMinVnd",
+      "foodCostMaxVnd",
+      "payAtVendorMinVnd",
+      "payAtVendorMaxVnd",
+      "customerPayableVnd",
+    ]) expect(body.proposal.items[0][field]).toMatch(/^(?:0|[1-9]\d*)$/);
+    for (const field of [
+      "admissionCostVnd",
+      "foodCostMinVnd",
+      "foodCostMaxVnd",
+      "travelCostVnd",
+      "guideCostVnd",
+      "payAtVendorMinVnd",
+      "payAtVendorMaxVnd",
+      "customerPayableVnd",
+      "groupCostMinVnd",
+      "groupCostMaxVnd",
+      "groupCostVnd",
+    ]) expect(body.proposal.totals[field]).toMatch(/^(?:0|[1-9]\d*)$/);
+    expect(body.proposal.items[0].score).toBeTypeOf("number");
+    expect(body.proposal.totals.durationMinutes).toBeTypeOf("number");
+  });
+
   it("verifies an owner Bearer token before plan loading and never passes the raw token", async () => {
     const service = adapter();
     const handler = createRefineItineraryHandler(service, {
@@ -296,7 +331,11 @@ describe("refine-itinerary Edge handler contract", () => {
 
     expect(response.status).toBe(200);
     expect(body.degraded).toBe(true);
-    expect(body.proposal.items[0].foodSelection).toEqual(lockedSelection);
+    expect(body.proposal.items[0].foodSelection).toEqual({
+      ...lockedSelection,
+      priceVndMin: "30000",
+      priceVndMax: "40000",
+    });
   });
 
   it("preserves an explicit null food selection for a locked food place", async () => {
@@ -312,8 +351,8 @@ describe("refine-itinerary Edge handler contract", () => {
     expect(response.status).toBe(200);
     expect(body.proposal.items[0].placeId).toBe(lockedPlaceId);
     expect(body.proposal.items[0].foodSelection).toBeNull();
-    expect(body.proposal.items[0].foodCostMinVnd).toBe(0);
-    expect(body.proposal.items[0].foodCostMaxVnd).toBe(0);
+    expect(body.proposal.items[0].foodCostMinVnd).toBe("0");
+    expect(body.proposal.items[0].foodCostMaxVnd).toBe("0");
   });
 
   it("falls back and preserves null when a provider proposes food for a locked foodless place", async () => {
@@ -400,8 +439,8 @@ describe("refine-itinerary Edge handler contract", () => {
       vendorId: "vendor-banh-mi-legacy",
       menuItemId: "menu-banh-mi-legacy",
       quantity: 2,
-      priceVndMin: 30_000,
-      priceVndMax: 40_000,
+      priceVndMin: "30000",
+      priceVndMax: "40000",
       paymentMode: "pay_at_vendor",
       activity: "Taste and discuss the selected dish",
     });

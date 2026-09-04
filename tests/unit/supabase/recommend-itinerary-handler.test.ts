@@ -100,10 +100,10 @@ describe("recommend-itinerary Edge handler contract", () => {
       revision: 1,
       proposal: {
         rankingSource: "deterministic",
-        budgetVnd: 2_000_000,
+        budgetVnd: "2000000",
       },
     });
-    expect(body.proposal.totals.groupCostVnd).toBeLessThanOrEqual(body.proposal.budgetVnd);
+    expect(Number(body.proposal.totals.groupCostVnd)).toBeLessThanOrEqual(Number(body.proposal.budgetVnd));
     expect(body).not.toHaveProperty("bookingId");
     expect(service.verifyAccessToken).not.toHaveBeenCalled();
     expect(service.resolveEngineInput).toHaveBeenCalledWith(
@@ -116,6 +116,41 @@ describe("recommend-itinerary Edge handler contract", () => {
       },
     );
     expect(service.commitRecommendation).toHaveBeenCalledTimes(1);
+  });
+
+  it("serializes every validated VND money field as a canonical decimal string on the wire", async () => {
+    const handler = createRecommendItineraryHandler(adapter(), {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const body = await (await handler(request(validBody()))).json();
+
+    expect(body.proposal.budgetVnd).toMatch(/^(?:0|[1-9]\d*)$/);
+    for (const field of [
+      "travelCostVndBefore",
+      "placeCostVnd",
+      "foodCostMinVnd",
+      "foodCostMaxVnd",
+      "payAtVendorMinVnd",
+      "payAtVendorMaxVnd",
+      "customerPayableVnd",
+    ]) expect(body.proposal.items[0][field]).toMatch(/^(?:0|[1-9]\d*)$/);
+    for (const field of [
+      "admissionCostVnd",
+      "foodCostMinVnd",
+      "foodCostMaxVnd",
+      "travelCostVnd",
+      "guideCostVnd",
+      "payAtVendorMinVnd",
+      "payAtVendorMaxVnd",
+      "customerPayableVnd",
+      "groupCostMinVnd",
+      "groupCostMaxVnd",
+      "groupCostVnd",
+    ]) expect(body.proposal.totals[field]).toMatch(/^(?:0|[1-9]\d*)$/);
+    expect(body.proposal.items[0].score).toBeTypeOf("number");
+    expect(body.proposal.totals.durationMinutes).toBeTypeOf("number");
   });
 
   it("requires a verified customer before resolving an authoritative snapshot", async () => {
