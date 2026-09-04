@@ -153,6 +153,7 @@ function withDemoCompositionMetadata(
   retryInitialization: () => Promise<void>,
   resetDemo: () => Promise<void>,
 ): DemoPortalComposition {
+  let currentInitialization = initialized;
   return {
     mode: "demo",
     productionGap: PORTAL_PRODUCTION_GAP,
@@ -162,8 +163,13 @@ function withDemoCompositionMetadata(
     customer: ports.customer,
     guide: ports.guide,
     admin: ports.admin,
-    initialized,
-    retryInitialization,
+    get initialized() {
+      return currentInitialization;
+    },
+    retryInitialization: () => {
+      currentInitialization = retryInitialization();
+      return currentInitialization;
+    },
     resetDemo,
   };
 }

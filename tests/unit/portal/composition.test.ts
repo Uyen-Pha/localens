@@ -236,11 +236,14 @@ describe("portal composition", () => {
       return originalGetItem(key);
     };
     const composition = createPortalComposition({ mode: "demo", storage });
+    const failedInitialization = composition.initialized;
 
     await expect(composition.initialized).rejects.toMatchObject({ code: "STORAGE_UNAVAILABLE" });
     expect(storage.getItem(PORTAL_DEMO_STORAGE_KEY)).toBeNull();
 
     await expect(composition.retryInitialization()).resolves.toBeUndefined();
+    expect(composition.initialized).not.toBe(failedInitialization);
+    await expect(composition.initialized).resolves.toBeUndefined();
     await expect(composition.session.getSession()).resolves.toBeNull();
     expect(storage.getItem(PORTAL_DEMO_STORAGE_KEY)).not.toBeNull();
   });

@@ -80,6 +80,17 @@ describe("personalization session contract", () => {
     expect(window.sessionStorage.getItem(DEMO_PLANNER_SESSION_KEY)).toBeNull();
   });
 
+  it("clears stale planner state when the replacement handoff is invalid", () => {
+    window.sessionStorage.setItem(PERSONALIZATION_SESSION_KEY, "stale handoff");
+    window.sessionStorage.setItem(DEMO_PLANNER_SESSION_KEY, "stale demo plan");
+    const invalidRequest = { ...request, specialNeeds: "x".repeat(1001) };
+
+    expect(savePersonalizationRequest(invalidRequest)).toBe(false);
+
+    expect(window.sessionStorage.getItem(PERSONALIZATION_SESSION_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(DEMO_PLANNER_SESSION_KEY)).toBeNull();
+  });
+
   it("rolls back both planner keys when the handoff write fails after cleanup", () => {
     window.sessionStorage.setItem(PERSONALIZATION_SESSION_KEY, "stale handoff");
     window.sessionStorage.setItem(DEMO_PLANNER_SESSION_KEY, "stale demo plan");

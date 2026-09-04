@@ -141,13 +141,14 @@ function isPlannerSessionClear(storage: Storage): boolean {
 }
 
 export function savePersonalizationRequest(request: PersonalizationRequest): boolean {
-  if (typeof window === "undefined" || !isPersonalizationRequest(request)) return false;
+  if (typeof window === "undefined") return false;
 
   let storage: Storage | null = null;
   try {
     storage = window.sessionStorage;
     bestEffortClearPlannerSession(storage);
     if (!isPlannerSessionClear(storage)) throw new Error("Planner session cleanup failed");
+    if (!isPersonalizationRequest(request)) throw new Error("Invalid personalization request");
 
     const savedAt = Date.now();
     const envelope: PersonalizationEnvelope = {

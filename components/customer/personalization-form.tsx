@@ -389,7 +389,7 @@ export function PersonalizationForm({
         </label>
         <label className="field field--wide">
           <span>{copy.specialNeedsLabel}</span>
-          <textarea name="specialNeeds" rows={3} aria-label={copy.specialNeedsLabel} aria-describedby="special-needs-hint" />
+          <textarea name="specialNeeds" rows={3} maxLength={1000} aria-label={copy.specialNeedsLabel} aria-describedby="special-needs-hint" />
           <small id="special-needs-hint">{copy.specialNeedsHint}</small>
         </label>
       </div>

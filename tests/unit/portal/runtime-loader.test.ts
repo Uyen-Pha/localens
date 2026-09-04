@@ -79,6 +79,35 @@ describe("portal runtime loader", () => {
     await expect(composition.session.getSession()).resolves.toBeNull();
   });
 
+  it("shares the recovered initialization with later consumers of the cached demo composition", async () => {
+    setRuntime("demo");
+    window.sessionStorage.clear();
+    const originalGetItem = Storage.prototype.getItem;
+    let failFirstRead = true;
+    const getItemSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(function (this: Storage, key) {
+      if (failFirstRead) {
+        failFirstRead = false;
+        throw new Error("temporary session storage failure");
+      }
+      return originalGetItem.call(this, key);
+    });
+
+    try {
+      const { loadPortalSurfaceComposition } = await import("@/components/portals/portal-session");
+      const firstConsumer = await loadPortalSurfaceComposition();
+      if (firstConsumer.mode !== "demo") throw new Error("Expected demo composition.");
+
+      await expect(firstConsumer.initialized).rejects.toMatchObject({ code: "STORAGE_UNAVAILABLE" });
+      await expect(firstConsumer.retryInitialization()).resolves.toBeUndefined();
+
+      const laterConsumer = await loadPortalSurfaceComposition();
+      expect(laterConsumer).toBe(firstConsumer);
+      await expect(laterConsumer.initialized).resolves.toBeUndefined();
+    } finally {
+      getItemSpy.mockRestore();
+    }
+  });
+
   it("dynamically imports only the Supabase shell path in Supabase mode", async () => {
     setRuntime("supabase");
     const shell = { mode: "supabase", session: {}, initialized: Promise.resolve() };

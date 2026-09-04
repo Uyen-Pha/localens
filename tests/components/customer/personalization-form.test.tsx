@@ -163,7 +163,10 @@ describe("PersonalizationForm", () => {
     expect(screen.getByLabelText(dictionary.home.personalizationForm.paceLabel)).toHaveAttribute("name", "pace");
     expect(screen.getByLabelText(dictionary.home.personalizationForm.dietLabel)).toBeInTheDocument();
     expect(screen.getByLabelText(dictionary.home.personalizationForm.mobilityLabel)).toBeInTheDocument();
-    expect(screen.getByLabelText(dictionary.home.personalizationForm.specialNeedsLabel)).toBeInTheDocument();
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.specialNeedsLabel)).toHaveAttribute(
+      "maxlength",
+      "1000",
+    );
 
     for (const option of dictionary.home.personalizationForm.dietOptions) {
       expect(screen.getByRole("option", { name: option.label })).toHaveValue(option.value);
