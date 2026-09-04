@@ -5,8 +5,8 @@ import { useEffect, useState, type ComponentType } from "react";
 import { loadPortalSurfaceComposition } from "@/components/portals/portal-session";
 import { portalCopy } from "@/components/portals/portal-copy";
 import { ServiceStatus } from "@/components/ui/service-status";
+import type { SupabasePlannerFlowProps } from "@/components/customer/supabase-planner-flow";
 import type { DemoPortalComposition } from "@/lib/application/portal/composition";
-import type { RuntimePlannerPort } from "@/lib/application/planner/runtime-planner";
 import type { SupabasePortalShell } from "@/lib/application/portal/supabase-shell";
 import type { Locale } from "@/lib/i18n/config";
 import type { PlannerCopy } from "@/lib/i18n/dictionaries";
@@ -20,7 +20,7 @@ type LoadedPlanner =
   }
   | {
     mode: "supabase";
-    Flow: ComponentType<{ locale: Locale; copy: PlannerCopy; planner: RuntimePlannerPort }>;
+    Flow: ComponentType<SupabasePlannerFlowProps>;
   };
 
 export interface PlannerSurfaceProps {
