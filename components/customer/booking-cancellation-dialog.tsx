@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 
 import type { CancellationReasonCode } from "@/lib/application/portal/contracts";
 import type { Locale } from "@/lib/i18n/config";
@@ -103,7 +104,15 @@ export function BookingCancellationDialog({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
       >
-        <button className={styles.close} type="button" disabled={submitting} onClick={onClose}>{copy.close}</button>
+        <button
+          className={styles.close}
+          type="button"
+          aria-label={copy.close}
+          disabled={submitting}
+          onClick={onClose}
+        >
+          <X aria-hidden="true" size={24} strokeWidth={2} />
+        </button>
         <h2 id={titleId}>{copy.title}</h2>
         <p className={styles.description} id={descriptionId}>{copy.description}</p>
         <div className={styles.booking}>

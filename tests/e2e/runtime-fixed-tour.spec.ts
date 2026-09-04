@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test, type Browser, type Page, type Request } from "@playwright/test";
 
 import type { Database } from "@/lib/infrastructure/supabase/database.types";
+import { bookingCancellationCopy } from "@/lib/i18n/booking-cancellation";
 import { fixedTourRuntimeCopy } from "@/lib/i18n/fixed-tour-runtime";
 
 const accounts = {
@@ -53,29 +54,18 @@ type PaymentRow = {
   simulated_at: string;
   state: "completed" | "expired" | "replayed";
 };
-type CancellationRequestPayload = { booking_id: string; reason: string; idempotency_key: string };
-type CancellationRequestRow = {
-  request_id: string;
+type CancellationPayload = { booking_id: string; reason_code: string; idempotency_key: string };
+type CancellationRow = {
+  id: string;
   booking_id: string;
-  status: "pending";
-  reason: string;
-  requested_at: string;
-  state: "created" | "replayed";
-};
-type CancellationDecisionPayload = {
-  request_id: string;
-  decision: "approved" | "rejected";
-  note: string | null;
+  customer_user_id: string;
+  source_kind: "departure" | "quote";
+  reason_code: string | null;
+  other_reason: string | null;
   idempotency_key: string;
-};
-type CancellationDecisionRow = {
-  request_id: string;
-  booking_id: string;
-  request_status: "approved" | "rejected";
-  booking_status: Database["public"]["Enums"]["booking_status"];
-  decision_note: string | null;
-  decided_at: string;
-  state: "approved" | "rejected" | "replayed";
+  cancelled_at: string;
+  booking_status: "cancelled";
+  state: "created" | "replayed";
 };
 type GuideAssignmentPayload = { booking_id: string; guide_user_id: string; idempotency_key: string };
 type GuideAssignmentRow = {
@@ -271,69 +261,40 @@ function expectExactPaymentResponse(value: unknown, expectedState?: PaymentRow["
   expect(["paid", null]).toContain((value as Record<string, unknown>).payment_status);
 }
 
-function expectExactCancellationRequestPayload(value: unknown): asserts value is CancellationRequestPayload {
+function expectExactCancellationPayload(value: unknown): asserts value is CancellationPayload {
   expect(Object.keys(value as Record<string, unknown>).sort()).toEqual([
     "booking_id",
     "idempotency_key",
-    "reason",
+    "reason_code",
   ]);
   expect(value).toEqual(expect.objectContaining({
     booking_id: expect.any(String),
-    reason: expect.any(String),
+    reason_code: expect.any(String),
     idempotency_key: expect.any(String),
   }));
 }
 
-function expectExactCancellationRequestRow(value: unknown): asserts value is CancellationRequestRow {
-  expect(Object.keys(value as Record<string, unknown>).sort()).toEqual([
-    "booking_id",
-    "reason",
-    "request_id",
-    "requested_at",
-    "state",
-    "status",
-  ]);
-  expect(value).toEqual(expect.objectContaining({
-    request_id: expect.any(String),
-    booking_id: expect.any(String),
-    status: "pending",
-    reason: expect.any(String),
-    requested_at: expect.any(String),
-    state: expect.stringMatching(/^(?:created|replayed)$/),
-  }));
-}
-
-function expectExactCancellationDecisionPayload(value: unknown): asserts value is CancellationDecisionPayload {
-  expect(Object.keys(value as Record<string, unknown>).sort()).toEqual([
-    "decision",
-    "idempotency_key",
-    "note",
-    "request_id",
-  ]);
-  expect(value).toEqual(expect.objectContaining({
-    request_id: expect.any(String),
-    decision: expect.stringMatching(/^(?:approved|rejected)$/),
-    idempotency_key: expect.any(String),
-  }));
-}
-
-function expectExactCancellationDecisionRow(value: unknown): asserts value is CancellationDecisionRow {
+function expectExactCancellationRow(value: unknown): asserts value is CancellationRow {
   expect(Object.keys(value as Record<string, unknown>).sort()).toEqual([
     "booking_id",
     "booking_status",
-    "decided_at",
-    "decision_note",
-    "request_id",
-    "request_status",
+    "cancelled_at",
+    "customer_user_id",
+    "id",
+    "idempotency_key",
+    "other_reason",
+    "reason_code",
+    "source_kind",
     "state",
   ]);
   expect(value).toEqual(expect.objectContaining({
-    request_id: expect.any(String),
+    id: expect.any(String),
     booking_id: expect.any(String),
-    request_status: expect.stringMatching(/^(?:approved|rejected)$/),
-    booking_status: expect.stringMatching(/^(?:cancelled|pending_payment)$/),
-    decided_at: expect.any(String),
-    state: expect.stringMatching(/^(?:approved|rejected|replayed)$/),
+    customer_user_id: expect.any(String),
+    source_kind: expect.stringMatching(/^(?:departure|quote)$/),
+    cancelled_at: expect.any(String),
+    booking_status: "cancelled",
+    state: expect.stringMatching(/^(?:created|replayed)$/),
   }));
 }
 
@@ -961,16 +922,15 @@ test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment accept
     expect(adminGuideProjection.error?.code).toBe("42501");
   });
 
-  test("bilingual cancellation remains a request until an administrator decides", async ({ browser }) => {
+  test("bilingual cancellation is immediate and administrator history stays read-only", async ({ browser }) => {
     const scenarios = [
-      { account: "customerA" as const, locale: "en" as const, title: fixture.enTitle, meetingPoint: fixture.enMeetingPoint, reason: "B2.3 English approval", note: "Approved after review.", decision: "approved" as const },
-      { account: "customerB" as const, locale: "vi" as const, title: fixture.viTitle, meetingPoint: fixture.viMeetingPoint, reason: "B2.3 Vietnamese rejection", note: "Từ chối sau khi xem xét.", decision: "rejected" as const },
+      { account: "customerA" as const, locale: "en" as const, title: fixture.enTitle, meetingPoint: fixture.enMeetingPoint },
+      { account: "customerB" as const, locale: "vi" as const, title: fixture.viTitle, meetingPoint: fixture.viMeetingPoint },
     ];
 
     for (const scenario of scenarios) {
       const customerContext = await browser.newContext();
       let bookingId = "";
-      let requestId = "";
       try {
         const page = await customerContext.newPage();
         await signIn(page, scenario.account, scenario.locale);
@@ -983,31 +943,32 @@ test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment accept
         });
         bookingId = hold.row.booking_id;
         const copy = fixedTourRuntimeCopy(scenario.locale);
+        const cancellationCopy = bookingCancellationCopy(scenario.locale);
         const article = page.locator(
           `article[aria-labelledby="runtime-booking-${bookingId}"]`,
         );
         await expect(article).toHaveCount(1);
-        await article.getByRole("button", { name: copy.requestCancellation, exact: true }).click();
-        await expect(article.getByRole("note", { name: copy.cancellationWorkflowLabel })).toHaveText(copy.cancellationDisclosure);
-        await article.getByRole("textbox", { name: copy.cancellationReason }).fill(scenario.reason);
+        await article.getByRole("button", { name: cancellationCopy.trigger, exact: true }).click();
+        const dialog = page.getByRole("dialog", { name: cancellationCopy.title });
+        await dialog.getByRole("combobox", { name: cancellationCopy.reasonLabel }).selectOption("trip_plan_changed");
         const responsePromise = page.waitForResponse((response) =>
           response.request().method() === "POST" &&
-          new URL(response.url()).pathname === "/rest/v1/rpc/request_fixed_tour_cancellation");
-        await article.getByRole("button", { name: copy.sendCancellation, exact: true }).click();
+          new URL(response.url()).pathname === "/rest/v1/rpc/cancel_booking");
+        await dialog.getByRole("button", { name: cancellationCopy.confirm, exact: true }).click();
         const response = await responsePromise;
         expect(response.status()).toBe(200);
         const payload = response.request().postDataJSON();
-        expectExactCancellationRequestPayload(payload);
-        expect(payload).toMatchObject({ booking_id: bookingId, reason: scenario.reason });
+        expectExactCancellationPayload(payload);
+        expect(payload).toMatchObject({ booking_id: bookingId, reason_code: "trip_plan_changed" });
         const responseBody: unknown = await response.json();
         expect(responseBody).toHaveLength(1);
         const row = (responseBody as unknown[])[0];
-        expectExactCancellationRequestRow(row);
-        expect(row).toMatchObject({ booking_id: bookingId, reason: scenario.reason, status: "pending" });
-        requestId = row.request_id;
-        await expect(article.getByText(copy.cancellationStatusLabels.pending, { exact: true })).toBeVisible();
-        await expect(article.getByText(copy.bookingStatusLabels.pending_payment, { exact: true })).toBeVisible();
-        await expect(page.getByRole("status")).toHaveText(copy.cancellationSent);
+        expectExactCancellationRow(row);
+        expect(row).toMatchObject({ booking_id: bookingId, reason_code: "trip_plan_changed", booking_status: "cancelled" });
+        await expect(article.getByText(copy.bookingStatusLabels.cancelled, { exact: true }).first()).toBeVisible();
+        await expect(article.getByText(cancellationCopy.cancelledStatus, { exact: true }).first()).toBeVisible();
+        await expect(article.getByText(cancellationCopy.reason, { exact: true })).toBeVisible();
+        await expect(page.getByRole("status")).toHaveText(cancellationCopy.success);
       } finally {
         await customerContext.close();
       }
@@ -1017,32 +978,15 @@ test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment accept
         const page = await adminContext.newPage();
         await signIn(page, "admin", scenario.locale);
         const copy = fixedTourRuntimeCopy(scenario.locale);
-        const queueItem = page.getByRole("article").filter({ hasText: scenario.reason });
-        await expect(queueItem).toHaveCount(1);
-        await queueItem.getByRole("textbox", { name: copy.decisionNote }).fill(scenario.note);
-        const action = scenario.decision === "approved" ? copy.approveCancellation : copy.rejectCancellation;
-        const responsePromise = page.waitForResponse((response) =>
-          response.request().method() === "POST" &&
-          new URL(response.url()).pathname === "/rest/v1/rpc/decide_fixed_tour_cancellation");
-        await queueItem.getByRole("button", { name: action, exact: true }).click();
-        const response = await responsePromise;
-        expect(response.status()).toBe(200);
-        const payload = response.request().postDataJSON();
-        expectExactCancellationDecisionPayload(payload);
-        expect(payload).toMatchObject({ request_id: requestId, decision: scenario.decision, note: scenario.note });
-        const responseBody: unknown = await response.json();
-        expect(responseBody).toHaveLength(1);
-        const row = (responseBody as unknown[])[0];
-        expectExactCancellationDecisionRow(row);
-        expect(row).toMatchObject({
-          request_id: requestId,
-          booking_id: bookingId,
-          request_status: scenario.decision,
-          booking_status: scenario.decision === "approved" ? "cancelled" : "pending_payment",
-          decision_note: scenario.note,
-        });
-        await expect(queueItem.getByText(copy.cancellationStatusLabels[scenario.decision], { exact: true })).toBeVisible();
-        await expect(page.getByRole("status").filter({ hasText: copy.cancellationDecisionSaved })).toHaveText(copy.cancellationDecisionSaved);
+        const cancellationCopy = bookingCancellationCopy(scenario.locale);
+        const bookingManagement = page.getByRole("region", { name: cancellationCopy.bookingManagement });
+        const bookingItem = bookingManagement.getByRole("article", { name: scenario.title });
+        await expect(bookingItem).toContainText(bookingId);
+        await expect(bookingItem).toContainText(copy.bookingStatusLabels.cancelled);
+        await expect(bookingItem).toContainText(cancellationCopy.reason);
+        await expect(bookingItem.getByRole("button")).toHaveCount(0);
+        await expect(bookingItem.getByRole("textbox")).toHaveCount(0);
+        await expect(bookingItem.getByRole("combobox")).toHaveCount(0);
       } finally {
         await adminContext.close();
       }
@@ -1052,14 +996,11 @@ test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment accept
         const page = await verifyContext.newPage();
         await signIn(page, scenario.account, scenario.locale);
         const copy = fixedTourRuntimeCopy(scenario.locale);
-        const article = page.getByRole("article").filter({ hasText: scenario.reason });
+        const cancellationCopy = bookingCancellationCopy(scenario.locale);
+        const article = page.locator(`article[aria-labelledby="runtime-booking-${bookingId}"]`);
         await expect(article).toHaveCount(1);
-        await expect(article.getByText(copy.cancellationStatusLabels[scenario.decision], { exact: true })).toBeVisible();
-        await expect(article.getByText(
-          scenario.decision === "approved" ? copy.bookingStatusLabels.cancelled : copy.bookingStatusLabels.pending_payment,
-          { exact: true },
-        )).toBeVisible();
-        await expect(article.getByRole("button", { name: copy.requestCancellation, exact: true })).toHaveCount(0);
+        await expect(article.getByText(copy.bookingStatusLabels.cancelled, { exact: true }).first()).toBeVisible();
+        await expect(article.getByRole("button", { name: cancellationCopy.trigger, exact: true })).toHaveCount(0);
       } finally {
         await verifyContext.close();
       }

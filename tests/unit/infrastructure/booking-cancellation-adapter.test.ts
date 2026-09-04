@@ -168,12 +168,15 @@ describe("Supabase booking cancellation adapter", () => {
 
   it("fails closed on invalid input, unauthenticated sessions, malformed rows, and cardinality drift", async () => {
     const invalid = clientDouble();
-    await expectPortalCode(createSupabaseBookingCancellationAdapter(invalid.client as never).cancelBooking({
+    await expect(createSupabaseBookingCancellationAdapter(invalid.client as never).cancelBooking({
       bookingId: "not-a-uuid",
       reasonCode: null,
       otherReason: null,
       idempotencyKey: "bad key",
-    }), "INVALID_INPUT");
+    })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      message: "The cancellation details are invalid.",
+    });
     expect(invalid.client.auth.getSession).not.toHaveBeenCalled();
     expect(invalid.client.rpc).not.toHaveBeenCalled();
 

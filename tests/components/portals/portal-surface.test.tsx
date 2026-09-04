@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { PortalSurface, type PortalSurfaceProps } from "@/components/portals/portal-surface";
 import { createPortalComposition, type DemoPortalComposition } from "@/lib/application/portal/composition";
+import { PortalError } from "@/lib/application/portal/contracts";
 import {
   createMemorySessionStorage,
   PORTAL_DEMO_STORAGE_KEY,
@@ -288,7 +289,63 @@ describe("PortalSurface", () => {
     });
     expect((await within(booking).findAllByText("Đã hủy", { exact: true })).length).toBeGreaterThan(0);
     expect(within(booking).getByText("Không cung cấp lý do", { exact: true })).toBeInTheDocument();
+    expect(within(booking).getByText(/19:00/)).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps the demo dialog and idempotency key when a successful cancellation cannot refresh", async () => {
+    const composition = await createComposition();
+    await signIn(composition, "demo-user-customer");
+    const originalList = composition.customer.account.listCustomerBookings.bind(composition.customer.account);
+    vi.spyOn(composition.customer.account, "listCustomerBookings")
+      .mockImplementationOnce(originalList)
+      .mockRejectedValueOnce(new Error("temporary demo reload failure"))
+      .mockImplementation(originalList);
+    const cancelBooking = vi.spyOn(composition.customer.cancellations, "cancelBooking");
+
+    render(<TestSurface locale="en" expectedRole="customer" composition={composition} />);
+    const booking = await screen.findByRole("article", { name: /history and memory/i });
+    fireEvent.click(within(booking).getByRole("button", { name: "Cancel booking" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Cancel tour booking?" });
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("latest booking status could not be loaded");
+    expect(screen.queryByText(/booking cancelled\. the latest authoritative status/i)).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm cancellation" }));
+
+    await waitFor(() => expect(cancelBooking).toHaveBeenCalledTimes(2));
+    expect(cancelBooking.mock.calls[0]?.[0].idempotencyKey).toBe(cancelBooking.mock.calls[1]?.[0].idempotencyKey);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect((await within(booking).findAllByText("Cancelled", { exact: true })).length).toBeGreaterThan(0);
+  });
+
+  it("keeps the demo dialog when a stale response cannot refresh, then safely retries", async () => {
+    const composition = await createComposition();
+    await signIn(composition, "demo-user-customer");
+    const initialBookings = await composition.customer.account.listCustomerBookings();
+    const refreshedBookings = initialBookings.map((item) => item.id === "demo-booking-cancellation"
+      ? { ...item, status: "confirmed" as const }
+      : item);
+    vi.spyOn(composition.customer.account, "listCustomerBookings")
+      .mockResolvedValueOnce(initialBookings)
+      .mockRejectedValueOnce(new Error("temporary stale demo reload failure"))
+      .mockResolvedValue(refreshedBookings);
+    const cancelBooking = vi.spyOn(composition.customer.cancellations, "cancelBooking")
+      .mockRejectedValue(new PortalError("CONFLICT", "stale demo detail"));
+
+    render(<TestSurface locale="en" expectedRole="customer" composition={composition} />);
+    const booking = await screen.findByRole("article", { name: /history and memory/i });
+    fireEvent.click(within(booking).getByRole("button", { name: "Cancel booking" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Cancel tour booking?" });
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("latest booking status could not be loaded");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm cancellation" }));
+
+    await waitFor(() => expect(cancelBooking).toHaveBeenCalledTimes(2));
+    expect(cancelBooking.mock.calls[0]?.[0].idempotencyKey).toBe(cancelBooking.mock.calls[1]?.[0].idempotencyKey);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(within(booking).queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
   });
 
   it("closes the demo dialog without mutation and restores trigger focus", async () => {

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RuntimeFixedTourAccount } from "@/components/customer/runtime-fixed-tour-account";
@@ -160,7 +160,10 @@ describe("runtime fixed-tour account", () => {
 
     confirm.focus();
     fireEvent.keyDown(dialog, { key: "Tab" });
-    expect(screen.getByRole("button", { name: "Đóng" })).toHaveFocus();
+    const closeButton = screen.getByRole("button", { name: "Đóng" });
+    expect(closeButton).toHaveFocus();
+    expect(closeButton.querySelector("svg")).toBeInTheDocument();
+    expect(closeButton).not.toHaveTextContent("Đóng");
     fireEvent.keyDown(dialog, { key: "Escape" });
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -182,6 +185,65 @@ describe("runtime fixed-tour account", () => {
 
     await waitFor(() => expect(cancel).toHaveBeenCalledTimes(2));
     expect(cancel.mock.calls[0]?.[0].idempotencyKey).toBe(cancel.mock.calls[1]?.[0].idempotencyKey);
+  });
+
+  it("keeps the dialog and idempotency key when cancellation succeeds but authoritative reload fails", async () => {
+    const bookings = vi.fn()
+      .mockResolvedValueOnce([booking])
+      .mockRejectedValueOnce(new Error("temporary booking reload failure"))
+      .mockResolvedValueOnce([{ ...booking, status: "cancelled" as const }]);
+    const own = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([cancellation]);
+    const cancel = vi.fn()
+      .mockResolvedValueOnce(cancelled)
+      .mockResolvedValueOnce({ ...cancelled, state: "replayed" as const });
+    render(<RuntimeFixedTourAccount
+      locale="en"
+      fixedTour={port({ bookings })}
+      bookingCancellations={cancellationPort({ own, cancel })}
+    />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Cancel tour booking?" });
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("latest booking status could not be loaded");
+    expect(screen.queryByText(/booking cancelled\. the latest authoritative status/i)).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm cancellation" }));
+
+    await waitFor(() => expect(cancel).toHaveBeenCalledTimes(2));
+    expect(cancel.mock.calls[0]?.[0].idempotencyKey).toBe(cancel.mock.calls[1]?.[0].idempotencyKey);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect((await screen.findAllByText("Cancelled", { exact: true })).length).toBeGreaterThan(0);
+  });
+
+  it("keeps the dialog and idempotency key when a stale response cannot reload authority", async () => {
+    const bookings = vi.fn()
+      .mockResolvedValueOnce([booking])
+      .mockRejectedValueOnce(new Error("temporary stale reload failure"))
+      .mockResolvedValueOnce([{ ...booking, status: "confirmed" as const }]);
+    const cancel = vi.fn<(input: CancelBookingInput) => Promise<CancelBookingResult>>(async () => {
+      throw new PortalError("CONFLICT", "stale cancellation detail");
+    });
+    render(<RuntimeFixedTourAccount
+      locale="en"
+      fixedTour={port({ bookings })}
+      bookingCancellations={cancellationPort({ cancel })}
+    />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Cancel tour booking?" });
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("latest booking status could not be loaded");
+    expect(within(dialog).queryByText(/latest status has been reloaded/i)).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm cancellation" }));
+
+    await waitFor(() => expect(cancel).toHaveBeenCalledTimes(2));
+    expect(cancel.mock.calls[0]?.[0].idempotencyKey).toBe(cancel.mock.calls[1]?.[0].idempotencyKey);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
   });
 
   it("submits nullable reasons and reloads authoritative bookings and history", async () => {

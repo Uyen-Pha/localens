@@ -16,14 +16,12 @@ const PORTAL_COPY = {
     customerSchedule: "Your schedule",
     cancellationBooking: "History and Memory",
     completedBooking: "Markets and Street Food",
-    requestCancellation: "Request cancellation",
-    cancellationReason: "Cancellation reason",
-    sendCancellation: "Send cancellation request",
-    cancellationPending: "Cancellation request pending administrator decision.",
-    cancellationDecision: "Decision: demo-booking-cancellation",
-    saveRequestDecision: "Save request decision",
-    cancellationDecisionSaved: "Cancellation decision saved in this demo session.",
-    cancellationApproved: "Cancellation status: Approved",
+    cancelBooking: "Cancel booking",
+    cancellationReason: "Cancellation reason (optional)",
+    confirmCancellation: "Confirm cancellation",
+    cancelled: "Cancelled",
+    bookingManagement: "Booking management",
+    tripPlanReason: "Trip plan or participation time changed",
     readOnlyAssignment: "Guides cannot accept, complete, cancel, or administer tours here.",
     reviewRating: "Rating",
     reviewText: "Review text",
@@ -61,14 +59,12 @@ const PORTAL_COPY = {
     customerSchedule: "Lịch của bạn",
     cancellationBooking: "Lịch sử và ký ức",
     completedBooking: "Chợ địa phương và ẩm thực đường phố",
-    requestCancellation: "Yêu cầu hủy booking",
-    cancellationReason: "Lý do hủy",
-    sendCancellation: "Gửi yêu cầu hủy",
-    cancellationPending: "Yêu cầu hủy đang chờ quản trị viên quyết định.",
-    cancellationDecision: "Quyết định: demo-booking-cancellation",
-    saveRequestDecision: "Lưu quyết định yêu cầu",
-    cancellationDecisionSaved: "Đã lưu quyết định hủy trong phiên demo này.",
-    cancellationApproved: "Trạng thái hủy: Đã duyệt",
+    cancelBooking: "Hủy đơn",
+    cancellationReason: "Lý do hủy (không bắt buộc)",
+    confirmCancellation: "Xác nhận hủy",
+    cancelled: "Đã hủy",
+    bookingManagement: "Quản lý đơn đặt tour",
+    tripPlanReason: "Kế hoạch hoặc thời gian tham gia thay đổi",
     readOnlyAssignment: "Hướng dẫn viên không thể nhận, hoàn thành, hủy hoặc quản trị tour tại đây.",
     reviewRating: "Điểm đánh giá",
     reviewText: "Nội dung đánh giá",
@@ -378,7 +374,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("customer cancellation reaches admin approval without exposing the unconfirmed booking to a guide", async ({ page }) => {
+test("customer cancellation is immediate, read-only for admin, and hidden from the guide", async ({ page }) => {
   const diagnostics = installDiagnostics(page);
   const copy = PORTAL_COPY.en;
 
@@ -387,10 +383,12 @@ test("customer cancellation reaches admin approval without exposing the unconfir
 
   const customerBooking = page.getByRole("article", { name: copy.cancellationBooking });
   await expect(customerBooking).toBeVisible();
-  await customerBooking.getByRole("button", { name: copy.requestCancellation, exact: true }).click();
-  await customerBooking.getByRole("textbox", { name: copy.cancellationReason, exact: true }).fill("Schedule changed.");
-  await customerBooking.getByRole("button", { name: copy.sendCancellation, exact: true }).click();
-  await expect(customerBooking.getByRole("status")).toHaveText(copy.cancellationPending);
+  await customerBooking.getByRole("button", { name: copy.cancelBooking, exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("combobox", { name: copy.cancellationReason, exact: true }).selectOption("trip_plan_changed");
+  await dialog.getByRole("button", { name: copy.confirmCancellation, exact: true }).click();
+  await expect(customerBooking).toContainText(copy.cancelled);
+  await expect(customerBooking).toContainText(copy.tripPlanReason);
   await assertPortalAccessibility(page);
 
   await switchRole(page, "en", "admin");
@@ -399,13 +397,12 @@ test("customer cancellation reaches admin approval without exposing the unconfir
   await expect(page.getByRole("heading", { name: adminCopy.customerPortal })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: adminCopy.customerSchedule })).toHaveCount(0);
 
-  const bookingRegion = page.getByRole("region", { name: "Bookings and cancellations" });
+  const bookingRegion = page.getByRole("region", { name: copy.bookingManagement });
   const adminBooking = bookingRegion.getByRole("listitem").filter({ hasText: "demo-booking-cancellation" });
-  await expect(adminBooking).toContainText("Pending");
-  await adminBooking.getByRole("combobox", { name: copy.cancellationDecision, exact: true }).selectOption("approved");
-  await adminBooking.getByRole("button", { name: copy.saveRequestDecision, exact: true }).click();
-  await expect(page.getByText(copy.cancellationDecisionSaved, { exact: true })).toBeVisible();
-  await expect(adminBooking).toContainText("Cancelled");
+  await expect(adminBooking).toContainText(copy.cancelled);
+  await expect(adminBooking).toContainText(copy.tripPlanReason);
+  await expect(adminBooking.getByRole("button", { name: /approve|reject/i })).toHaveCount(0);
+  await expect(adminBooking.getByRole("textbox", { name: /decision note/i })).toHaveCount(0);
   await assertPortalAccessibility(page);
 
   await switchRole(page, "en", "guide");

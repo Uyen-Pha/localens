@@ -54,6 +54,7 @@ const shell: SupabasePortalShell = {
     cancelBooking: async () => { throw new Error("not used"); },
     listOwnCancellations: async () => [],
     listAdminCancellations: async () => [],
+    listAdminBookings: async () => [],
   },
 };
 

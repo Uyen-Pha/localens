@@ -96,8 +96,8 @@ export function RuntimeFixedTourAccount({
   const cancellationTriggerRef = useRef<HTMLElement | null>(null);
   const cancellationStatusRef = useRef<HTMLParagraphElement>(null);
 
-  const load = useCallback(async () => {
-    setState("loading");
+  const load = useCallback(async ({ preserveCurrent = false }: { preserveCurrent?: boolean } = {}) => {
+    if (!preserveCurrent) setState("loading");
     try {
       const [nextBookings, nextPayments, nextCancellations] = await Promise.all([
         fixedTour.listOwnBookings(),
@@ -110,10 +110,12 @@ export function RuntimeFixedTourAccount({
       setState("ready");
       return true;
     } catch {
-      setBookings([]);
-      setPayments([]);
-      setCancellations([]);
-      setState("error");
+      if (!preserveCurrent) {
+        setBookings([]);
+        setPayments([]);
+        setCancellations([]);
+        setState("error");
+      }
       return false;
     }
   }, [bookingCancellations, fixedTour]);
@@ -170,15 +172,22 @@ export function RuntimeFixedTourAccount({
         otherReason: reason.otherReason,
         idempotencyKey: cancellationKey(bookingId),
       });
-      if (await load()) {
-        setOpenCancellationId(null);
-        setCancellationMessage(cancellationCopy.success);
+      const refreshed = await load({ preserveCurrent: true });
+      if (!refreshed) {
+        setCancellationError(cancellationCopy.refreshUnavailable);
+        return;
       }
+      setOpenCancellationId(null);
+      setCancellationMessage(cancellationCopy.success);
     } catch (error) {
       const message = cancellationErrorText(error);
       setCancellationError(message);
       if (error instanceof PortalError && (error.code === "CONFLICT" || error.code === "NOT_FOUND")) {
-        await load();
+        const refreshed = await load({ preserveCurrent: true });
+        if (!refreshed) {
+          setCancellationError(cancellationCopy.refreshUnavailable);
+          return;
+        }
         setOpenCancellationId(null);
         setCancellationError(message);
       }

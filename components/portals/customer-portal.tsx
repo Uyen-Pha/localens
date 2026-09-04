@@ -37,6 +37,7 @@ function titleForBooking(booking: CustomerBookingView, locale: "en" | "vi"): str
 function formatDate(value: string, locale: "en" | "vi"): string {
   return new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", {
     dateStyle: "medium",
+    timeStyle: "short",
     timeZone: "Asia/Ho_Chi_Minh",
   }).format(new Date(value));
 }
@@ -112,7 +113,7 @@ export function CustomerPortal({
   const cancellationStatusRef = useRef<HTMLParagraphElement>(null);
   const cancellationTriggerRef = useRef<HTMLElement | null>(null);
 
-  async function refresh(): Promise<void> {
+  async function refresh(): Promise<boolean> {
     setLoading(true);
     setError(false);
     try {
@@ -125,8 +126,10 @@ export function CustomerPortal({
         phone: nextData.account.phone ?? "",
         language: nextData.account.language,
       });
+      return true;
     } catch {
       setError(true);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -176,7 +179,11 @@ export function CustomerPortal({
         otherReason: reason.otherReason,
         idempotencyKey: cancellationKey(bookingId),
       });
-      await refresh();
+      const refreshed = await refresh();
+      if (!refreshed) {
+        setActionError(cancellationCopy.refreshUnavailable);
+        return;
+      }
       setOpenCancellation(null);
       setActionMessage(cancellationCopy.success);
     } catch (caught) {
@@ -187,12 +194,17 @@ export function CustomerPortal({
           : caught instanceof PortalError && caught.code === "INVALID_INPUT"
             ? cancellationCopy.invalid
             : cancellationCopy.unavailable;
-      setActionError(message);
       if (caught instanceof PortalError && (caught.code === "CONFLICT" || caught.code === "NOT_FOUND")) {
-        await refresh();
+        const refreshed = await refresh();
+        if (!refreshed) {
+          setActionError(cancellationCopy.refreshUnavailable);
+          return;
+        }
         setOpenCancellation(null);
         setActionError(message);
+        return;
       }
+      setActionError(message);
     } finally {
       setActionKey(null);
     }

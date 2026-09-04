@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PortalSurface } from "@/components/portals/portal-surface";
 import {
   PortalError,
+  type AdminBookingManagementProjection,
   type BookingCancellation,
   type PortalIdentity,
   type RuntimeSessionPort,
@@ -163,6 +164,7 @@ function shellFor(
       cancelBooking: async () => { throw new Error("not used by the portal shell test"); },
       listOwnCancellations: async () => [],
       listAdminCancellations: async () => [],
+      listAdminBookings: async () => [],
       ...cancellationOverrides,
     },
     fixedTour: {
@@ -404,18 +406,29 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
       idempotencyKey: "admin-history-key",
       cancelledAt: "2099-09-05T02:06:00.000Z",
     };
-    const listAdminCancellations = vi.fn(async () => [cancellation]);
+    const booking: AdminBookingManagementProjection = {
+      bookingId: cancellation.bookingId,
+      customerUserId: cancellation.customerUserId,
+      sourceKind: cancellation.sourceKind,
+      titleEn: "Runtime Saigon walk",
+      titleVi: "Dạo Sài Gòn runtime",
+      bookingStatus: "cancelled",
+      createdAt: "2099-09-05T02:00:00.000Z",
+      cancellation,
+    };
+    const listAdminBookings = vi.fn(async () => [booking]);
     renderSurface({
       locale,
-      shell: shellFor(session, {}, {}, { listAdminCancellations }),
+      shell: shellFor(session, {}, {}, { listAdminBookings }),
       expectedRole: "admin",
     });
 
     expect(await screen.findByRole("heading", {
       name: locale === "vi" ? "Quản lý đơn đặt tour" : "Booking management",
     })).toBeInTheDocument();
-    expect((await screen.findAllByText(cancellation.bookingId)).length).toBeGreaterThan(0);
-    expect(listAdminCancellations).toHaveBeenCalledTimes(1);
+    expect((await screen.findAllByText(booking.bookingId)).length).toBeGreaterThan(0);
+    expect(screen.getByText(locale === "vi" ? booking.titleVi : booking.titleEn)).toBeInTheDocument();
+    expect(listAdminBookings).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: /approve|reject|duyệt|từ chối/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", {
       name: locale === "vi" ? "Các giữ chỗ tour cố định của bạn" : "Your fixed-tour holds",

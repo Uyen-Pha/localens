@@ -62,7 +62,7 @@ function isRecord(value: unknown): value is UnknownRecord {
 
 function portalFailure(code: PortalErrorCode): PortalError {
   const messages: Record<PortalErrorCode, string> = {
-    INVALID_INPUT: "The cancellation request is invalid.",
+    INVALID_INPUT: "The cancellation details are invalid.",
     UNAUTHENTICATED: "A signed-in session is required.",
     FORBIDDEN: "The cancellation operation is not permitted.",
     NOT_FOUND: "The booking is unavailable.",

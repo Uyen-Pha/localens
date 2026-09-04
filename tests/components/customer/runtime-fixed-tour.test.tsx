@@ -112,6 +112,7 @@ function shell(port: FixedTourRuntimePort, current: PortalIdentity | null): Supa
       cancelBooking: async () => { throw new Error("not used"); },
       listOwnCancellations: async () => [],
       listAdminCancellations: async () => [],
+      listAdminBookings: async () => [],
     },
     fixedTour: port,
     guideAssignments: {

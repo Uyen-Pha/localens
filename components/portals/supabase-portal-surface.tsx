@@ -263,7 +263,7 @@ function RuntimeRoleShell({
         {session.role === "admin" ? (
           <>
             <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
-              <RuntimeBookingManagement locale={locale} history={composition.bookingCancellations} />
+              <RuntimeBookingManagement locale={locale} bookingManagement={composition.bookingCancellations} />
             </Suspense>
             <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
               <RuntimeGuideAssignmentQueue locale={locale} assignments={composition.guideAssignments} />

@@ -53,28 +53,6 @@ export interface FixedTourRuntimeCopy {
   paymentConflict: string;
   paymentDenied: string;
   paymentUnavailable: string;
-  /** @deprecated E2E-only compatibility until the Task 4 spec migration. */
-  cancellationWorkflowLabel: string;
-  /** @deprecated E2E-only compatibility until the Task 4 spec migration. */
-  cancellationDisclosure: string;
-  /** @deprecated E2E-only compatibility until the Task 4 spec migration. */
-  requestCancellation: string;
-  /** @deprecated E2E-only compatibility until the Task 4 spec migration. */
-  cancellationReason: string;
-  /** @deprecated E2E-only compatibility until the Task 4 spec migration. */
-  sendCancellation: string;
-  /** @deprecated E2E-only compatibility until the Task 4 spec migration. */
-  cancellationSent: string;
-  /** @deprecated E2E-only compatibility until the Task 4 spec migration. */
-  cancellationStatusLabels: Record<"pending" | "approved" | "rejected", string>;
-  /** @deprecated E2E-only compatibility until the Task 4 spec migration. */
-  decisionNote: string;
-  /** @deprecated E2E-only compatibility until the Task 4 spec migration. */
-  approveCancellation: string;
-  /** @deprecated E2E-only compatibility until the Task 4 spec migration. */
-  rejectCancellation: string;
-  /** @deprecated E2E-only compatibility until the Task 4 spec migration. */
-  cancellationDecisionSaved: string;
 }
 
 const copy: Record<Locale, FixedTourRuntimeCopy> = {
@@ -139,21 +117,6 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     paymentConflict: "This payment conflicts with an earlier payment request. Reload and try again.",
     paymentDenied: "This payment operation is not permitted.",
     paymentUnavailable: "The simulated payment could not be completed. Try again.",
-    cancellationWorkflowLabel: "Cancellation workflow",
-    cancellationDisclosure: "This sends a request only. An administrator reviews and decides it; your booking is not cancelled now.",
-    requestCancellation: "Request cancellation",
-    cancellationReason: "Cancellation reason",
-    sendCancellation: "Send cancellation request",
-    cancellationSent: "Cancellation request sent for administrator review.",
-    cancellationStatusLabels: {
-      pending: "Pending administrator decision",
-      approved: "Approved by administrator",
-      rejected: "Rejected by administrator",
-    },
-    decisionNote: "Decision note",
-    approveCancellation: "Approve cancellation",
-    rejectCancellation: "Reject cancellation",
-    cancellationDecisionSaved: "Cancellation decision saved from authoritative data.",
   },
   vi: {
     catalogEyebrow: "Runtime cục bộ đã kiểm chứng",
@@ -216,21 +179,6 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     paymentConflict: "Thanh toán này xung đột với một yêu cầu trước đó. Hãy tải lại và thử lại.",
     paymentDenied: "Thao tác thanh toán này không được phép.",
     paymentUnavailable: "Không thể hoàn tất thanh toán mô phỏng. Hãy thử lại.",
-    cancellationWorkflowLabel: "Quy trình hủy",
-    cancellationDisclosure: "Thao tác này chỉ gửi yêu cầu. Quản trị viên xem xét và quyết định; booking chưa bị hủy ngay.",
-    requestCancellation: "Yêu cầu hủy booking",
-    cancellationReason: "Lý do hủy",
-    sendCancellation: "Gửi yêu cầu hủy",
-    cancellationSent: "Đã gửi yêu cầu hủy để quản trị viên xem xét.",
-    cancellationStatusLabels: {
-      pending: "Chờ quản trị viên quyết định",
-      approved: "Quản trị viên đã duyệt",
-      rejected: "Quản trị viên đã từ chối",
-    },
-    decisionNote: "Ghi chú quyết định",
-    approveCancellation: "Duyệt yêu cầu hủy",
-    rejectCancellation: "Từ chối yêu cầu hủy",
-    cancellationDecisionSaved: "Đã lưu quyết định hủy và tải lại dữ liệu mới nhất.",
   },
 };
 
