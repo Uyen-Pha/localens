@@ -168,7 +168,7 @@ const IDENTITY_SQL = Object.freeze([
 
 const AREA_SQL = `
 INSERT INTO public.areas (id, slug)
-VALUES ('b2200000-0000-4000-8000-000000000001'::uuid, 'runtime-test-central-hcmc');
+VALUES ('b2200000-0000-4000-8000-000000000001'::uuid, 'central-historical');
 INSERT INTO public.area_translations (area_id, locale, name, description) VALUES
   ('b2200000-0000-4000-8000-000000000001'::uuid, 'en', 'Runtime Test Central HCMC', 'Synthetic local-only runtime-test area; not a commercial catalog fact.'),
   ('b2200000-0000-4000-8000-000000000001'::uuid, 'vi', 'Khu trung tâm kiểm thử runtime', 'Khu vực tổng hợp chỉ dùng cho kiểm thử runtime cục bộ, không phải dữ liệu thương mại.');`;

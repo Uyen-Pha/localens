@@ -2,6 +2,7 @@ import english from "@/messages/en.json";
 import vietnamese from "@/messages/vi.json";
 
 import type { ExperienceType } from "@/lib/domain/itinerary/contracts";
+import type { RuntimePlannerErrorUiMessage } from "@/lib/application/planner/runtime-planner-error-ui";
 import type { Locale } from "@/lib/i18n/config";
 
 export type PersonalizationPriorityKey =
@@ -98,6 +99,14 @@ export type PlannerCopy = {
   runtimeInvalidRequestMessage: string;
   runtimeUnavailableMessage: string;
   runtimeRetryLabel: string;
+  runtimeNewRequestLabel: string;
+  runtimeCheckAgainLabel: string;
+  runtimePendingStorageErrorMessage: string;
+  runtimePlanPointerStorageWarning: string;
+  runtimeFeedbackSupportedHint: string;
+  runtimeFeedbackUnsupportedMessage: string;
+  fixedToursLabel: string;
+  runtimeErrorMessages: Readonly<Record<RuntimePlannerErrorUiMessage, string>>;
   runtimeTimelineLabel: string;
   runtimeRationaleHeading: string;
   runtimeScopeLabel: string;
@@ -307,6 +316,7 @@ export type Dictionary = {
       budgetCurrencyOptions: Array<{ value: "VND" | "USD"; label: string }>;
       startDateLabel: string;
       startDateHint: string;
+      startInPastMessage: string;
       startTimeLabel: string;
       timezoneHint: string;
       languageLabel: string;
@@ -315,6 +325,11 @@ export type Dictionary = {
       partySizeHint: string;
       prioritiesLegend: string;
       priorities: Array<{ key: PersonalizationPriorityKey; label: string }>;
+      presetsLegend: string;
+      presetsHint: string;
+      historyPresetLabel: string;
+      foodPresetLabel: string;
+      relaxedPresetLabel: string;
       paceLabel: string;
       paceOptions: Array<{ value: "relaxed" | "active"; label: string }>;
       dietLabel: string;
@@ -688,14 +703,15 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
         { value: "demo-hcmc-thu-duc", label: "Thu Duc" },
       ],
       budgetLabel: "Budget for your whole group",
-      budgetHint: "Enter one positive group total. USD is converted to cents for amountMinor.",
+      budgetHint: "Enter the total budget for your group. Use whole đồng for VND or dollars and cents for USD.",
       budgetCurrencyLabel: "Budget currency",
       budgetCurrencyOptions: [
         { value: "VND", label: "Vietnamese đồng (VND)" },
         { value: "USD", label: "US dollars (USD)" },
       ],
       startDateLabel: "Preferred start date",
-      startDateHint: "Use your local travel date.",
+      startDateHint: "The next 09:00 start is suggested in Ho Chi Minh City time.",
+      startInPastMessage: "Choose a future start date and time in Ho Chi Minh City.",
       startTimeLabel: "Preferred start time",
       timezoneHint: "Start date and time use Ho Chi Minh City (Asia/Ho_Chi_Minh), UTC+07:00.",
       languageLabel: "Experience language",
@@ -712,6 +728,11 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
         { key: "traditional_craft", label: "Craft & local makers" },
         { key: "traditional_market", label: "Markets & neighborhood life" },
       ],
+      presetsLegend: "Quick preference presets",
+      presetsHint: "These buttons only update the form. They do not call AI or submit a request.",
+      historyPresetLabel: "Prioritize history",
+      foodPresetLabel: "Prioritize food",
+      relaxedPresetLabel: "Use a relaxed pace",
       paceLabel: "Preferred pace",
       paceOptions: [
         { value: "relaxed", label: "Relaxed and spacious" },
@@ -998,14 +1019,15 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
         { value: "demo-hcmc-thu-duc", label: "Thủ Đức" },
       ],
       budgetLabel: "Ngân sách cho cả nhóm",
-      budgetHint: "Nhập một tổng ngân sách dương cho cả nhóm. USD sẽ được đổi sang cent trong amountMinor.",
+      budgetHint: "Nhập tổng ngân sách cho cả nhóm. Với VND dùng số đồng; với USD có thể nhập đô la và cent.",
       budgetCurrencyLabel: "Đơn vị tiền tệ",
       budgetCurrencyOptions: [
         { value: "VND", label: "Đồng Việt Nam (VND)" },
         { value: "USD", label: "Đô la Mỹ (USD)" },
       ],
       startDateLabel: "Ngày bắt đầu mong muốn",
-      startDateHint: "Dùng ngày bạn sẽ đi du lịch.",
+      startDateHint: "Hệ thống gợi ý mốc 09:00 gần nhất theo giờ Thành phố Hồ Chí Minh.",
+      startInPastMessage: "Hãy chọn ngày và giờ bắt đầu trong tương lai theo giờ Thành phố Hồ Chí Minh.",
       startTimeLabel: "Thời gian bắt đầu mong muốn",
       timezoneHint: "Ngày và giờ bắt đầu dùng múi giờ Thành phố Hồ Chí Minh (Asia/Ho_Chi_Minh), UTC+07:00.",
       languageLabel: "Ngôn ngữ trải nghiệm",
@@ -1022,6 +1044,11 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
         { key: "traditional_craft", label: "Làng nghề & người làm nghề" },
         { key: "traditional_market", label: "Chợ & đời sống khu phố" },
       ],
+      presetsLegend: "Gợi ý chọn nhanh",
+      presetsHint: "Các nút này chỉ cập nhật biểu mẫu, không gọi AI hoặc tự gửi yêu cầu.",
+      historyPresetLabel: "Ưu tiên lịch sử",
+      foodPresetLabel: "Ưu tiên ẩm thực",
+      relaxedPresetLabel: "Chọn nhịp độ thư thả",
       paceLabel: "Nhịp độ mong muốn",
       paceOptions: [
         { value: "relaxed", label: "Thư thả và rộng rãi" },
@@ -1123,6 +1150,35 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     runtimeInvalidRequestMessage: "LocalLens could not safely process this planner request. Return to personalization and review the structured choices.",
     runtimeUnavailableMessage: "The authenticated planner is temporarily unavailable. Nothing was submitted automatically.",
     runtimeRetryLabel: "Try again",
+    runtimeNewRequestLabel: "Try a new request",
+    runtimeCheckAgainLabel: "Check again",
+    runtimePendingStorageErrorMessage: "This browser cannot save a safe retry key. Nothing was sent; allow site storage, then try again.",
+    runtimePlanPointerStorageWarning: "This itinerary is visible, but this browser cannot save it for reload. Keep this tab open or allow site storage.",
+    runtimeFeedbackSupportedHint: "Supported adjustments: slower or faster pace, more or no food, or prefer history, craft, or markets. Use Lock stop to keep a place.",
+    runtimeFeedbackUnsupportedMessage: "Use a supported adjustment: slower or faster pace, more or no food, or prefer history, craft, or markets.",
+    fixedToursLabel: "Explore fixed tours",
+    runtimeErrorMessages: {
+      "auth-expired": "Your customer session expired. Sign in again before generating or refining an itinerary.",
+      "invalid-request": "LocalLens could not safely process this request. Return to personalization and review the structured choices.",
+      quota: "The thesis-demo AI limit has been reached today. LocalLens will not retry automatically; try again after the quota resets.",
+      "catalog-unavailable": "The approved place catalog is temporarily unavailable. Try a new request when the catalog is ready.",
+      "travel-data-unavailable": "Travel-time data is temporarily unavailable. Try a new request when the data is ready.",
+      "fx-unavailable": "A valid exchange rate is unavailable. Choose VND or try a new request later.",
+      "no-feasible-itinerary": "No safe itinerary fits these choices. Increase the time or budget, or choose more areas.",
+      "search-limit": "LocalLens could not find a safe option within this search limit. Adjust the choices or try a new request.",
+      "invalid-itinerary-input": "Review the date, duration, group size, areas, and budget before creating a new request.",
+      "usd-disabled": "USD planning is not enabled for this demo. Return to personalization and choose VND.",
+      "invalid-itinerary-result": "The generated result did not pass LocalLens validation, so no proposal is shown.",
+      "plan-unavailable": "This itinerary cannot be opened. No ownership or existence details are disclosed.",
+      "plan-temporarily-unavailable": "This itinerary is temporarily unavailable. Nothing was changed automatically.",
+      "snapshot-mismatch": "The source data changed after this proposal was created. Load the latest proposal before editing it.",
+      "locked-item-invalid": "A locked stop is no longer valid. Load the latest proposal and review the locks.",
+      "stale-revision": "This proposal changed elsewhere. Refresh the latest revision before trying again.",
+      "service-unavailable": "The planner is temporarily unavailable. Nothing was submitted automatically.",
+      "operation-in-progress": "This request is still being checked. Try again to check the same request; do not create a duplicate.",
+      "operation-conflict": "This request identifier no longer matches the saved request. Start a new request to continue safely.",
+      "operation-interrupted": "The earlier processing attempt did not finish. Start a new request only when you are ready.",
+    },
     runtimeTimelineLabel: "Itinerary timeline",
     runtimeRationaleHeading: "Why these stops were suggested",
     runtimeScopeLabel: "Refinement scope",
@@ -1188,7 +1244,7 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     revisionHistoryHeading: "Revision history",
     noHistoryLabel: "No refinements yet.",
     feedbackLabel: "What should we adjust?",
-    feedbackPlaceholder: "For example: slow the pace and keep the museum stop.",
+    feedbackPlaceholder: "Try: slower pace; more food; prefer history.",
     refineLabel: "Create revised proposal",
     refiningLabel: "Creating revised proposal…",
     lockLabel: "Lock stop",
@@ -1223,6 +1279,35 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     runtimeInvalidRequestMessage: "LocalLens không thể xử lý an toàn yêu cầu này. Hãy quay lại biểu mẫu và kiểm tra các lựa chọn có cấu trúc.",
     runtimeUnavailableMessage: "Planner có xác thực đang tạm không khả dụng. Hệ thống không tự động gửi lại yêu cầu.",
     runtimeRetryLabel: "Thử lại",
+    runtimeNewRequestLabel: "Thử yêu cầu mới",
+    runtimeCheckAgainLabel: "Kiểm tra lại",
+    runtimePendingStorageErrorMessage: "Trình duyệt không thể lưu mã thử lại an toàn. Chưa có yêu cầu nào được gửi; hãy cho phép lưu trữ trang rồi thử lại.",
+    runtimePlanPointerStorageWarning: "Lịch trình vẫn đang hiển thị, nhưng trình duyệt không thể lưu để mở lại. Hãy giữ tab này hoặc cho phép lưu trữ trang.",
+    runtimeFeedbackSupportedHint: "Điều chỉnh được hỗ trợ: đi chậm hoặc nhanh hơn, thêm hoặc bỏ đồ ăn, hoặc ưu tiên lịch sử, làng nghề hay chợ. Dùng Khóa điểm này để giữ một địa điểm.",
+    runtimeFeedbackUnsupportedMessage: "Hãy dùng lựa chọn được hỗ trợ: đi chậm hoặc nhanh hơn, thêm hoặc bỏ đồ ăn, hoặc ưu tiên lịch sử, làng nghề hay chợ.",
+    fixedToursLabel: "Khám phá tour cố định",
+    runtimeErrorMessages: {
+      "auth-expired": "Phiên khách hàng đã hết hạn. Hãy đăng nhập lại trước khi tạo hoặc tinh chỉnh lịch trình.",
+      "invalid-request": "LocalLens không thể xử lý an toàn yêu cầu này. Hãy quay lại biểu mẫu và kiểm tra các lựa chọn có cấu trúc.",
+      quota: "Đã đạt giới hạn AI của bản demo hôm nay. LocalLens sẽ không tự động thử lại; hãy thử sau khi hạn mức được làm mới.",
+      "catalog-unavailable": "Dữ liệu địa điểm đã duyệt đang tạm chưa sẵn sàng. Hãy thử một yêu cầu mới khi dữ liệu hoạt động lại.",
+      "travel-data-unavailable": "Dữ liệu thời gian di chuyển đang tạm chưa sẵn sàng. Hãy thử một yêu cầu mới khi dữ liệu hoạt động lại.",
+      "fx-unavailable": "Chưa có tỷ giá hợp lệ. Hãy chọn VND hoặc thử một yêu cầu mới sau.",
+      "no-feasible-itinerary": "Không có lịch trình an toàn phù hợp. Hãy tăng thời gian hoặc ngân sách, hoặc chọn thêm khu vực.",
+      "search-limit": "LocalLens chưa tìm được phương án an toàn trong giới hạn tìm kiếm. Hãy điều chỉnh lựa chọn hoặc thử yêu cầu mới.",
+      "invalid-itinerary-input": "Hãy kiểm tra ngày, thời lượng, số người, khu vực và ngân sách trước khi tạo yêu cầu mới.",
+      "usd-disabled": "Bản demo chưa bật lập lịch bằng USD. Hãy quay lại biểu mẫu và chọn VND.",
+      "invalid-itinerary-result": "Kết quả tạo ra không vượt qua kiểm tra của LocalLens nên không có đề xuất nào được hiển thị.",
+      "plan-unavailable": "Không thể mở lịch trình này. Hệ thống không tiết lộ thông tin tồn tại hoặc quyền sở hữu.",
+      "plan-temporarily-unavailable": "Lịch trình đang tạm chưa tải được. Hệ thống không tự động thay đổi nội dung.",
+      "snapshot-mismatch": "Dữ liệu nền đã thay đổi sau khi đề xuất được tạo. Hãy tải đề xuất mới nhất trước khi chỉnh sửa.",
+      "locked-item-invalid": "Một điểm đã khóa không còn hợp lệ. Hãy tải đề xuất mới nhất và kiểm tra lại các điểm khóa.",
+      "stale-revision": "Đề xuất đã thay đổi ở nơi khác. Hãy tải phiên bản mới nhất rồi thử lại.",
+      "service-unavailable": "Planner đang tạm không khả dụng. Hệ thống không tự động gửi lại yêu cầu.",
+      "operation-in-progress": "Yêu cầu này vẫn đang được kiểm tra. Hãy thử lại để kiểm tra đúng yêu cầu cũ, không tạo bản trùng.",
+      "operation-conflict": "Mã yêu cầu không còn khớp với nội dung đã lưu. Hãy bắt đầu một yêu cầu mới để tiếp tục an toàn.",
+      "operation-interrupted": "Lần xử lý trước chưa hoàn tất. Chỉ bắt đầu yêu cầu mới khi bạn đã sẵn sàng.",
+    },
     runtimeTimelineLabel: "Dòng thời gian lịch trình",
     runtimeRationaleHeading: "Lý do đề xuất các điểm này",
     runtimeScopeLabel: "Phạm vi điều chỉnh",
@@ -1288,7 +1373,7 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     revisionHistoryHeading: "Lịch sử điều chỉnh",
     noHistoryLabel: "Chưa có lần điều chỉnh nào.",
     feedbackLabel: "Bạn muốn điều chỉnh điều gì?",
-    feedbackPlaceholder: "Ví dụ: đi chậm hơn và giữ lại điểm bảo tàng.",
+    feedbackPlaceholder: "Ví dụ: đi chậm hơn; thêm đồ ăn; ưu tiên lịch sử.",
     refineLabel: "Tạo đề xuất đã điều chỉnh",
     refiningLabel: "Đang tạo đề xuất mới…",
     lockLabel: "Khóa điểm này",

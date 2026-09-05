@@ -559,6 +559,15 @@
       "forceRls": true
     },
     {
+      "name": "private.runtime_planner_operations",
+      "policies": [
+        "runtime_planner_operations_plan_rpc_owner_all"
+      ],
+      "writerOperation": "service-role planner operation RPCs only",
+      "owner": "localens_plan_rpc_owner",
+      "forceRls": true
+    },
+    {
       "name": "private.user_roles",
       "policies": [
         "user_roles_admin_guide_runtime_projection_select",
@@ -1579,36 +1588,6 @@
       "credential": "browser-jwt"
     },
     {
-      "name": "public.advance_authenticated_trip_plan_revision",
-      "signature": "public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)",
-      "owner": "localens_plan_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "authenticated owner revision append through the audited compare-and-swap implementation",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.advance_trip_plan_revision",
-      "signature": "public.advance_trip_plan_revision(uuid,integer,jsonb)",
-      "owner": "localens_plan_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "owner revision append",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.create_authenticated_trip_plan",
-      "signature": "public.create_authenticated_trip_plan(uuid,jsonb)",
-      "owner": "localens_plan_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "customer creates an idempotent initial itinerary revision",
-      "credential": "browser-jwt"
-    },
-    {
       "name": "public.assign_fixed_departure_guide",
       "signature": "public.assign_fixed_departure_guide(uuid,uuid,text)",
       "owner": "localens_guide_assignment_rpc_owner",
@@ -1780,6 +1759,56 @@
       "credential": "browser-jwt"
     },
     {
+      "name": "public.claim_runtime_planner_operation",
+      "signature": "public.claim_runtime_planner_operation(uuid,uuid,text,text,uuid,integer)",
+      "owner": "localens_plan_rpc_owner",
+      "readerRoles": [
+        "service_role"
+      ],
+      "writerOperation": "Edge claims one owner-scoped planner operation and returns stable lease/quota IDs",
+      "credential": "edge-service-role"
+    },
+    {
+      "name": "public.complete_runtime_recommendation",
+      "signature": "public.complete_runtime_recommendation(uuid,uuid,text,uuid,jsonb)",
+      "owner": "localens_plan_rpc_owner",
+      "readerRoles": [
+        "service_role"
+      ],
+      "writerOperation": "Edge atomically persists recommendation revision one and completes its operation",
+      "credential": "edge-service-role"
+    },
+    {
+      "name": "public.complete_runtime_refinement",
+      "signature": "public.complete_runtime_refinement(uuid,uuid,text,uuid,jsonb)",
+      "owner": "localens_plan_rpc_owner",
+      "readerRoles": [
+        "service_role"
+      ],
+      "writerOperation": "Edge atomically compare-and-swap appends a refinement and completes its operation",
+      "credential": "edge-service-role"
+    },
+    {
+      "name": "public.get_runtime_planner_operation",
+      "signature": "public.get_runtime_planner_operation(uuid,uuid,text)",
+      "owner": "localens_plan_rpc_owner",
+      "readerRoles": [
+        "service_role"
+      ],
+      "writerOperation": "Edge reads one owner-scoped planner operation status without mutation",
+      "credential": "edge-service-role"
+    },
+    {
+      "name": "public.reject_runtime_planner_operation",
+      "signature": "public.reject_runtime_planner_operation(uuid,uuid,text,uuid,text)",
+      "owner": "localens_plan_rpc_owner",
+      "readerRoles": [
+        "service_role"
+      ],
+      "writerOperation": "Edge records one allowlisted terminal planner failure",
+      "credential": "edge-service-role"
+    },
+    {
       "name": "public.reserve_ai_quota",
       "signature": "public.reserve_ai_quota(uuid,text,text,text)",
       "owner": "localens_ai_quota_rpc_owner",
@@ -1832,8 +1861,11 @@
   ],
   "internalFunctions": [
     "public.accept_guide_assignment(uuid)",
+    "public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)",
+    "public.advance_trip_plan_revision(uuid,integer,jsonb)",
     "public.assign_guide(uuid,uuid)",
     "public.complete_guide_assignment(uuid)",
+    "public.create_authenticated_trip_plan(uuid,jsonb)",
     "public.decide_fixed_tour_cancellation(uuid,text,text,text)",
     "public.request_fixed_tour_cancellation(uuid,text,text)",
     "private.accept_guide_assignment(uuid)",
@@ -1893,6 +1925,7 @@
     "private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)",
     "private.guard_custom_request_insert()",
     "private.guard_custom_request_mutation()",
+    "private.guard_runtime_planner_operation_transition()",
     "private.guard_tour_lifecycle()",
     "private.guard_tour_translation_lifecycle()",
     "private.guard_tour_version_lifecycle()",
@@ -1948,7 +1981,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 674,
+  "grantCount": 679,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }

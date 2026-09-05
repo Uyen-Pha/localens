@@ -56,11 +56,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Install Playwright Google Chrome
+        run: pnpm exec playwright install --with-deps chrome
 
       - name: Run demo browser acceptance
         env:
+          LOCALENS_RUNTIME_BROWSER: "chrome"
           PLAYWRIGHT_STATIC: "1"
         run: pnpm test:e2e
 
@@ -86,8 +87,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Install Playwright Google Chrome
+        run: pnpm exec playwright install --with-deps chrome
 
       - name: Create private CI log directory
         shell: bash
@@ -99,18 +100,26 @@ jobs:
 
       - name: Verify runtime authentication
         shell: bash
+        env:
+          LOCALENS_RUNTIME_BROWSER: "chrome"
         run: pnpm test:e2e:runtime-auth > ci-logs/runtime-auth.log 2>&1
 
       - name: Verify authenticated AI itinerary runtime
         shell: bash
+        env:
+          LOCALENS_RUNTIME_BROWSER: "chrome"
         run: pnpm test:e2e:runtime-itinerary > ci-logs/runtime-itinerary.log 2>&1
 
       - name: Verify runtime fixed-tour booking and payment
         shell: bash
+        env:
+          LOCALENS_RUNTIME_BROWSER: "chrome"
         run: pnpm test:e2e:runtime-fixed-tour > ci-logs/runtime-fixed-tour.log 2>&1
 
       - name: Verify runtime guide assignment
         shell: bash
+        env:
+          LOCALENS_RUNTIME_BROWSER: "chrome"
         run: pnpm test:e2e:runtime-guide-assignment > ci-logs/runtime-guide-assignment.log 2>&1
 
       - name: Build Supabase runtime
@@ -137,6 +146,7 @@ jobs:
           retention-days: 7
 
   staging-smoke:
+    if: ${{ vars.LOCALLENS_STAGING_URL != '' }}
     needs:
       - quality-demo
       - demo-e2e

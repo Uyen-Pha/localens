@@ -99,8 +99,10 @@ export function RuntimeGuideAssignmentQueue({
   useEffect(() => { void load(); }, [load, retryKey]);
   useEffect(() => { if (message !== null) statusRef.current?.focus(); }, [message]);
 
-  async function assign(item: AdminGuideAssignmentQueueItem): Promise<void> {
-    const guideUserId = selected[item.bookingId] ?? "";
+  async function assign(
+    item: AdminGuideAssignmentQueueItem,
+    guideUserId: string,
+  ): Promise<void> {
     if (!guideUserId || submitting !== null) return;
     setSubmitting(item.bookingId);
     setMessage(null);
@@ -147,10 +149,16 @@ export function RuntimeGuideAssignmentQueue({
                   {item.assignmentStatus ? <div><dt>{text.status}</dt><dd>{text.assignmentStatus[item.assignmentStatus]}</dd></div> : null}
                 </dl>
                 {guides.length === 0 ? <p>{text.noGuides}</p> : (
-                  <form onSubmit={(event) => { event.preventDefault(); void assign(item); }}>
+                  <form onSubmit={(event) => {
+                    event.preventDefault();
+                    const control = event.currentTarget.elements.namedItem("guideUserId");
+                    const guideUserId = control instanceof HTMLSelectElement ? control.value : "";
+                    void assign(item, guideUserId);
+                  }}>
                     <label>
                       <span>{title}</span>
                       <select
+                        name="guideUserId"
                         value={selectedGuide}
                         disabled={submitting !== null}
                         onChange={(event) => setSelected((current) => ({ ...current, [item.bookingId]: event.target.value }))}

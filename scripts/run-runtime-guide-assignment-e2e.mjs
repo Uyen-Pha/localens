@@ -1,10 +1,10 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { runRuntimeFixedTourE2E } from "./run-runtime-fixed-tour-e2e.mjs";
+import { runRuntimeItineraryE2E } from "./run-runtime-itinerary-e2e.mjs";
 
 export function runRuntimeGuideAssignmentE2E(options = {}) {
-  return runRuntimeFixedTourE2E({
+  return runRuntimeItineraryE2E({
     ...options,
     playwrightSpec: "tests/e2e/runtime-guide-assignment.spec.ts",
     playwrightConfig: "playwright.runtime-guide-assignment.config.ts",

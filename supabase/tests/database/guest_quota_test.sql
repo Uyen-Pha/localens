@@ -7,7 +7,7 @@ SELECT plan(125);
 -- pgTAP lives in Supabase's extensions schema. These transaction-local test
 -- grants let NOLOGIN executor contexts report assertions without changing the
 -- application privilege surface.
-GRANT USAGE ON SCHEMA extensions TO localens_guest_executor, localens_quota_executor;
+GRANT USAGE ON SCHEMA extensions TO localens_guest_executor, localens_quota_executor, localens_plan_rpc_owner;
 SELECT set_config('search_path', 'public, extensions, pg_catalog', true);
 
 CREATE TEMP TABLE task7_guest_fixture ON COMMIT DROP AS
@@ -64,7 +64,7 @@ SET revision_dto = jsonb_build_object(
 ALTER TABLE task7_guest_fixture RENAME COLUMN revision_dto TO create_args;
 ALTER TABLE task7_guest_fixture ADD COLUMN revision_dto jsonb;
 UPDATE task7_guest_fixture SET revision_dto = create_args->'revision';
-GRANT SELECT ON task7_guest_fixture TO authenticated, localens_guest_executor, localens_quota_executor;
+GRANT SELECT ON task7_guest_fixture TO authenticated, localens_guest_executor, localens_quota_executor, localens_plan_rpc_owner;
 
 SELECT extensions.ok(to_regclass('private.guest_bindings') IS NOT NULL, 'guest bindings table exists');
 SELECT extensions.ok(to_regclass('private.guest_capabilities') IS NOT NULL, 'guest capabilities table exists');
@@ -90,13 +90,13 @@ SELECT extensions.ok((SELECT count(*) = 3 AND bool_and(NOT rolcanlogin AND NOT r
 SELECT extensions.ok((SELECT count(*) = 2 AND bool_and(rolcanlogin AND NOT rolinherit AND NOT rolbypassrls) FROM pg_roles WHERE rolname IN ('localens_guest_executor', 'localens_quota_executor')), 'all LOGIN executors are non-inheriting and no-bypass');
 SELECT extensions.ok((SELECT count(*) = 2 AND bool_and(NOT rolcanlogin AND NOT rolinherit AND NOT rolbypassrls) FROM pg_roles WHERE rolname IN ('localens_webhook_executor', 'localens_build_executor')), 'webhook and build executors are isolated non-login roles');
 SELECT extensions.ok(NOT pg_has_role('localens_guest_executor', 'localens_guest_rpc_owner', 'member'), 'executor is not a definer-owner member');
-SELECT extensions.ok(NOT has_function_privilege('authenticated', 'private.advance_trip_plan_revision(uuid,integer,jsonb)', 'EXECUTE') AND has_function_privilege('authenticated', 'public.advance_trip_plan_revision(uuid,integer,jsonb)', 'EXECUTE'), 'authenticated sees only the public owner CAS');
+SELECT extensions.ok(NOT has_function_privilege('authenticated', 'private.advance_trip_plan_revision(uuid,integer,jsonb)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'public.advance_trip_plan_revision(uuid,integer,jsonb)', 'EXECUTE'), 'authenticated cannot bypass the operation-aware owner CAS');
 SELECT extensions.ok((SELECT prosecdef AND proconfig @> ARRAY['search_path=""'] FROM pg_proc WHERE oid = 'private.create_guest_plan(jsonb)'::regprocedure), 'create function is pinned SECURITY DEFINER');
 SELECT extensions.ok((SELECT prosecdef AND proconfig @> ARRAY['search_path=""'] FROM pg_proc WHERE oid = 'public.claim_guest_plan(uuid,text,smallint)'::regprocedure), 'public claim wrapper is pinned SECURITY DEFINER');
 SELECT extensions.is((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'public.claim_guest_plan(uuid,text,smallint)'::regprocedure), 'localens_claim_rpc_owner', 'claim wrapper has separate owner');
 SELECT extensions.ok(has_function_privilege('authenticated', 'public.claim_guest_plan(uuid,text,smallint)', 'EXECUTE'), 'authenticated can claim');
 SELECT extensions.ok(NOT has_function_privilege('anon', 'public.claim_guest_plan(uuid,text,smallint)', 'EXECUTE'), 'anon cannot claim');
-SELECT extensions.ok(has_function_privilege('authenticated', 'public.advance_trip_plan_revision(uuid,integer,jsonb)', 'EXECUTE'), 'authenticated can refine as owner');
+SELECT extensions.ok(NOT has_function_privilege('authenticated', 'public.advance_trip_plan_revision(uuid,integer,jsonb)', 'EXECUTE'), 'authenticated cannot call the legacy public owner CAS');
 SELECT extensions.ok(NOT has_function_privilege('authenticated', 'private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)', 'EXECUTE'), 'authenticated cannot invoke guest CAS');
 SELECT extensions.ok(has_function_privilege('localens_guest_executor', 'private.create_guest_plan(jsonb)', 'EXECUTE'), 'internal guest executor can create');
 SELECT extensions.ok(has_function_privilege('localens_guest_executor', 'private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)', 'EXECUTE'), 'internal guest executor can refine');
@@ -196,7 +196,7 @@ WHERE owner_user_id IS NULL
     JOIN private.guest_capabilities AS capabilities ON capabilities.binding_id = bindings.id
     WHERE capabilities.token_hash = (SELECT token_hash FROM task7_guest_fixture)
   );
-GRANT SELECT ON task7_created TO authenticated, localens_guest_executor;
+GRANT SELECT ON task7_created TO authenticated, localens_guest_executor, localens_plan_rpc_owner;
 SELECT extensions.is((SELECT count(*)::integer FROM task7_created), 1, 'one unclaimed guest plan was created');
 SELECT extensions.is((SELECT count(*)::integer FROM private.guest_bindings WHERE plan_id = (SELECT plan_id FROM task7_created)), 1, 'one binding accompanies the plan');
 SELECT extensions.is((SELECT count(*)::integer FROM private.guest_capabilities WHERE binding_id = (SELECT guest_binding_id FROM task7_created)), 1, 'one capability accompanies the binding');
@@ -347,9 +347,9 @@ SELECT extensions.is((SELECT count(DISTINCT error_sqlstate || ':' || error_messa
 SELECT extensions.is((SELECT min(error_sqlstate) FROM task7_claim_errors), 'P0001', 'claim capability failures use one SQLSTATE');
 SELECT extensions.is((SELECT min(error_message) FROM task7_claim_errors), 'guest claim failed', 'claim capability failures use one message');
 SELECT extensions.ok(NOT EXISTS (SELECT 1 FROM task7_claim_errors WHERE coalesce(error_detail, '') <> '' OR coalesce(error_hint, '') <> '' OR coalesce(error_message, '') ~ '[0-9a-f]{32,}'), 'claim failures disclose no detail hint or hash');
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-SELECT extensions.lives_ok($$SELECT * FROM public.advance_trip_plan_revision((SELECT plan_id FROM task7_created), 2, jsonb_set((SELECT revision_dto FROM task7_guest_fixture), '{revisionNo}', to_jsonb(3), false))$$, 'claimed owner can use public owner CAS');
+SELECT extensions.lives_ok($$SELECT * FROM public.advance_trip_plan_revision((SELECT plan_id FROM task7_created), 2, jsonb_set((SELECT revision_dto FROM task7_guest_fixture), '{revisionNo}', to_jsonb(3), false))$$, 'named owner can exercise the internal legacy CAS');
 RESET ROLE;
 SELECT extensions.is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = (SELECT plan_id FROM task7_created)), 3, 'owner CAS appends exactly one revision');
 

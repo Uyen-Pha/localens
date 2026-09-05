@@ -35,11 +35,25 @@ import {
   serializeItineraryWireResponse,
   type ItineraryWireResponse,
 } from "@/supabase/functions/_shared/itinerary-wire-response";
+import {
+  computePlannerOperationDigest,
+  parseOperationDecision,
+  parseOperationRejectedCode,
+  parsePlannerOperationId,
+  type OperationDecision,
+  type OperationRejectedCode,
+} from "@/supabase/functions/_shared/planner-operation";
 import type { Ranker } from "@/lib/application/itinerary/ranking-port";
 
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
 const TOKEN_MAX_LENGTH = 4096;
-const uuidSchema = z.string().uuid();
+const UUID_CASE_INSENSITIVE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuidSchema = z.string().uuid().refine((value) => value === value.toLowerCase(), {
+  message: "UUID must be lowercase",
+});
+const operationIdSchema = z.string().refine((value) => parsePlannerOperationId(value) !== null, {
+  message: "operationId must be a lowercase UUID",
+});
 
 const capabilityTokenSchema = z
   .string()
@@ -53,6 +67,7 @@ const capabilityTokenSchema = z
 /** Exact HTTP body for the public recommend-itinerary operation. */
 export const recommendItineraryBodySchema = z
   .object({
+    operationId: operationIdSchema,
     input: itineraryRequestSchema,
     turnstileToken: capabilityTokenSchema.optional(),
     guestToken: capabilityTokenSchema.optional(),
@@ -70,17 +85,20 @@ export interface RecommendationAdapterContext {
   guestToken: string | null;
   /** An opaque Turnstile token; the adapter must verify action and hostname. */
   turnstileToken: string | null;
+  /** Server-only operation scope; never copied to a provider or wire response. */
+  operation?: PlannerOperationContext;
 }
 
 export const RECOMMENDATION_ADAPTER_ERROR_CODES = [
   "AUTH_REQUIRED",
-  "AUTH_INVALID",
+  "AUTH_EXPIRED",
   "CHALLENGE_REQUIRED",
   "CHALLENGE_INVALID",
   "QUOTA_EXCEEDED",
   "CATALOG_UNAVAILABLE",
   "TRAVEL_DATA_UNAVAILABLE",
   "FX_UNAVAILABLE",
+  "SERVICE_UNAVAILABLE",
 ] as const;
 
 export type RecommendationAdapterErrorCode =
@@ -89,6 +107,50 @@ export type RecommendationAdapterErrorCode =
 export interface RecommendationAdapterFailure {
   code: RecommendationAdapterErrorCode;
 }
+
+export interface PlannerOperationContext {
+  readonly operationId: string;
+  readonly requestDigest: string;
+  readonly kind: "recommend" | "refine";
+  readonly leaseToken: string;
+  readonly leaseExpiresAt: string;
+  readonly planId: string;
+  readonly baseRevision: number | null;
+  readonly plannerReservationId: string;
+  readonly geminiReservationId: string;
+}
+
+export interface PlannerOperationClaimInput {
+  readonly operationId: string;
+  readonly requestDigest: string;
+  readonly kind: "recommend" | "refine";
+  readonly targetPlanId: string | null;
+  readonly baseRevision: number | null;
+}
+
+export type PlannerQuotaIdentityCheck =
+  | { ok: true }
+  | { ok: false; error: { code: "CHALLENGE_REQUIRED" | "CHALLENGE_INVALID" } };
+
+export type PlannerQuotaReservation =
+  | { ok: true }
+  | { ok: false; kind: "rejected"; code: "QUOTA_EXCEEDED" }
+  | { ok: false; kind: "unavailable" };
+
+export type PlannerOperationExecutionFailure =
+  | { kind: "quota"; code: "QUOTA_EXCEEDED" }
+  | { kind: "ambiguous_provider" }
+  | { kind: "ambiguous_commit" };
+
+export type PersistedPlannerRevision =
+  | {
+      ok: true;
+      planId: string;
+      revision: number;
+      rankingSource: "ai" | "deterministic";
+      result: ItineraryResult;
+    }
+  | { ok: false; error: { code: "SERVICE_UNAVAILABLE" } };
 
 export interface VerifiedAccessPrincipal {
   userId: string;
@@ -104,7 +166,8 @@ export type RecommendationAdapterResolution =
 
 export type RecommendationCommit =
   | { ok: true; planId: string; revision: 1 }
-  | { ok: false; error: RecommendationAdapterFailure };
+  | { ok: false; error: RecommendationAdapterFailure }
+  | { ok: false; decision: OperationDecision };
 
 /**
  * Injectable server-side boundary. `input` is deliberately unknown at this
@@ -121,6 +184,27 @@ export interface RecommendItineraryAdapter {
     input: ItineraryRequest,
     context: RecommendationAdapterContext,
   ) => Promise<RecommendationAdapterResolution>;
+  validateQuotaIdentity?: (
+    context: RecommendationAdapterContext,
+  ) => Promise<PlannerQuotaIdentityCheck>;
+  claimOperation: (
+    input: PlannerOperationClaimInput,
+    context: RecommendationAdapterContext,
+  ) => Promise<unknown>;
+  reservePlannerQuota: (
+    reservationId: string,
+    context: RecommendationAdapterContext,
+  ) => Promise<PlannerQuotaReservation>;
+  rejectOperation: (
+    input: { operationId: string; requestDigest: string; leaseToken: string },
+    errorCode: OperationRejectedCode,
+    context: RecommendationAdapterContext,
+  ) => Promise<unknown>;
+  readCommittedRevision: (
+    input: { planId: string; revision: number },
+    context: RecommendationAdapterContext,
+  ) => Promise<PersistedPlannerRevision>;
+  readOperationFailure?: () => PlannerOperationExecutionFailure | null;
   commitRecommendation: (
     input: {
       input: EngineInput;
@@ -151,14 +235,15 @@ const ADAPTER_ERROR_DEFINITIONS: Record<
   RecommendationAdapterErrorCode,
   { messageKey: string; status: number; retryable: boolean }
 > = {
-  AUTH_REQUIRED: { messageKey: "recommendation.auth_required", status: 401, retryable: false },
-  AUTH_INVALID: { messageKey: "recommendation.auth_invalid", status: 401, retryable: false },
+  AUTH_REQUIRED: { messageKey: "planner.auth_required", status: 401, retryable: false },
+  AUTH_EXPIRED: { messageKey: "planner.auth_expired", status: 401, retryable: false },
   CHALLENGE_REQUIRED: { messageKey: "recommendation.challenge_required", status: 400, retryable: false },
   CHALLENGE_INVALID: { messageKey: "recommendation.challenge_invalid", status: 403, retryable: false },
   QUOTA_EXCEEDED: { messageKey: "recommendation.quota_exceeded", status: 429, retryable: true },
   CATALOG_UNAVAILABLE: { messageKey: "recommendation.catalog_unavailable", status: 503, retryable: true },
   TRAVEL_DATA_UNAVAILABLE: { messageKey: "recommendation.travel_data_unavailable", status: 503, retryable: true },
   FX_UNAVAILABLE: { messageKey: "recommendation.fx_unavailable", status: 503, retryable: true },
+  SERVICE_UNAVAILABLE: { messageKey: "planner.service_unavailable", status: 503, retryable: true },
 };
 
 const DOMAIN_ERROR_DEFINITIONS: Record<
@@ -170,6 +255,26 @@ const DOMAIN_ERROR_DEFINITIONS: Record<
   NO_FEASIBLE_ITINERARY: { messageKey: "itinerary.no_feasible", status: 422, retryable: false },
   ITINERARY_SEARCH_LIMIT: { messageKey: "itinerary.search_limit", status: 503, retryable: true },
   INVALID_ITINERARY_RESULT: { messageKey: "itinerary.result.invalid", status: 500, retryable: false },
+};
+
+const OPERATION_REJECTED_DEFINITIONS: Record<
+  OperationRejectedCode,
+  { messageKey: string; status: number; retryable: boolean }
+> = {
+  QUOTA_EXCEEDED: { messageKey: "recommendation.quota_exceeded", status: 429, retryable: true },
+  CATALOG_UNAVAILABLE: { messageKey: "recommendation.catalog_unavailable", status: 503, retryable: true },
+  TRAVEL_DATA_UNAVAILABLE: { messageKey: "recommendation.travel_data_unavailable", status: 503, retryable: true },
+  FX_UNAVAILABLE: { messageKey: "recommendation.fx_unavailable", status: 503, retryable: true },
+  STALE_REVISION: { messageKey: "refinement.stale_revision", status: 409, retryable: true },
+  INVALID_ITINERARY_INPUT: { messageKey: "itinerary.input.invalid", status: 400, retryable: false },
+  USD_DISABLED: { messageKey: "itinerary.usd_disabled", status: 422, retryable: false },
+  NO_FEASIBLE_ITINERARY: { messageKey: "itinerary.no_feasible", status: 422, retryable: false },
+  ITINERARY_SEARCH_LIMIT: { messageKey: "itinerary.search_limit", status: 503, retryable: true },
+  INVALID_ITINERARY_RESULT: { messageKey: "itinerary.result.invalid", status: 500, retryable: false },
+  PLAN_NOT_FOUND: { messageKey: "refinement.plan_not_found", status: 404, retryable: false },
+  PLAN_UNAVAILABLE: { messageKey: "refinement.plan_unavailable", status: 503, retryable: true },
+  SNAPSHOT_MISMATCH: { messageKey: "refinement.snapshot_mismatch", status: 409, retryable: false },
+  LOCKED_ITEM_INVALID: { messageKey: "refinement.locked_item_invalid", status: 422, retryable: false },
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -217,7 +322,7 @@ function invalidRequestResponse(
   return errorResponse(
     {
       code: "INVALID_REQUEST",
-      messageKey: "gateway.invalid_request",
+      messageKey: "planner.invalid_request",
       ...(fieldErrors ? { fieldErrors } : {}),
       retryable: false,
       status: 400,
@@ -239,6 +344,22 @@ function internalAdapterResponse(
       : "recommendation.adapter_unavailable";
   return errorResponse(
     { code, messageKey, retryable: code === "ADAPTER_UNAVAILABLE", status: code === "ADAPTER_UNAVAILABLE" ? 503 : 500 },
+    correlationId,
+    corsHeaders,
+  );
+}
+
+function serviceUnavailableResponse(
+  correlationId: string,
+  corsHeaders: HeadersInit,
+): Response {
+  return errorResponse(
+    {
+      code: "SERVICE_UNAVAILABLE",
+      messageKey: "planner.service_unavailable",
+      retryable: true,
+      status: 503,
+    },
     correlationId,
     corsHeaders,
   );
@@ -324,8 +445,12 @@ function inspectRecommendationCommit(value: unknown): InspectedRecommendationCom
   try {
     if (!isPlainObject(value) || typeof value.ok !== "boolean") return { kind: "invalid" };
     if (value.ok === false) {
-      if (!hasExactKeys(value, ["ok", "error"])) return { kind: "invalid" };
-      return { kind: "failure", error: value.error };
+      if (hasExactKeys(value, ["ok", "error"])) return { kind: "failure", error: value.error };
+      if (hasExactKeys(value, ["ok", "decision"])) {
+        const decision = parsedOperationDecision(value.decision);
+        return decision === null ? { kind: "invalid" } : { kind: "failure", error: { decision } };
+      }
+      return { kind: "invalid" };
     }
     if (
       !hasExactKeys(value, ["ok", "planId", "revision"]) ||
@@ -450,6 +575,258 @@ function safeRecommendationResult(
   return { ok: true, result: parsed.data };
 }
 
+function unwrapOperationRpc(value: unknown): unknown {
+  if (isPlainObject(value) && Object.prototype.hasOwnProperty.call(value, "data")
+    && Object.prototype.hasOwnProperty.call(value, "error")) {
+    if (value.error !== null) return null;
+    value = value.data;
+  }
+  if (Array.isArray(value) && value.length === 1) return value[0];
+  if (isPlainObject(value) && value.ok === true && Object.prototype.hasOwnProperty.call(value, "decision")) {
+    return value.decision;
+  }
+  return value;
+}
+
+function parsedOperationDecision(value: unknown): OperationDecision | null {
+  return parseOperationDecision(unwrapOperationRpc(value));
+}
+
+function operationClaimFailure(value: unknown): unknown | null {
+  if (!isPlainObject(value) || value.ok !== false || !hasExactKeys(value, ["ok", "error"])) return null;
+  return value.error;
+}
+
+function operationResponse(
+  code: string,
+  messageKey: string,
+  status: number,
+  retryable: boolean,
+  correlationId: string,
+  corsHeaders: HeadersInit,
+  operationState?: "rejected" | "in_progress" | "interrupted",
+): Response {
+  return jsonResponse(
+    {
+      code,
+      messageKey,
+      retryable,
+      ...(operationState === undefined ? {} : { operationState }),
+      correlationId,
+    },
+    { status, correlationId, corsHeaders },
+  );
+}
+
+function operationDecisionResponse(
+  decision: OperationDecision,
+  correlationId: string,
+  corsHeaders: HeadersInit,
+): Response | null {
+  if (decision.state === "in_progress") {
+    return operationResponse(
+      "OPERATION_IN_PROGRESS",
+      "planner.operation_in_progress",
+      409,
+      true,
+      correlationId,
+      corsHeaders,
+      "in_progress",
+    );
+  }
+  if (decision.state === "interrupted") {
+    return operationResponse(
+      "OPERATION_INTERRUPTED",
+      "planner.operation_interrupted",
+      409,
+      false,
+      correlationId,
+      corsHeaders,
+      "interrupted",
+    );
+  }
+  if (decision.state === "conflict") {
+    return operationResponse(
+      "OPERATION_CONFLICT",
+      "planner.operation_conflict",
+      409,
+      false,
+      correlationId,
+      corsHeaders,
+    );
+  }
+  if (decision.state !== "rejected") return null;
+  const definition = OPERATION_REJECTED_DEFINITIONS[decision.errorCode];
+  return operationResponse(
+    decision.errorCode,
+    definition.messageKey,
+    definition.status,
+    definition.retryable,
+    correlationId,
+    corsHeaders,
+    "rejected",
+  );
+}
+
+function plannerOperationContext(
+  decision: Extract<OperationDecision, { state: "claimed" }>,
+  input: PlannerOperationClaimInput,
+): PlannerOperationContext {
+  return {
+    operationId: input.operationId,
+    requestDigest: input.requestDigest,
+    kind: input.kind,
+    leaseToken: decision.leaseToken,
+    leaseExpiresAt: decision.leaseExpiresAt,
+    planId: decision.planId,
+    baseRevision: input.baseRevision,
+    plannerReservationId: decision.plannerReservationId,
+    geminiReservationId: decision.geminiReservationId,
+  };
+}
+
+function hasUppercaseUuid(value: string): boolean {
+  return UUID_CASE_INSENSITIVE_PATTERN.test(value) && value !== value.toLowerCase();
+}
+
+function hasUppercaseRequestUuid(input: ItineraryRequest): boolean {
+  return [
+    input.areas,
+    input.dietaryRequirements,
+    input.mobilityRequirements,
+    input.lockedStopIds,
+  ].some((values) => values.some((value) => hasUppercaseUuid(value)));
+}
+
+function persistedRecommendationResponse(
+  persisted: unknown,
+  expectedPlanId: string,
+  expectedRevision: number,
+  correlationId: string,
+  corsHeaders: HeadersInit,
+): Response {
+  try {
+    if (!isPlainObject(persisted) || typeof persisted.ok !== "boolean") {
+      return internalAdapterResponse(correlationId, corsHeaders, "ADAPTER_INVALID");
+    }
+    if (persisted.ok === false) {
+      if (
+        !hasExactKeys(persisted, ["ok", "error"])
+        || !isPlainObject(persisted.error)
+        || !hasExactKeys(persisted.error, ["code"])
+        || persisted.error.code !== "SERVICE_UNAVAILABLE"
+      ) {
+        return internalAdapterResponse(correlationId, corsHeaders, "ADAPTER_INVALID");
+      }
+      return serviceUnavailableResponse(correlationId, corsHeaders);
+    }
+    if (
+      !hasExactKeys(persisted, ["ok", "planId", "revision", "rankingSource", "result"])
+      || typeof persisted.planId !== "string"
+      || !uuidSchema.safeParse(persisted.planId).success
+      || typeof persisted.revision !== "number"
+      || !Number.isSafeInteger(persisted.revision)
+      || (persisted.rankingSource !== "ai" && persisted.rankingSource !== "deterministic")
+      || persisted.planId !== expectedPlanId
+      || persisted.revision !== expectedRevision
+      || expectedRevision !== 1
+    ) {
+      return internalAdapterResponse(correlationId, corsHeaders, "ADAPTER_INVALID");
+    }
+    const parsed = itineraryResultSchema.safeParse(persisted.result);
+    if (!parsed.success || parsed.data.rankingSource !== persisted.rankingSource) {
+      return internalAdapterResponse(correlationId, corsHeaders, "ADAPTER_INVALID");
+    }
+    return jsonResponse(
+      {
+        advisoryOnly: true,
+        degraded: persisted.rankingSource === "deterministic",
+        planId: persisted.planId,
+        proposal: serializeItineraryWireResponse(parsed.data),
+        rationales: {},
+        revision: 1,
+      } satisfies RecommendItineraryResponse,
+      { correlationId, corsHeaders },
+    );
+  } catch {
+    return internalAdapterResponse(correlationId, corsHeaders, "ADAPTER_INVALID");
+  }
+}
+
+function operationRejectionCode(value: unknown): OperationRejectedCode | null {
+  return parseOperationRejectedCode(value);
+}
+
+function operationCodeFromFailure(value: unknown): OperationRejectedCode | null {
+  if (!isPlainObject(value) || typeof value.code !== "string") return null;
+  if (value.code === "ADAPTER_SNAPSHOT_MISMATCH") return "SNAPSHOT_MISMATCH";
+  return operationRejectionCode(value.code);
+}
+
+function normalizePlannerQuotaResult(value: unknown): PlannerQuotaReservation | null {
+  if (!isPlainObject(value) || typeof value.ok !== "boolean") return null;
+  if (value.ok === true && hasExactKeys(value, ["ok"])) return { ok: true };
+  if (value.ok === false && hasExactKeys(value, ["ok", "kind"]) && value.kind === "unavailable") {
+    return { ok: false, kind: "unavailable" };
+  }
+  if (value.ok === false && hasExactKeys(value, ["ok", "kind", "code"])) {
+    if (value.kind === "rejected" && value.code === "QUOTA_EXCEEDED") {
+      return { ok: false, kind: "rejected", code: "QUOTA_EXCEEDED" };
+    }
+    if (value.kind === "unavailable") return { ok: false, kind: "unavailable" };
+  }
+  return null;
+}
+
+async function rejectClaimedOperation(
+  adapter: RecommendItineraryAdapter,
+  operation: PlannerOperationContext,
+  context: RecommendationAdapterContext,
+  code: OperationRejectedCode,
+  correlationId: string,
+  corsHeaders: HeadersInit,
+): Promise<Response> {
+  let rawDecision: unknown;
+  try {
+    rawDecision = await adapter.rejectOperation(
+      {
+        operationId: operation.operationId,
+        requestDigest: operation.requestDigest,
+        leaseToken: operation.leaseToken,
+      },
+      code,
+      context,
+    );
+  } catch {
+    return serviceUnavailableResponse(correlationId, corsHeaders);
+  }
+  const decision = parsedOperationDecision(rawDecision);
+  if (decision === null) return internalAdapterResponse(correlationId, corsHeaders, "ADAPTER_INVALID");
+  if (decision.state === "rejected" && decision.errorCode !== code) {
+    return internalAdapterResponse(correlationId, corsHeaders, "ADAPTER_INVALID");
+  }
+  if (decision.state === "completed") {
+    let persisted: PersistedPlannerRevision;
+    try {
+      persisted = await adapter.readCommittedRevision(
+        { planId: decision.planId, revision: decision.revision },
+        context,
+      );
+    } catch {
+      return serviceUnavailableResponse(correlationId, corsHeaders);
+    }
+    return persistedRecommendationResponse(
+      persisted,
+      decision.planId,
+      decision.revision,
+      correlationId,
+      corsHeaders,
+    );
+  }
+  return operationDecisionResponse(decision, correlationId, corsHeaders)
+    ?? internalAdapterResponse(correlationId, corsHeaders, "ADAPTER_INVALID");
+}
+
 /** Build a public recommendation handler around a server-only adapter. */
 export function createRecommendItineraryHandler(
   adapter: RecommendItineraryAdapter,
@@ -474,11 +851,25 @@ export function createRecommendItineraryHandler(
         stableFieldErrors(parsedBody.error),
       );
     }
+    if (hasUppercaseRequestUuid(parsedBody.data.input)) {
+      return invalidRequestResponse(gateway.correlationId, gateway.corsHeaders);
+    }
 
     let principal: VerifiedAccessPrincipal | null = null;
     if (request.headers.get("Authorization") !== null) {
       const auth = requireBearerToken(request, gateway.correlationId, gateway.corsHeaders);
-      if (!auth.ok) return auth.response;
+      if (!auth.ok) {
+        return errorResponse(
+          {
+            code: "AUTH_EXPIRED",
+            messageKey: "planner.auth_expired",
+            retryable: false,
+            status: 401,
+          },
+          gateway.correlationId,
+          gateway.corsHeaders,
+        );
+      }
       let verification: AccessTokenVerification;
       try {
         if (typeof adapter?.verifyAccessToken !== "function") {
@@ -512,12 +903,106 @@ export function createRecommendItineraryHandler(
       turnstileToken: parsedBody.data.turnstileToken ?? null,
     };
 
+    if (adapter.validateQuotaIdentity !== undefined) {
+      let identityCheck: PlannerQuotaIdentityCheck;
+      try {
+        identityCheck = await adapter.validateQuotaIdentity(context);
+      } catch {
+        return serviceUnavailableResponse(gateway.correlationId, gateway.corsHeaders);
+      }
+      if (!isPlainObject(identityCheck) || typeof identityCheck.ok !== "boolean") {
+        return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+      }
+      if (identityCheck.ok === false) {
+        return adapterFailureResponse(identityCheck.error, gateway.correlationId, gateway.corsHeaders);
+      }
+    }
+
+    let requestDigest: string;
+    try {
+      requestDigest = await computePlannerOperationDigest("recommend", parsedBody.data.input);
+    } catch {
+      return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+    }
+    const operationInput: PlannerOperationClaimInput = {
+      operationId: parsedBody.data.operationId,
+      requestDigest,
+      kind: "recommend",
+      targetPlanId: null,
+      baseRevision: null,
+    };
+
+    let rawDecision: unknown;
+    try {
+      if (typeof adapter?.claimOperation !== "function") {
+        return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+      }
+      rawDecision = await adapter.claimOperation(operationInput, context);
+    } catch {
+      return serviceUnavailableResponse(gateway.correlationId, gateway.corsHeaders);
+    }
+    const decision = parsedOperationDecision(rawDecision);
+    if (decision === null) {
+      const failure = operationClaimFailure(rawDecision);
+      return failure === null
+        ? internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID")
+        : adapterFailureResponse(failure, gateway.correlationId, gateway.corsHeaders);
+    }
+    if (decision.state === "completed") {
+      let persisted: PersistedPlannerRevision;
+      try {
+        persisted = await adapter.readCommittedRevision(
+          { planId: decision.planId, revision: decision.revision },
+          context,
+        );
+      } catch {
+        return serviceUnavailableResponse(gateway.correlationId, gateway.corsHeaders);
+      }
+      return persistedRecommendationResponse(
+        persisted,
+        decision.planId,
+        decision.revision,
+        gateway.correlationId,
+        gateway.corsHeaders,
+      );
+    }
+    if (decision.state !== "claimed") {
+      return operationDecisionResponse(decision, gateway.correlationId, gateway.corsHeaders)
+        ?? internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+    }
+
+    const operation = plannerOperationContext(decision, operationInput);
+    const operationContext: RecommendationAdapterContext = { ...context, operation };
+
+    let plannerQuota: PlannerQuotaReservation | null;
+    try {
+      plannerQuota = normalizePlannerQuotaResult(
+        await adapter.reservePlannerQuota(operation.plannerReservationId, operationContext),
+      );
+    } catch {
+      return serviceUnavailableResponse(gateway.correlationId, gateway.corsHeaders);
+    }
+    if (plannerQuota === null) return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+    if (plannerQuota.ok === false) {
+      if (plannerQuota.kind === "rejected") {
+        return rejectClaimedOperation(
+          adapter,
+          operation,
+          operationContext,
+          plannerQuota.code,
+          gateway.correlationId,
+          gateway.corsHeaders,
+        );
+      }
+      return serviceUnavailableResponse(gateway.correlationId, gateway.corsHeaders);
+    }
+
     let resolution: RecommendationAdapterResolution;
     try {
       if (typeof adapter?.resolveEngineInput !== "function") {
         return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders);
       }
-      resolution = await adapter.resolveEngineInput(parsedBody.data.input, context);
+      resolution = await adapter.resolveEngineInput(parsedBody.data.input, operationContext);
     } catch {
       return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders);
     }
@@ -527,6 +1012,17 @@ export function createRecommendItineraryHandler(
       return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     }
     if (inspected.kind === "failure") {
+      const rejectionCode = operationCodeFromFailure(inspected.error);
+      if (rejectionCode !== null) {
+        return rejectClaimedOperation(
+          adapter,
+          operation,
+          operationContext,
+          rejectionCode,
+          gateway.correlationId,
+          gateway.corsHeaders,
+        );
+      }
       return adapterFailureResponse(inspected.error, gateway.correlationId, gateway.corsHeaders);
     }
 
@@ -540,7 +1036,14 @@ export function createRecommendItineraryHandler(
       return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     }
     if (!requestsSemanticallyEqual(engineInput.value.request, parsedBody.data.input)) {
-      return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_SNAPSHOT_MISMATCH");
+      return rejectClaimedOperation(
+        adapter,
+        operation,
+        operationContext,
+        "SNAPSHOT_MISMATCH",
+        gateway.correlationId,
+        gateway.corsHeaders,
+      );
     }
 
     let recommendation: Awaited<ReturnType<typeof recommendItinerary>>;
@@ -551,7 +1054,39 @@ export function createRecommendItineraryHandler(
     } catch {
       return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     }
+    if (adapter.readOperationFailure !== undefined) {
+      let executionFailure: PlannerOperationExecutionFailure | null;
+      try {
+        executionFailure = adapter.readOperationFailure();
+      } catch {
+        return serviceUnavailableResponse(gateway.correlationId, gateway.corsHeaders);
+      }
+      if (executionFailure?.kind === "quota") {
+        return rejectClaimedOperation(
+          adapter,
+          operation,
+          operationContext,
+          executionFailure.code,
+          gateway.correlationId,
+          gateway.corsHeaders,
+        );
+      }
+      if (executionFailure?.kind === "ambiguous_provider") {
+        return serviceUnavailableResponse(gateway.correlationId, gateway.corsHeaders);
+      }
+    }
     if (!recommendation.ok) {
+      const rejectionCode = operationCodeFromFailure(recommendation.error);
+      if (rejectionCode !== null) {
+        return rejectClaimedOperation(
+          adapter,
+          operation,
+          operationContext,
+          rejectionCode,
+          gateway.correlationId,
+          gateway.corsHeaders,
+        );
+      }
       return domainFailureResponse(
         recommendation.error as unknown as JsonRecord,
         gateway.correlationId,
@@ -563,7 +1098,16 @@ export function createRecommendItineraryHandler(
       gateway.correlationId,
       gateway.corsHeaders,
     );
-    if (!safeResult.ok) return safeResult.response;
+    if (!safeResult.ok) {
+      return rejectClaimedOperation(
+        adapter,
+        operation,
+        operationContext,
+        "INVALID_ITINERARY_RESULT",
+        gateway.correlationId,
+        gateway.corsHeaders,
+      );
+    }
 
     let commit: RecommendationCommit;
     try {
@@ -573,16 +1117,49 @@ export function createRecommendItineraryHandler(
       commit = await adapter.commitRecommendation({
         input: engineInput.value,
         result: safeResult.result,
-      }, context);
+      }, operationContext);
     } catch {
-      return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders);
+      return serviceUnavailableResponse(gateway.correlationId, gateway.corsHeaders);
     }
     const inspectedCommit = inspectRecommendationCommit(commit);
     if (inspectedCommit.kind === "invalid") {
       return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     }
     if (inspectedCommit.kind === "failure") {
+      if (adapter.readOperationFailure !== undefined) {
+        let executionFailure: PlannerOperationExecutionFailure | null;
+        try {
+          executionFailure = adapter.readOperationFailure();
+        } catch {
+          return serviceUnavailableResponse(gateway.correlationId, gateway.corsHeaders);
+        }
+        if (executionFailure?.kind === "ambiguous_commit") {
+          return serviceUnavailableResponse(gateway.correlationId, gateway.corsHeaders);
+        }
+      }
+      if (isPlainObject(inspectedCommit.error) && hasExactKeys(inspectedCommit.error, ["decision"])) {
+        const commitDecision = parsedOperationDecision(inspectedCommit.error.decision);
+        if (commitDecision !== null) {
+          return operationDecisionResponse(commitDecision, gateway.correlationId, gateway.corsHeaders)
+            ?? internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+        }
+        return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
+      }
+      const rejectionCode = operationCodeFromFailure(inspectedCommit.error);
+      if (rejectionCode !== null) {
+        return rejectClaimedOperation(
+          adapter,
+          operation,
+          operationContext,
+          rejectionCode,
+          gateway.correlationId,
+          gateway.corsHeaders,
+        );
+      }
       return adapterFailureResponse(inspectedCommit.error, gateway.correlationId, gateway.corsHeaders);
+    }
+    if (inspectedCommit.planId !== operation.planId) {
+      return internalAdapterResponse(gateway.correlationId, gateway.corsHeaders, "ADAPTER_INVALID");
     }
 
     const responseBody: RecommendItineraryResponse = {

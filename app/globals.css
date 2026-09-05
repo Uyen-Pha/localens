@@ -23,6 +23,10 @@ a {
   color: inherit;
 }
 
+:where(a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])) {
+  scroll-margin-block: calc(var(--space-2) + 4px);
+}
+
 a:focus-visible,
 button:focus-visible,
 [tabindex]:focus-visible {

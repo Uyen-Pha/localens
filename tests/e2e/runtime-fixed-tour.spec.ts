@@ -700,10 +700,13 @@ test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment accept
       await signIn(page, "admin", "en");
       const region = page.getByRole("region", { name: "Guide assignments" });
       await expect(region).toBeVisible();
-      const target = region.getByRole("article").filter({
-        has: page.locator("dd").filter({ hasText: /^1$/ }),
-      });
+      const target = region.locator(
+        `article[aria-labelledby="runtime-assignment-${customerABooking.booking_id}"]`,
+      );
       await expect(target).toHaveCount(1);
+      await target.getByLabel(fixture.enTitle).selectOption({
+        label: "Runtime Guide · Vietnamese",
+      });
       const responsePromise = page.waitForResponse((response) =>
         response.request().method() === "POST" &&
         new URL(response.url()).pathname === "/rest/v1/rpc/assign_fixed_departure_guide");
@@ -803,9 +806,9 @@ test.describe("B2.2a-B2.2b local runtime fixed-tour and simulated-payment accept
       const page = await reassignContext.newPage();
       await signIn(page, "admin", "en");
       const region = page.getByRole("region", { name: "Guide assignments" });
-      const target = region.getByRole("article").filter({
-        has: page.locator("dd").filter({ hasText: /^1$/ }),
-      });
+      const target = region.locator(
+        `article[aria-labelledby="runtime-assignment-${customerABooking.booking_id}"]`,
+      );
       await expect(target.getByText("Runtime Guide", { exact: true })).toBeVisible();
 
       async function submitAssignment(): Promise<{ payload: GuideAssignmentPayload; row: GuideAssignmentRow }> {

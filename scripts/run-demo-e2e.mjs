@@ -24,6 +24,7 @@ const ENV_ALLOWLIST = Object.freeze([
   "PATH", "Path", "PATHEXT", "SystemRoot", "SYSTEMROOT", "WINDIR", "ComSpec", "COMSPEC",
   "TEMP", "TMP", "USERPROFILE", "HOME", "APPDATA", "LOCALAPPDATA", "ProgramFiles",
   "PROGRAMFILES", "ProgramW6432", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE", "CI",
+  "LOCALENS_RUNTIME_BROWSER",
 ]);
 
 function demoError(code, message, details = {}) {

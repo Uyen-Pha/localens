@@ -119,6 +119,14 @@ async function expectGuideSchedule(
 
 test("isolated B2.4 assigns A, reassigns B, then safely returns to A with cross-guide isolation", async ({ browser }) => {
   const bookingId = await createConfirmedBooking();
+  const admin = await authenticatedClient("admin");
+  const eligibleGuides = await admin.rpc("get_admin_eligible_guides");
+  expect(eligibleGuides.error).toBeNull();
+  const guideAId = eligibleGuides.data?.find((guide) => guide.display_name === "Runtime Guide")
+    ?.guide_user_id;
+  const guideBId = eligibleGuides.data?.find((guide) => guide.display_name === "Runtime Guide Two")
+    ?.guide_user_id;
+  if (!guideAId || !guideBId) throw new Error("Both seeded runtime guides must be eligible");
   const adminContext = await browser.newContext();
   try {
     const page = await adminContext.newPage();
@@ -126,6 +134,9 @@ test("isolated B2.4 assigns A, reassigns B, then safely returns to A with cross-
     const region = page.getByRole("region", { name: "Guide assignments" });
     const target = region.getByRole("article").filter({ hasText: fixture.titleEn });
     await expect(target).toHaveCount(1);
+    const guideSelect = target.getByLabel(fixture.titleEn);
+    await guideSelect.selectOption(guideAId);
+    await expect(guideSelect).toHaveValue(guideAId);
 
     async function submit(): Promise<{ payload: AssignmentPayload; row: AssignmentRow }> {
       const responsePromise = page.waitForResponse((response) =>
@@ -152,14 +163,17 @@ test("isolated B2.4 assigns A, reassigns B, then safely returns to A with cross-
 
     const firstA = await submit();
     expect(firstA.row.outcome).toBe("assigned");
+    expect(firstA.payload.guide_user_id).toBe(guideAId);
     expect(firstA.row.guide_user_id).toBe(firstA.payload.guide_user_id);
     const noOpA = await submit();
     expect(noOpA.row).toMatchObject({ assignment_id: firstA.row.assignment_id, outcome: "unchanged" });
 
-    await target.getByLabel(fixture.titleEn).selectOption({ label: "Runtime Guide Two · English" });
+    await guideSelect.selectOption(guideBId);
+    await expect(guideSelect).toHaveValue(guideBId);
     const assignedB = await submit();
     expect(assignedB.row.outcome).toBe("reassigned");
-    expect(assignedB.row.guide_user_id).not.toBe(firstA.row.guide_user_id);
+    expect(assignedB.payload.guide_user_id).toBe(guideBId);
+    expect(assignedB.row.guide_user_id).toBe(guideBId);
     await expect(target.getByText("Runtime Guide Two", { exact: true })).toBeVisible();
 
     const guideA = await authenticatedClient("guideA");
@@ -168,10 +182,12 @@ test("isolated B2.4 assigns A, reassigns B, then safely returns to A with cross-
     expect(guideAWhileB.data).toHaveLength(0);
     await expectGuideSchedule(browser, "guideB", "en");
 
-    await target.getByLabel(fixture.titleEn).selectOption({ label: "Runtime Guide · Vietnamese" });
+    await guideSelect.selectOption(guideAId);
+    await expect(guideSelect).toHaveValue(guideAId);
     const returnedA = await submit();
     expect(returnedA.row.outcome).toBe("reassigned");
-    expect(returnedA.row.guide_user_id).toBe(firstA.row.guide_user_id);
+    expect(returnedA.payload.guide_user_id).toBe(guideAId);
+    expect(returnedA.row.guide_user_id).toBe(guideAId);
     expect(returnedA.payload.idempotency_key).not.toBe(noOpA.payload.idempotency_key);
     expect(returnedA.row.assignment_id).not.toBe(firstA.row.assignment_id);
     expect(returnedA.row.assignment_id).not.toBe(assignedB.row.assignment_id);

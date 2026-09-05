@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SupabasePlannerFlow } from "@/components/customer/supabase-planner-flow";
@@ -14,6 +14,12 @@ import type {
   RuntimePlannerPort,
   RuntimePlannerProposal,
 } from "@/lib/application/planner/runtime-planner";
+import {
+  RUNTIME_PENDING_OPERATION_KEY,
+  RUNTIME_PLAN_POINTER_KEY,
+  saveRuntimePendingOperation,
+  saveRuntimePlanPointer,
+} from "@/lib/application/planner/runtime-planner-session";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
 const customerSession = {
@@ -24,7 +30,7 @@ const customerSession = {
 const request: PersonalizationRequest = {
   startAt: "2026-09-06T09:00:00+07:00",
   durationMinutes: 240,
-  areas: ["district-1"],
+  areas: ["demo-hcmc-district-1"],
   budget: { currency: "VND", amountMinor: 1_500_000 },
   partySize: 2,
   guideLanguage: "en",
@@ -48,9 +54,9 @@ function proposal(overrides: Partial<RuntimePlannerProposal> = {}): RuntimePlann
     source: "ai",
     degraded: false,
     normalizedStartAt: "2026-09-06T09:00:00+07:00",
-    rationales: { "place-1": "Strong match for the requested history focus." },
+    rationales: { "30000000-0000-4000-8000-000000000001": "Strong match for the requested history focus." },
     items: [{
-      placeId: "place-1",
+      placeId: "30000000-0000-4000-8000-000000000001",
       title: "History Museum",
       summary: "A focused introduction to the city's history.",
       startAt: "2026-09-06T09:00:00+07:00",
@@ -117,10 +123,12 @@ function plannerPort(overrides: Partial<RuntimePlannerPort> = {}): RuntimePlanne
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((nextResolve) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
     resolve = nextResolve;
+    reject = nextReject;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 function saveValidHandoff() {
@@ -156,6 +164,7 @@ async function axeViolations(container: HTMLElement) {
 
 beforeEach(() => {
   window.sessionStorage.clear();
+  window.localStorage.clear();
 });
 
 afterEach(() => {
@@ -199,7 +208,7 @@ describe("SupabasePlannerFlow", () => {
   it("requires one explicit generate action and blocks duplicate submissions while pending", async () => {
     saveValidHandoff();
     const pending = deferred<Awaited<ReturnType<RuntimePlannerPort["recommend"]>>>();
-    const recommend = vi.fn(() => pending.promise);
+    const recommend = vi.fn<RuntimePlannerPort["recommend"]>(() => pending.promise);
     const port = plannerPort({ recommend });
 
     renderPlanner(port);
@@ -210,10 +219,255 @@ describe("SupabasePlannerFlow", () => {
     fireEvent.click(button);
 
     expect(recommend).toHaveBeenCalledTimes(1);
+    expect(recommend.mock.calls[0]?.[2]).toEqual({
+      operationId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    });
+    expect(window.sessionStorage.getItem(RUNTIME_PENDING_OPERATION_KEY)).not.toContain(
+      request.specialNeeds,
+    );
     expect(screen.getByRole("button", { name: "Generating itinerary…" })).toBeDisabled();
 
     pending.resolve({ ok: true, value: proposal() });
     expect(await screen.findByRole("heading", { name: "Revision 1" })).toBeVisible();
+    expect(window.sessionStorage.getItem(RUNTIME_PENDING_OPERATION_KEY)).toBeNull();
+    expect(window.localStorage.getItem(RUNTIME_PLAN_POINTER_KEY)).toContain(proposal().planId);
+  });
+
+  it("does not invoke AI when the pending operation UUID cannot be persisted", async () => {
+    saveValidHandoff();
+    const recommend = vi.fn<RuntimePlannerPort["recommend"]>(async () => ({
+      ok: true as const,
+      value: proposal(),
+    }));
+    const operationId = "50000000-0000-4000-8000-000000000001";
+    const randomUuid = vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(operationId);
+    const originalSetItem = Storage.prototype.setItem;
+    let blockPendingStorage = true;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function setItem(this: Storage, key, value) {
+      if (blockPendingStorage && this === window.sessionStorage && key === RUNTIME_PENDING_OPERATION_KEY) {
+        throw new Error("storage blocked");
+      }
+      return originalSetItem.call(this, key, value);
+    });
+    renderPlanner(plannerPort({ recommend }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Generate itinerary" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("cannot save a safe retry key");
+    expect(recommend).not.toHaveBeenCalled();
+    blockPendingStorage = false;
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("heading", { name: "Revision 1" })).toBeVisible();
+    expect(recommend).toHaveBeenCalledTimes(1);
+    expect(recommend.mock.calls[0]?.[2]).toEqual({ operationId });
+    expect(randomUuid).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a successful proposal visible when its reload pointer cannot be persisted", async () => {
+    saveValidHandoff();
+    const originalSetItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function setItem(this: Storage, key, value) {
+      if (this === window.localStorage && key === RUNTIME_PLAN_POINTER_KEY) {
+        throw new Error("storage blocked");
+      }
+      return originalSetItem.call(this, key, value);
+    });
+    renderPlanner();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Generate itinerary" }));
+
+    expect(await screen.findByRole("heading", { name: "Revision 1" })).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent("cannot save it for reload");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+    expect(window.sessionStorage.getItem(RUNTIME_PENDING_OPERATION_KEY)).not.toBeNull();
+  });
+
+  it("recovers the completed operation after remount when the first plan pointer write failed", async () => {
+    saveValidHandoff();
+    const originalSetItem = Storage.prototype.setItem;
+    let blockPointerStorage = true;
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function setItem(this: Storage, key, value) {
+      if (blockPointerStorage && this === window.localStorage && key === RUNTIME_PLAN_POINTER_KEY) {
+        throw new Error("storage blocked");
+      }
+      return originalSetItem.call(this, key, value);
+    });
+    const firstRecommend = vi.fn<RuntimePlannerPort["recommend"]>(async () => ({
+      ok: true as const,
+      value: proposal(),
+    }));
+    const first = plannerPort({ recommend: firstRecommend });
+    const firstView = renderPlanner(first);
+    fireEvent.click(await screen.findByRole("button", { name: "Generate itinerary" }));
+    expect(await screen.findByRole("heading", { name: "Revision 1" })).toBeVisible();
+    const firstOperation = firstRecommend.mock.calls[0]?.[2];
+    firstView.unmount();
+
+    blockPointerStorage = false;
+    const recoveredRecommend = vi.fn<RuntimePlannerPort["recommend"]>(async () => ({
+      ok: true as const,
+      value: proposal(),
+    }));
+    renderPlanner(plannerPort({ recommend: recoveredRecommend }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("still being checked");
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+
+    expect(await screen.findByRole("heading", { name: "Revision 1" })).toBeVisible();
+    expect(recoveredRecommend.mock.calls[0]?.[2]).toEqual(firstOperation);
+    expect(window.sessionStorage.getItem(RUNTIME_PENDING_OPERATION_KEY)).toBeNull();
+    expect(window.localStorage.getItem(RUNTIME_PLAN_POINTER_KEY)).not.toBeNull();
+    setItemSpy.mockRestore();
+  });
+
+  it("clears the previous owner and ignores a late failed mutation after an account change", async () => {
+    saveValidHandoff();
+    const pending = deferred<Awaited<ReturnType<RuntimePlannerPort["recommend"]>>>();
+    const recommend = vi.fn<RuntimePlannerPort["recommend"]>(() => pending.promise);
+    let notifySessionChange: ((userId: string | null) => void) | undefined;
+    const unsubscribe = vi.fn();
+    const getSession = vi.fn()
+      .mockResolvedValueOnce(customerSession)
+      .mockResolvedValueOnce({
+        userId: "10000000-0000-4000-8000-000000000002",
+        role: "customer" as const,
+      });
+    const subscribeSession = vi.fn((listener: (userId: string | null) => void) => {
+      notifySessionChange = listener;
+      return unsubscribe;
+    });
+    renderPlanner(plannerPort({ getSession, recommend, subscribeSession }));
+    fireEvent.click(await screen.findByRole("button", { name: "Generate itinerary" }));
+    await waitFor(() => expect(recommend).toHaveBeenCalledTimes(1));
+
+    await act(async () => notifySessionChange?.("10000000-0000-4000-8000-000000000002"));
+    pending.reject(new Error("old response lost"));
+
+    expect(await screen.findByRole("button", { name: "Generate itinerary" })).toBeEnabled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Revision 1" })).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem(RUNTIME_PENDING_OPERATION_KEY)).toBeNull();
+    expect(window.localStorage.getItem(RUNTIME_PLAN_POINTER_KEY)).toBeNull();
+    expect(getSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the current proposal and operation when Supabase repeats SIGNED_IN for the same account", async () => {
+    saveValidHandoff();
+    const pending = deferred<Awaited<ReturnType<RuntimePlannerPort["recommend"]>>>();
+    const recommend = vi.fn<RuntimePlannerPort["recommend"]>(() => pending.promise);
+    let notifySessionChange: ((userId: string | null) => void) | undefined;
+    const getSession = vi.fn(async () => customerSession);
+    const subscribeSession = vi.fn((listener: (userId: string | null) => void) => {
+      notifySessionChange = listener;
+      return vi.fn();
+    });
+    renderPlanner(plannerPort({ getSession, recommend, subscribeSession }));
+    fireEvent.click(await screen.findByRole("button", { name: "Generate itinerary" }));
+    await waitFor(() => expect(recommend).toHaveBeenCalledTimes(1));
+    const persisted = window.sessionStorage.getItem(RUNTIME_PENDING_OPERATION_KEY);
+
+    await act(async () => notifySessionChange?.(customerSession.userId));
+    expect(getSession).toHaveBeenCalledTimes(1);
+    expect(window.sessionStorage.getItem(RUNTIME_PENDING_OPERATION_KEY)).toBe(persisted);
+
+    pending.resolve({ ok: true, value: proposal() });
+    expect(await screen.findByRole("heading", { name: "Revision 1" })).toBeVisible();
+  });
+
+  it("restores the persisted proposal after reload without making another AI call", async () => {
+    saveValidHandoff();
+    const initial = plannerPort();
+    const { unmount } = renderPlanner(initial);
+
+    await generate();
+    unmount();
+
+    const getPlan = vi.fn(async () => ({
+      ok: true as const,
+      value: proposal({ revision: 2 }),
+    }));
+    const restored = plannerPort({ getPlan });
+    renderPlanner(restored);
+
+    expect(await screen.findByRole("heading", { name: "Revision 2" })).toBeVisible();
+    expect(getPlan).toHaveBeenCalledWith(proposal().planId, "en");
+    expect(restored.recommend).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["missing", null],
+    ["expired", JSON.stringify({ version: 1, savedAt: 1, request })],
+  ])("restores a persisted plan when the personalization handoff is %s", async (_state, stored) => {
+    saveValidHandoff();
+    const initial = renderPlanner();
+    await generate();
+    initial.unmount();
+    window.sessionStorage.clear();
+    if (stored !== null) window.sessionStorage.setItem(PERSONALIZATION_SESSION_KEY, stored);
+    const getPlan = vi.fn(async () => ({
+      ok: true as const,
+      value: proposal({ revision: 2 }),
+    }));
+
+    renderPlanner(plannerPort({ getPlan }));
+
+    expect(await screen.findByRole("heading", { name: "Revision 2" })).toBeVisible();
+    expect(getPlan).toHaveBeenCalledWith(proposal().planId, "en");
+    expect(screen.queryByRole("link", { name: "Return to personalization form" })).not.toBeInTheDocument();
+  });
+
+  it("retries a transient restore failure with the persisted plan ID and no proposal", async () => {
+    expect(saveRuntimePlanPointer(window.localStorage, {
+      version: 1,
+      ownerUserId: customerSession.userId,
+      planId: proposal().planId,
+      savedAt: Date.now(),
+    })).toBe(true);
+    const getPlan = vi.fn()
+      .mockResolvedValueOnce({ ok: false, error: runtimeError("SERVICE_UNAVAILABLE", true) })
+      .mockResolvedValueOnce({ ok: true, value: proposal({ revision: 2 }) });
+    renderPlanner(plannerPort({ getPlan }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("temporarily unavailable");
+    expect(screen.queryByRole("heading", { name: /Revision/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("heading", { name: "Revision 2" })).toBeVisible();
+    expect(getPlan).toHaveBeenCalledTimes(2);
+    expect(getPlan).toHaveBeenNthCalledWith(2, proposal().planId, "en");
+  });
+
+  it("clears a missing plan pointer and its pending refinement before returning to fresh generation", async () => {
+    saveValidHandoff();
+    expect(saveRuntimePlanPointer(window.localStorage, {
+      version: 1,
+      ownerUserId: customerSession.userId,
+      planId: proposal().planId,
+      savedAt: Date.now(),
+    })).toBe(true);
+    expect(saveRuntimePendingOperation(window.sessionStorage, {
+      version: 1,
+      ownerUserId: customerSession.userId,
+      operationId: "50000000-0000-4000-8000-000000000001",
+      savedAt: Date.now(),
+      kind: "refine",
+      planId: proposal().planId,
+      baseRevision: 1,
+      scope: "partial",
+      lockedItemIds: [],
+      signals: { pace: "slower", food: "keep", preferTypes: [], avoidTypes: [] },
+    })).toBe(true);
+    const getPlan = vi.fn(async () => ({
+      ok: false as const,
+      error: runtimeError("PLAN_NOT_FOUND", false),
+    }));
+
+    renderPlanner(plannerPort({ getPlan }));
+
+    expect(await screen.findByRole("button", { name: "Generate itinerary" })).toBeEnabled();
+    expect(window.localStorage.getItem(RUNTIME_PLAN_POINTER_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(RUNTIME_PENDING_OPERATION_KEY)).toBeNull();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Check again" })).not.toBeInTheDocument();
   });
 
   it("announces an AI proposal and renders plain-text rationales in a semantic timeline", async () => {
@@ -273,6 +527,8 @@ describe("SupabasePlannerFlow", () => {
     );
 
     unmount();
+    window.sessionStorage.clear();
+    window.localStorage.clear();
     saveValidHandoff();
     renderPlanner(plannerPort({ recommend }), "vi");
     fireEvent.click(await screen.findByRole("button", { name: "Tạo lịch trình" }));
@@ -301,7 +557,7 @@ describe("SupabasePlannerFlow", () => {
 
   it("gives quota guidance without automatically retrying", async () => {
     saveValidHandoff();
-    const recommend = vi.fn(async () => ({
+    const recommend = vi.fn<RuntimePlannerPort["recommend"]>(async () => ({
       ok: false as const,
       error: runtimeError("QUOTA_EXCEEDED", true),
     }));
@@ -317,7 +573,47 @@ describe("SupabasePlannerFlow", () => {
     expect(alert).not.toHaveTextContent(/fallback proposal/i);
     await Promise.resolve();
     expect(recommend).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+    const firstOperationId = recommend.mock.calls[0]?.[2].operationId;
+    fireEvent.click(screen.getByRole("button", { name: "Try a new request" }));
+    await waitFor(() => expect(recommend).toHaveBeenCalledTimes(2));
+    expect(recommend.mock.calls[1]?.[2].operationId).not.toBe(firstOperationId);
+  });
+
+  it("never restores a terminal operation UUID when its first pending removal fails", async () => {
+    saveValidHandoff();
+    const originalRemoveItem = Storage.prototype.removeItem;
+    let failTerminalRemoval = true;
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(function removeItem(this: Storage, key) {
+      if (failTerminalRemoval && this === window.sessionStorage && key === RUNTIME_PENDING_OPERATION_KEY) {
+        failTerminalRemoval = false;
+        throw new Error("one-time remove failure");
+      }
+      return originalRemoveItem.call(this, key);
+    });
+    const terminalRecommend = vi.fn<RuntimePlannerPort["recommend"]>(async () => ({
+      ok: false as const,
+      error: {
+        ...runtimeError("QUOTA_EXCEEDED", true),
+        operationState: "rejected" as const,
+      },
+    }));
+    const firstView = renderPlanner(plannerPort({ recommend: terminalRecommend }));
+    fireEvent.click(await screen.findByRole("button", { name: "Generate itinerary" }));
+    await screen.findByRole("button", { name: "Try a new request" });
+    const terminalOperationId = terminalRecommend.mock.calls[0]?.[2].operationId;
+    firstView.unmount();
+
+    const nextRecommend = vi.fn<RuntimePlannerPort["recommend"]>(async () => ({
+      ok: true as const,
+      value: proposal(),
+    }));
+    renderPlanner(plannerPort({ recommend: nextRecommend }));
+    expect(await screen.findByRole("button", { name: "Generate itinerary" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Check again" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Generate itinerary" }));
+
+    expect(await screen.findByRole("heading", { name: "Revision 1" })).toBeVisible();
+    expect(nextRecommend.mock.calls[0]?.[2].operationId).not.toBe(terminalOperationId);
   });
 
   it("retries a network failure only after the customer asks and reuses the same safe request", async () => {
@@ -330,7 +626,7 @@ describe("SupabasePlannerFlow", () => {
     renderPlanner(port);
     fireEvent.click(await screen.findByRole("button", { name: "Generate itinerary" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("network connection");
+    expect(await screen.findByRole("alert")).toHaveTextContent("temporarily unavailable");
     expect(recommend).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
@@ -338,6 +634,84 @@ describe("SupabasePlannerFlow", () => {
     expect(recommend).toHaveBeenCalledTimes(2);
     expect(recommend.mock.calls[1]).toEqual(recommend.mock.calls[0]);
     expect(recommend.mock.calls[0]?.[0]).not.toHaveProperty("specialNeeds");
+  });
+
+  it("restores an unresolved recommendation after remount and checks it with the same operation UUID", async () => {
+    saveValidHandoff();
+    const lostResponse = deferred<Awaited<ReturnType<RuntimePlannerPort["recommend"]>>>();
+    const firstRecommend = vi.fn(() => lostResponse.promise);
+    const firstView = renderPlanner(plannerPort({ recommend: firstRecommend }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Generate itinerary" }));
+    await waitFor(() => expect(firstRecommend).toHaveBeenCalledTimes(1));
+    const originalCall = firstRecommend.mock.calls[0];
+    firstView.unmount();
+
+    const recoveredRecommend = vi.fn(async () => ({ ok: true as const, value: proposal() }));
+    renderPlanner(plannerPort({ recommend: recoveredRecommend }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("still being checked");
+    expect(recoveredRecommend).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+
+    expect(await screen.findByRole("heading", { name: "Revision 1" })).toBeVisible();
+    expect(recoveredRecommend.mock.calls[0]).toEqual(originalCall);
+    expect(window.sessionStorage.getItem(RUNTIME_PENDING_OPERATION_KEY)).toBeNull();
+  });
+
+  it("persists and sends only canonical refinement signals, never the raw feedback", async () => {
+    saveValidHandoff();
+    const pending = deferred<Awaited<ReturnType<RuntimePlannerPort["refine"]>>>();
+    const refine = vi.fn<RuntimePlannerPort["refine"]>(() => pending.promise);
+    renderPlanner(plannerPort({ refine }));
+    await generate();
+
+    const rawFeedback = "Email me at private@example.com and make this slower";
+    fireEvent.change(screen.getByRole("textbox", { name: "What should we adjust?" }), {
+      target: { value: rawFeedback },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create revised proposal" }));
+
+    await waitFor(() => expect(refine).toHaveBeenCalledTimes(1));
+    expect(refine.mock.calls[0]?.[0]).toMatchObject({ delta: { feedback: "slower" } });
+    expect(window.sessionStorage.getItem(RUNTIME_PENDING_OPERATION_KEY)).not.toContain(rawFeedback);
+    expect(window.sessionStorage.getItem(RUNTIME_PENDING_OPERATION_KEY)).not.toContain("private@example.com");
+    pending.resolve({ ok: true, value: proposal({ revision: 2 }) });
+    expect(await screen.findByRole("heading", { name: "Revision 2" })).toBeVisible();
+  });
+
+  it("rejects unsupported refinement text before creating an operation", async () => {
+    saveValidHandoff();
+    const refine = vi.fn();
+    renderPlanner(plannerPort({ refine }));
+    await generate();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "What should we adjust?" }), {
+      target: { value: "Call me tomorrow" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create revised proposal" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Use a supported adjustment: slower or faster pace, more or no food, or prefer history, craft, or markets.",
+    );
+    expect(refine).not.toHaveBeenCalled();
+    expect(window.sessionStorage.getItem(RUNTIME_PENDING_OPERATION_KEY)).toBeNull();
+  });
+
+  it.each([
+    ["en" as const, "Explore fixed tours"],
+    ["vi" as const, "Khám phá tour cố định"],
+  ])("links a ready %s proposal to the existing localized fixed-tour catalog", async (locale, label) => {
+    saveValidHandoff();
+    renderPlanner(plannerPort(), locale);
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: locale === "vi" ? "Tạo lịch trình" : "Generate itinerary",
+    }));
+    await screen.findByRole("heading", { name: locale === "vi" ? "Phiên bản 1" : "Revision 1" });
+
+    expect(screen.getByRole("link", { name: label }).getAttribute("href"))
+      .toMatch(new RegExp(`^/${locale}/tours/?$`));
   });
 
   it("uses native pressed buttons for locks and submits the selected scope and locked IDs", async () => {
@@ -356,7 +730,7 @@ describe("SupabasePlannerFlow", () => {
       "true",
     );
     fireEvent.change(screen.getByRole("textbox", { name: "What should we adjust?" }), {
-      target: { value: "Keep the museum and shorten the route." },
+      target: { value: "Please make the route slower and keep the museum." },
     });
     fireEvent.change(screen.getByRole("combobox", { name: "Refinement scope" }), {
       target: { value: "partial" },
@@ -364,12 +738,16 @@ describe("SupabasePlannerFlow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create revised proposal" }));
 
     await waitFor(() => expect(refine).toHaveBeenCalledTimes(1));
-    expect(refine).toHaveBeenCalledWith({
-      planId: "20000000-0000-4000-8000-000000000001",
-      baseRevision: 1,
-      delta: { feedback: "Keep the museum and shorten the route.", scope: "partial" },
-      lockedItemIds: ["place-1"],
-    }, "en");
+    expect(refine).toHaveBeenCalledWith(
+      {
+        planId: "20000000-0000-4000-8000-000000000001",
+        baseRevision: 1,
+        delta: { feedback: "slower", scope: "partial" },
+        lockedItemIds: ["30000000-0000-4000-8000-000000000001"],
+      },
+      "en",
+      { operationId: expect.stringMatching(/^[0-9a-f-]{36}$/) },
+    );
   });
 
   it("refreshes a stale revision before allowing the customer to submit again", async () => {
@@ -383,7 +761,7 @@ describe("SupabasePlannerFlow", () => {
     await generate();
 
     fireEvent.change(screen.getByRole("textbox", { name: "What should we adjust?" }), {
-      target: { value: "Keep the route compact." },
+      target: { value: "Please make it slower." },
     });
     fireEvent.click(screen.getByRole("button", { name: "Create revised proposal" }));
 
@@ -413,12 +791,12 @@ describe("SupabasePlannerFlow", () => {
     await generate();
 
     fireEvent.change(screen.getByRole("textbox", { name: "What should we adjust?" }), {
-      target: { value: "Keep the route compact." },
+      target: { value: "Please make it slower." },
     });
     fireEvent.click(screen.getByRole("button", { name: "Create revised proposal" }));
     fireEvent.click(await screen.findByRole("button", { name: "Refresh latest proposal" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("network connection");
+    expect(await screen.findByRole("alert")).toHaveTextContent("temporarily unavailable");
     const lock = screen.getByRole("button", { name: "Lock stop: History Museum" });
     const refineButton = screen.getByRole("button", { name: "Create revised proposal" });
     const refineForm = refineButton.closest("form");
@@ -441,6 +819,37 @@ describe("SupabasePlannerFlow", () => {
     expect(screen.getByRole("button", { name: "Create revised proposal" })).toBeEnabled();
   });
 
+  it("shows storage recovery guidance when a refreshed plan pointer cannot be saved", async () => {
+    saveValidHandoff();
+    const originalSetItem = Storage.prototype.setItem;
+    let blockPointerStorage = false;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function setItem(this: Storage, key, value) {
+      if (blockPointerStorage && this === window.localStorage && key === RUNTIME_PLAN_POINTER_KEY) {
+        throw new Error("storage blocked");
+      }
+      return originalSetItem.call(this, key, value);
+    });
+    const refine = vi.fn(async () => ({
+      ok: false as const,
+      error: runtimeError("STALE_REVISION", true),
+    }));
+    const getPlan = vi.fn(async () => ({
+      ok: true as const,
+      value: proposal({ revision: 2 }),
+    }));
+    renderPlanner(plannerPort({ refine, getPlan }));
+    await generate();
+    fireEvent.change(screen.getByRole("textbox", { name: "What should we adjust?" }), {
+      target: { value: "Please make it slower." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create revised proposal" }));
+    blockPointerStorage = true;
+    fireEvent.click(await screen.findByRole("button", { name: "Refresh latest proposal" }));
+
+    expect(await screen.findByRole("heading", { name: "Revision 2" })).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent("cannot save it for reload");
+  });
+
   it("blocks a duplicate refinement while its first mutation is pending", async () => {
     saveValidHandoff();
     const pending = deferred<Awaited<ReturnType<RuntimePlannerPort["refine"]>>>();
@@ -449,7 +858,7 @@ describe("SupabasePlannerFlow", () => {
     await generate();
 
     fireEvent.change(screen.getByRole("textbox", { name: "What should we adjust?" }), {
-      target: { value: "Keep the route compact." },
+      target: { value: "Please make it slower." },
     });
     const button = screen.getByRole("button", { name: "Create revised proposal" });
     fireEvent.click(button);

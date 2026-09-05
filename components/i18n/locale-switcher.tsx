@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { isLocale, type Locale } from "@/lib/i18n/config";
 
@@ -51,20 +51,27 @@ function LocaleSwitcherLink({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const targetLocale = alternateLocale(locale);
+  const serializedSearch = searchParams?.toString() ?? "";
+  const [browserLocation, setBrowserLocation] = useState<{
+    search: string;
+    hash: string;
+  } | null>(null);
+
+  useEffect(() => {
+    setBrowserLocation({
+      search: window.location.search,
+      hash: window.location.hash,
+    });
+  }, [pathname, serializedSearch]);
+
   const search =
     searchProp !== undefined
       ? searchProp ?? ""
-      : typeof window === "undefined"
-        ? searchParams.toString()
-          ? `?${searchParams.toString()}`
-          : ""
-        : window.location.search;
+      : browserLocation?.search ?? (serializedSearch ? `?${serializedSearch}` : "");
   const hash =
     hashProp !== undefined
       ? hashProp ?? ""
-      : typeof window === "undefined"
-        ? ""
-        : window.location.hash;
+      : browserLocation?.hash ?? "";
 
   return (
     <>
@@ -97,14 +104,8 @@ function LocaleSwitcherFallback({
   hash,
 }: LocaleSwitcherProps) {
   const targetLocale = alternateLocale(locale);
-  const fallbackSearch =
-    search ?? (typeof window === "undefined" ? "" : window.location.search);
-  const fallbackHash =
-    hash !== undefined
-      ? hash ?? ""
-      : typeof window === "undefined"
-        ? ""
-        : window.location.hash;
+  const fallbackSearch = search ?? "";
+  const fallbackHash = hash ?? "";
 
   return (
     <>

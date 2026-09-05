@@ -19,6 +19,8 @@ import { createClient } from "@supabase/supabase-js";
 import pg from "pg";
 
 import { prepareRedactedArtifacts } from "./redact-ci-artifacts.mjs";
+import { runConcurrencyGate } from "./test-db-concurrency.mjs";
+import { runPlannerOperationConcurrencyGate } from "./test-planner-operation-concurrency.mjs";
 import {
   createRuntimeAuthPasswords,
   ensureDockerCliOnPath,
@@ -54,6 +56,7 @@ const BASE_ENV_ALLOWLIST = Object.freeze([
   "PROGRAMFILES", "ProgramW6432", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE", "CI",
   "DOCKER_CONTEXT", "DOCKER_HOST", "CONTAINER_HOST", "XDG_RUNTIME_DIR",
   "LOCALENS_RUNTIME_CONTAINER_HOST", "LOCALENS_RUNTIME_BROWSER",
+  "LOCALENS_CAPTURE_QA_PHASE",
 ]);
 
 const ISOLATED_SERVICE_EXCLUSIONS = [
@@ -69,7 +72,7 @@ const ISOLATED_SERVICE_EXCLUSIONS = [
   "supavisor",
 ].join(",");
 
-const PORT_NAMES = Object.freeze([
+const SUPABASE_PORT_NAMES = Object.freeze([
   "api",
   "database",
   "shadow",
@@ -80,8 +83,16 @@ const PORT_NAMES = Object.freeze([
   "mailpitPop3",
   "analytics",
   "inspector",
+]);
+
+const PORT_NAMES = Object.freeze([
+  ...SUPABASE_PORT_NAMES,
   "next",
 ]);
+
+function overlapsPresentationSupabasePorts(ports) {
+  return SUPABASE_PORT_NAMES.some((name) => STANDARD_SUPABASE_PORTS.has(ports[name]));
+}
 
 function runtimeError(code, message, details = {}) {
   const error = new Error(`${code}: ${message}`);
@@ -215,7 +226,7 @@ export async function reserveRuntimeItineraryPorts() {
       return address.port;
     });
     const ports = Object.fromEntries(PORT_NAMES.map((name, index) => [name, values[index]]));
-    if (STANDARD_SUPABASE_PORTS.has(ports.api) || STANDARD_SUPABASE_PORTS.has(ports.database)) {
+    if (overlapsPresentationSupabasePorts(ports)) {
       throw runtimeError(
         "RUNTIME_ITINERARY_PORT_ISOLATION_FAILED",
         "isolated Supabase ports must not overlap the demo stack",
@@ -292,7 +303,7 @@ export function buildIsolatedSupabaseConfig(source, { projectId, ports }) {
   if (new Set(PORT_NAMES.map((name) => ports[name])).size !== PORT_NAMES.length) {
     throw runtimeError("RUNTIME_ITINERARY_PORT_INVALID", "isolated project ports must be unique");
   }
-  if (STANDARD_SUPABASE_PORTS.has(ports.api) || STANDARD_SUPABASE_PORTS.has(ports.database)) {
+  if (overlapsPresentationSupabasePorts(ports)) {
     throw runtimeError(
       "RUNTIME_ITINERARY_PORT_ISOLATION_FAILED",
       "isolated Supabase ports must not overlap the demo stack",
@@ -767,7 +778,17 @@ function runChildStep(spec) {
   });
 }
 
-function stepSpec(name, { cwd, workdir, env, outputDirectory, baseUrl, platform, signal }) {
+function stepSpec(name, {
+  cwd,
+  workdir,
+  env,
+  outputDirectory,
+  baseUrl,
+  platform,
+  signal,
+  playwrightSpec = "tests/e2e/runtime-itinerary.spec.ts",
+  playwrightConfig = "playwright.runtime-itinerary.config.ts",
+}) {
   const supabase = (...args) => ({
     name,
     command: process.execPath,
@@ -782,7 +803,13 @@ function stepSpec(name, { cwd, workdir, env, outputDirectory, baseUrl, platform,
     return supabase("start", "--exclude", ISOLATED_SERVICE_EXCLUSIONS);
   }
   if (name === "db:reset") return supabase("db", "reset", "--local");
+  if (name === "db:lint") {
+    return supabase("db", "lint", "--local", "--level", "error", "--fail-on", "error");
+  }
   if (name === "db:test") return supabase("test", "db", "--local");
+  if (name === "db:types:generate") {
+    return supabase("gen", "types", "--lang", "typescript", "--local");
+  }
   if (name === "db:stop") return supabase("stop", "--no-backup");
   if (name === "test:e2e:runtime-itinerary:playwright") {
     return {
@@ -791,8 +818,8 @@ function stepSpec(name, { cwd, workdir, env, outputDirectory, baseUrl, platform,
       args: [
         path.join(cwd, "node_modules", "@playwright", "test", "cli.js"),
         "test",
-        "tests/e2e/runtime-itinerary.spec.ts",
-        "--config=playwright.runtime-itinerary.config.ts",
+        playwrightSpec,
+        `--config=${playwrightConfig}`,
         "--workers=1",
         "--retries=0",
         "--reporter=line",
@@ -829,6 +856,61 @@ async function runCheckedStep(name, context) {
     });
   }
   return result;
+}
+
+function normalizedGeneratedTypes(value, label) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw runtimeError(
+      "RUNTIME_ITINERARY_GENERATED_TYPES_EMPTY",
+      `${label} database types are empty`,
+    );
+  }
+  return `${value.replace(/\r\n/g, "\n").trimEnd()}\n`;
+}
+
+export function assertGeneratedDatabaseTypesMatch(committed, generated) {
+  if (
+    normalizedGeneratedTypes(committed, "committed")
+    !== normalizedGeneratedTypes(generated, "generated")
+  ) {
+    throw runtimeError(
+      "RUNTIME_ITINERARY_GENERATED_TYPES_DRIFT",
+      "database.types.ts differs from the isolated Supabase schema output",
+    );
+  }
+}
+
+export async function verifyIsolatedDatabaseGate({
+  cwd,
+  workdir,
+  env,
+  databaseUrl,
+  expectedPort,
+  logger,
+  runStep,
+  platform = process.platform,
+  signal,
+  runConcurrency = runConcurrencyGate,
+  readCommittedTypes = () => readFileSync(
+    path.join(cwd, "lib", "infrastructure", "supabase", "database.types.ts"),
+    "utf8",
+  ),
+}) {
+  const stepContext = {
+    cwd,
+    workdir,
+    env,
+    logger,
+    runStep,
+    platform,
+    signal,
+  };
+  await runCheckedStep("db:lint", stepContext);
+  const generated = await runCheckedStep("db:types:generate", stepContext);
+  assertGeneratedDatabaseTypesMatch(readCommittedTypes(), generated.stdout);
+  logger("[runtime-itinerary] db:types:check");
+  await runConcurrency({ databaseUrl, expectedPort, logger });
+  return { ok: true };
 }
 
 function localSupabaseProcessSpec({ cwd, workdir, env, cliPath, platform }) {
@@ -876,7 +958,7 @@ async function functionRouteReady(fetchImpl, apiUrl, name, anonKey, origin) {
       && typeof body === "object"
       && !Array.isArray(body)
       && body.code === "INVALID_REQUEST"
-      && body.messageKey === "gateway.invalid_request"
+      && body.messageKey === "planner.invalid_request"
       && body.retryable === false
       && typeof body.correlationId === "string"
       && CORRELATION_ID_PATTERN.test(body.correlationId);
@@ -1140,6 +1222,9 @@ export async function runRuntimeItineraryE2E(options = {}) {
     { recursive: true, force: true },
   ));
   const redactArtifacts = options.redactArtifacts ?? redactFailureOutput;
+  const runPlannerOperationConcurrency = options.runPlannerOperationConcurrency
+    ?? runPlannerOperationConcurrencyGate;
+  const verifyDatabase = options.verifyDatabase ?? verifyIsolatedDatabaseGate;
   const random = options.random ?? randomBytes;
   const signal = options.signal;
 
@@ -1186,6 +1271,8 @@ export async function runRuntimeItineraryE2E(options = {}) {
       runStep,
       platform,
       signal,
+      playwrightSpec: options.playwrightSpec,
+      playwrightConfig: options.playwrightConfig,
     };
     stackStartAttempted = true;
     try {
@@ -1217,6 +1304,22 @@ export async function runRuntimeItineraryE2E(options = {}) {
     // nonstandard reserved ports. There is deliberately no standard-stack fallback.
     await runCheckedStep("db:reset", stepContext);
     await runCheckedStep("db:test", stepContext);
+    await verifyDatabase({
+      cwd,
+      workdir: project.root,
+      env: controlEnv,
+      databaseUrl: runtime.databaseUrl,
+      expectedPort: project.ports.database,
+      logger,
+      runStep,
+      platform,
+      signal,
+    });
+    await runPlannerOperationConcurrency({
+      databaseUrl: runtime.databaseUrl,
+      expectedPort: project.ports.database,
+      logger,
+    });
     await seedRuntime({ runtime, passwords, logger });
     throwIfAborted(signal);
 
@@ -1274,6 +1377,7 @@ export async function runRuntimeItineraryE2E(options = {}) {
       [FIXED_TOUR_PASSWORD_ENV]: passwords.otherCustomer,
       LOCALENS_RUNTIME_GEMINI_CONTROL_URL: provider.controlUrl,
       LOCALENS_RUNTIME_GEMINI_CONTROL_TOKEN: passwords.geminiControlToken,
+      LOCALENS_RUNTIME_ISOLATED_PROJECT_ID: project.projectId,
       LOCALENS_RUNTIME_PLAYWRIGHT_OUTPUT_DIR: outputDirectory,
       NEXT_PUBLIC_LOCALLENS_RUNTIME: "supabase",
       NEXT_PUBLIC_SUPABASE_URL: runtime.apiUrl,

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FocusEvent, type FormEvent } from "react";
 
 import type {
   ItineraryPreviewDto,
@@ -23,6 +23,7 @@ import {
 } from "@/components/customer/itinerary-preview";
 import { loadPortalSurfaceComposition } from "@/components/portals/portal-session";
 import { signInPath } from "@/lib/navigation/safe-return-to";
+import { formatHcmMinute } from "@/lib/domain/itinerary/local-time";
 
 type PersonalizationFormCopy = Dictionary["home"]["personalizationForm"];
 
@@ -36,6 +37,38 @@ const PRIORITY_KEYS: PersonalizationPriorityKey[] = [
   "traditional_craft",
   "traditional_market",
 ];
+const DEFAULT_PRIORITY_WEIGHTS: Record<PersonalizationPriorityKey, 0 | 1 | 2 | 3 | 4 | 5> = {
+  street_food: 3,
+  history: 0,
+  traditional_craft: 0,
+  traditional_market: 0,
+};
+const MINUTE_MS = 60_000;
+const DAY_MS = 24 * 60 * MINUTE_MS;
+
+export function hcmcCalendarDate(now: number): string {
+  return formatHcmMinute(Math.floor(now / MINUTE_MS)).slice(0, 10);
+}
+
+export function defaultHcmcPlannerStart(now: number): { date: string; time: "09:00" } {
+  const current = formatHcmMinute(Math.floor(now / MINUTE_MS));
+  return {
+    date: current.slice(11, 16) < "09:00" ? current.slice(0, 10) : hcmcCalendarDate(now + DAY_MS),
+    time: "09:00",
+  };
+}
+
+function isFutureHcmcStart(date: string, time: string, now: number): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return false;
+  const value = Date.parse(`${date}T${time}:00+07:00`);
+  return Number.isFinite(value) && value > now;
+}
+
+function keepFocusedControlVisible(event: FocusEvent<HTMLFormElement>): void {
+  if (!(event.target instanceof HTMLElement)) return;
+  if (typeof event.target.scrollIntoView !== "function") return;
+  event.target.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
 
 type RuntimeSelection =
   | { mode: "demo"; readOnlyApi: ReadOnlyApi }
@@ -173,7 +206,20 @@ export function PersonalizationForm({
   const [runtimeSelection, setRuntimeSelection] = useState<RuntimeSelection | null>(null);
   const [runtimeLoadFailed, setRuntimeLoadFailed] = useState(false);
   const [runtimeRetryKey, setRuntimeRetryKey] = useState(0);
+  const [minimumStartDate, setMinimumStartDate] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [startTime, setStartTime] = useState("09:00");
+  const [priorityWeights, setPriorityWeights] = useState(DEFAULT_PRIORITY_WEIGHTS);
+  const [pace, setPace] = useState<"relaxed" | "active">("relaxed");
   const runtimeLoadRef = useRef<Promise<RuntimeSelection> | null>(null);
+
+  useEffect(() => {
+    const now = Date.now();
+    const start = defaultHcmcPlannerStart(now);
+    setMinimumStartDate(hcmcCalendarDate(now));
+    setStartDate(start.date);
+    setStartTime(start.time);
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -199,6 +245,11 @@ export function PersonalizationForm({
     const formData = new FormData(event.currentTarget);
     const hasDate = String(formData.get("startDate") ?? "").length > 0;
     const hasTime = String(formData.get("startTime") ?? "").length > 0;
+    const hasFutureStart = isFutureHcmcStart(
+      String(formData.get("startDate") ?? ""),
+      String(formData.get("startTime") ?? ""),
+      Date.now(),
+    );
     const hasArea = formData.getAll("areas").length > 0;
     const durationHours = numericValue(formData, "durationHours");
     const durationAdditionalMinutes = numericValue(
@@ -228,6 +279,16 @@ export function PersonalizationForm({
     const hasPriority = PRIORITY_KEYS.some(
       (key) => weightValue(formData, key) > 0,
     );
+
+    if (hasDate && hasTime && !hasFutureStart) {
+      setIsPreviewed(false);
+      setValidationError(copy.startInPastMessage);
+      setPreview(undefined);
+      setPreviewError(null);
+      setPlannerHandoffSaved(false);
+      setPlannerHandoffError(false);
+      return;
+    }
 
     if (
       !hasDate ||
@@ -284,7 +345,7 @@ export function PersonalizationForm({
   }
 
   return (
-    <form className="personalization-form personalization-form--editorial" aria-label={copy.formLabel} aria-busy={runtimeSelection === null && !runtimeLoadFailed} onSubmit={handleSubmit}>
+    <form className="personalization-form personalization-form--editorial" aria-label={copy.formLabel} aria-busy={runtimeSelection === null && !runtimeLoadFailed} onFocusCapture={keepFocusedControlVisible} onSubmit={handleSubmit}>
       <div className="personalization-form__grid">
         <fieldset className="duration-field" aria-describedby="duration-hint">
           <legend>{copy.durationLabel}</legend>
@@ -316,13 +377,13 @@ export function PersonalizationForm({
 
         <label className="field">
           <span>{copy.startDateLabel}</span>
-          <input name="startDate" type="date" aria-label={copy.startDateLabel} aria-describedby="start-date-hint timezone-hint" required />
+          <input name="startDate" type="date" min={minimumStartDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} aria-label={copy.startDateLabel} aria-describedby="start-date-hint timezone-hint" required />
           <small id="start-date-hint">{copy.startDateHint}</small>
         </label>
 
         <label className="field">
           <span>{copy.startTimeLabel}</span>
-          <input name="startTime" type="time" defaultValue="09:00" required aria-describedby="timezone-hint" />
+          <input name="startTime" type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} required aria-describedby="timezone-hint" />
         </label>
 
         <label className="field">
@@ -340,6 +401,30 @@ export function PersonalizationForm({
       </div>
 
       <p className="form-timezone" id="timezone-hint">{copy.timezoneHint}</p>
+
+      <fieldset className="field-group">
+        <legend>{copy.presetsLegend}</legend>
+        <p className="field-group__hint">{copy.presetsHint}</p>
+        <div className="personalization-form__footer personalization-form__presets">
+          <button
+            className="button button--secondary"
+            type="button"
+            onClick={() => setPriorityWeights({ street_food: 1, history: 5, traditional_craft: 2, traditional_market: 2 })}
+          >
+            {copy.historyPresetLabel}
+          </button>
+          <button
+            className="button button--secondary"
+            type="button"
+            onClick={() => setPriorityWeights({ street_food: 5, history: 1, traditional_craft: 1, traditional_market: 4 })}
+          >
+            {copy.foodPresetLabel}
+          </button>
+          <button className="button button--secondary" type="button" onClick={() => setPace("relaxed")}>
+            {copy.relaxedPresetLabel}
+          </button>
+        </div>
+      </fieldset>
 
       <fieldset className="field-group" aria-describedby="areas-hint">
         <legend>{copy.areasLabel}</legend>
@@ -360,7 +445,22 @@ export function PersonalizationForm({
           {copy.priorities.map((priority) => (
             <label className="priority-control" key={priority.key}>
               <span>{priority.label}</span>
-              <input name={`priorityWeights.${priority.key}`} type="number" min={0} max={5} step={1} defaultValue={priority.key === "street_food" ? 3 : 0} aria-label={priority.label} />
+              <input
+                name={`priorityWeights.${priority.key}`}
+                type="number"
+                min={0}
+                max={5}
+                step={1}
+                value={priorityWeights[priority.key]}
+                onChange={(event) => {
+                  const value = Math.min(5, Math.max(0, Math.round(Number(event.target.value))));
+                  setPriorityWeights((current) => ({
+                    ...current,
+                    [priority.key]: Number.isFinite(value) ? value as 0 | 1 | 2 | 3 | 4 | 5 : 0,
+                  }));
+                }}
+                aria-label={priority.label}
+              />
             </label>
           ))}
         </div>
@@ -369,7 +469,7 @@ export function PersonalizationForm({
       <div className="personalization-form__grid personalization-form__grid--details">
         <label className="field">
           <span>{copy.paceLabel}</span>
-          <select name="pace" defaultValue="relaxed">
+          <select name="pace" value={pace} onChange={(event) => setPace(event.target.value === "active" ? "active" : "relaxed")}>
             {copy.paceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>

@@ -15,7 +15,7 @@ function unavailableResponse(): Response {
   return errorResponse(
     {
       code: "SERVICE_UNAVAILABLE",
-      messageKey: "gateway.service_unavailable",
+      messageKey: "planner.service_unavailable",
       retryable: true,
       status: 503,
     },

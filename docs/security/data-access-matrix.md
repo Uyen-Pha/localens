@@ -80,6 +80,7 @@ Migration owner for default privileges: postgres
 | private.quota_global_buckets | postgres | none |  | quota RPC only | true | true | quota_global_quota_owner_all |  | migration-owner-only |
 | private.quota_reservations | postgres | none |  | quota RPC only | true | true | quota_reservations_quota_owner_insert, quota_reservations_quota_owner_select |  | migration-owner-only |
 | private.recommendation_runs | postgres | none |  | itinerary RPC only | true | true | recommendation_runs_guest_owner_all, recommendation_runs_plan_rpc_owner_all |  | migration-owner-only |
+| private.runtime_planner_operations | localens_plan_rpc_owner | none |  | service-role planner operation RPCs only | true | true | runtime_planner_operations_plan_rpc_owner_all |  | migration-owner-only |
 | private.seo_build_capabilities | postgres | none |  | capability RPC only | true | true | seo_build_capabilities_admin_owner_insert, seo_build_capabilities_admin_owner_select, seo_build_capabilities_admin_owner_update, seo_build_capabilities_build_owner_all, seo_build_capabilities_build_owner_update |  | migration-owner-only |
 | private.seo_live_pointer | postgres | none |  | finalize RPC only | true | true | seo_live_pointer_build_owner_all, seo_live_pointer_public_owner_select |  | migration-owner-only |
 | private.simulated_payment_receipts | postgres | none |  | fixed-tour simulated-payment RPC only | true | true | simulated_payment_receipts_checkout_owner_select, simulated_payment_receipts_payment_guard_select, simulated_payment_receipts_projection_owner_select, simulated_payment_receipts_rpc_owner_all, simulated_receipts_cancellation_admin_select, simulated_receipts_cancellation_customer_select |  | migration-owner-only |
@@ -182,14 +183,14 @@ Migration owner for default privileges: postgres
 | RPC | Owner | API reader/execute roles | Writer operation | Credential |
 | --- | --- | --- | --- | --- |
 | public.admin_user_summary | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin read only | browser-jwt |
-| public.advance_authenticated_trip_plan_revision | localens_plan_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | authenticated owner revision append through the audited compare-and-swap implementation | browser-jwt |
-| public.advance_trip_plan_revision | localens_plan_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner revision append | browser-jwt |
 | public.assign_fixed_departure_guide | localens_guide_assignment_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | administrator idempotently assigns a pure guide to a confirmed scheduled fixed departure | browser-jwt |
 | public.begin_fixed_tour_booking | localens_checkout_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner starts a fixed-tour capacity hold | browser-jwt |
 | public.cancel_booking | localens_cancellation_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | exact customer cancels an eligible departure or quote booking | browser-jwt |
 | public.claim_guest_plan | localens_claim_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner claims guest plan | browser-jwt |
+| public.claim_runtime_planner_operation | localens_plan_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Edge claims one owner-scoped planner operation and returns stable lease/quota IDs | edge-service-role |
+| public.complete_runtime_recommendation | localens_plan_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Edge atomically persists recommendation revision one and completes its operation | edge-service-role |
+| public.complete_runtime_refinement | localens_plan_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Edge atomically compare-and-swap appends a refinement and completes its operation | edge-service-role |
 | public.complete_simulated_fixed_tour_payment | localens_simulated_payment_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner completes fixed-tour thesis payment simulation | browser-jwt |
-| public.create_authenticated_trip_plan | localens_plan_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | customer creates an idempotent initial itinerary revision | browser-jwt |
 | public.create_custom_quote | localens_request_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin creates server-priced quote | browser-jwt |
 | public.fail_seo_publish | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | build marks failed | edge-internal-content-build |
 | public.finalize_seo_publish | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | build CAS finalizes release | edge-internal-content-build |
@@ -199,9 +200,11 @@ Migration owner for default privileges: postgres
 | public.get_guide_assigned_bookings | localens_guide_projection_owner | authenticated (login=false, bypassrls=false, browser-jwt) | guide reads sanitized queue | browser-jwt |
 | public.get_live_departure_availability | localens_availability_rpc_owner | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | hold-aware published availability read | browser-anonymous-or-jwt |
 | public.get_portal_identity | localens_identity_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | authenticated owner identity read | browser-jwt |
+| public.get_runtime_planner_operation | localens_plan_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Edge reads one owner-scoped planner operation status without mutation | edge-service-role |
 | public.publish_seo | localens_content_admin_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin creates one publishing release | browser-jwt |
 | public.read_seo_build_release | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | capability-scoped build read | edge-internal-content-build |
 | public.reconcile_payment | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | audited admin payment reconciliation | browser-jwt |
+| public.reject_runtime_planner_operation | localens_plan_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Edge records one allowlisted terminal planner failure | edge-service-role |
 | public.reserve_ai_quota | localens_ai_quota_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Edge reserves planner or Gemini quota through the helper-only wrapper | edge-service-role |
 | public.review_custom_request | localens_request_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin reviews request | browser-jwt |
 | public.review_food_catalog_item | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin reviews food evidence | browser-jwt |
@@ -210,7 +213,7 @@ Migration owner for default privileges: postgres
 
 ## Internal functions
 
-Enumerated internal functions: 106. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
+Enumerated internal functions: 110. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
 
 - `private.accept_guide_assignment(uuid)`
 - `private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)`
@@ -268,6 +271,7 @@ Enumerated internal functions: 106. All are non-API and must use a named NOLOGIN
 - `private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)`
 - `private.guard_custom_request_insert()`
 - `private.guard_custom_request_mutation()`
+- `private.guard_runtime_planner_operation_transition()`
 - `private.guard_tour_lifecycle()`
 - `private.guard_tour_translation_lifecycle()`
 - `private.guard_tour_version_lifecycle()`
@@ -314,14 +318,17 @@ Enumerated internal functions: 106. All are non-API and must use a named NOLOGIN
 - `private.validate_food_plan_revision_dto(jsonb)`
 - `private.validate_trip_plan_revision_dto(jsonb)`
 - `public.accept_guide_assignment(uuid)`
+- `public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)`
+- `public.advance_trip_plan_revision(uuid,integer,jsonb)`
 - `public.assign_guide(uuid,uuid)`
 - `public.complete_guide_assignment(uuid)`
+- `public.create_authenticated_trip_plan(uuid,jsonb)`
 - `public.decide_fixed_tour_cancellation(uuid,text,text,text)`
 - `public.request_fixed_tour_cancellation(uuid,text,text)`
 
 ## Explicit grants
 
-Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (674 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (679 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Dynamic policy semantics
 

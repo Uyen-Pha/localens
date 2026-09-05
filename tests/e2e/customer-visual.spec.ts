@@ -82,17 +82,41 @@ async function waitForDeterministicPage(page: Page): Promise<void> {
   });
   await page.evaluate(async () => {
     await document.fonts.ready;
+    const images = Array.from(document.images);
+    for (const image of images) {
+      image.loading = "eager";
+      image.scrollIntoView({ block: "center" });
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+    }
+    window.scrollTo(0, 0);
+
+    const settleWithin = async (work: Promise<unknown>, timeoutMs = 5_000): Promise<void> => {
+      let timer: number | undefined;
+      try {
+        await Promise.race([
+          work,
+          new Promise<void>((resolve) => {
+            timer = window.setTimeout(resolve, timeoutMs);
+          }),
+        ]);
+      } finally {
+        if (timer !== undefined) window.clearTimeout(timer);
+      }
+    };
+
     await Promise.all(
-      Array.from(document.images, async (image) => {
+      images.map(async (image) => {
         if (!image.complete) {
-          await new Promise<void>((resolve) => {
+          await settleWithin(new Promise<void>((resolve) => {
             image.addEventListener("load", () => resolve(), { once: true });
             image.addEventListener("error", () => resolve(), { once: true });
-          });
+          }));
         }
-        if (typeof image.decode === "function") {
+        if (image.complete && image.naturalWidth > 0 && typeof image.decode === "function") {
           try {
-            await image.decode();
+            await settleWithin(image.decode());
           } catch {
             // An image error is reported separately by the page diagnostics.
           }
@@ -235,6 +259,13 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
   expect(diagnostics.contrastViolations).toEqual([]);
   expect(diagnostics.clippedContent).toEqual([]);
 
+  await page.evaluate(() => {
+    const previousTabIndex = document.body.getAttribute("tabindex");
+    document.body.tabIndex = -1;
+    document.body.focus({ preventScroll: true });
+    if (previousTabIndex === null) document.body.removeAttribute("tabindex");
+    else document.body.setAttribute("tabindex", previousTabIndex);
+  });
   await page.keyboard.press("Tab");
   await expect(page.locator(".skip-link")).toBeFocused();
   await expect(page.locator(".skip-link")).toBeVisible();

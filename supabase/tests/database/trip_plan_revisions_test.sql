@@ -3,6 +3,7 @@
 BEGIN;
 
 SELECT plan(116);
+GRANT USAGE ON SCHEMA extensions TO localens_plan_rpc_owner;
 
 CREATE TEMP TABLE task6_revision_fixture ON COMMIT DROP AS
 WITH fixture AS (
@@ -81,7 +82,7 @@ SELECT fixture.*,
 FROM fixture;
 
 
-GRANT SELECT ON task6_revision_fixture TO authenticated;
+GRANT SELECT ON task6_revision_fixture TO localens_plan_rpc_owner;
 
 SELECT ok(to_regclass('public.trip_plans') IS NOT NULL, 'trip plans exists');
 SELECT ok(to_regclass('public.trip_plan_revisions') IS NOT NULL, 'trip plan revisions exists');
@@ -113,8 +114,8 @@ SELECT is((SELECT count(*) FROM pg_trigger WHERE tgname IN ('trip_plan_revisions
 SELECT ok((SELECT prosecdef AND proconfig @> ARRAY['search_path=""'] FROM pg_proc WHERE oid = 'private.advance_trip_plan_revision(uuid, integer, jsonb)'::regprocedure), 'CAS function is pinned SECURITY DEFINER');
 SELECT is((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'private.advance_trip_plan_revision(uuid, integer, jsonb)'::regprocedure), 'localens_plan_rpc_owner', 'CAS function has named owner');
 SELECT ok((SELECT rolcanlogin = false AND rolbypassrls = false FROM pg_catalog.pg_roles WHERE rolname = 'localens_plan_rpc_owner'), 'CAS owner cannot login or bypass RLS');
-SELECT ok(has_function_privilege('authenticated', 'public.advance_trip_plan_revision(uuid, integer, jsonb)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'private.advance_trip_plan_revision(uuid, integer, jsonb)', 'EXECUTE'), 'authenticated can invoke only the guarded public customer CAS');
-SELECT ok(NOT has_function_privilege('anon', 'private.advance_trip_plan_revision(uuid, integer, jsonb)', 'EXECUTE'), 'anonymous cannot invoke customer CAS');
+SELECT ok(NOT has_function_privilege('authenticated', 'public.advance_trip_plan_revision(uuid, integer, jsonb)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'private.advance_trip_plan_revision(uuid, integer, jsonb)', 'EXECUTE'), 'authenticated cannot bypass the operation-aware CAS');
+SELECT ok(NOT has_function_privilege('anon', 'public.advance_trip_plan_revision(uuid, integer, jsonb)', 'EXECUTE') AND NOT has_function_privilege('anon', 'private.advance_trip_plan_revision(uuid, integer, jsonb)', 'EXECUTE'), 'anonymous cannot invoke either legacy CAS');
 SELECT ok(NOT has_schema_privilege('authenticated', 'private', 'USAGE'), 'authenticated cannot resolve the private implementation schema');
 SELECT ok(NOT has_table_privilege('anon', 'public.trip_plans', 'SELECT') AND NOT has_table_privilege('anon', 'public.trip_plan_revisions', 'SELECT'), 'anonymous cannot read plan base tables');
 SELECT ok(has_column_privilege('authenticated', 'public.trip_plans', 'id', 'SELECT') AND has_column_privilege('authenticated', 'public.trip_plan_items', 'place_id', 'SELECT'), 'authenticated has allowlisted owner read columns');
@@ -241,11 +242,11 @@ SELECT request_json, food_selection,
     ))
   ) AS food_dto
 FROM fixture;
-GRANT SELECT ON task9_food_revision_fixture TO authenticated;
+GRANT SELECT ON task9_food_revision_fixture TO localens_plan_rpc_owner;
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000706'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
 
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT lives_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000706'::uuid,
@@ -263,6 +264,8 @@ SELECT is((SELECT count(*)::integer FROM public.trip_plans WHERE id = '00000000-
 SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000706'::uuid), 1, 'claimed owner can read own revisions');
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000709', true);
 SELECT is((SELECT count(*)::integer FROM public.trip_plans WHERE id = '00000000-0000-0000-0000-000000000706'::uuid), 0, 'cross-owner cannot read another plan');
+RESET ROLE;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000706'::uuid, 0,
@@ -278,7 +281,7 @@ SELECT format('00000000-0000-0000-0000-%s', suffix)::uuid,
        '00000000-0000-0000-0000-000000000701'::uuid
 FROM unnest(ARRAY['000000000718', '000000000719', '000000000720', '000000000721',
                   '000000000722', '000000000723', '000000000724', '000000000725']) AS values(suffix);
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT lives_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000718'::uuid, 0,
@@ -361,7 +364,7 @@ SELECT is((SELECT count(*)::integer FROM public.trip_plan_items WHERE revision_i
 
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000710'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000710'::uuid, 0,
@@ -379,14 +382,14 @@ INSERT INTO public.fx_snapshots (id, vnd_per_usd, source, observed_at, environme
 VALUES ('00000000-0000-0000-0000-000000000708'::uuid, 25000.00000000, 'fixture', now(), 'demo', true);
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000707'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT lives_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000707'::uuid, 0,
   (SELECT usd_dto FROM task6_revision_fixture))$$, 'USD CAS requires an exact referenced FX rate');
 RESET ROLE;
 SELECT is((SELECT count(*)::integer FROM public.trip_plan_revisions WHERE plan_id = '00000000-0000-0000-0000-000000000707'::uuid), 1, 'USD revision persists exact FX snapshot');
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000707'::uuid, 1,
@@ -398,7 +401,7 @@ RESET ROLE;
 
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000711'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000711'::uuid, 0,
@@ -410,7 +413,7 @@ SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_
 
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000712'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000712'::uuid, 0,
@@ -425,7 +428,7 @@ SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_
 
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000713'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000713'::uuid, 0,
@@ -439,7 +442,7 @@ SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_
 
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000715'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000715'::uuid, 0,
@@ -458,7 +461,7 @@ SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_
 
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000716'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000716'::uuid, 0,
@@ -483,7 +486,7 @@ SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_
 
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000717'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT lives_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000717'::uuid, 0,
@@ -503,7 +506,7 @@ SELECT is((SELECT count(*)::integer FROM private.recommendation_runs WHERE plan_
 
 INSERT INTO public.trip_plans (id, owner_user_id)
 VALUES ('00000000-0000-0000-0000-000000000714'::uuid, '00000000-0000-0000-0000-000000000701'::uuid);
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 SELECT throws_ok($$SELECT * FROM public.advance_trip_plan_revision(
   '00000000-0000-0000-0000-000000000714'::uuid, 0,

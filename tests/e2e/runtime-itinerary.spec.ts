@@ -1,9 +1,13 @@
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
   expect,
   test,
   type APIRequestContext,
   type Browser,
+  type Locator,
   type Page,
 } from "@playwright/test";
 
@@ -42,6 +46,7 @@ const identities = {
     deviceId: "runtime-itinerary-quota-00001",
   },
 } as const;
+const COLD_ROUTE_TIMEOUT_MS = 15_000;
 
 type Account = keyof typeof accounts;
 type RuntimeClient = SupabaseClient<Database>;
@@ -71,6 +76,88 @@ type RecommendationBody = {
   rationales: Record<string, string>;
   revision: 1;
 };
+
+const browserErrors = new WeakMap<Page, string[]>();
+
+function installBrowserDiagnostics(page: Page): void {
+  const errors: string[] = [];
+  browserErrors.set(page, errors);
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(`console: ${message.text()}`);
+  });
+  page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+  page.on("requestfailed", (request) => {
+    errors.push(`requestfailed: ${request.method()} ${request.url()}`);
+  });
+  page.on("response", (response) => {
+    if (response.status() >= 400) errors.push(`response: ${response.status()} ${response.url()}`);
+  });
+}
+
+function expectNoBrowserErrors(page: Page): void {
+  expect(browserErrors.get(page) ?? []).toEqual([]);
+}
+
+async function expectKeyboardReachable(page: Page, target: Locator): Promise<void> {
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    window.scrollTo(0, 0);
+  });
+  for (let step = 0; step < 40; step += 1) {
+    await page.keyboard.press("Tab");
+    if (await target.evaluate((element) => document.activeElement === element)) {
+      const focus = await target.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { style: style.outlineStyle, width: Number.parseFloat(style.outlineWidth) };
+      });
+      expect(focus.style).not.toBe("none");
+      expect(focus.width).toBeGreaterThanOrEqual(3);
+      return;
+    }
+  }
+  throw new Error("Natural keyboard traversal did not reach the planner primary action");
+}
+
+const qaViewports = [
+  { height: 1024, name: "desktop", width: 1440 },
+  { height: 1024, name: "tablet", width: 768 },
+  { height: 844, name: "mobile", width: 390 },
+] as const;
+
+async function captureQaState(page: Page, state: string) {
+  const phase = process.env.LOCALENS_CAPTURE_QA_PHASE;
+  if (phase === undefined) return;
+  if (phase !== "reference" && phase !== "implemented") {
+    throw new Error("LOCALENS_CAPTURE_QA_PHASE must be reference or implemented");
+  }
+
+  const outputDirectory = path.resolve(
+    process.cwd(),
+    "docs",
+    "design",
+    "qa",
+    "public-thesis-demo",
+    phase,
+  );
+  await mkdir(outputDirectory, { recursive: true });
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    document.querySelectorAll("nextjs-portal").forEach((element) => element.remove());
+  });
+
+  for (const viewport of qaViewports) {
+    await page.setViewportSize({ height: viewport.height, width: viewport.width });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBe(viewport.width);
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: path.join(outputDirectory, `${state}-${viewport.name}.png`),
+    });
+  }
+}
 type RefinementBody = {
   advisoryOnly: true;
   baseRevision: number;
@@ -112,14 +199,20 @@ function sessionClient(session: BrowserSession): RuntimeClient {
 
 async function signIn(page: Page, account: Account): Promise<BrowserSession> {
   await page.goto("/en/sign-in/");
+  await submitSignIn(page, account);
+  await expect(page).toHaveURL(/\/en\/account\/?(?:\?.*)?$/, {
+    timeout: COLD_ROUTE_TIMEOUT_MS,
+  });
+  await expect(page.getByRole("heading", { name: "Your secure portal" })).toBeVisible();
+  await expect(page.getByText(/Choose a demo identity/i)).toHaveCount(0);
+  return readBrowserSession(page);
+}
+
+async function submitSignIn(page: Page, account: Account): Promise<void> {
   await expect(page.getByRole("heading", { name: "Sign in to LocalLens" })).toBeVisible();
   await page.getByRole("textbox", { name: "Email" }).fill(accounts[account].email);
   await page.getByLabel("Password").fill(passwordFor(account));
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/en\/account\/?(?:\?.*)?$/);
-  await expect(page.getByRole("heading", { name: "Your secure portal" })).toBeVisible();
-  await expect(page.getByText(/Choose a demo identity/i)).toHaveCount(0);
-  return readBrowserSession(page);
 }
 
 async function readBrowserSession(page: Page): Promise<BrowserSession> {
@@ -302,7 +395,7 @@ function expectRecommendation(
   result: EdgeResult,
   expected: { degraded: boolean; rankingSource: "ai" | "deterministic" },
 ): RecommendationBody {
-  expect(result.status).toBe(200);
+  expect(result.status, JSON.stringify(result.body)).toBe(200);
   expect(result.body).toMatchObject({
     advisoryOnly: true,
     degraded: expected.degraded,
@@ -380,23 +473,99 @@ async function createSignedInPage(
 ): Promise<{ page: Page; session: BrowserSession }> {
   const context = await browser.newContext();
   const page = await context.newPage();
+  installBrowserDiagnostics(page);
   const session = await signIn(page, account);
   return { page, session };
 }
 
-test.describe.configure({ mode: "serial" });
+async function createPlannerPageFromHomepage(
+  browser: Browser,
+  account: Account,
+): Promise<{ page: Page; session: BrowserSession }> {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  installBrowserDiagnostics(page);
+  await page.route("**/functions/v1/**", async (route) => {
+    await route.continue({
+      headers: {
+        ...route.request().headers(),
+        "x-forwarded-for": identities.primary.address,
+      },
+    });
+  });
+  await page.goto("/en/#personalize");
+
+  const form = page.getByRole("form", { name: "Personalized route preferences" });
+  const submit = form.getByRole("button", { name: "Preview my route brief", exact: true });
+  await expect(submit).toBeEnabled();
+  const startDate = form.getByLabel("Preferred start date", { exact: true });
+  const safeDefaultDate = await startDate.inputValue();
+  const fixtureSaturday = new Date(`${safeDefaultDate}T00:00:00Z`);
+  fixtureSaturday.setUTCDate(
+    fixtureSaturday.getUTCDate() + (6 - fixtureSaturday.getUTCDay() + 7) % 7,
+  );
+  await startDate.fill(fixtureSaturday.toISOString().slice(0, 10));
+  await expect(form.getByLabel("Preferred start time", { exact: true })).toHaveValue("09:00");
+  await form.getByLabel("Hours", { exact: true }).fill("6");
+  await form.getByLabel("Budget for your whole group", { exact: true }).fill("2000000");
+  await form.getByRole("checkbox", { name: "District 1 & central", exact: true }).check();
+  await form.getByLabel("Food & everyday flavor", { exact: true }).fill("0");
+  await form.getByLabel("Markets & neighborhood life", { exact: true }).fill("4");
+  await submit.click();
+
+  const plannerLink = form.getByRole("link", { name: "Sign in to open the AI planner", exact: true });
+  await expect(plannerLink).toBeVisible();
+  await expect(form.getByRole("note")).toContainText(
+    "Your preferences are saved in this tab. Sign in with a demo customer account to generate and save an AI-assisted itinerary.",
+  );
+  await plannerLink.click();
+  await expect(page).toHaveURL(/\/en\/sign-in\/\?returnTo=/);
+  expect(new URL(page.url()).searchParams.get("returnTo")).toBe("/en/planner/");
+
+  await submitSignIn(page, account);
+  await expect(page).toHaveURL(/\/en\/planner\/?$/);
+  await expect(page.getByRole("heading", { name: "Your personalized route proposal" })).toBeVisible();
+  return { page, session: await readBrowserSession(page) };
+}
+
+async function runPlannerOperation(
+  page: Page,
+  path: "recommend-itinerary" | "refine-itinerary",
+  action: () => Promise<void>,
+): Promise<EdgeResult> {
+  const responsePromise = page.waitForResponse((response) => (
+    response.request().method() === "POST"
+    && new URL(response.url()).pathname.endsWith(`/functions/v1/${path}`)
+  ));
+  await action();
+  const response = await responsePromise;
+  const body = await response.json() as unknown;
+  expect(body).toEqual(expect.any(Object));
+  return { body: body as Record<string, unknown>, status: response.status() };
+}
+
+test.describe.configure({ mode: "serial", timeout: 120_000 });
 
 test.describe("local authenticated itinerary Edge runtime", () => {
-  test("recommends, persists, reloads, refines, and denies another customer", async ({ browser, request }) => {
+  test("hands homepage preferences through sign-in, explicitly generates, refines, reloads, and denies another customer", async ({ browser, request }) => {
     await configureFakeProvider(request, "valid");
-    const owner = await createSignedInPage(browser, "owner");
+    const owner = await createPlannerPageFromHomepage(browser, "owner");
     const ownerClient = sessionClient(owner.session);
-    const input = await buildRequest(ownerClient);
+    expect(await fakeProviderState(request)).toEqual({ requests: 0, scenario: "valid" });
+    const generate = owner.page.getByRole("button", { name: "Generate itinerary", exact: true });
+    await expect(generate).toBeVisible();
+    await expectKeyboardReachable(owner.page, generate);
 
     const recommendation = expectRecommendation(
-      await postEdge(request, "recommend-itinerary", owner.session, identities.primary, { input }),
+      await runPlannerOperation(owner.page, "recommend-itinerary", () => generate.click()),
       { degraded: false, rankingSource: "ai" },
     );
+    await expect(owner.page.getByRole("status")).toHaveText(
+      "Gemini assisted with ranking; LocalLens validated the timing and cost.",
+    );
+    await expect(owner.page.getByRole("note", { name: "Fallback status" })).toHaveCount(0);
+    await expect(owner.page.getByRole("heading", { name: "Revision 1" })).toBeVisible();
+    await captureQaState(owner.page, "planner-ai-success");
     expectNoRuntimeSecretLeak(recommendation, owner.session);
     const revisionOneId = await expectRevisionOnePersisted(
       ownerClient,
@@ -404,26 +573,20 @@ test.describe("local authenticated itinerary Edge runtime", () => {
       recommendation,
     );
 
-    await owner.page.reload();
-    await expect(owner.page.getByRole("heading", { name: "Your secure portal" })).toBeVisible();
-    const reloadedSession = await readBrowserSession(owner.page);
-    expect(reloadedSession.userId).toBe(owner.session.userId);
-    const reloadedClient = sessionClient(reloadedSession);
-    await expectRevisionOnePersisted(reloadedClient, reloadedSession, recommendation);
-
     const lockedPlaceId = recommendation.proposal.items[0]?.placeId;
     if (lockedPlaceId === undefined) throw new Error("Recommendation must contain a lockable stop");
-    const refinementResult = await postEdge(
-      request,
+    const firstLock = owner.page.getByRole("button", { name: /^Lock stop:/ }).first();
+    await firstLock.click();
+    await expect(owner.page.getByRole("button", { name: /^Unlock stop:/ }).first())
+      .toHaveAttribute("aria-pressed", "true");
+    await owner.page.getByRole("textbox", { name: "What should we adjust?", exact: true })
+      .fill("Đi chậm hơn và giữ điểm đầu tiên");
+    await owner.page.getByRole("combobox", { name: "Refinement scope", exact: true })
+      .selectOption("partial");
+    const refinementResult = await runPlannerOperation(
+      owner.page,
       "refine-itinerary",
-      reloadedSession,
-      identities.primary,
-      {
-        planId: recommendation.planId,
-        baseRevision: 1,
-        delta: { feedback: "Đi chậm hơn và giữ điểm đầu tiên", scope: "partial" },
-        lockedItemIds: [lockedPlaceId],
-      },
+      () => owner.page.getByRole("button", { name: "Create revised proposal", exact: true }).click(),
     );
     expect(refinementResult.status).toBe(200);
     expect(refinementResult.body).toMatchObject({
@@ -437,15 +600,19 @@ test.describe("local authenticated itinerary Edge runtime", () => {
     });
     const refinement = refinementResult.body as RefinementBody;
     expect(refinement.proposal.items.some((item) => item.placeId === lockedPlaceId)).toBe(true);
-    expectNoRuntimeSecretLeak(refinement, reloadedSession);
+    expectNoRuntimeSecretLeak(refinement, owner.session);
+    await expect(owner.page.getByRole("heading", { name: "Revision 2" })).toBeVisible();
+    await expect(owner.page.getByRole("status")).toHaveText(
+      "Gemini assisted with ranking; LocalLens validated the timing and cost.",
+    );
 
-    const persistedPlan = await reloadedClient
+    const persistedPlan = await ownerClient
       .from("trip_plans")
       .select("id,latest_revision_no")
       .eq("id", recommendation.planId);
     expect(persistedPlan.error).toBeNull();
     expect(persistedPlan.data).toEqual([{ id: recommendation.planId, latest_revision_no: 2 }]);
-    const persistedRevisions = await reloadedClient
+    const persistedRevisions = await ownerClient
       .from("trip_plan_revisions")
       .select("id,revision_no,base_revision_no,ranking_source,result_json")
       .eq("plan_id", recommendation.planId)
@@ -460,6 +627,31 @@ test.describe("local authenticated itinerary Edge runtime", () => {
       { base: 0, rankingSource: "ai", revision: 1 },
       { base: 1, rankingSource: "ai", revision: 2 },
     ]);
+
+    await owner.page.reload();
+    await expect(owner.page.getByRole("heading", { name: "Your personalized route proposal" })).toBeVisible();
+    await expect(owner.page.getByRole("heading", { name: "Revision 2", exact: true })).toBeVisible();
+    await expect(owner.page.getByRole("status")).toHaveText(
+      "Gemini assisted with ranking; LocalLens validated the timing and cost.",
+    );
+    await expect(owner.page.getByRole("button", { name: "Generate itinerary", exact: true })).toHaveCount(0);
+    const reloadedSession = await readBrowserSession(owner.page);
+    expect(reloadedSession.userId).toBe(owner.session.userId);
+    const reloadedClient = sessionClient(reloadedSession);
+    const reloadedPlan = await reloadedClient
+      .from("trip_plans")
+      .select("id,latest_revision_no")
+      .eq("id", recommendation.planId);
+    expect(reloadedPlan.error).toBeNull();
+    expect(reloadedPlan.data).toEqual([{ id: recommendation.planId, latest_revision_no: 2 }]);
+    const reloadedRevisions = await reloadedClient
+      .from("trip_plan_revisions")
+      .select("revision_no")
+      .eq("plan_id", recommendation.planId)
+      .order("revision_no", { ascending: true });
+    expect(reloadedRevisions.error).toBeNull();
+    expect(reloadedRevisions.data).toEqual([{ revision_no: 1 }, { revision_no: 2 }]);
+    expect(await fakeProviderState(request)).toEqual({ requests: 2, scenario: "valid" });
 
     const other = await createSignedInPage(browser, "otherCustomer");
     const otherClient = sessionClient(other.session);
@@ -488,19 +680,22 @@ test.describe("local authenticated itinerary Edge runtime", () => {
       other.session,
       { address: "192.0.2.14", deviceId: "runtime-itinerary-cross-user-01" },
       {
+        operationId: "60000000-0000-4000-8000-000000000001",
         planId: recommendation.planId,
         baseRevision: 2,
-        delta: { feedback: "Try another route", scope: "full" },
+        delta: { feedback: "market", scope: "full" },
         lockedItemIds: [],
       },
     );
-    expect(deniedRefinement.status).toBe(404);
+    expect(deniedRefinement.status, JSON.stringify(deniedRefinement.body)).toBe(404);
     expect(deniedRefinement.body).toMatchObject({
       code: "PLAN_NOT_FOUND",
       retryable: false,
     });
     expectNoRuntimeSecretLeak(deniedRefinement.body, other.session);
     expect(await fakeProviderState(request)).toEqual({ requests: 2, scenario: "valid" });
+    expectNoBrowserErrors(owner.page);
+    expectNoBrowserErrors(other.page);
 
     await owner.page.context().close();
     await other.page.context().close();
@@ -508,48 +703,81 @@ test.describe("local authenticated itinerary Edge runtime", () => {
 
   test("persists deterministic fallback when the fake Gemini output is malformed", async ({ browser, request }) => {
     await configureFakeProvider(request, "malformed");
-    const owner = await createSignedInPage(browser, "owner");
+    const owner = await createPlannerPageFromHomepage(browser, "owner");
     const ownerClient = sessionClient(owner.session);
-    const input = await buildRequest(ownerClient);
+    expect(await fakeProviderState(request)).toEqual({ requests: 0, scenario: "malformed" });
 
     const recommendation = expectRecommendation(
-      await postEdge(request, "recommend-itinerary", owner.session, identities.malformed, { input }),
+      await runPlannerOperation(
+        owner.page,
+        "recommend-itinerary",
+        () => owner.page.getByRole("button", { name: "Generate itinerary", exact: true }).click(),
+      ),
       { degraded: true, rankingSource: "deterministic" },
     );
     expect(recommendation.messageKey).toBe("itinerary.ai_invalid");
+    await expect(owner.page.getByRole("status")).toHaveText("Safe deterministic fallback ready.");
+    await expect(owner.page.getByRole("note", { name: "Fallback status" })).toHaveText(
+      "AI is temporarily unavailable; LocalLens used the safe deterministic fallback.",
+    );
+    await expect(owner.page.getByText(
+      "Gemini assisted with ranking; LocalLens validated the timing and cost.",
+      { exact: true },
+    )).toHaveCount(0);
+    await captureQaState(owner.page, "runtime-planner-fallback");
     expectNoRuntimeSecretLeak(recommendation, owner.session);
     await expectRevisionOnePersisted(ownerClient, owner.session, recommendation);
     expect(await fakeProviderState(request)).toEqual({ requests: 1, scenario: "malformed" });
+    expectNoBrowserErrors(owner.page);
 
     await owner.page.context().close();
   });
 
-  test("falls back after the fifth per-identity Gemini reservation without a sixth provider call", async ({ browser, request }) => {
+  test("terminally rejects the sixth per-identity Gemini reservation without a provider call or persistence", async ({ browser, request }) => {
     await configureFakeProvider(request, "valid");
     const owner = await createSignedInPage(browser, "owner");
     const ownerClient = sessionClient(owner.session);
     const input = await buildRequest(ownerClient);
 
+    const beforePlans = await ownerClient.from("trip_plans").select("id");
+    const beforeRevisions = await ownerClient.from("trip_plan_revisions").select("id");
+    expect(beforePlans.error).toBeNull();
+    expect(beforeRevisions.error).toBeNull();
+
     const recommendations: RecommendationBody[] = [];
-    for (let attempt = 1; attempt <= 6; attempt += 1) {
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
       const recommendation = expectRecommendation(
-        await postEdge(request, "recommend-itinerary", owner.session, identities.quota, { input }),
-        attempt <= 5
-          ? { degraded: false, rankingSource: "ai" }
-          : { degraded: true, rankingSource: "deterministic" },
+        await postEdge(request, "recommend-itinerary", owner.session, identities.quota, {
+          operationId: `60000000-0000-4000-8000-${String(attempt).padStart(12, "0")}`,
+          input,
+        }),
+        { degraded: false, rankingSource: "ai" },
       );
       recommendations.push(recommendation);
     }
 
-    expect(recommendations[5]?.messageKey).toBe("itinerary.ai_invalid");
-    expect(new Set(recommendations.map((entry) => entry.planId)).size).toBe(6);
+    const rejected = await postEdge(request, "recommend-itinerary", owner.session, identities.quota, {
+      operationId: "60000000-0000-4000-8000-000000000006",
+      input,
+    });
+    expect(rejected.status).toBe(429);
+    expect(rejected.body).toMatchObject({
+      code: "QUOTA_EXCEEDED",
+      messageKey: "recommendation.quota_exceeded",
+      retryable: true,
+      operationState: "rejected",
+    });
+    expect(new Set(recommendations.map((entry) => entry.planId)).size).toBe(5);
     expect(await fakeProviderState(request)).toEqual({ requests: 5, scenario: "valid" });
-    await expectRevisionOnePersisted(
-      ownerClient,
-      owner.session,
-      recommendations[5]!,
-    );
-    expectNoRuntimeSecretLeak(recommendations[5], owner.session);
+
+    const afterPlans = await ownerClient.from("trip_plans").select("id");
+    const afterRevisions = await ownerClient.from("trip_plan_revisions").select("id");
+    expect(afterPlans.error).toBeNull();
+    expect(afterRevisions.error).toBeNull();
+    expect(afterPlans.data).toHaveLength((beforePlans.data?.length ?? 0) + 5);
+    expect(afterRevisions.data).toHaveLength((beforeRevisions.data?.length ?? 0) + 5);
+    expectNoRuntimeSecretLeak(rejected.body, owner.session);
+    expectNoBrowserErrors(owner.page);
 
     await owner.page.context().close();
   });

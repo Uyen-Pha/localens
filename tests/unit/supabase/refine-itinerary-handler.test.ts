@@ -6,12 +6,17 @@ import { itineraryFixture } from "@/tests/fixtures/itinerary/catalog.v1";
 import { fingerprintRevisionBinding } from "@/lib/domain/itinerary/fingerprint";
 import type { ItineraryResult } from "@/lib/domain/itinerary/contracts";
 import {
+  computePlannerOperationDigest,
+  type OperationRejectedCode,
+} from "@/supabase/functions/_shared/planner-operation";
+import {
   createRefineItineraryHandler,
   type RefinementRankRequest,
   type RefineItineraryAdapter,
 } from "@/supabase/functions/_shared/refine-itinerary";
 
 const correlationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const operationId = "10000000-0000-4000-8000-000000000011";
 const planId = "11111111-1111-4111-8111-111111111111";
 const itemId = "22222222-2222-4222-8222-222222222222";
 const lockedPlaceId = "place-banh-mi";
@@ -109,10 +114,23 @@ function request(body: unknown, headers: Record<string, string> = {}): Request {
 
 function validBody(overrides: Record<string, unknown> = {}) {
   return {
+    operationId,
     planId,
     baseRevision: 3,
-    delta: { feedback: "More history, please", scope: "partial" },
+    delta: { feedback: "history", scope: "partial" },
     lockedItemIds: [itemId],
+    ...overrides,
+  };
+}
+
+function operationDecision(overrides: Record<string, unknown> = {}) {
+  return {
+    state: "claimed",
+    leaseToken: "20000000-0000-4000-8000-000000000011",
+    leaseExpiresAt: "2099-09-05T00:00:00.000Z",
+    planId,
+    plannerReservationId: "20000000-0000-4000-8000-000000000012",
+    geminiReservationId: "20000000-0000-4000-8000-000000000013",
     ...overrides,
   };
 }
@@ -127,11 +145,17 @@ function adapter(overrides: Partial<RefineItineraryAdapter> = {}): RefineItinera
       ok: true as const,
       capability: { planId },
     })),
+    claimOperation: vi.fn(async () => operationDecision()),
+    validateQuotaIdentity: vi.fn(async () => ({ ok: true as const })),
+    reservePlannerQuota: vi.fn(async () => ({ ok: true as const })),
+    rejectOperation: vi.fn(async (_input, errorCode) => ({ state: "rejected", errorCode })),
+    readCommittedRevision: vi.fn(async () => ({ ok: false as const, error: { code: "SERVICE_UNAVAILABLE" as const } })),
+    readOperationFailure: vi.fn(() => null),
     prepareRefinement: vi.fn(async () => ({
       ok: true as const,
       planId,
       currentRevision: 3,
-      normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+      normalizedDelta: { feedback: "history", scope: "partial" as const },
       previousRevision,
     })),
     commitRefinement: vi.fn(async () => ({
@@ -142,7 +166,1021 @@ function adapter(overrides: Partial<RefineItineraryAdapter> = {}): RefineItinera
   };
 }
 
+type RefineLifecycleOperation = {
+  ownerId: string;
+  operationId: string;
+  requestDigest: string;
+  kind: "refine";
+  planId: string;
+  baseRevision: number;
+  leaseExpiresAt: string;
+  leaseToken: string;
+  plannerReservationId: string;
+  geminiReservationId: string;
+  state: "claimed" | "completed" | "rejected" | "interrupted";
+  expired: boolean;
+  plannerReserved: boolean;
+  geminiReserved: boolean;
+  errorCode?: OperationRejectedCode;
+  result?: ItineraryResult;
+};
+
+type RefineLifecycleReservation = {
+  operationKey: string;
+  kind: "planner" | "gemini";
+  reserved: boolean;
+};
+
+type RefineLifecycleContextOperation = NonNullable<
+  Parameters<RefineItineraryAdapter["commitRefinement"]>[1]["operation"]
+>;
+
+function lifecycleUuid(seed: number): string {
+  return `30000000-0000-4000-8000-${seed.toString(16).padStart(12, "0")}`;
+}
+
+class RefineLifecycleFake {
+  readonly operations = new Map<string, RefineLifecycleOperation>();
+  readonly reservations = new Map<string, RefineLifecycleReservation>();
+  readonly revisions = new Map<string, { ownerId: string; result: ItineraryResult }>();
+  plannerQuotaReservations = 0;
+  geminiQuotaReservations = 0;
+  providerCalls = 0;
+  planMutations = 0;
+  private nextSerial = 1;
+
+  constructor(private readonly planOwner = "user-1") {}
+
+  private key(ownerId: string, operationId: string): string {
+    return `${ownerId}:${operationId}`;
+  }
+
+  private revisionKey(planId: string, revision: number): string {
+    return `${planId}:${revision}`;
+  }
+
+  canReadPlan(ownerId: string, targetPlanId: string): boolean {
+    return ownerId === this.planOwner && targetPlanId === planId;
+  }
+
+  claim(ownerId: string, input: Parameters<RefineItineraryAdapter["claimOperation"]>[0]) {
+    const key = this.key(ownerId, input.operationId);
+    const existing = this.operations.get(key);
+    if (existing === undefined) {
+      const serial = this.nextSerial;
+      this.nextSerial += 1;
+      const operation: RefineLifecycleOperation = {
+        ownerId,
+        operationId: input.operationId,
+        requestDigest: input.requestDigest,
+        kind: "refine",
+        planId: input.targetPlanId!,
+        baseRevision: input.baseRevision!,
+        leaseExpiresAt: "2099-09-05T00:00:00.000Z",
+        leaseToken: lifecycleUuid(500 + serial),
+        plannerReservationId: lifecycleUuid(600 + serial),
+        geminiReservationId: lifecycleUuid(700 + serial),
+        state: "claimed",
+        expired: false,
+        plannerReserved: false,
+        geminiReserved: false,
+      };
+      this.operations.set(key, operation);
+      this.reservations.set(operation.plannerReservationId, {
+        operationKey: key,
+        kind: "planner",
+        reserved: false,
+      });
+      this.reservations.set(operation.geminiReservationId, {
+        operationKey: key,
+        kind: "gemini",
+        reserved: false,
+      });
+      return {
+        state: "claimed" as const,
+        leaseToken: operation.leaseToken,
+        leaseExpiresAt: operation.leaseExpiresAt,
+        planId: operation.planId,
+        plannerReservationId: operation.plannerReservationId,
+        geminiReservationId: operation.geminiReservationId,
+      };
+    }
+    if (existing.requestDigest !== input.requestDigest || existing.kind !== input.kind) {
+      return { state: "conflict" as const };
+    }
+    if (existing.state === "completed" && existing.result !== undefined) {
+      return { state: "completed" as const, planId: existing.planId, revision: 4 };
+    }
+    if (existing.state === "rejected" && existing.errorCode !== undefined) {
+      return { state: "rejected" as const, errorCode: existing.errorCode };
+    }
+    if (existing.state === "interrupted" || existing.expired) {
+      existing.state = "interrupted";
+      return { state: "interrupted" as const };
+    }
+    return { state: "in_progress" as const };
+  }
+
+  reserve(ownerId: string, reservationId: string, kind: "planner" | "gemini") {
+    const reservation = this.reservations.get(reservationId);
+    const operation = reservation === undefined
+      ? undefined
+      : this.operations.get(reservation.operationKey);
+    if (
+      reservation === undefined
+      || operation === undefined
+      || reservation.kind !== kind
+      || operation.ownerId !== ownerId
+      || operation.state !== "claimed"
+      || operation.expired
+    ) {
+      return { ok: false as const, kind: "unavailable" as const };
+    }
+    if (!reservation.reserved) {
+      reservation.reserved = true;
+      if (kind === "planner") {
+        operation.plannerReserved = true;
+        this.plannerQuotaReservations += 1;
+      } else {
+        operation.geminiReserved = true;
+        this.geminiQuotaReservations += 1;
+      }
+    }
+    return { ok: true as const };
+  }
+
+  complete(
+    ownerId: string,
+    operation: NonNullable<Parameters<RefineItineraryAdapter["commitRefinement"]>[1]["operation"]>,
+    result: ItineraryResult,
+  ) {
+    const current = this.operations.get(this.key(ownerId, operation.operationId));
+    if (
+      current === undefined
+      || current.requestDigest !== operation.requestDigest
+      || current.kind !== operation.kind
+      || current.planId !== operation.planId
+      || current.baseRevision !== operation.baseRevision
+      || current.plannerReservationId !== operation.plannerReservationId
+      || current.geminiReservationId !== operation.geminiReservationId
+    ) {
+      return { ok: false as const, decision: { state: "conflict" as const } };
+    }
+    if (current.state === "completed" && current.result !== undefined) {
+      return { ok: true as const, revision: 4 };
+    }
+    if (current.state === "rejected" && current.errorCode !== undefined) {
+      return { ok: false as const, decision: { state: "rejected" as const, errorCode: current.errorCode } };
+    }
+    if (current.state === "interrupted") {
+      return { ok: false as const, decision: { state: "interrupted" as const } };
+    }
+    if (current.expired) {
+      current.state = "interrupted";
+      return { ok: false as const, decision: { state: "interrupted" as const } };
+    }
+    if (current.leaseToken !== operation.leaseToken) {
+      return { ok: false as const, decision: { state: "conflict" as const } };
+    }
+    current.state = "completed";
+    current.result = result;
+    this.planMutations += 1;
+    this.revisions.set(this.revisionKey(current.planId, 4), { ownerId, result });
+    return { ok: true as const, revision: 4 };
+  }
+
+  reject(ownerId: string, input: { operationId: string; requestDigest: string }, errorCode: OperationRejectedCode) {
+    const operation = this.operations.get(this.key(ownerId, input.operationId));
+    if (operation === undefined || operation.requestDigest !== input.requestDigest || operation.state !== "claimed") {
+      return { state: "conflict" as const };
+    }
+    operation.state = "rejected";
+    operation.errorCode = errorCode;
+    return { state: "rejected" as const, errorCode };
+  }
+
+  read(ownerId: string, input: { planId: string; revision: number }) {
+    const revision = this.revisions.get(this.revisionKey(input.planId, input.revision));
+    if (revision?.ownerId !== ownerId || input.revision !== 4) {
+      return { ok: false as const, error: { code: "SERVICE_UNAVAILABLE" as const } };
+    }
+    return {
+      ok: true as const,
+      planId: input.planId,
+      revision: 4,
+      rankingSource: revision.result.rankingSource,
+      result: revision.result,
+    };
+  }
+
+  expire(ownerId: string, operationId: string): void {
+    const operation = this.operations.get(this.key(ownerId, operationId));
+    if (operation !== undefined) operation.expired = true;
+  }
+
+  stateFor(ownerId: string, operationId: string): RefineLifecycleOperation | undefined {
+    return this.operations.get(this.key(ownerId, operationId));
+  }
+
+  operationFor(ownerId: string, operationId: string): RefineLifecycleOperation | undefined {
+    const operation = this.stateFor(ownerId, operationId);
+    return operation === undefined ? undefined : structuredClone(operation);
+  }
+}
+
+function lifecycleEndpoint(
+  model: RefineLifecycleFake,
+  ownerId: string,
+  options: { loseCommitResponse?: boolean; abortAfterClaim?: boolean } = {},
+) {
+  let activeOperation: RefineLifecycleContextOperation | null = null;
+  let operationFailure: { kind: "ambiguous_provider" } | null = null;
+  let responseDropped = false;
+  const service = adapter({
+    verifyAccessToken: vi.fn(async () => ({ ok: true as const, principal: { userId: ownerId } })),
+    claimOperation: vi.fn(async (input) => {
+      const decision = model.claim(ownerId, input);
+      activeOperation = decision.state === "claimed"
+        ? {
+            operationId: input.operationId,
+            requestDigest: input.requestDigest,
+            kind: "refine",
+            leaseToken: decision.leaseToken,
+            leaseExpiresAt: decision.leaseExpiresAt,
+            planId: decision.planId,
+            baseRevision: input.baseRevision,
+            plannerReservationId: decision.plannerReservationId,
+            geminiReservationId: decision.geminiReservationId,
+          }
+        : null;
+      operationFailure = null;
+      return decision;
+    }),
+    validateQuotaIdentity: vi.fn(async () => ({ ok: true as const })),
+    reservePlannerQuota: vi.fn(async (reservationId: string) => options.abortAfterClaim
+      ? { ok: false as const, kind: "unavailable" as const }
+      : model.reserve(ownerId, reservationId, "planner")),
+    prepareRefinement: vi.fn(async (input) => {
+      if (!model.canReadPlan(ownerId, input.planId)) {
+        return { ok: false as const, error: { code: "PLAN_NOT_FOUND" as const } };
+      }
+      return {
+        ok: true as const,
+        planId,
+        currentRevision: 3,
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
+        previousRevision,
+        ranker: vi.fn(async (rankRequest: RefinementRankRequest) => {
+          if (activeOperation === null) throw new Error("missing active operation");
+          const reservation = model.reserve(ownerId, activeOperation.geminiReservationId, "gemini");
+          if (!reservation.ok) {
+            operationFailure = { kind: "ambiguous_provider" };
+            throw new Error("provider unavailable");
+          }
+          model.providerCalls += 1;
+          return {
+            orderedIds: rankRequest.candidates.map((candidate) => candidate.id),
+            rationales: {},
+            foodSelections: [],
+          };
+        }),
+      };
+    }),
+    readCommittedRevision: vi.fn(async (input) => model.read(ownerId, input)),
+    readOperationFailure: vi.fn(() => operationFailure),
+    rejectOperation: vi.fn(async (input, errorCode) => {
+      activeOperation = null;
+      return model.reject(ownerId, input, errorCode);
+    }),
+    commitRefinement: vi.fn(async (commit, context) => {
+      if (context.operation === undefined || activeOperation === null) {
+        return { ok: false as const, error: { code: "SERVICE_UNAVAILABLE" as const } };
+      }
+      const committed = model.complete(ownerId, context.operation, commit.result);
+      if (committed.ok && options.loseCommitResponse && !responseDropped) {
+        responseDropped = true;
+        return { ok: false as const, error: { code: "SERVICE_UNAVAILABLE" as const } };
+      }
+      return committed;
+    }),
+  });
+  return {
+    adapter: service,
+    handler: createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+      requireAuthenticated: true,
+    }),
+  };
+}
+
 describe("refine-itinerary Edge handler contract", () => {
+  it("requires an operation UUID before any guest or adapter side effect", async () => {
+    const service = adapter();
+    const body = validBody({ guestToken: "guest-token-123456" });
+    delete (body as Record<string, unknown>).operationId;
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(body));
+
+    expect(response.status).toBe(400);
+    expect(service.verifyGuestCapability).not.toHaveBeenCalled();
+    expect(service.prepareRefinement).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      code: "INVALID_REQUEST",
+      messageKey: "planner.invalid_request",
+      correlationId,
+    });
+  });
+
+  it.each([
+    ["an all-keep request", "keep everything"],
+    ["unsupported raw prose", "Please make this slower"],
+  ])("rejects %s before operation claim, quota, preparation, or provider work", async (_label, feedback) => {
+    const service = adapter();
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({
+      delta: { feedback, scope: "partial" },
+      guestToken: "guest-token-123456",
+    })));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "INVALID_REQUEST",
+      messageKey: "planner.invalid_request",
+      retryable: false,
+      correlationId,
+    });
+    expect(service.claimOperation).not.toHaveBeenCalled();
+    expect(service.reservePlannerQuota).not.toHaveBeenCalled();
+    expect(service.prepareRefinement).not.toHaveBeenCalled();
+    expect(service.commitRefinement).not.toHaveBeenCalled();
+  });
+
+  it("claims before stale/prepare work and binds the canonical refine digest", async () => {
+    const calls: string[] = [];
+    const claimOperation = vi.fn(async (input: Record<string, unknown>) => {
+      calls.push("claim");
+      expect(input).toMatchObject({
+        operationId,
+        kind: "refine",
+        targetPlanId: planId,
+        baseRevision: 3,
+        requestDigest: await computePlannerOperationDigest("refine", {
+          planId,
+          baseRevision: 3,
+          scope: "partial",
+          lockedItemIds: [itemId],
+          signals: { pace: "keep", food: "keep", preferTypes: ["history"], avoidTypes: [] },
+        }),
+      });
+      return operationDecision();
+    });
+    const reservePlannerQuota = vi.fn(async (reservationId: string) => {
+      calls.push("planner-quota");
+      expect(reservationId).toBe("20000000-0000-4000-8000-000000000012");
+      return { ok: true as const };
+    });
+    const service = adapter({
+      claimOperation,
+      validateQuotaIdentity: vi.fn(async () => {
+        calls.push("quota-identity");
+        return { ok: true as const };
+      }),
+      reservePlannerQuota,
+      rejectOperation: vi.fn(async () => ({ state: "rejected", errorCode: "QUOTA_EXCEEDED" })),
+      readCommittedRevision: vi.fn(),
+      readOperationFailure: vi.fn(() => null),
+      prepareRefinement: vi.fn(async (...args) => {
+        calls.push("prepare");
+        expect(args[1]).toMatchObject({
+          operation: expect.objectContaining({
+            operationId,
+            plannerReservationId: "20000000-0000-4000-8000-000000000012",
+            geminiReservationId: "20000000-0000-4000-8000-000000000013",
+          }),
+        });
+        return {
+          ok: true as const,
+          planId,
+          currentRevision: 3,
+          normalizedDelta: { feedback: "history", scope: "partial" as const },
+          previousRevision,
+        };
+      }),
+      commitRefinement: vi.fn(async (...args) => {
+        calls.push("commit");
+        expect(args[1]).toMatchObject({
+          operation: expect.objectContaining({ operationId, leaseToken: "20000000-0000-4000-8000-000000000011" }),
+        });
+        return { ok: true as const, revision: 4 };
+      }),
+    } as unknown as Partial<RefineItineraryAdapter>);
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+
+    expect(response.status).toBe(200);
+    expect(calls).toEqual(["quota-identity", "claim", "planner-quota", "prepare", "commit"]);
+    expect(claimOperation).toHaveBeenCalledTimes(1);
+    expect(reservePlannerQuota).toHaveBeenCalledTimes(1);
+  });
+
+  it("replays a completed refine revision without applying the delta again", async () => {
+    const prepareRefinement = vi.fn();
+    const commitRefinement = vi.fn();
+    const claimOperation = vi.fn(async () => ({ state: "completed", planId, revision: 4 }));
+    const readCommittedRevision = vi.fn(async () => ({
+      ok: true as const,
+      planId,
+      revision: 4,
+      rankingSource: "deterministic" as const,
+      result: previousResult,
+    }));
+    const service = adapter({
+      claimOperation,
+      validateQuotaIdentity: vi.fn(async () => ({ ok: true as const })),
+      reservePlannerQuota: vi.fn(),
+      rejectOperation: vi.fn(),
+      readCommittedRevision,
+      readOperationFailure: vi.fn(() => null),
+      prepareRefinement,
+      commitRefinement,
+    } as unknown as Partial<RefineItineraryAdapter>);
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ planId, baseRevision: 3, revision: 4, regeneration: "partial" });
+    expect(claimOperation).toHaveBeenCalledTimes(1);
+    expect(readCommittedRevision).toHaveBeenCalledWith(
+      { planId, revision: 4 },
+      expect.objectContaining({ principal: null }),
+    );
+    expect(prepareRefinement).not.toHaveBeenCalled();
+    expect(commitRefinement).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      label: "requires a challenge",
+      validate: async () => ({ ok: false as const, error: { code: "CHALLENGE_REQUIRED" as const } }),
+      status: 400,
+      code: "CHALLENGE_REQUIRED",
+      messageKey: "refinement.challenge_required",
+    },
+    {
+      label: "rejects an invalid challenge",
+      validate: async () => ({ ok: false as const, error: { code: "CHALLENGE_INVALID" as const } }),
+      status: 403,
+      code: "CHALLENGE_INVALID",
+      messageKey: "refinement.challenge_invalid",
+    },
+    {
+      label: "loses the identity response",
+      validate: async () => { throw new Error("identity response lost"); },
+      status: 503,
+      code: "SERVICE_UNAVAILABLE",
+      messageKey: "planner.service_unavailable",
+    },
+  ])("handles quota identity that $label before claiming", async (testCase) => {
+    const service = adapter({
+      validateQuotaIdentity: vi.fn(testCase.validate) as RefineItineraryAdapter["validateQuotaIdentity"],
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const body = await response.json();
+
+    expect(response.status).toBe(testCase.status);
+    expect(body).toEqual({
+      code: testCase.code,
+      messageKey: testCase.messageKey,
+      retryable: testCase.status === 503,
+      correlationId,
+    });
+    expect(body).not.toHaveProperty("operationState");
+    expect(service.claimOperation).not.toHaveBeenCalled();
+    expect(service.reservePlannerQuota).not.toHaveBeenCalled();
+    expect(service.prepareRefinement).not.toHaveBeenCalled();
+    expect(service.commitRefinement).not.toHaveBeenCalled();
+  });
+
+  it("reconciles refine response loss through fresh owner-scoped requests", async () => {
+    const model = new RefineLifecycleFake();
+    const authHeaders = { Authorization: "Bearer owner-token" };
+    const first = lifecycleEndpoint(model, "user-1", { loseCommitResponse: true });
+    const lost = await first.handler(request(validBody(), authHeaders));
+    const lostBody = await lost.json();
+    expect(lost.status).toBe(503);
+    expect(lostBody).toEqual({
+      code: "SERVICE_UNAVAILABLE",
+      messageKey: "planner.service_unavailable",
+      retryable: true,
+      correlationId,
+    });
+
+    expect(lostBody).not.toHaveProperty("operationState");
+    expect(first.adapter.claimOperation).toHaveBeenCalledTimes(1);
+    expect(first.adapter.reservePlannerQuota).toHaveBeenCalledTimes(1);
+    expect(first.adapter.prepareRefinement).toHaveBeenCalledTimes(1);
+    expect(first.adapter.commitRefinement).toHaveBeenCalledTimes(1);
+
+    const firstState = model.stateFor("user-1", operationId);
+    expect(firstState).toMatchObject({ state: "completed", plannerReserved: true, geminiReserved: true });
+    expect(firstState?.plannerReservationId).not.toBe(firstState?.geminiReservationId);
+    expect(model.plannerQuotaReservations).toBe(1);
+    expect(model.geminiQuotaReservations).toBe(1);
+    expect(model.providerCalls).toBe(1);
+    expect(model.planMutations).toBe(1);
+
+    const countsAfterLost = {
+      planner: model.plannerQuotaReservations,
+      gemini: model.geminiQuotaReservations,
+      provider: model.providerCalls,
+      mutations: model.planMutations,
+    };
+    const retry = lifecycleEndpoint(model, "user-1");
+    const replay = await retry.handler(request(validBody(), authHeaders));
+    const replayBody = await replay.json();
+
+    expect(replay.status).toBe(200);
+    expect(replayBody).toMatchObject({
+      planId,
+      baseRevision: 3,
+      revision: 4,
+      regeneration: "partial",
+      advisoryOnly: true,
+    });
+    expect(retry.adapter.claimOperation).toHaveBeenCalledTimes(1);
+    expect(retry.adapter.readCommittedRevision).toHaveBeenCalledTimes(1);
+    expect(retry.adapter.reservePlannerQuota).not.toHaveBeenCalled();
+    expect(retry.adapter.prepareRefinement).not.toHaveBeenCalled();
+    expect(retry.adapter.commitRefinement).not.toHaveBeenCalled();
+    expect(model.plannerQuotaReservations).toBe(countsAfterLost.planner);
+    expect(model.geminiQuotaReservations).toBe(countsAfterLost.gemini);
+    expect(model.providerCalls).toBe(countsAfterLost.provider);
+    expect(model.planMutations).toBe(countsAfterLost.mutations);
+
+    const otherOwner = lifecycleEndpoint(model, "user-2");
+    const otherResponse = await otherOwner.handler(request(validBody(), authHeaders));
+    const otherBody = await otherResponse.json();
+    const otherState = model.stateFor("user-2", operationId);
+    expect(otherResponse.status).toBe(404);
+    expect(otherBody).toMatchObject({
+      code: "PLAN_NOT_FOUND",
+      messageKey: "refinement.plan_not_found",
+      operationState: "rejected",
+    });
+    expect(otherState?.state).toBe("rejected");
+    expect(otherState?.result).toBeUndefined();
+    expect(model.plannerQuotaReservations).toBe(2);
+    expect(model.geminiQuotaReservations).toBe(1);
+    expect(model.providerCalls).toBe(1);
+    expect(model.planMutations).toBe(1);
+
+    const oldOperationId = "10000000-0000-4000-8000-000000000012";
+    const stalled = lifecycleEndpoint(model, "user-1", { abortAfterClaim: true });
+    const stalledResponse = await stalled.handler(request(validBody({ operationId: oldOperationId }), authHeaders));
+    expect(stalledResponse.status).toBe(503);
+    const issued = model.operationFor("user-1", oldOperationId);
+    expect(issued?.state).toBe("claimed");
+    expect(issued?.leaseToken).toMatch(/^[0-9a-f-]{36}$/);
+
+    model.expire("user-1", oldOperationId);
+    const reclaimed = lifecycleEndpoint(model, "user-1");
+    const reclaimedResponse = await reclaimed.handler(request(validBody({ operationId: oldOperationId }), authHeaders));
+    const reclaimedBody = await reclaimedResponse.json();
+    expect(reclaimedResponse.status).toBe(409);
+    expect(reclaimedBody).toMatchObject({
+      code: "OPERATION_INTERRUPTED",
+      operationState: "interrupted",
+    });
+
+    const issuedOperation = issued!;
+    const staleCommit = await stalled.adapter.commitRefinement(
+      {
+        planId,
+        baseRevision: 3,
+        lockedItemIds: [itemId],
+        normalizedDelta: { feedback: "history", scope: "partial" },
+        previousRevision,
+        scope: "partial",
+        result: previousResult,
+      },
+      {
+        correlationId,
+        principal: { userId: "user-1" },
+        guestCapability: null,
+        operation: {
+          operationId: issuedOperation.operationId,
+          requestDigest: issuedOperation.requestDigest,
+          kind: issuedOperation.kind,
+          leaseToken: issuedOperation.leaseToken,
+          leaseExpiresAt: issuedOperation.leaseExpiresAt,
+          planId: issuedOperation.planId,
+          baseRevision: issuedOperation.baseRevision,
+          plannerReservationId: issuedOperation.plannerReservationId,
+          geminiReservationId: issuedOperation.geminiReservationId,
+        },
+      },
+    );
+    expect(staleCommit).toEqual({ ok: false, decision: { state: "interrupted" } });
+    expect(model.planMutations).toBe(1);
+  });
+
+  it.each([
+    {
+      label: "an expired lease",
+      decision: { state: "interrupted" as const },
+      status: 409,
+      code: "OPERATION_INTERRUPTED",
+      messageKey: "planner.operation_interrupted",
+      retryable: false,
+      operationState: "interrupted",
+    },
+    {
+      label: "an old lease token",
+      decision: { state: "conflict" as const },
+      status: 409,
+      code: "OPERATION_CONFLICT",
+      messageKey: "planner.operation_conflict",
+      retryable: false,
+      operationState: undefined,
+    },
+    {
+      label: "a persisted rejection",
+      decision: { state: "rejected" as const, errorCode: "STALE_REVISION" as const },
+      status: 409,
+      code: "STALE_REVISION",
+      messageKey: "refinement.stale_revision",
+      retryable: true,
+      operationState: "rejected",
+    },
+  ] as const)("maps complete_runtime_refinement $label without losing the terminal decision", async (testCase) => {
+    const service = adapter({
+      commitRefinement: vi.fn(async () => ({ ok: false as const, decision: testCase.decision })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const body = await response.json();
+
+    expect(response.status).toBe(testCase.status);
+    expect(body).toMatchObject({
+      code: testCase.code,
+      messageKey: testCase.messageKey,
+      retryable: testCase.retryable,
+      correlationId,
+    });
+    if (testCase.operationState === undefined) {
+      expect(body).not.toHaveProperty("operationState");
+    } else {
+      expect(body.operationState).toBe(testCase.operationState);
+    }
+    expect(body).not.toHaveProperty("revision");
+  });
+
+  it.each([
+    { kind: "ambiguous_provider" as const, commit: false },
+    { kind: "ambiguous_commit" as const, commit: true },
+  ])("maps $kind to the frozen unresolved-service tuple", async ({ kind, commit }) => {
+    const readOperationFailure = commit
+      ? vi.fn()
+        .mockReturnValueOnce(null)
+        .mockReturnValueOnce({ kind })
+      : vi.fn(() => ({ kind }));
+    const service = adapter({
+      readOperationFailure,
+      ...(commit
+        ? {
+            commitRefinement: vi.fn(async () => ({
+              ok: false as const,
+              error: { code: "SERVICE_UNAVAILABLE" as const },
+            })),
+          }
+        : {
+            prepareRefinement: vi.fn(async () => ({
+              ok: true as const,
+              planId,
+              currentRevision: 3,
+              normalizedDelta: { feedback: "history", scope: "partial" as const },
+              previousRevision,
+              ranker: vi.fn(async () => {
+                throw new Error("provider response lost");
+              }),
+            })),
+          }),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      code: "SERVICE_UNAVAILABLE",
+      messageKey: "planner.service_unavailable",
+      retryable: true,
+      correlationId,
+    });
+    expect(body).not.toHaveProperty("operationState");
+  });
+
+  it.each([
+    { label: "throws", claim: async () => { throw new Error("PLAN_NOT_FOUND"); } },
+    { label: "returns an unresolved failure", claim: async () => ({ ok: false, error: { code: "SERVICE_UNAVAILABLE" } }) },
+  ])("maps a claim RPC $label to SERVICE_UNAVAILABLE without an operation state", async ({ claim }) => {
+    const service = adapter({ claimOperation: vi.fn(claim) as RefineItineraryAdapter["claimOperation"] });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      code: "SERVICE_UNAVAILABLE",
+      messageKey: "planner.service_unavailable",
+      retryable: true,
+      correlationId,
+    });
+    expect(body).not.toHaveProperty("operationState");
+    expect(service.reservePlannerQuota).not.toHaveBeenCalled();
+  });
+
+  it("maps non-claimed refine decisions before quota, preparation, or commit work", async () => {
+    const cases = [
+      {
+        decision: { state: "in_progress" },
+        status: 409,
+        code: "OPERATION_IN_PROGRESS",
+        operationState: "in_progress",
+        retryable: true,
+      },
+      {
+        decision: { state: "conflict" },
+        status: 409,
+        code: "OPERATION_CONFLICT",
+        operationState: undefined,
+        retryable: false,
+      },
+      {
+        decision: { state: "interrupted" },
+        status: 409,
+        code: "OPERATION_INTERRUPTED",
+        operationState: "interrupted",
+        retryable: false,
+      },
+      {
+        decision: { state: "rejected", errorCode: "STALE_REVISION" },
+        status: 409,
+        code: "STALE_REVISION",
+        operationState: "rejected",
+        retryable: true,
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const service = adapter({
+        claimOperation: vi.fn(async () => testCase.decision),
+        reservePlannerQuota: vi.fn(),
+        prepareRefinement: vi.fn(),
+        commitRefinement: vi.fn(),
+      });
+      const handler = createRefineItineraryHandler(service, {
+        policy,
+        correlationIdFactory: () => correlationId,
+      });
+
+      const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+      const body = await response.json();
+
+      expect(response.status).toBe(testCase.status);
+      expect(body).toMatchObject({
+        code: testCase.code,
+        retryable: testCase.retryable,
+        correlationId,
+      });
+      if (testCase.operationState === undefined) {
+        expect(body).not.toHaveProperty("operationState");
+      } else {
+        expect(body.operationState).toBe(testCase.operationState);
+      }
+      expect(service.reservePlannerQuota).not.toHaveBeenCalled();
+      expect(service.prepareRefinement).not.toHaveBeenCalled();
+      expect(service.commitRefinement).not.toHaveBeenCalled();
+    }
+  });
+
+  it("persists refine quota refusal and replays the rejection without a second reservation", async () => {
+    const claimOperation = vi.fn()
+      .mockResolvedValueOnce(operationDecision())
+      .mockResolvedValueOnce({ state: "rejected", errorCode: "QUOTA_EXCEEDED" });
+    const reservePlannerQuota = vi.fn(async () => ({
+      ok: false as const,
+      kind: "rejected" as const,
+      code: "QUOTA_EXCEEDED" as const,
+    }));
+    const rejectOperation = vi.fn(async () => ({ state: "rejected", errorCode: "QUOTA_EXCEEDED" }));
+    const prepareRefinement = vi.fn();
+    const commitRefinement = vi.fn();
+    const service = adapter({
+      claimOperation,
+      reservePlannerQuota,
+      rejectOperation,
+      prepareRefinement,
+      commitRefinement,
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const first = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const second = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const firstBody = await first.json();
+    const secondBody = await second.json();
+
+    expect(first.status).toBe(429);
+    expect(second.status).toBe(429);
+    expect(firstBody).toMatchObject({
+      code: "QUOTA_EXCEEDED",
+      messageKey: "refinement.quota_exceeded",
+      retryable: true,
+      operationState: "rejected",
+      correlationId,
+    });
+    expect(secondBody).toEqual(firstBody);
+    expect(claimOperation).toHaveBeenCalledTimes(2);
+    expect(reservePlannerQuota).toHaveBeenCalledTimes(1);
+    expect(rejectOperation).toHaveBeenCalledTimes(1);
+    expect(prepareRefinement).not.toHaveBeenCalled();
+    expect(commitRefinement).not.toHaveBeenCalled();
+  });
+
+  it("maps the production code-less quota transport failure to the frozen service tuple", async () => {
+    const service = adapter({
+      reservePlannerQuota: vi.fn(async () => ({ ok: false as const, kind: "unavailable" as const })),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      code: "SERVICE_UNAVAILABLE",
+      messageKey: "planner.service_unavailable",
+      retryable: true,
+      correlationId,
+    });
+    expect(body).not.toHaveProperty("operationState");
+    expect(service.prepareRefinement).not.toHaveBeenCalled();
+    expect(service.commitRefinement).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      label: "returns a failed read",
+      read: async () => ({ ok: false as const, error: { code: "SERVICE_UNAVAILABLE" as const } }),
+    },
+    {
+      label: "throws during read",
+      read: async () => { throw new Error("read response lost"); },
+    },
+  ])("maps a completed replay that $label to SERVICE_UNAVAILABLE", async ({ read }) => {
+    const service = adapter({
+      claimOperation: vi.fn(async () => ({ state: "completed" as const, planId, revision: 4 })),
+      readCommittedRevision: vi.fn(read) as RefineItineraryAdapter["readCommittedRevision"],
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      code: "SERVICE_UNAVAILABLE",
+      messageKey: "planner.service_unavailable",
+      retryable: true,
+      correlationId,
+    });
+    expect(body).not.toHaveProperty("operationState");
+  });
+
+  it("maps a completion throw to SERVICE_UNAVAILABLE without an operation state", async () => {
+    const service = adapter({
+      commitRefinement: vi.fn(async () => { throw new Error("commit response lost"); }),
+    });
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      code: "SERVICE_UNAVAILABLE",
+      messageKey: "planner.service_unavailable",
+      retryable: true,
+      correlationId,
+    });
+    expect(body).not.toHaveProperty("operationState");
+  });
+
+  it.each([
+    {
+      label: "the operation UUID",
+      body: { operationId: "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF" },
+    },
+    {
+      label: "the plan UUID",
+      body: { planId: "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF" },
+    },
+    {
+      label: "a locked-item UUID",
+      body: { lockedItemIds: ["ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF"] },
+    },
+  ])("rejects uppercase UUIDs in $label before claim or side effects", async ({ body }) => {
+    const service = adapter();
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+    });
+
+    const response = await handler(request(validBody({ ...body, guestToken: "guest-token-123456" })));
+    const responseBody = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(responseBody).toMatchObject({
+      code: "INVALID_REQUEST",
+      messageKey: "planner.invalid_request",
+      retryable: false,
+      correlationId,
+    });
+    expect(responseBody).not.toHaveProperty("operationState");
+    expect(service.verifyGuestCapability).not.toHaveBeenCalled();
+    expect(service.claimOperation).not.toHaveBeenCalled();
+    expect(service.reservePlannerQuota).not.toHaveBeenCalled();
+    expect(service.prepareRefinement).not.toHaveBeenCalled();
+    expect(service.commitRefinement).not.toHaveBeenCalled();
+  });
+
+  it("does not let a guest token satisfy an authenticated runtime handler", async () => {
+    const service = adapter();
+    const handler = createRefineItineraryHandler(service, {
+      policy,
+      correlationIdFactory: () => correlationId,
+      requireAuthenticated: true,
+    });
+
+    const response = await handler(request(validBody({ guestToken: "guest-token-123456" })));
+
+    expect(response.status).toBe(401);
+    expect(service.verifyGuestCapability).not.toHaveBeenCalled();
+    expect(service.prepareRefinement).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AUTH_REQUIRED",
+      messageKey: "planner.auth_required",
+      correlationId,
+    });
+  });
+
   it("verifies a guest capability, performs CAS commit, and returns advisory output", async () => {
     const service = adapter();
     const handler = createRefineItineraryHandler(service, {
@@ -171,14 +1209,15 @@ describe("refine-itinerary Edge handler contract", () => {
       {
         planId,
         baseRevision: 3,
-        delta: { feedback: "More history, please", scope: "partial" },
+        delta: { feedback: "history", scope: "partial" },
         lockedItemIds: [itemId],
       },
-      {
+      expect.objectContaining({
         correlationId,
         principal: null,
         guestCapability: { planId },
-      },
+        operation: expect.objectContaining({ operationId }),
+      }),
     );
     expect(service.commitRefinement).toHaveBeenCalledWith(
       {
@@ -186,15 +1225,16 @@ describe("refine-itinerary Edge handler contract", () => {
         baseRevision: 3,
         lockedItemIds: [itemId],
         scope: "partial",
-        normalizedDelta: { feedback: "More history, please", scope: "partial" },
+        normalizedDelta: { feedback: "history", scope: "partial" },
         previousRevision,
         result: expect.objectContaining({ rankingSource: "deterministic" }),
       },
-      {
+      expect.objectContaining({
         correlationId,
         principal: null,
         guestCapability: { planId },
-      },
+        operation: expect.objectContaining({ operationId }),
+      }),
     );
   });
 
@@ -309,7 +1349,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision: lockedRevision,
         ranker: vi.fn(async () => ({
           orderedIds: [lockedPlaceId],
@@ -361,7 +1401,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision,
         ranker: vi.fn(async () => ({
           orderedIds: [lockedPlaceId],
@@ -417,7 +1457,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision: { ...previousRevision, lockedItems: [] },
         ranker,
       })),
@@ -458,7 +1498,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "Đi chậm hơn và bỏ đồ ăn", scope: "partial" as const },
+        normalizedDelta: { feedback: "slower; remove food", scope: "partial" as const },
         previousRevision,
         ranker: vi.fn(async (rankRequest: RefinementRankRequest) => {
           received = {
@@ -481,7 +1521,7 @@ describe("refine-itinerary Edge handler contract", () => {
     });
 
     const response = await handler(request(validBody({
-      delta: { feedback: "Đi chậm hơn và bỏ đồ ăn", scope: "partial" },
+      delta: { feedback: "slower; remove food", scope: "partial" },
       guestToken: "guest-token-123456",
     })));
 
@@ -506,7 +1546,7 @@ describe("refine-itinerary Edge handler contract", () => {
       "signals",
     ]);
     expect(received?.rankRequest).not.toHaveProperty("feedback");
-    expect(JSON.stringify(received)).not.toContain("Đi chậm hơn và bỏ đồ ăn");
+    expect(JSON.stringify(received)).not.toContain("slower; remove food");
     for (const candidate of received?.rankRequest.candidates ?? []) {
       expect(Object.keys(candidate).sort()).toEqual([
         "areaId",
@@ -544,7 +1584,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision: tamperedRevision,
       })),
     });
@@ -570,7 +1610,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "Try a market route", scope: "full" as const },
+        normalizedDelta: { feedback: "market", scope: "full" as const },
         previousRevision: { ...previousRevision, lockedItems: [] },
         ranker: vi.fn(async (rankRequest: RefinementRankRequest) => {
           receivedScope = rankRequest.scope;
@@ -589,7 +1629,7 @@ describe("refine-itinerary Edge handler contract", () => {
 
     const response = await handler(request(validBody({
       guestToken: "guest-token-123456",
-      delta: { feedback: "Try a market route", scope: "full" },
+      delta: { feedback: "market", scope: "full" },
       lockedItemIds: [],
     })));
 
@@ -597,7 +1637,7 @@ describe("refine-itinerary Edge handler contract", () => {
     expect(receivedScope).toBe("full");
     expect(service.commitRefinement).toHaveBeenCalledWith(
       expect.objectContaining({
-        normalizedDelta: { feedback: "Try a market route", scope: "full" },
+        normalizedDelta: { feedback: "market", scope: "full" },
         previousRevision: expect.objectContaining({ lockedItems: [] }),
       }),
       expect.anything(),
@@ -619,7 +1659,7 @@ describe("refine-itinerary Edge handler contract", () => {
     expect(service.prepareRefinement).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toMatchObject({
       code: "AUTH_REQUIRED",
-      messageKey: "refinement.auth_required",
+      messageKey: "planner.auth_required",
       retryable: false,
       correlationId,
     });
@@ -641,14 +1681,14 @@ describe("refine-itinerary Edge handler contract", () => {
     expect(service.verifyAccessToken).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toMatchObject({
       code: "INVALID_REQUEST",
-      messageKey: "gateway.invalid_request",
+      messageKey: "planner.invalid_request",
       retryable: false,
       correlationId,
       fieldErrors: { baseRevision: "gateway.invalid_request" },
     });
   });
 
-  it("maps duplicate locked item IDs to a safe 422 domain error", async () => {
+  it("rejects duplicate locked item IDs as invalid input before claim without a terminal operation state", async () => {
     const service = adapter();
     const handler = createRefineItineraryHandler(service, {
       policy,
@@ -660,13 +1700,16 @@ describe("refine-itinerary Edge handler contract", () => {
       lockedItemIds: [itemId, itemId],
     })));
 
-    expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toMatchObject({
-      code: "LOCKED_ITEM_INVALID",
-      messageKey: "refinement.locked_item_invalid",
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body).toMatchObject({
+      code: "INVALID_REQUEST",
+      messageKey: "planner.invalid_request",
       retryable: false,
       correlationId,
     });
+    expect(body).not.toHaveProperty("operationState");
+    expect(service.claimOperation).not.toHaveBeenCalled();
     expect(service.prepareRefinement).not.toHaveBeenCalled();
   });
 
@@ -739,7 +1782,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision,
         ranker: vi.fn(async () => ({
           orderedIds: ["forged-place-id"],
@@ -767,7 +1810,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision: { ...previousRevision, authoritativeInput: { forged: true } },
       })),
     }), {
@@ -791,7 +1834,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision: {
           ...previousRevision,
           lockedItems: [{ ...previousLockedItem, itemId: "33333333-3333-4333-8333-333333333333" }],
@@ -831,7 +1874,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision: { ...previousRevision, ...priorPatch },
         ranker,
       })),
@@ -856,7 +1899,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision: {
           ...previousRevision,
           authoritativeInput: {
@@ -895,7 +1938,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision: { ...previousRevision, authoritativeInput: alteredInput },
         ranker,
       })),
@@ -919,7 +1962,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision: {
           ...previousRevision,
           lockedItems: [{ ...previousLockedItem, placeId: "place-market" }],
@@ -963,7 +2006,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision: forgedPreviousRevision,
       })),
     });
@@ -985,7 +2028,7 @@ describe("refine-itinerary Edge handler contract", () => {
         ok: true as const,
         planId,
         currentRevision: 3,
-        normalizedDelta: { feedback: "More history, please", scope: "partial" as const },
+        normalizedDelta: { feedback: "history", scope: "partial" as const },
         previousRevision: {
           ...previousRevision,
           lockedItems: [{ ...previousLockedItem, placeId: "place-not-in-result" }],

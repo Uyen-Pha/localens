@@ -157,6 +157,28 @@ describe("runtime administrator guide assignment queue", () => {
     expect(await screen.findByText(guides[0]!.displayName, { exact: true })).toBeInTheDocument();
   });
 
+  it("submits the select value from the form even before React state catches up", async () => {
+    const assign = vi.fn<RuntimeGuideAssignmentPort["assignGuide"]>(async (input) => ({
+      ...assigned,
+      guideUserId: input.guideUserId,
+    }));
+    render(<RuntimeGuideAssignmentQueue locale="en" assignments={port({ assign })} />);
+
+    const select = await screen.findByRole("combobox", { name: queueItem.titleEn });
+    const form = select.closest("form");
+    expect(form).not.toBeNull();
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      HTMLSelectElement.prototype,
+      "value",
+    )?.set;
+    expect(valueSetter).toBeTypeOf("function");
+    valueSetter!.call(select, guides[1]!.guideUserId);
+    fireEvent.submit(form!);
+
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
+    expect(assign.mock.calls[0]?.[0].guideUserId).toBe(guides[1]!.guideUserId);
+  });
+
   it("disables every assignment control while one mutation is pending", async () => {
     const assign = vi.fn(() => new Promise<GuideAssignmentResult>(() => undefined));
     render(<RuntimeGuideAssignmentQueue locale="en" assignments={port({ assign })} />);

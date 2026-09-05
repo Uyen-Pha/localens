@@ -20,7 +20,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:e2e": "node scripts/run-demo-e2e.mjs",
-    "test:e2e:runtime-auth": "node scripts/run-runtime-auth-e2e.mjs",
+    "test:e2e:runtime-auth": "node scripts/run-runtime-auth-isolated-e2e.mjs",
     "test:e2e:runtime-itinerary": "node scripts/run-runtime-itinerary-e2e.mjs",
     "test:e2e:runtime-fixed-tour": "node scripts/run-runtime-fixed-tour-e2e.mjs",
     "test:e2e:runtime-guide-assignment": "node scripts/run-runtime-guide-assignment-e2e.mjs",
@@ -35,6 +35,7 @@
     "db:types": "node scripts/write-generated-db-types.mjs",
     "db:types:check": "node scripts/check-generated-db-types.mjs",
     "db:concurrency": "node scripts/test-db-concurrency.mjs",
+    "db:planner-operation-concurrency": "node scripts/test-planner-operation-concurrency.mjs",
     "db:stop": "node scripts/supabase-local.mjs stop",
     "db:verify": "node scripts/run-db-gate.mjs",
     "check": "pnpm lint && pnpm typecheck && pnpm test:run --no-file-parallelism --testTimeout=30000 && pnpm db:static && pnpm build:demo"

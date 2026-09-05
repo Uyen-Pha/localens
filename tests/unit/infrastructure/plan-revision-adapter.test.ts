@@ -514,9 +514,18 @@ describe("trip-plan revision migration contract", () => {
     expect(migration).toMatch(/invalid nested request arrays/);
   });
 
-  it("gives the authenticated pgTAP role only fixture read access", () => {
+  it("gives only the internal pgTAP owner read access to revision fixtures", () => {
     expect(databaseFixture).toMatch(
-      /CREATE TEMP TABLE task6_revision_fixture[\s\S]*GRANT SELECT ON task6_revision_fixture TO authenticated;/,
+      /CREATE TEMP TABLE task6_revision_fixture[\s\S]*GRANT SELECT ON task6_revision_fixture TO localens_plan_rpc_owner;/,
+    );
+    expect(databaseFixture).toMatch(
+      /CREATE TEMP TABLE task9_food_revision_fixture[\s\S]*GRANT SELECT ON task9_food_revision_fixture TO localens_plan_rpc_owner;/,
+    );
+    expect(databaseFixture).not.toMatch(
+      /GRANT[^;]*ON task(?:6_revision|9_food_revision)_fixture TO [^;]*authenticated/,
+    );
+    expect(databaseFixture).not.toMatch(
+      /GRANT (?:ALL|INSERT|UPDATE|DELETE|TRUNCATE)[^;]*ON task(?:6_revision|9_food_revision)_fixture/,
     );
   });
 });

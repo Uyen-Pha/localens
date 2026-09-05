@@ -352,10 +352,67 @@ describe("Supabase itinerary adapter", () => {
     const adapter = createSupabaseRecommendAdapter(config(user, service), request());
 
     await expect(adapter.verifyAccessToken("signed-access-token", "correlation-id"))
-      .resolves.toEqual({ ok: false, error: { code: "AUTH_INVALID" } });
+      .resolves.toEqual({ ok: false, error: { code: "AUTH_EXPIRED" } });
     await expect(resolveInput(adapter, null as never))
       .resolves.toEqual({ ok: false, error: { code: "AUTH_REQUIRED" } });
     expect(user.from).not.toHaveBeenCalled();
+  });
+
+  it("does not synthesize a persisted rejection from claim RPC errors or throws", async () => {
+    const user = new FakeClient();
+    const service = new FakeClient();
+    const recommend = createSupabaseRecommendAdapter(config(user, service), request());
+    const refine = createSupabaseRefineAdapter(config(user, service), request());
+    const recommendContext = {
+      correlationId: "a0000000-0000-4000-8000-000000000001",
+      principal: { userId: ids.user },
+      guestToken: null,
+      turnstileToken: null,
+    };
+    const refineContext = {
+      correlationId: "a0000000-0000-4000-8000-000000000002",
+      principal: { userId: ids.user },
+      guestCapability: null,
+    };
+    const recommendInput = {
+      operationId: "10000000-0000-4000-8000-000000000001",
+      requestDigest: "a".repeat(64),
+      kind: "recommend" as const,
+      targetPlanId: null,
+      baseRevision: null,
+    };
+    const refineInput = {
+      operationId: "10000000-0000-4000-8000-000000000002",
+      requestDigest: "b".repeat(64),
+      kind: "refine" as const,
+      targetPlanId: ids.plan,
+      baseRevision: 1,
+    };
+
+    service.rpcImpl = async (name) => name === "claim_runtime_planner_operation"
+      ? { data: null, error: { code: "P0001", message: "PLAN_NOT_FOUND" } }
+      : { data: null, error: { code: "UNEXPECTED_RPC" } };
+
+    await expect(recommend.claimOperation(recommendInput, recommendContext)).resolves.toEqual({
+      ok: false,
+      error: { code: "SERVICE_UNAVAILABLE" },
+    });
+    await expect(refine.claimOperation(refineInput, refineContext)).resolves.toEqual({
+      ok: false,
+      error: { code: "PLAN_NOT_FOUND" },
+    });
+
+    service.rpcImpl = async () => {
+      throw new Error("PLAN_NOT_FOUND");
+    };
+    await expect(recommend.claimOperation(recommendInput, recommendContext)).resolves.toEqual({
+      ok: false,
+      error: { code: "SERVICE_UNAVAILABLE" },
+    });
+    await expect(refine.claimOperation(refineInput, refineContext)).resolves.toEqual({
+      ok: false,
+      error: { code: "SERVICE_UNAVAILABLE" },
+    });
   });
 
   it("loads one current bundle first, filters every projection, and returns strict mapped input", async () => {
@@ -527,6 +584,60 @@ describe("Supabase itinerary adapter", () => {
     expect(provider).not.toHaveBeenCalled();
   });
 
+  it("marks Gemini quota exhaustion as a terminal quota failure for an active planner operation", async () => {
+    const user = new FakeClient();
+    const service = new FakeClient();
+    const claim = {
+      state: "claimed",
+      leaseToken: "20000000-0000-4000-8000-000000000041",
+      leaseExpiresAt: "2099-09-05T00:00:00.000Z",
+      planId: ids.plan,
+      plannerReservationId: ids.quotaPlanner,
+      geminiReservationId: ids.quotaGemini,
+    };
+    const defaultRpc = service.rpcImpl;
+    service.rpcImpl = async (name, args) => {
+      if (name === "claim_runtime_planner_operation") return { data: claim, error: null };
+      if (name === "reserve_ai_quota" && args?.p_kind === "gemini") {
+        return { data: null, error: { code: "P0001", message: "quota exceeded" } };
+      }
+      return defaultRpc(name, args);
+    };
+    const provider = vi.fn<typeof fetch>();
+    const adapter = createSupabaseRecommendAdapter(
+      config(user, service, { fetchImpl: provider }),
+      request(),
+    );
+    const baseContext = {
+      correlationId: "a0000000-0000-4000-8000-000000000041",
+      principal: { userId: ids.user },
+      guestToken: null,
+      turnstileToken: null,
+    };
+    const operation = {
+      operationId: "10000000-0000-4000-8000-000000000041",
+      requestDigest: "f".repeat(64),
+      kind: "recommend" as const,
+      targetPlanId: null,
+      baseRevision: null,
+    };
+
+    const resolved = await resolveInput(adapter);
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+    await expect(adapter.claimOperation(operation, baseContext)).resolves.toEqual(claim);
+
+    await expect(recommendItinerary(resolved.input, { ranker: adapter.ranker })).resolves.toMatchObject({
+      ok: true,
+      value: { degraded: true, result: { rankingSource: "deterministic" } },
+    });
+    expect(adapter.readOperationFailure?.()).toEqual({
+      kind: "quota",
+      code: "QUOTA_EXCEEDED",
+    });
+    expect(provider).not.toHaveBeenCalled();
+  });
+
   it("passes the validated local fake-provider endpoint into the Gemini ranker", async () => {
     const user = new FakeClient();
     const service = new FakeClient();
@@ -565,31 +676,69 @@ describe("Supabase itinerary adapter", () => {
     );
   });
 
-  it("generates a plan id before fingerprinting and persists revision one through the authenticated RPC", async () => {
+  it("uses the claimed plan id before fingerprinting and persists revision one through the operation wrapper", async () => {
     const user = new FakeClient();
     const service = new FakeClient();
-    const randomUuid = uuidFactory(ids.quotaPlanner, ids.plan);
+    const claim = {
+      state: "claimed",
+      leaseToken: "20000000-0000-4000-8000-000000000001",
+      leaseExpiresAt: "2099-09-05T00:00:00.000Z",
+      planId: ids.plan,
+      plannerReservationId: ids.quotaPlanner,
+      geminiReservationId: ids.quotaGemini,
+    };
+    const defaultRpc = service.rpcImpl;
+    service.rpcImpl = async (name, args) => {
+      if (name === "claim_runtime_planner_operation") return { data: claim, error: null };
+      if (name === "complete_runtime_recommendation") {
+        return { data: { state: "completed", planId: ids.plan, revision: 1 }, error: null };
+      }
+      return defaultRpc(name, args);
+    };
     const adapter = createSupabaseRecommendAdapter(
-      config(user, service, { randomUuid, geminiEnabled: false, geminiApiKey: undefined }),
+      config(user, service, { geminiEnabled: false, geminiApiKey: undefined }),
       request(),
     );
     const resolved = await resolveInput(adapter);
     expect(resolved.ok).toBe(true);
     if (!resolved.ok) return;
     const result = await deterministicResult(resolved.input as EngineInput);
-
-    await expect(adapter.commitRecommendation({ input: resolved.input as EngineInput, result }, {
+    const baseContext = {
       correlationId: "a0000000-0000-4000-8000-000000000001",
       principal: { userId: ids.user },
       guestToken: null,
       turnstileToken: null,
+    };
+    const operation = {
+      operationId: "10000000-0000-4000-8000-000000000001",
+      requestDigest: "a".repeat(64),
+      kind: "recommend" as const,
+      leaseToken: claim.leaseToken,
+      leaseExpiresAt: claim.leaseExpiresAt,
+      planId: ids.plan,
+      baseRevision: null,
+      plannerReservationId: ids.quotaPlanner,
+      geminiReservationId: ids.quotaGemini,
+    };
+    await expect(adapter.claimOperation({
+      operationId: operation.operationId,
+      requestDigest: operation.requestDigest,
+      kind: operation.kind,
+      targetPlanId: null,
+      baseRevision: null,
+    }, baseContext)).resolves.toEqual(claim);
+
+    await expect(adapter.commitRecommendation({ input: resolved.input as EngineInput, result }, {
+      ...baseContext,
+      operation,
     })).resolves.toEqual({ ok: true, planId: ids.plan, revision: 1 });
 
-    const call = user.rpc.mock.calls.find(([name]) => name === "create_authenticated_trip_plan");
-    expect(call?.[1]).toMatchObject({ p_plan_id: ids.plan });
-    const dto = (call?.[1] as { persistence_dto: { fingerprint: string } }).persistence_dto;
+    const call = service.rpc.mock.calls.find(([name]) => name === "complete_runtime_recommendation");
+    expect(call?.[1]).toMatchObject({ p_operation_id: operation.operationId });
+    const dto = (call?.[1] as { p_persistence_dto: { fingerprint: string } }).p_persistence_dto;
     await expect(fingerprintRevisionBinding(ids.plan, 1, resolved.input as EngineInput, result, sha256))
       .resolves.toBe(dto.fingerprint);
+    expect(user.rpc.mock.calls.some(([name]) => name === "create_authenticated_trip_plan")).toBe(false);
   });
 
   it("loads the owner-visible latest revision, normalizes PostgREST timestamps, and exposes stable lock item IDs", async () => {
@@ -670,6 +819,22 @@ describe("Supabase itinerary adapter", () => {
   it("commits refinement by CAS and redacts stale PostgreSQL errors", async () => {
     const user = new FakeClient();
     const service = new FakeClient();
+    const claim = {
+      state: "claimed",
+      leaseToken: "20000000-0000-0000-0000-000000000003",
+      leaseExpiresAt: "2099-09-05T00:00:00.000Z",
+      planId: ids.plan,
+      plannerReservationId: ids.quotaPlanner,
+      geminiReservationId: ids.quotaGemini,
+    };
+    const defaultRpc = service.rpcImpl;
+    service.rpcImpl = async (name, args) => {
+      if (name === "claim_runtime_planner_operation") return { data: claim, error: null };
+      if (name === "complete_runtime_refinement") {
+        return { data: { state: "completed", planId: ids.plan, revision: 2 }, error: null };
+      }
+      return defaultRpc(name, args);
+    };
     const adapter = createSupabaseRefineAdapter(
       config(user, service, { geminiEnabled: false, geminiApiKey: undefined }),
       request(),
@@ -730,17 +895,34 @@ describe("Supabase itinerary adapter", () => {
       principal: { userId: ids.user },
       guestCapability: null,
     };
+    const operation = {
+      operationId: "10000000-0000-4000-8000-000000000011",
+      requestDigest: "b".repeat(64),
+      kind: "refine" as const,
+      leaseToken: claim.leaseToken,
+      leaseExpiresAt: claim.leaseExpiresAt,
+      planId: ids.plan,
+      baseRevision: 1,
+      plannerReservationId: ids.quotaPlanner,
+      geminiReservationId: ids.quotaGemini,
+    };
+    await expect(adapter.claimOperation({
+      operationId: operation.operationId,
+      requestDigest: operation.requestDigest,
+      kind: operation.kind,
+      targetPlanId: ids.plan,
+      baseRevision: 1,
+    }, context)).resolves.toEqual(claim);
 
-    await expect(adapter.commitRefinement(commitInput, context))
+    await expect(adapter.commitRefinement(commitInput, { ...context, operation }))
       .resolves.toEqual({ ok: true, revision: 2 });
 
-    expect(user.rpc).toHaveBeenCalledWith("advance_authenticated_trip_plan_revision", expect.objectContaining({
-      plan_id: ids.plan,
-      base_revision_no: 1,
-      persistence_dto: expect.objectContaining({ revisionNo: 2, lockedPlaceIds: [ids.place] }),
+    expect(service.rpc).toHaveBeenCalledWith("complete_runtime_refinement", expect.objectContaining({
+      p_operation_id: operation.operationId,
+      p_persistence_dto: expect.objectContaining({ revisionNo: 2, lockedPlaceIds: [ids.place] }),
     }));
-    const casCall = user.rpc.mock.calls.find(([name]) => name === "advance_authenticated_trip_plan_revision");
-    const casDto = (casCall?.[1] as { persistence_dto: { fingerprint: string } }).persistence_dto;
+    const casCall = service.rpc.mock.calls.find(([name]) => name === "complete_runtime_refinement");
+    const casDto = (casCall?.[1] as { p_persistence_dto: { fingerprint: string } }).p_persistence_dto;
     const lockedEngineInput: EngineInput = {
       ...engineInput,
       request: { ...engineInput.request, lockedStopIds: [ids.place] },
@@ -748,11 +930,291 @@ describe("Supabase itinerary adapter", () => {
     await expect(fingerprintRevisionBinding(ids.plan, 2, lockedEngineInput, result, sha256))
       .resolves.toBe(casDto.fingerprint);
 
-    user.rpcImpl = async (name) => name === "advance_authenticated_trip_plan_revision"
-      ? { data: null, error: { code: "P0001", message: "stale revision SQL detail" } }
+    service.rpcImpl = async (name) => name === "complete_runtime_refinement"
+      ? { data: { state: "rejected", errorCode: "STALE_REVISION" }, error: null }
       : { data: null, error: { code: "UNEXPECTED" } };
-    const stale = await adapter.commitRefinement(commitInput, context);
-    expect(stale).toEqual({ ok: false, error: { code: "STALE_REVISION" } });
+    const stale = await adapter.commitRefinement(commitInput, { ...context, operation });
+    expect(stale).toEqual({ ok: false, decision: { state: "rejected", errorCode: "STALE_REVISION" } });
     expect(JSON.stringify(stale)).not.toContain("SQL");
+    expect(user.rpc.mock.calls.some(([name]) => name === "advance_authenticated_trip_plan_revision")).toBe(false);
+
+    service.rpcImpl = async (name) => name === "complete_runtime_refinement"
+      ? { data: { state: "conflict" }, error: null }
+      : { data: null, error: { code: "UNEXPECTED" } };
+    await expect(adapter.commitRefinement(commitInput, { ...context, operation }))
+      .resolves.toEqual({ ok: false, decision: { state: "conflict" } });
+    expect(user.rpc.mock.calls.some(([name]) => name === "advance_authenticated_trip_plan_revision")).toBe(false);
+
+    service.rpcImpl = async (name) => name === "complete_runtime_refinement"
+      ? { data: { state: "interrupted" }, error: null }
+      : { data: null, error: { code: "UNEXPECTED" } };
+    await expect(adapter.commitRefinement(commitInput, { ...context, operation }))
+      .resolves.toEqual({ ok: false, decision: { state: "interrupted" } });
+    expect(user.rpc.mock.calls.some(([name]) => name === "advance_authenticated_trip_plan_revision")).toBe(false);
+  });
+
+  it("uses claimed reservation IDs and the operation-aware recommendation completion wrapper", async () => {
+    const user = new FakeClient();
+    const service = new FakeClient();
+    const claim = {
+      state: "claimed",
+      leaseToken: "20000000-0000-4000-8000-000000000001",
+      leaseExpiresAt: "2099-09-05T00:00:00.000Z",
+      planId: ids.plan,
+      plannerReservationId: ids.quotaPlanner,
+      geminiReservationId: ids.quotaGemini,
+    };
+    service.rpcImpl = async (name, args) => {
+      if (name === "claim_runtime_planner_operation") return { data: claim, error: null };
+      if (name === "reserve_ai_quota") {
+        return {
+          data: [{
+            reservation_id: args?.p_reservation_id,
+            kind: args?.p_kind,
+            bucket_hashes: [args?.p_ip_hash, args?.p_device_hash],
+            period_start: "2026-09-04T01:00:00.000Z",
+            state: "created",
+          }],
+          error: null,
+        };
+      }
+      if (name === "complete_runtime_recommendation") {
+        return { data: { state: "completed", planId: ids.plan, revision: 1 }, error: null };
+      }
+      return { data: null, error: { code: "UNEXPECTED_RPC" } };
+    };
+    const operationAdapter = createSupabaseRecommendAdapter(
+      config(user, service, { geminiEnabled: false, geminiApiKey: undefined }),
+      request(),
+    ) as unknown as {
+      claimOperation: (input: Record<string, unknown>, context: Record<string, unknown>) => Promise<unknown>;
+      reservePlannerQuota: (reservationId: string, context: Record<string, unknown>) => Promise<unknown>;
+      resolveEngineInput: (input: ItineraryRequest, context: Record<string, unknown>) => Promise<unknown>;
+      commitRecommendation: (input: Record<string, unknown>, context: Record<string, unknown>) => Promise<unknown>;
+    };
+    const baseContext = {
+      correlationId: "a0000000-0000-4000-8000-000000000001",
+      principal: { userId: ids.user },
+      guestToken: null,
+      turnstileToken: null,
+    };
+    const operation = {
+      operationId: "10000000-0000-4000-8000-000000000001",
+      requestDigest: "a".repeat(64),
+      kind: "recommend",
+      leaseToken: claim.leaseToken,
+      leaseExpiresAt: claim.leaseExpiresAt,
+      planId: ids.plan,
+      baseRevision: null,
+      plannerReservationId: ids.quotaPlanner,
+      geminiReservationId: ids.quotaGemini,
+    };
+    const context = { ...baseContext, operation };
+
+    await expect(operationAdapter.claimOperation({
+      operationId: operation.operationId,
+      requestDigest: operation.requestDigest,
+      kind: operation.kind,
+      targetPlanId: null,
+      baseRevision: null,
+    }, baseContext)).resolves.toEqual(claim);
+    await expect(operationAdapter.reservePlannerQuota(ids.quotaPlanner, context)).resolves.toEqual({ ok: true });
+    const resolved = await operationAdapter.resolveEngineInput(itineraryRequest, context) as { ok: true; input: EngineInput };
+    const result = await deterministicResult(resolved.input);
+
+    await expect(operationAdapter.commitRecommendation({ input: resolved.input, result }, context)).resolves.toEqual({
+      ok: true,
+      planId: ids.plan,
+      revision: 1,
+    });
+
+    expect(service.rpc).toHaveBeenCalledWith("reserve_ai_quota", expect.objectContaining({
+      p_reservation_id: ids.quotaPlanner,
+      p_kind: "planner",
+    }));
+    expect(service.rpc).toHaveBeenCalledWith("complete_runtime_recommendation", {
+      p_actor_user_id: ids.user,
+      p_operation_id: operation.operationId,
+      p_request_digest: operation.requestDigest,
+      p_lease_token: operation.leaseToken,
+      p_persistence_dto: expect.objectContaining({ revisionNo: 1 }),
+    });
+    expect(user.rpc.mock.calls.some(([name]) => name === "create_authenticated_trip_plan")).toBe(false);
+  });
+
+  it("reserves the claimed Gemini ID before one real provider call", async () => {
+    const user = new FakeClient();
+    const service = new FakeClient();
+    const provider = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      void _input;
+      void _init;
+      return new Response(JSON.stringify({
+        candidates: [{
+          content: {
+            parts: [{ text: JSON.stringify({
+              orderedIds: [ids.place],
+              rationales: { [ids.place]: "Verified history fit." },
+              foodSelections: [],
+            }) }],
+          },
+        }],
+      }), { status: 200 });
+    });
+    const claim = {
+      state: "claimed",
+      leaseToken: "20000000-0000-4000-8000-000000000021",
+      leaseExpiresAt: "2099-09-05T00:00:00.000Z",
+      planId: ids.plan,
+      plannerReservationId: ids.quotaPlanner,
+      geminiReservationId: ids.quotaGemini,
+    };
+    const defaultRpc = service.rpcImpl;
+    service.rpcImpl = async (name, args) => name === "claim_runtime_planner_operation"
+      ? { data: claim, error: null }
+      : defaultRpc(name, args);
+    const adapter = createSupabaseRecommendAdapter(
+      config(user, service, { fetchImpl: provider }),
+      request(),
+    );
+    const baseContext = {
+      correlationId: "a0000000-0000-4000-8000-000000000021",
+      principal: { userId: ids.user },
+      guestToken: null,
+      turnstileToken: null,
+    };
+    const operation = {
+      operationId: "10000000-0000-4000-8000-000000000021",
+      requestDigest: "c".repeat(64),
+      kind: "recommend" as const,
+      leaseToken: claim.leaseToken,
+      leaseExpiresAt: claim.leaseExpiresAt,
+      planId: ids.plan,
+      baseRevision: null,
+      plannerReservationId: ids.quotaPlanner,
+      geminiReservationId: ids.quotaGemini,
+    };
+    const context = { ...baseContext, operation };
+
+    await expect(adapter.claimOperation({
+      operationId: operation.operationId,
+      requestDigest: operation.requestDigest,
+      kind: operation.kind,
+      targetPlanId: null,
+      baseRevision: null,
+    }, baseContext)).resolves.toEqual(claim);
+    await expect(adapter.reservePlannerQuota(ids.quotaPlanner, context)).resolves.toEqual({ ok: true });
+    const resolved = await adapter.resolveEngineInput(itineraryRequest, context);
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+
+    const recommendation = await recommendItinerary(resolved.input, { ranker: adapter.ranker });
+
+    expect(recommendation).toMatchObject({
+      ok: true,
+      value: { degraded: false, result: { rankingSource: "ai" } },
+    });
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(service.rpc).toHaveBeenCalledWith("reserve_ai_quota", expect.objectContaining({
+      p_reservation_id: ids.quotaGemini,
+      p_kind: "gemini",
+    }));
+  });
+
+  it("allows an operation to persist deterministic fallback after a malformed Gemini response", async () => {
+    const user = new FakeClient();
+    const service = new FakeClient();
+    const provider = vi.fn(async () => new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: "not-json" }] } }],
+    }), { status: 200 }));
+    const claim = {
+      state: "claimed",
+      leaseToken: "20000000-0000-4000-8000-000000000031",
+      leaseExpiresAt: "2099-09-05T00:00:00.000Z",
+      planId: ids.plan,
+      plannerReservationId: ids.quotaPlanner,
+      geminiReservationId: ids.quotaGemini,
+    };
+    const defaultRpc = service.rpcImpl;
+    service.rpcImpl = async (name, args) => name === "claim_runtime_planner_operation"
+      ? { data: claim, error: null }
+      : defaultRpc(name, args);
+    const adapter = createSupabaseRecommendAdapter(
+      config(user, service, { fetchImpl: provider }),
+      request(),
+    );
+    const baseContext = {
+      correlationId: "a0000000-0000-4000-8000-000000000031",
+      principal: { userId: ids.user },
+      guestToken: null,
+      turnstileToken: null,
+    };
+    const operation = {
+      operationId: "10000000-0000-4000-8000-000000000031",
+      requestDigest: "d".repeat(64),
+      kind: "recommend" as const,
+      targetPlanId: null,
+      baseRevision: null,
+    };
+
+    const resolved = await resolveInput(adapter);
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+    await expect(adapter.claimOperation(operation, baseContext)).resolves.toEqual(claim);
+
+    await expect(recommendItinerary(resolved.input, { ranker: adapter.ranker })).resolves.toMatchObject({
+      ok: true,
+      value: { degraded: true, result: { rankingSource: "deterministic" } },
+    });
+    expect(adapter.readOperationFailure?.()).toBeNull();
+    expect(provider).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks a lost Gemini transport response as ambiguous for an active operation", async () => {
+    const user = new FakeClient();
+    const service = new FakeClient();
+    const provider = vi.fn(async () => {
+      throw new TypeError("network response lost");
+    });
+    const claim = {
+      state: "claimed",
+      leaseToken: "20000000-0000-4000-8000-000000000032",
+      leaseExpiresAt: "2099-09-05T00:00:00.000Z",
+      planId: ids.plan,
+      plannerReservationId: ids.quotaPlanner,
+      geminiReservationId: ids.quotaGemini,
+    };
+    const defaultRpc = service.rpcImpl;
+    service.rpcImpl = async (name, args) => name === "claim_runtime_planner_operation"
+      ? { data: claim, error: null }
+      : defaultRpc(name, args);
+    const adapter = createSupabaseRecommendAdapter(
+      config(user, service, { fetchImpl: provider as typeof fetch }),
+      request(),
+    );
+    const baseContext = {
+      correlationId: "a0000000-0000-4000-8000-000000000032",
+      principal: { userId: ids.user },
+      guestToken: null,
+      turnstileToken: null,
+    };
+    const operation = {
+      operationId: "10000000-0000-4000-8000-000000000032",
+      requestDigest: "e".repeat(64),
+      kind: "recommend" as const,
+      targetPlanId: null,
+      baseRevision: null,
+    };
+
+    const resolved = await resolveInput(adapter);
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+    await expect(adapter.claimOperation(operation, baseContext)).resolves.toEqual(claim);
+
+    await expect(recommendItinerary(resolved.input, { ranker: adapter.ranker })).resolves.toMatchObject({
+      ok: true,
+      value: { degraded: true, result: { rankingSource: "deterministic" } },
+    });
+    expect(adapter.readOperationFailure?.()).toEqual({ kind: "ambiguous_provider" });
+    expect(provider).toHaveBeenCalledTimes(1);
   });
 });

@@ -11,7 +11,11 @@ describe("owned demo E2E runner", () => {
 
     await runDemoE2E({
       cwd: "C:/repo",
-      env: { Path: "C:/Windows/System32", PARENT_VALUE: "kept" },
+      env: {
+        Path: "C:/Windows/System32",
+        LOCALENS_RUNTIME_BROWSER: "chrome",
+        PARENT_VALUE: "must-not-pass-through",
+      },
       logger: vi.fn(),
       startServer: vi.fn(async (env: Record<string, string | undefined>) => {
         events.push("server:start");
@@ -34,7 +38,9 @@ describe("owned demo E2E runner", () => {
     expect(playwrightEnvironments[0]).toMatchObject({
       PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3300",
       NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES: "1",
+      LOCALENS_RUNTIME_BROWSER: "chrome",
     });
+    expect(playwrightEnvironments[0]).not.toHaveProperty("PARENT_VALUE");
   });
 
   it("cleans the owned server after Playwright failure and preserves a stable error", async () => {

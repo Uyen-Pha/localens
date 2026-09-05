@@ -20,6 +20,8 @@ const PORTAL_COPY = {
     cancellationReason: "Cancellation reason (optional)",
     confirmCancellation: "Confirm cancellation",
     cancelled: "Cancelled",
+    noPaymentState: "Payment state unavailable",
+    simulatedPayment: "Simulated payment — no card details are entered and no real charge occurs.",
     bookingManagement: "Booking management",
     tripPlanReason: "Trip plan or participation time changed",
     readOnlyAssignment: "Guides cannot accept, complete, cancel, or administer tours here.",
@@ -63,6 +65,8 @@ const PORTAL_COPY = {
     cancellationReason: "Lý do hủy (không bắt buộc)",
     confirmCancellation: "Xác nhận hủy",
     cancelled: "Đã hủy",
+    noPaymentState: "Chưa có trạng thái thanh toán",
+    simulatedPayment: "Thanh toán mô phỏng — không nhập thông tin thẻ và không phát sinh giao dịch thật.",
     bookingManagement: "Quản lý đơn đặt tour",
     tripPlanReason: "Kế hoạch hoặc thời gian tham gia thay đổi",
     readOnlyAssignment: "Hướng dẫn viên không thể nhận, hoàn thành, hủy hoặc quản trị tour tại đây.",
@@ -374,7 +378,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("customer cancellation is immediate, read-only for admin, and hidden from the guide", async ({ page }) => {
+test("customer cancellation before simulated payment is immediate, read-only for admin, and hidden from the guide", async ({ page }) => {
   const diagnostics = installDiagnostics(page);
   const copy = PORTAL_COPY.en;
 
@@ -383,6 +387,9 @@ test("customer cancellation is immediate, read-only for admin, and hidden from t
 
   const customerBooking = page.getByRole("article", { name: copy.cancellationBooking });
   await expect(customerBooking).toBeVisible();
+  await expect(customerBooking.getByText(copy.noPaymentState, { exact: true })).toBeVisible();
+  await expect(customerBooking.getByText(copy.simulatedPayment, { exact: true })).toBeVisible();
+  await expect(customerBooking.getByRole("button", { name: /pay|payment|card|charge/i })).toHaveCount(0);
   await customerBooking.getByRole("button", { name: copy.cancelBooking, exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox", { name: copy.cancellationReason, exact: true }).selectOption("trip_plan_changed");
@@ -450,6 +457,9 @@ test("Vietnamese direct entries deny the wrong role and protect the customer req
 
   await page.goto("/vi/account/");
   await enterDemoIdentity(page, "vi", "customer");
+  const customerBooking = page.getByRole("article", { name: copy.cancellationBooking });
+  await expect(customerBooking.getByText(copy.noPaymentState, { exact: true })).toBeVisible();
+  await expect(customerBooking.getByText(copy.simulatedPayment, { exact: true })).toBeVisible();
   await page.goto("/vi/admin/");
   await expect(page.getByRole("heading", { name: copy.adminAccessDenied, exact: true })).toBeVisible();
   await expect(page.getByText(copy.accessDeniedMessage, { exact: true })).toBeVisible();

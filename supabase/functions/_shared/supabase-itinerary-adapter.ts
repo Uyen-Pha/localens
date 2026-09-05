@@ -17,13 +17,28 @@ import {
   mapFxSnapshot,
   mapTravelSnapshot,
 } from "@/lib/infrastructure/supabase/travel-fx-adapter";
-import { createGeminiRanker } from "@/supabase/functions/_shared/gemini-ranker";
+import {
+  GeminiProviderResponseError,
+  createGeminiRanker,
+} from "@/supabase/functions/_shared/gemini-ranker";
 import type {
   AccessTokenVerification,
+  PersistedPlannerRevision,
+  PlannerOperationClaimInput,
+  PlannerOperationContext,
+  PlannerOperationExecutionFailure,
+  PlannerQuotaIdentityCheck,
+  PlannerQuotaReservation,
   RecommendItineraryAdapter,
   RecommendationAdapterContext,
   RecommendationAdapterErrorCode,
 } from "@/supabase/functions/_shared/recommend-itinerary";
+import {
+  parseOperationDecision,
+  parseOperationRejectedCode,
+  type OperationDecision,
+  type OperationRejectedCode,
+} from "@/supabase/functions/_shared/planner-operation";
 import type {
   CanonicalPreviousItem,
   RefineItineraryAdapter,
@@ -73,6 +88,11 @@ const OPAQUE_DEVICE_PATTERN = /^[A-Za-z0-9._~-]{16,128}$/;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
 const HMAC_KEY_MIN_LENGTH = 32;
 const HMAC_KEY_MAX_LENGTH = 4096;
+
+type RpcInvoker = (
+  name: string,
+  args: Record<string, unknown>,
+) => Promise<QueryResponse>;
 
 const CURRENT_SNAPSHOT_COLUMNS = [
   "catalog_snapshot_id",
@@ -188,6 +208,39 @@ function responseRows(response: unknown): unknown[] | null {
 function oneRow(response: unknown): Record<string, unknown> | null {
   const rows = responseRows(response);
   return rows?.length === 1 && isRecord(rows[0]) ? rows[0] : null;
+}
+
+function invokeRpc(
+  client: SupabaseItineraryClient,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<QueryResponse> {
+  const rpc = client.rpc as unknown as RpcInvoker;
+  return rpc.call(client, name, args);
+}
+
+function rpcData(response: unknown): unknown | null {
+  if (!isRecord(response) || response.error !== null) return null;
+  return response.data;
+}
+
+function operationDecisionFromRpc(response: unknown): OperationDecision | null {
+  return parseOperationDecision(rpcData(response));
+}
+
+function isQuotaExceeded(error: unknown): boolean {
+  return isRecord(error) && error.code === "P0001" && error.message === "quota exceeded";
+}
+
+function isPlannerPlanNotFound(error: unknown): boolean {
+  return isRecord(error) && error.code === "P0001" && error.message === "PLAN_NOT_FOUND";
+}
+
+function sameHashBinding(row: Record<string, unknown>, identity: QuotaIdentity): boolean {
+  return Array.isArray(row.bucket_hashes)
+    && row.bucket_hashes.length === 2
+    && row.bucket_hashes[0] === identity.ipHash
+    && row.bucket_hashes[1] === identity.deviceHash;
 }
 
 function currentBinding(row: Record<string, unknown>): SnapshotBinding | null {
@@ -344,6 +397,8 @@ function runtime(
     return value;
   };
   let quotaIdentityPromise: Promise<QuotaIdentityResult> | null = null;
+  let activeOperation: PlannerOperationContext | null = null;
+  let operationFailure: PlannerOperationExecutionFailure | null = null;
 
   const quotaIdentity = (): Promise<QuotaIdentityResult> => {
     if (quotaIdentityPromise !== null) return quotaIdentityPromise;
@@ -365,30 +420,42 @@ function runtime(
     return quotaIdentityPromise;
   };
 
-  const reserveQuota = async (kind: QuotaKind, identity: QuotaIdentity): Promise<boolean> => {
+  const reserveQuota = async (
+    kind: QuotaKind,
+    identity: QuotaIdentity,
+    reservationId = nextUuid(),
+  ): Promise<PlannerQuotaReservation> => {
     let response: QueryResponse;
     try {
       response = await clients.serviceClient.rpc("reserve_ai_quota", {
-        p_reservation_id: nextUuid(),
+        p_reservation_id: reservationId,
         p_kind: kind,
         p_ip_hash: identity.ipHash,
         p_device_hash: identity.deviceHash,
       }) as QueryResponse;
     } catch {
-      return false;
+      return { ok: false, kind: "unavailable" };
     }
     const row = oneRow(response);
-    return row !== null
-      && row.kind === kind
-      && (row.state === "created" || row.state === "replayed")
-      && isUuid(row.reservation_id);
+    if (isQuotaExceeded(response.error)) return { ok: false, kind: "rejected", code: "QUOTA_EXCEEDED" };
+    if (
+      row === null
+      || row.kind !== kind
+      || (row.state !== "created" && row.state !== "replayed")
+      || row.reservation_id !== reservationId
+      || !isUuid(row.reservation_id)
+      || !sameHashBinding(row, identity)
+    ) {
+      return { ok: false, kind: "unavailable" };
+    }
+    return { ok: true };
   };
 
   const verifyAccessToken = async (token: string): Promise<AccessTokenVerification> => {
     try {
       const auth = await clients.userClient.auth.getUser(token);
       if (auth.error !== null || auth.data.user === null || !isUuid(auth.data.user.id)) {
-        return { ok: false, error: { code: "AUTH_INVALID" } };
+        return { ok: false, error: { code: "AUTH_EXPIRED" } };
       }
       const identity = oneRow(await clients.userClient.rpc("get_portal_identity"));
       if (
@@ -396,11 +463,11 @@ function runtime(
         || identity.user_id !== auth.data.user.id
         || identity.role !== "customer"
       ) {
-        return { ok: false, error: { code: "AUTH_INVALID" } };
+        return { ok: false, error: { code: "AUTH_EXPIRED" } };
       }
       return { ok: true, principal: { userId: auth.data.user.id } };
     } catch {
-      return { ok: false, error: { code: "AUTH_INVALID" } };
+      return { ok: false, error: { code: "AUTH_EXPIRED" } };
     }
   };
 
@@ -608,11 +675,39 @@ function runtime(
   const ranker: Ranker | undefined = geminiRanker === undefined
     ? undefined
     : async (rankRequest: RankRequest, signal: AbortSignal) => {
-        const identity = await quotaIdentity();
-        if (!identity.ok || !await reserveQuota("gemini", identity.value)) {
+        let identity: QuotaIdentityResult;
+        try {
+          identity = await quotaIdentity();
+        } catch {
+          if (activeOperation !== null) operationFailure = { kind: "ambiguous_provider" };
           throw new Error("Gemini unavailable");
         }
-        return geminiRanker(rankRequest, signal);
+        if (!identity.ok) {
+          if (activeOperation !== null) operationFailure = { kind: "ambiguous_provider" };
+          throw new Error("Gemini unavailable");
+        }
+        const reservationId = activeOperation?.geminiReservationId;
+        const reserved = await reserveQuota(
+          "gemini",
+          identity.value,
+          reservationId ?? undefined,
+        );
+        if (!reserved.ok) {
+          if (activeOperation !== null) {
+            operationFailure = reserved.kind === "rejected"
+              ? { kind: "quota", code: reserved.code }
+              : { kind: "ambiguous_provider" };
+          }
+          throw new Error("Gemini unavailable");
+        }
+        try {
+          return await geminiRanker(rankRequest, signal);
+        } catch (error) {
+          if (activeOperation !== null && !(error instanceof GeminiProviderResponseError)) {
+            operationFailure = { kind: "ambiguous_provider" };
+          }
+          throw new Error("Gemini unavailable");
+        }
       };
 
   return {
@@ -620,6 +715,18 @@ function runtime(
     nextUuid,
     quotaIdentity,
     reserveQuota,
+    get activeOperation() {
+      return activeOperation;
+    },
+    set activeOperation(value: PlannerOperationContext | null) {
+      activeOperation = value;
+    },
+    get operationFailure() {
+      return operationFailure;
+    },
+    set operationFailure(value: PlannerOperationExecutionFailure | null) {
+      operationFailure = value;
+    },
     verifyAccessToken,
     readCurrentBinding,
     loadEngineInput,
@@ -635,6 +742,27 @@ function validPrincipal(
   return context.principal !== null && isUuid(context.principal.userId);
 }
 
+function sameOperation(left: PlannerOperationContext, right: PlannerOperationContext): boolean {
+  return left.operationId === right.operationId
+    && left.requestDigest === right.requestDigest
+    && left.kind === right.kind
+    && left.leaseToken === right.leaseToken
+    && left.planId === right.planId
+    && left.baseRevision === right.baseRevision
+    && left.plannerReservationId === right.plannerReservationId
+    && left.geminiReservationId === right.geminiReservationId;
+}
+
+function operationForContext(
+  context: RecommendationAdapterContext | RefineItineraryAdapterContext,
+  kind: PlannerOperationContext["kind"],
+  activeOperation: PlannerOperationContext | null,
+): PlannerOperationContext | null {
+  const operation = context.operation;
+  if (operation === undefined || operation.kind !== kind || activeOperation === null) return null;
+  return sameOperation(operation, activeOperation) ? operation : null;
+}
+
 export function createSupabaseRecommendAdapter(
   config: SupabaseItineraryAdapterConfig,
   request: Request,
@@ -643,14 +771,143 @@ export function createSupabaseRecommendAdapter(
 
   return {
     verifyAccessToken: (token) => shared.verifyAccessToken(token),
+    async claimOperation(input: PlannerOperationClaimInput, context: RecommendationAdapterContext) {
+      if (!validPrincipal(context)) throw new Error("Authenticated planner operation required");
+      let response: QueryResponse;
+      try {
+        response = await invokeRpc(shared.serviceClient, "claim_runtime_planner_operation", {
+          p_actor_user_id: context.principal!.userId,
+          p_operation_id: input.operationId,
+          p_kind: input.kind,
+          p_request_digest: input.requestDigest,
+          p_target_plan_id: input.targetPlanId,
+          p_base_revision: input.baseRevision,
+        });
+      } catch {
+        return { ok: false as const, error: { code: "SERVICE_UNAVAILABLE" as const } };
+      }
+      if (response.error !== null) {
+        return { ok: false as const, error: { code: "SERVICE_UNAVAILABLE" as const } };
+      }
+      const decision = operationDecisionFromRpc(response);
+      if (decision === null) return { ok: false as const, error: { code: "SERVICE_UNAVAILABLE" as const } };
+      if (decision.state === "claimed") {
+        shared.activeOperation = {
+          operationId: input.operationId,
+          requestDigest: input.requestDigest,
+          kind: input.kind,
+          leaseToken: decision.leaseToken,
+          leaseExpiresAt: decision.leaseExpiresAt,
+          planId: decision.planId,
+          baseRevision: input.baseRevision,
+          plannerReservationId: decision.plannerReservationId,
+          geminiReservationId: decision.geminiReservationId,
+        };
+        shared.operationFailure = null;
+      } else {
+        shared.activeOperation = null;
+        shared.operationFailure = null;
+      }
+      return decision;
+    },
+    async validateQuotaIdentity(): Promise<PlannerQuotaIdentityCheck> {
+      const identity = await shared.quotaIdentity();
+      return identity.ok
+        ? { ok: true }
+        : { ok: false, error: { code: identity.code } };
+    },
+    async reservePlannerQuota(reservationId: string, context: RecommendationAdapterContext): Promise<PlannerQuotaReservation> {
+      const operation = operationForContext(context, "recommend", shared.activeOperation);
+      if (operation === null || reservationId !== operation.plannerReservationId) {
+        return { ok: false, kind: "unavailable" };
+      }
+      const identity = await shared.quotaIdentity();
+      if (!identity.ok) return { ok: false, kind: "unavailable" };
+      return shared.reserveQuota("planner", identity.value, reservationId);
+    },
+    async rejectOperation(
+      input: { operationId: string; requestDigest: string; leaseToken: string },
+      errorCode: OperationRejectedCode,
+      context: RecommendationAdapterContext,
+    ) {
+      if (!validPrincipal(context) || parseOperationRejectedCode(errorCode) === null) {
+        throw new Error("Invalid planner operation rejection");
+      }
+      const response = await invokeRpc(shared.serviceClient, "reject_runtime_planner_operation", {
+        p_actor_user_id: context.principal!.userId,
+        p_operation_id: input.operationId,
+        p_request_digest: input.requestDigest,
+        p_lease_token: input.leaseToken,
+        p_error_code: errorCode,
+      });
+      if (response.error !== null) throw new Error("Planner operation rejection unavailable");
+      const decision = operationDecisionFromRpc(response);
+      if (decision === null) throw new Error("Invalid planner operation rejection decision");
+      shared.activeOperation = null;
+      shared.operationFailure = null;
+      return decision;
+    },
+    async readCommittedRevision(
+      input: { planId: string; revision: number },
+      context: RecommendationAdapterContext,
+    ): Promise<PersistedPlannerRevision> {
+      if (!validPrincipal(context) || !isUuid(input.planId) || !Number.isSafeInteger(input.revision) || input.revision < 1) {
+        return { ok: false, error: { code: "SERVICE_UNAVAILABLE" } };
+      }
+      try {
+        const response = await shared.userClient.from("trip_plan_revisions")
+          .select("plan_id,revision_no,result_json,ranking_source")
+          .eq("plan_id", input.planId)
+          .eq("revision_no", input.revision)
+          .limit(2);
+        const row = oneRow(response);
+        if (
+          row === null
+          || row.plan_id !== input.planId
+          || row.revision_no !== input.revision
+          || (row.ranking_source !== "ai" && row.ranking_source !== "deterministic")
+        ) {
+          return { ok: false, error: { code: "SERVICE_UNAVAILABLE" } };
+        }
+        const result = itineraryResultSchema.safeParse(row.result_json);
+        if (!result.success || result.data.rankingSource !== row.ranking_source) {
+          return { ok: false, error: { code: "SERVICE_UNAVAILABLE" } };
+        }
+        return {
+          ok: true,
+          planId: row.plan_id,
+          revision: row.revision_no,
+          rankingSource: row.ranking_source,
+          result: result.data,
+        };
+      } catch {
+        return { ok: false, error: { code: "SERVICE_UNAVAILABLE" } };
+      }
+    },
+    readOperationFailure: () => shared.operationFailure,
     async resolveEngineInput(input, context) {
       if (!validPrincipal(context)) return { ok: false, error: { code: "AUTH_REQUIRED" } };
-      const identity = await shared.quotaIdentity();
-      if (!identity.ok) return { ok: false, error: { code: identity.code } };
+      const operation = context.operation === undefined
+        ? null
+        : operationForContext(context, "recommend", shared.activeOperation);
+      if (context.operation !== undefined && operation === null) {
+        return { ok: false, error: { code: "CATALOG_UNAVAILABLE" } };
+      }
+      let identity: QuotaIdentity | null = null;
+      if (operation === null) {
+        const identityResult = await shared.quotaIdentity();
+        if (!identityResult.ok) return { ok: false, error: { code: identityResult.code } };
+        identity = identityResult.value;
+      }
       const binding = await shared.readCurrentBinding();
       if (binding === null) return { ok: false, error: { code: "CATALOG_UNAVAILABLE" } };
-      if (!await shared.reserveQuota("planner", identity.value)) {
-        return { ok: false, error: { code: "QUOTA_EXCEEDED" } };
+      if (identity !== null) {
+        const reserved = await shared.reserveQuota("planner", identity);
+        if (!reserved.ok) {
+          return reserved.kind === "rejected"
+            ? { ok: false, error: { code: "QUOTA_EXCEEDED" } }
+            : { ok: false, error: { code: "CATALOG_UNAVAILABLE" } };
+        }
       }
       const resolved = await shared.loadEngineInput(input, binding);
       if (!resolved.ok) return { ok: false, error: { code: resolved.code } };
@@ -658,10 +915,11 @@ export function createSupabaseRecommendAdapter(
     },
     async commitRecommendation(input, context) {
       if (!validPrincipal(context)) return { ok: false, error: { code: "AUTH_REQUIRED" } };
+      const operation = operationForContext(context, "recommend", shared.activeOperation);
+      if (operation === null) return { ok: false, error: { code: "CATALOG_UNAVAILABLE" } };
       try {
-        const planId = shared.nextUuid();
         const fingerprint = await fingerprintRevisionBinding(
-          planId,
+          operation.planId,
           1,
           input.input,
           input.result,
@@ -669,17 +927,31 @@ export function createSupabaseRecommendAdapter(
         );
         const persistence = toPlanRevisionInsert(input.input, input.result, fingerprint, 1);
         if (!persistence.ok) return { ok: false, error: { code: "CATALOG_UNAVAILABLE" } };
-        const response = await shared.userClient.rpc("create_authenticated_trip_plan", {
-          p_plan_id: planId,
-          persistence_dto: persistence.value as unknown as Json,
+        const response = await invokeRpc(shared.serviceClient, "complete_runtime_recommendation", {
+          p_actor_user_id: context.principal!.userId,
+          p_operation_id: operation.operationId,
+          p_request_digest: operation.requestDigest,
+          p_lease_token: operation.leaseToken,
+          p_persistence_dto: persistence.value as unknown as Json,
         });
-        const row = oneRow(response);
-        if (row === null || row.plan_id !== planId || row.revision_no !== 1) {
-          return { ok: false, error: { code: "CATALOG_UNAVAILABLE" } };
+        if (response.error !== null) {
+          shared.operationFailure = { kind: "ambiguous_commit" };
+          return { ok: false, error: { code: "SERVICE_UNAVAILABLE" } };
         }
-        return { ok: true, planId, revision: 1 };
+        const decision = operationDecisionFromRpc(response);
+        if (decision === null) {
+          shared.operationFailure = { kind: "ambiguous_commit" };
+          return { ok: false, error: { code: "SERVICE_UNAVAILABLE" } };
+        }
+        if (decision.state === "completed") {
+          return decision.planId === operation.planId && decision.revision === 1
+            ? { ok: true, planId: decision.planId, revision: 1 }
+            : { ok: false, error: { code: "CATALOG_UNAVAILABLE" } };
+        }
+        return { ok: false, decision };
       } catch {
-        return { ok: false, error: { code: "CATALOG_UNAVAILABLE" } };
+        shared.operationFailure = { kind: "ambiguous_commit" };
+        return { ok: false, error: { code: "SERVICE_UNAVAILABLE" } };
       }
     },
     ...(shared.ranker === undefined ? {} : { ranker: shared.ranker }),
@@ -692,7 +964,7 @@ function refinementFailure(code: RefineItineraryAdapterErrorCode) {
 
 function recommendationCodeToRefinement(code: RecommendationAdapterErrorCode): RefineItineraryAdapterErrorCode {
   if (code === "QUOTA_EXCEEDED") return "QUOTA_EXCEEDED";
-  if (code === "AUTH_REQUIRED" || code === "AUTH_INVALID") return code;
+  if (code === "AUTH_REQUIRED" || code === "AUTH_EXPIRED") return code;
   return "SNAPSHOT_MISMATCH";
 }
 
@@ -724,10 +996,6 @@ function mapPreviousItems(
   return mapped;
 }
 
-function isCasError(error: unknown): boolean {
-  return isRecord(error) && error.code === "P0001";
-}
-
 export function createSupabaseRefineAdapter(
   config: SupabaseItineraryAdapterConfig,
   request: Request,
@@ -737,12 +1005,137 @@ export function createSupabaseRefineAdapter(
   return {
     verifyAccessToken: (token) => shared.verifyAccessToken(token),
     async verifyGuestCapability() {
-      return { ok: false, error: { code: "AUTH_INVALID" } };
+      return { ok: false, error: { code: "AUTH_EXPIRED" } };
     },
+    async claimOperation(input: PlannerOperationClaimInput, context: RefineItineraryAdapterContext) {
+      if (!validPrincipal(context)) throw new Error("Authenticated planner operation required");
+      let response: QueryResponse;
+      try {
+        response = await invokeRpc(shared.serviceClient, "claim_runtime_planner_operation", {
+          p_actor_user_id: context.principal!.userId,
+          p_operation_id: input.operationId,
+          p_kind: input.kind,
+          p_request_digest: input.requestDigest,
+          p_target_plan_id: input.targetPlanId,
+          p_base_revision: input.baseRevision,
+        });
+      } catch {
+        return { ok: false as const, error: { code: "SERVICE_UNAVAILABLE" as const } };
+      }
+      if (response.error !== null) {
+        if (isPlannerPlanNotFound(response.error)) {
+          return { ok: false as const, error: { code: "PLAN_NOT_FOUND" as const } };
+        }
+        return { ok: false as const, error: { code: "SERVICE_UNAVAILABLE" as const } };
+      }
+      const decision = operationDecisionFromRpc(response);
+      if (decision === null) return { ok: false as const, error: { code: "SERVICE_UNAVAILABLE" as const } };
+      if (decision.state === "claimed") {
+        shared.activeOperation = {
+          operationId: input.operationId,
+          requestDigest: input.requestDigest,
+          kind: input.kind,
+          leaseToken: decision.leaseToken,
+          leaseExpiresAt: decision.leaseExpiresAt,
+          planId: decision.planId,
+          baseRevision: input.baseRevision,
+          plannerReservationId: decision.plannerReservationId,
+          geminiReservationId: decision.geminiReservationId,
+        };
+        shared.operationFailure = null;
+      } else {
+        shared.activeOperation = null;
+        shared.operationFailure = null;
+      }
+      return decision;
+    },
+    async validateQuotaIdentity(): Promise<PlannerQuotaIdentityCheck> {
+      const identity = await shared.quotaIdentity();
+      return identity.ok
+        ? { ok: true }
+        : { ok: false, error: { code: identity.code } };
+    },
+    async reservePlannerQuota(reservationId: string, context: RefineItineraryAdapterContext): Promise<PlannerQuotaReservation> {
+      const operation = operationForContext(context, "refine", shared.activeOperation);
+      if (operation === null || reservationId !== operation.plannerReservationId) {
+        return { ok: false, kind: "unavailable" };
+      }
+      const identity = await shared.quotaIdentity();
+      if (!identity.ok) return { ok: false, kind: "unavailable" };
+      return shared.reserveQuota("planner", identity.value, reservationId);
+    },
+    async rejectOperation(
+      input: { operationId: string; requestDigest: string; leaseToken: string },
+      errorCode: OperationRejectedCode,
+      context: RefineItineraryAdapterContext,
+    ) {
+      if (!validPrincipal(context) || parseOperationRejectedCode(errorCode) === null) {
+        throw new Error("Invalid planner operation rejection");
+      }
+      const response = await invokeRpc(shared.serviceClient, "reject_runtime_planner_operation", {
+        p_actor_user_id: context.principal!.userId,
+        p_operation_id: input.operationId,
+        p_request_digest: input.requestDigest,
+        p_lease_token: input.leaseToken,
+        p_error_code: errorCode,
+      });
+      if (response.error !== null) throw new Error("Planner operation rejection unavailable");
+      const decision = operationDecisionFromRpc(response);
+      if (decision === null) throw new Error("Invalid planner operation rejection decision");
+      shared.activeOperation = null;
+      shared.operationFailure = null;
+      return decision;
+    },
+    async readCommittedRevision(
+      input: { planId: string; revision: number },
+      context: RefineItineraryAdapterContext,
+    ): Promise<PersistedPlannerRevision> {
+      if (!validPrincipal(context) || !isUuid(input.planId) || !Number.isSafeInteger(input.revision) || input.revision < 1) {
+        return { ok: false, error: { code: "SERVICE_UNAVAILABLE" } };
+      }
+      try {
+        const response = await shared.userClient.from("trip_plan_revisions")
+          .select("plan_id,revision_no,result_json,ranking_source")
+          .eq("plan_id", input.planId)
+          .eq("revision_no", input.revision)
+          .limit(2);
+        const row = oneRow(response);
+        if (
+          row === null
+          || row.plan_id !== input.planId
+          || row.revision_no !== input.revision
+          || (row.ranking_source !== "ai" && row.ranking_source !== "deterministic")
+        ) {
+          return { ok: false, error: { code: "SERVICE_UNAVAILABLE" } };
+        }
+        const result = itineraryResultSchema.safeParse(row.result_json);
+        if (!result.success || result.data.rankingSource !== row.ranking_source) {
+          return { ok: false, error: { code: "SERVICE_UNAVAILABLE" } };
+        }
+        return {
+          ok: true,
+          planId: row.plan_id,
+          revision: row.revision_no,
+          rankingSource: row.ranking_source,
+          result: result.data,
+        };
+      } catch {
+        return { ok: false, error: { code: "SERVICE_UNAVAILABLE" } };
+      }
+    },
+    readOperationFailure: () => shared.operationFailure,
     async prepareRefinement(input: RefineItineraryInput, context: RefineItineraryAdapterContext) {
       if (!validPrincipal(context) || context.guestCapability !== null) return refinementFailure("AUTH_REQUIRED");
-      const identity = await shared.quotaIdentity();
-      if (!identity.ok) return refinementFailure(identity.code);
+      const operation = context.operation === undefined
+        ? null
+        : operationForContext(context, "refine", shared.activeOperation);
+      if (context.operation !== undefined && operation === null) return refinementFailure("PLAN_UNAVAILABLE");
+      let identity: QuotaIdentity | null = null;
+      if (operation === null) {
+        const identityResult = await shared.quotaIdentity();
+        if (!identityResult.ok) return refinementFailure(identityResult.code);
+        identity = identityResult.value;
+      }
 
       let plan: Record<string, unknown> | null;
       try {
@@ -779,7 +1172,12 @@ export function createSupabaseRefineAdapter(
       ) {
         return refinementFailure("SNAPSHOT_MISMATCH");
       }
-      if (!await shared.reserveQuota("planner", identity.value)) return refinementFailure("QUOTA_EXCEEDED");
+      if (identity !== null) {
+        const reserved = await shared.reserveQuota("planner", identity);
+        if (!reserved.ok) {
+          return refinementFailure(reserved.kind === "rejected" ? "QUOTA_EXCEEDED" : "PLAN_UNAVAILABLE");
+        }
+      }
 
       const parsedRequest = itineraryRequestSchema.safeParse(revision.request_json);
       const parsedResult = itineraryResultSchema.safeParse(revision.result_json);
@@ -841,6 +1239,10 @@ export function createSupabaseRefineAdapter(
     },
     async commitRefinement(input, context) {
       if (!validPrincipal(context) || context.guestCapability !== null) return refinementFailure("AUTH_REQUIRED");
+      const operation = operationForContext(context, "refine", shared.activeOperation);
+      if (operation === null || operation.planId !== input.planId || operation.baseRevision !== input.baseRevision) {
+        return refinementFailure("PLAN_UNAVAILABLE");
+      }
       if (
         input.previousRevision.planId !== input.planId
         || input.previousRevision.revision !== input.baseRevision
@@ -874,21 +1276,31 @@ export function createSupabaseRefineAdapter(
         );
         const persistence = toPlanRevisionInsert(engineInput, input.result, fingerprint, nextRevision);
         if (!persistence.ok) return refinementFailure("SNAPSHOT_MISMATCH");
-        const response = await shared.userClient.rpc("advance_authenticated_trip_plan_revision", {
-          plan_id: input.planId,
-          base_revision_no: input.baseRevision,
-          persistence_dto: persistence.value as unknown as Json,
+        const response = await invokeRpc(shared.serviceClient, "complete_runtime_refinement", {
+          p_actor_user_id: context.principal!.userId,
+          p_operation_id: operation.operationId,
+          p_request_digest: operation.requestDigest,
+          p_lease_token: operation.leaseToken,
+          p_persistence_dto: persistence.value as unknown as Json,
         });
         if (response.error !== null) {
-          return refinementFailure(isCasError(response.error) ? "STALE_REVISION" : "PLAN_UNAVAILABLE");
+          shared.operationFailure = { kind: "ambiguous_commit" };
+          return refinementFailure("SERVICE_UNAVAILABLE");
         }
-        const row = oneRow(response);
-        if (row === null || row.revision_no !== nextRevision || !isUuid(row.revision_id)) {
-          return refinementFailure("PLAN_UNAVAILABLE");
+        const decision = operationDecisionFromRpc(response);
+        if (decision === null) {
+          shared.operationFailure = { kind: "ambiguous_commit" };
+          return refinementFailure("SERVICE_UNAVAILABLE");
         }
-        return { ok: true, revision: nextRevision };
+        if (decision.state === "completed") {
+          return decision.planId === operation.planId && decision.revision === nextRevision
+            ? { ok: true, revision: nextRevision }
+            : refinementFailure("PLAN_UNAVAILABLE");
+        }
+        return { ok: false, decision };
       } catch {
-        return refinementFailure("PLAN_UNAVAILABLE");
+        shared.operationFailure = { kind: "ambiguous_commit" };
+        return refinementFailure("SERVICE_UNAVAILABLE");
       }
     },
   };

@@ -3990,12 +3990,43 @@ export type Database = {
           plan_id: string
         }[]
       }
+      claim_runtime_planner_operation: {
+        Args: {
+          p_actor_user_id: string
+          p_base_revision: number
+          p_kind: string
+          p_operation_id: string
+          p_request_digest: string
+          p_target_plan_id: string
+        }
+        Returns: Json
+      }
       complete_guide_assignment: {
         Args: { p_assignment_id: string }
         Returns: {
           assignment_id: string
           status: Database["public"]["Enums"]["assignment_status"]
         }[]
+      }
+      complete_runtime_recommendation: {
+        Args: {
+          p_actor_user_id: string
+          p_lease_token: string
+          p_operation_id: string
+          p_persistence_dto: Json
+          p_request_digest: string
+        }
+        Returns: Json
+      }
+      complete_runtime_refinement: {
+        Args: {
+          p_actor_user_id: string
+          p_lease_token: string
+          p_operation_id: string
+          p_persistence_dto: Json
+          p_request_digest: string
+        }
+        Returns: Json
       }
       complete_simulated_fixed_tour_payment: {
         Args: { booking_id: string; idempotency_key: string }
@@ -4152,6 +4183,14 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_runtime_planner_operation: {
+        Args: {
+          p_actor_user_id: string
+          p_operation_id: string
+          p_request_digest: string
+        }
+        Returns: Json
+      }
       publish_seo: {
         Args: { p_build_id: string; p_source_commit: string }
         Returns: {
@@ -4185,6 +4224,16 @@ export type Database = {
           p_resolution: Database["public"]["Enums"]["booking_status"]
         }
         Returns: Database["public"]["Enums"]["booking_status"]
+      }
+      reject_runtime_planner_operation: {
+        Args: {
+          p_actor_user_id: string
+          p_error_code: string
+          p_lease_token: string
+          p_operation_id: string
+          p_request_digest: string
+        }
+        Returns: Json
       }
       request_fixed_tour_cancellation: {
         Args: { booking_id: string; idempotency_key: string; reason: string }

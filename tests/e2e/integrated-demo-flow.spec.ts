@@ -355,7 +355,7 @@ test("personalized route refinement submits for admin quote review and completes
   await expect(page.getByRole("heading", { name: "Your Saigon, planned around you", exact: true })).toBeVisible();
   const personalizationForm = page.getByRole("form", { name: "Personalized route preferences", exact: true });
   await personalizationForm.getByLabel("Hours", { exact: true }).fill("6");
-  await personalizationForm.getByLabel("Preferred start date", { exact: true }).fill("2026-09-05");
+  await expect(personalizationForm.getByLabel("Preferred start date", { exact: true })).not.toHaveValue("");
   await personalizationForm.getByLabel("Budget for your whole group", { exact: true }).fill("2000000");
   await personalizationForm.getByLabel("People in your party", { exact: true }).fill("2");
   await personalizationForm.getByLabel("District 1 & central", { exact: true }).check();
@@ -444,7 +444,7 @@ test("personalized request runs the complete customer and admin chain in Vietnam
   await expect(page.getByRole("heading", { name: home.title, exact: true })).toBeVisible();
   const personalizationForm = page.getByRole("form", { name: formCopy.formLabel, exact: true });
   await personalizationForm.getByLabel(formCopy.durationHoursLabel, { exact: true }).fill("6");
-  await personalizationForm.getByLabel(formCopy.startDateLabel, { exact: true }).fill("2026-09-05");
+  await expect(personalizationForm.getByLabel(formCopy.startDateLabel, { exact: true })).not.toHaveValue("");
   await personalizationForm.getByLabel(formCopy.budgetLabel, { exact: true }).fill("2000000");
   await personalizationForm.getByLabel(formCopy.partySizeLabel, { exact: true }).fill("2");
   await personalizationForm.getByLabel(formCopy.areaOptions.find((option) => option.value === "demo-hcmc-district-1")!.label, { exact: true }).check();

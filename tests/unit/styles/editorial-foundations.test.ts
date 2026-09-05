@@ -5,6 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const stylesRoot = path.resolve(process.cwd(), "app", "styles");
+const globalsPath = path.resolve(process.cwd(), "app", "globals.css");
 const portalStylesPath = path.resolve(process.cwd(), "components", "portals", "portal.module.css");
 const editorialStyleFiles = [
   "editorial-base.css",
@@ -172,6 +173,14 @@ describe("editorial style foundations", () => {
     expect(baseCss).not.toMatch(/outline:\s*3px solid rgba\(19,\s*109,\s*90,\s*0\.28\)/);
     if (!focusRingColor) return;
     expect(contrastRatio(focusRingColor, "#ffffff")).toBeGreaterThanOrEqual(3);
+  });
+
+  it("keeps keyboard-focused controls and their outline clear of viewport edges", async () => {
+    const globalsCss = normalizeLineEndings(await readFile(globalsPath, "utf8"));
+
+    expect(globalsCss).toMatch(
+      /:where\(a\[href\], button, input, select, textarea, \[tabindex\]:not\(\[tabindex="-1"\]\)\)\s*\{[^}]*scroll-margin-block:\s*calc\(var\(--space-2\) \+ 4px\);/,
+    );
   });
 
   it("reflows the route stops on mobile without hiding copy or masking page overflow", async () => {

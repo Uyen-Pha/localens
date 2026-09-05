@@ -1,7 +1,9 @@
+import { EventEmitter } from "node:events";
+
 import { describe, expect, it, vi } from "vitest";
 
 // @ts-expect-error The executable JavaScript boundary is covered by focused runtime tests.
-import { createRuntimeFixedTourPasswords, runRuntimeFixedTourE2E, runRuntimeFixedTourE2EMain, selectRuntimeFixedTourBaseEnv } from "@/scripts/run-runtime-fixed-tour-e2e.mjs";
+import { createIsolatedRuntimeFixedTourOptions, createRuntimeFixedTourPasswords, runRuntimeFixedTourE2E, runRuntimeFixedTourE2EMain, selectRuntimeFixedTourBaseEnv } from "@/scripts/run-runtime-fixed-tour-e2e.mjs";
 
 const localStatus = [
   "API_URL=http://127.0.0.1:54321",
@@ -66,6 +68,14 @@ function successfulHarness(overrides: Record<string, unknown> = {}) {
 }
 
 describe("B2.2a runtime fixed-tour runner", () => {
+  it("routes the executable gate through the isolated random-port harness", () => {
+    expect(createIsolatedRuntimeFixedTourOptions({ env: { PATH: "C:/tools" } })).toEqual({
+      env: { PATH: "C:/tools" },
+      playwrightSpec: "tests/e2e/runtime-fixed-tour.spec.ts",
+      playwrightConfig: "playwright.runtime-fixed-tour.config.ts",
+    });
+  });
+
   it("generates independent strong values only for missing role passwords", () => {
     const passwords = createRuntimeFixedTourPasswords(
       { LOCALENS_RUNTIME_CUSTOMER_PASSWORD: "provided-customer" },
@@ -306,5 +316,51 @@ describe("B2.2a runtime fixed-tour runner", () => {
       "RUNTIME_FIXED_TOUR_CLEANUP_FAILED: owned resource cleanup could not be confirmed",
     );
     expect(errorLogger.mock.calls.flat().join(" ")).not.toContain("secret");
+  });
+
+  it.each([
+    ["SIGINT", 130],
+    ["SIGTERM", 143],
+  ] as const)("turns %s into abort and waits for isolated cleanup", async (signalName, exitCode) => {
+    const signals = new EventEmitter();
+    const ownedResources = new Set(["process", "container", "temp-dir"]);
+    let finishCleanup = () => {};
+    const cleanupGate = new Promise<void>((resolve) => { finishCleanup = resolve; });
+    const run = vi.fn(async ({ signal }: { signal: AbortSignal }) => {
+      await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }));
+      await cleanupGate;
+      ownedResources.clear();
+      throw Object.assign(new Error("interrupted after cleanup"), {
+        code: "RUNTIME_ITINERARY_ABORTED",
+        status: exitCode,
+      });
+    });
+    const main = runRuntimeFixedTourE2EMain({
+      run,
+      signals,
+      errorLogger: vi.fn(),
+    });
+
+    await vi.waitFor(() => expect(run).toHaveBeenCalledOnce());
+    const signal = run.mock.calls[0]?.[0]?.signal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    signals.emit(signalName);
+    await vi.waitFor(() => expect(signal?.aborted).toBe(true));
+    expect(signal?.reason).toMatchObject({
+      code: "RUNTIME_FIXED_TOUR_ABORTED",
+      status: exitCode,
+    });
+
+    let settled = false;
+    void main.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect([...ownedResources]).toEqual(["process", "container", "temp-dir"]);
+
+    finishCleanup();
+    await expect(main).resolves.toBe(exitCode);
+    expect([...ownedResources]).toEqual([]);
+    expect(signals.listenerCount("SIGINT")).toBe(0);
+    expect(signals.listenerCount("SIGTERM")).toBe(0);
   });
 });

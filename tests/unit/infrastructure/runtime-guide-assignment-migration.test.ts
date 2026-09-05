@@ -19,6 +19,7 @@ const pgTapPath = join(
 const migration = existsSync(migrationPath) ? readFileSync(migrationPath, "utf8") : "";
 const pgTap = existsSync(pgTapPath) ? readFileSync(pgTapPath, "utf8") : "";
 const guideRunnerPath = join(process.cwd(), "scripts", "run-runtime-guide-assignment-e2e.mjs");
+const guideRunner = existsSync(guideRunnerPath) ? readFileSync(guideRunnerPath, "utf8") : "";
 const guideConfigPath = join(process.cwd(), "playwright.runtime-guide-assignment.config.ts");
 const guideSpecPath = join(process.cwd(), "tests", "e2e", "runtime-guide-assignment.spec.ts");
 
@@ -44,6 +45,11 @@ describe("B2.4 runtime guide-assignment migration", () => {
     expect(existsSync(guideSpecPath)).toBe(true);
     expect(packageJson.scripts["test:e2e:runtime-guide-assignment"])
       .toBe("node scripts/run-runtime-guide-assignment-e2e.mjs");
+  });
+
+  it("routes the guide browser gate through the isolated random-port harness", () => {
+    expect(guideRunner).toMatch(/import \{ runRuntimeItineraryE2E \} from "\.\/run-runtime-itinerary-e2e\.mjs";/);
+    expect(guideRunner).not.toContain("runRuntimeFixedTourE2E");
   });
 
   it("exposes only the agreed public contract and retires browser guide lifecycle mutations", () => {

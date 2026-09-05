@@ -112,7 +112,7 @@ describe("release toolchain contract", () => {
       "runtime-local",
     ]);
     expect(jobs["staging-smoke"]?.env?.LOCALLENS_STAGING_URL).toBe("${{ vars.LOCALLENS_STAGING_URL }}");
-    expect(jobs["staging-smoke"]?.if).toBeUndefined();
+    expect(jobs["staging-smoke"]?.if).toBe("${{ vars.LOCALLENS_STAGING_URL != '' }}");
 
     const everyRun = Object.values(jobs).flatMap(runs).join("\n");
     expect(everyRun.split("\n").map((line) => line.trim())).not.toContain("pnpm build");

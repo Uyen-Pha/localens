@@ -319,20 +319,6 @@
     },
     {
       "objectType": "function",
-      "objectName": "public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)",
-      "privilege": "execute",
-      "columns": [],
-      "grantee": "authenticated"
-    },
-    {
-      "objectType": "function",
-      "objectName": "public.advance_trip_plan_revision(uuid,integer,jsonb)",
-      "privilege": "execute",
-      "columns": [],
-      "grantee": "authenticated"
-    },
-    {
-      "objectType": "function",
       "objectName": "public.assign_fixed_departure_guide(uuid,uuid,text)",
       "privilege": "execute",
       "columns": [],
@@ -361,14 +347,28 @@
     },
     {
       "objectType": "function",
-      "objectName": "public.complete_simulated_fixed_tour_payment(uuid,text)",
+      "objectName": "public.claim_runtime_planner_operation(uuid,uuid,text,text,uuid,integer)",
       "privilege": "execute",
       "columns": [],
-      "grantee": "authenticated"
+      "grantee": "service_role"
     },
     {
       "objectType": "function",
-      "objectName": "public.create_authenticated_trip_plan(uuid,jsonb)",
+      "objectName": "public.complete_runtime_recommendation(uuid,uuid,text,uuid,jsonb)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "service_role"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.complete_runtime_refinement(uuid,uuid,text,uuid,jsonb)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "service_role"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.complete_simulated_fixed_tour_payment(uuid,text)",
       "privilege": "execute",
       "columns": [],
       "grantee": "authenticated"
@@ -445,6 +445,13 @@
     },
     {
       "objectType": "function",
+      "objectName": "public.get_runtime_planner_operation(uuid,uuid,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "service_role"
+    },
+    {
+      "objectType": "function",
       "objectName": "public.publish_seo(text,text)",
       "privilege": "execute",
       "columns": [],
@@ -463,6 +470,13 @@
       "privilege": "execute",
       "columns": [],
       "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.reject_runtime_planner_operation(uuid,uuid,text,uuid,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "service_role"
     },
     {
       "objectType": "function",
@@ -1810,6 +1824,27 @@
       "objectType": "table",
       "objectName": "private.recommendation_runs",
       "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.runtime_planner_operations",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.runtime_planner_operations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.runtime_planner_operations",
+      "privilege": "update",
       "columns": [],
       "grantee": "localens_plan_rpc_owner"
     },

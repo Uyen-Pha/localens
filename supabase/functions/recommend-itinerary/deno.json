@@ -28,9 +28,11 @@
     "@/supabase/functions/_shared/gateway": "../../../supabase/functions/_shared/gateway.ts",
     "@/supabase/functions/_shared/gemini-ranker": "../../../supabase/functions/_shared/gemini-ranker.ts",
     "@/supabase/functions/_shared/itinerary-wire-response": "../../../supabase/functions/_shared/itinerary-wire-response.ts",
+    "@/supabase/functions/_shared/planner-operation": "../../../supabase/functions/_shared/planner-operation.ts",
     "@/supabase/functions/_shared/recommend-itinerary": "../../../supabase/functions/_shared/recommend-itinerary.ts",
     "@/supabase/functions/_shared/refine-itinerary": "../../../supabase/functions/_shared/refine-itinerary.ts",
     "@/supabase/functions/_shared/refinement-signals": "../../../supabase/functions/_shared/refinement-signals.ts",
+    "@/lib/application/planner/refinement-signals": "../../../lib/application/planner/refinement-signals.ts",
     "@/supabase/functions/_shared/supabase-itinerary-adapter": "../../../supabase/functions/_shared/supabase-itinerary-adapter.ts",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.112.3",
     "zod": "npm:zod@4.4.3"

@@ -33,6 +33,13 @@ export interface GeminiRankerConfig {
   readonly endpointBase?: string;
 }
 
+export class GeminiProviderResponseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "GeminiProviderResponseError";
+  }
+}
+
 export function normalizeGeminiEndpointBase(value: string): string {
   if (value === GEMINI_ENDPOINT_BASE) return value;
   if (
@@ -245,20 +252,20 @@ function toProviderInput(request: RankRequest): ProviderRankInput {
 
 function extractModelJson(envelope: unknown): unknown {
   if (!isPlainObject(envelope) || !Array.isArray(envelope.candidates) || envelope.candidates.length !== 1) {
-    throw new Error("Invalid Gemini response envelope");
+    throw new GeminiProviderResponseError("Invalid Gemini response envelope");
   }
   const candidate = envelope.candidates[0];
   if (!isPlainObject(candidate) || !isPlainObject(candidate.content)) {
-    throw new Error("Invalid Gemini response candidate");
+    throw new GeminiProviderResponseError("Invalid Gemini response candidate");
   }
   const parts = candidate.content.parts;
   if (!Array.isArray(parts) || parts.length !== 1 || !isPlainObject(parts[0]) || typeof parts[0].text !== "string") {
-    throw new Error("Invalid Gemini response parts");
+    throw new GeminiProviderResponseError("Invalid Gemini response parts");
   }
   try {
     return JSON.parse(parts[0].text);
   } catch {
-    throw new Error("Invalid Gemini response JSON");
+    throw new GeminiProviderResponseError("Invalid Gemini response JSON");
   }
 }
 
@@ -314,17 +321,17 @@ export function createGeminiRanker(config: GeminiRankerConfig): Ranker {
       }),
       signal,
     });
-    if (!response.ok) throw new Error("Gemini request failed");
+    if (!response.ok) throw new GeminiProviderResponseError("Gemini request failed");
 
     const text = await response.text();
     if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) {
-      throw new Error("Gemini response exceeded size limit");
+      throw new GeminiProviderResponseError("Gemini response exceeded size limit");
     }
     let envelope: unknown;
     try {
       envelope = JSON.parse(text);
     } catch {
-      throw new Error("Invalid Gemini response envelope");
+      throw new GeminiProviderResponseError("Invalid Gemini response envelope");
     }
     return extractModelJson(envelope) as RankResponse;
   };

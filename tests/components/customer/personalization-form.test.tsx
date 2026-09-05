@@ -44,6 +44,8 @@ vi.mock("@/lib/application/api/read-only-api", async (importOriginal) => {
 
 import {
   buildPersonalizationRequest,
+  defaultHcmcPlannerStart,
+  hcmcCalendarDate,
   parseBudgetAmountMinor,
   PersonalizationForm,
 } from "@/components/customer/personalization-form";
@@ -93,7 +95,7 @@ function fillValidForm(
   specialNeeds = "",
 ) {
   fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
-    target: { value: "2026-09-05" },
+    target: { value: defaultHcmcPlannerStart(Date.now()).date },
   });
   fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
   if (specialNeeds) {
@@ -118,7 +120,10 @@ function runtimeComposition(initialized: Promise<void> = Promise.resolve()) {
 }
 
 async function waitUntilReady(copy: ReturnType<typeof getDictionary>["home"]["personalizationForm"]) {
-  await waitFor(() => expect(screen.getByRole("button", { name: copy.submitLabel })).toBeEnabled());
+  await waitFor(
+    () => expect(screen.getByRole("button", { name: copy.submitLabel })).toBeEnabled(),
+    { timeout: 5_000 },
+  );
 }
 
 describe("PersonalizationForm", () => {
@@ -157,6 +162,13 @@ describe("PersonalizationForm", () => {
       "budgetCurrency",
     );
     expect(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel)).toBeInTheDocument();
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel)).toHaveValue(
+      defaultHcmcPlannerStart(Date.now()).date,
+    );
+    expect(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel)).toHaveAttribute(
+      "min",
+      hcmcCalendarDate(Date.now()),
+    );
     expect(screen.getByLabelText(dictionary.home.personalizationForm.startTimeLabel)).toBeInTheDocument();
     expect(screen.getByLabelText(dictionary.home.personalizationForm.languageLabel)).toHaveAttribute("name", "guideLanguage");
     expect(screen.getByLabelText(dictionary.home.personalizationForm.partySizeLabel)).toBeInTheDocument();
@@ -179,6 +191,7 @@ describe("PersonalizationForm", () => {
       "halal",
       "vegetarian",
     ]);
+    expect(dictionary.home.personalizationForm.budgetHint).not.toContain("amountMinor");
     expect(dictionary.home.personalizationForm.mobilityOptions.map((option) => option.value)).toEqual([
       "none",
       "step-free",
@@ -198,8 +211,37 @@ describe("PersonalizationForm", () => {
       expect(screen.getByLabelText(priority.label)).toHaveAttribute("min", "0");
       expect(screen.getByLabelText(priority.label)).toHaveAttribute("max", "5");
     }
+    expect(screen.getByLabelText(
+      dictionary.home.personalizationForm.priorities.find(({ key }) => key === "street_food")!.label,
+    )).toHaveValue(3);
     expect(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[0].label)).toHaveAttribute("value", "demo-hcmc-district-1");
     expect(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[1].label)).toHaveAttribute("value", "demo-hcmc-district-3");
+  });
+
+  it("keeps a keyboard-focused control and its focus ring inside the viewport", () => {
+    const copy = getDictionary("vi").home.personalizationForm;
+    render(<PersonalizationForm copy={copy} />);
+    const specialNeeds = screen.getByLabelText(copy.specialNeedsLabel);
+    specialNeeds.scrollIntoView = vi.fn();
+
+    fireEvent.focus(specialNeeds);
+
+    expect(specialNeeds.scrollIntoView).toHaveBeenCalledWith({
+      block: "nearest",
+      inline: "nearest",
+    });
+  });
+
+  it("keeps focus handling safe when scrollIntoView is unavailable", () => {
+    const copy = getDictionary("vi").home.personalizationForm;
+    render(<PersonalizationForm copy={copy} />);
+    const specialNeeds = screen.getByLabelText(copy.specialNeedsLabel);
+    Object.defineProperty(specialNeeds, "scrollIntoView", {
+      configurable: true,
+      value: undefined,
+    });
+
+    expect(() => fireEvent.focus(specialNeeds)).not.toThrow();
   });
 
   it("requires a date, time, and at least one area before showing the local preview", async () => {
@@ -217,7 +259,7 @@ describe("PersonalizationForm", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel), {
-      target: { value: "2026-09-05" },
+      target: { value: defaultHcmcPlannerStart(Date.now()).date },
     });
     fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startTimeLabel), {
       target: { value: "09:00" },
@@ -232,6 +274,22 @@ describe("PersonalizationForm", () => {
     expect(screen.queryByText(dictionary.home.personalizationForm.confirmationMessage)).not.toBeInTheDocument();
   });
 
+  it("explains when the selected Ho Chi Minh City start is not in the future", async () => {
+    const copy = getDictionary("en").home.personalizationForm;
+    render(<PersonalizationForm copy={copy} />);
+    await waitUntilReady(copy);
+
+    fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
+      target: { value: "2000-01-01" },
+    });
+    fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
+    chooseDemoMarketPriority(copy);
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(copy.startInPastMessage);
+    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
+  });
+
   it("rejects split duration totals outside the one-to-twelve-hour range", async () => {
     const dictionary = getDictionary("en");
     const copy = dictionary.home.personalizationForm;
@@ -240,7 +298,7 @@ describe("PersonalizationForm", () => {
     await waitUntilReady(copy);
     const form = screen.getByRole("form", { name: copy.formLabel });
     fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
-      target: { value: "2026-09-05" },
+      target: { value: defaultHcmcPlannerStart(Date.now()).date },
     });
     fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
     chooseDemoMarketPriority(copy);
@@ -308,7 +366,7 @@ describe("PersonalizationForm", () => {
     await waitUntilReady(dictionary.home.personalizationForm);
     const form = screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel });
     fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel), {
-      target: { value: "2026-09-05" },
+      target: { value: defaultHcmcPlannerStart(Date.now()).date },
     });
     fireEvent.click(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[0].label));
     chooseDemoMarketPriority(dictionary.home.personalizationForm);
@@ -320,6 +378,40 @@ describe("PersonalizationForm", () => {
     expect(screen.getByText(previewCopy.totalsHeading)).toBeInTheDocument();
     expect(screen.getAllByRole("listitem").length).toBeGreaterThan(0);
     expect(screen.getByRole("region", { name: previewCopy.heading })).toHaveFocus();
+  });
+
+  it("computes the current Ho Chi Minh City calendar date across UTC boundaries", () => {
+    expect(hcmcCalendarDate(Date.parse("2026-09-04T16:59:59Z"))).toBe("2026-09-04");
+    expect(hcmcCalendarDate(Date.parse("2026-09-04T17:00:00Z"))).toBe("2026-09-05");
+  });
+
+  it("defaults to the next safe 09:00 start in Ho Chi Minh City", () => {
+    expect(defaultHcmcPlannerStart(Date.parse("2026-09-05T01:59:00Z"))).toEqual({
+      date: "2026-09-05",
+      time: "09:00",
+    });
+    expect(defaultHcmcPlannerStart(Date.parse("2026-09-05T02:00:00Z"))).toEqual({
+      date: "2026-09-06",
+      time: "09:00",
+    });
+  });
+
+  it("applies visible presets to existing controls without submitting the planner", () => {
+    const copy = getDictionary("en").home.personalizationForm;
+    render(<PersonalizationForm copy={copy} />);
+
+    fireEvent.click(screen.getByRole("button", { name: copy.historyPresetLabel }));
+    expect(screen.getByLabelText(copy.priorities.find(({ key }) => key === "history")!.label)).toHaveValue(5);
+    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: copy.foodPresetLabel }));
+    expect(screen.getByLabelText(copy.priorities.find(({ key }) => key === "street_food")!.label)).toHaveValue(5);
+    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(copy.paceLabel), { target: { value: "active" } });
+    fireEvent.click(screen.getByRole("button", { name: copy.relaxedPresetLabel }));
+    expect(screen.getByLabelText(copy.paceLabel)).toHaveValue("relaxed");
+    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
   });
 
   it("keeps the server and pre-hydration render browser-independent", () => {
@@ -496,7 +588,7 @@ describe("PersonalizationForm", () => {
     expect(screen.queryByRole("link", { name: copy.plannerLinkLabel })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
-      target: { value: "2026-09-05" },
+      target: { value: defaultHcmcPlannerStart(Date.now()).date },
     });
     fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
     chooseDemoMarketPriority(copy);
@@ -510,11 +602,12 @@ describe("PersonalizationForm", () => {
   it("stores the submitted preferences for the separate planner demo after preview", async () => {
     const dictionary = getDictionary("en");
     const copy = dictionary.home.personalizationForm;
+    const startDate = defaultHcmcPlannerStart(Date.now()).date;
 
     render(<PersonalizationForm copy={copy} locale="en" />);
     await waitUntilReady(copy);
     fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
-      target: { value: "2026-09-05" },
+      target: { value: startDate },
     });
     fireEvent.change(screen.getByLabelText(copy.startTimeLabel), {
       target: { value: "10:30" },
@@ -536,7 +629,7 @@ describe("PersonalizationForm", () => {
     fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
 
     expect(readPersonalizationRequest()).toMatchObject({
-      startAt: "2026-09-05T10:30:00+07:00",
+      startAt: `${startDate}T10:30:00+07:00`,
       durationMinutes: 240,
       partySize: 4,
       areas: [copy.areaOptions[0].value],
@@ -554,7 +647,9 @@ describe("PersonalizationForm", () => {
     try {
       render(<PersonalizationForm copy={copy} locale="en" />);
       await waitUntilReady(copy);
-      fireEvent.change(screen.getByLabelText(copy.startDateLabel), { target: { value: "2026-09-05" } });
+      fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
+        target: { value: defaultHcmcPlannerStart(Date.now()).date },
+      });
       fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
       chooseDemoMarketPriority(copy);
       fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
@@ -573,7 +668,7 @@ describe("PersonalizationForm", () => {
     await waitUntilReady(dictionary.home.personalizationForm);
     const form = screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel });
     fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel), {
-      target: { value: "2026-09-05" },
+      target: { value: defaultHcmcPlannerStart(Date.now()).date },
     });
     fireEvent.click(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[0].label));
     fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.partySizeLabel), {

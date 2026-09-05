@@ -5,9 +5,19 @@ const localBaseURL = `http://127.0.0.1:${port}`;
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? localBaseURL;
 const hasBaseURLOverride = Boolean(process.env.PLAYWRIGHT_BASE_URL);
 const useStaticPreview = process.env.PLAYWRIGHT_STATIC === "1";
+const browserProject = process.env.LOCALENS_RUNTIME_BROWSER === "chrome"
+  ? {
+      name: "chrome",
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: "chrome",
+      },
+    }
+  : { name: "chromium", use: { ...devices["Desktop Chrome"] } };
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  timeout: 120_000,
   testIgnore: [
     "runtime-auth.spec.ts",
     "runtime-itinerary.spec.ts",
@@ -27,12 +37,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "off",
   },
-  projects: [
-    {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
-    },
-  ],
+  projects: [browserProject],
   ...(hasBaseURLOverride
     ? {}
     : {

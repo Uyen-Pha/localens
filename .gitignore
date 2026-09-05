@@ -10,5 +10,6 @@ test-results/
 !.env.example
 .worktrees/
 .superpowers/
+.codex/
 supabase/.temp/
 

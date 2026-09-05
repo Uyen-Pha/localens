@@ -681,6 +681,7 @@ COMMIT;
         "@/supabase/functions/_shared/edge-env": "../../../supabase/functions/_shared/edge-env.ts",
         "@/supabase/functions/_shared/gateway": "../../../supabase/functions/_shared/gateway.ts",
         "@/supabase/functions/_shared/itinerary-wire-response": "../../../supabase/functions/_shared/itinerary-wire-response.ts",
+        "@/supabase/functions/_shared/planner-operation": "../../../supabase/functions/_shared/planner-operation.ts",
         "@/supabase/functions/_shared/supabase-itinerary-adapter": "../../../supabase/functions/_shared/supabase-itinerary-adapter.ts",
         "@/lib/domain/itinerary/contracts": "../../../lib/domain/itinerary/contracts.ts",
       });
@@ -699,5 +700,69 @@ COMMIT;
     const config = readFileSync(join(repoRoot, "supabase", "config.toml"), "utf8");
     expect(config).toMatch(/\[functions\.recommend-itinerary\]\s*verify_jwt\s*=\s*true/);
     expect(config).toMatch(/\[functions\.refine-itinerary\]\s*verify_jwt\s*=\s*true/);
+  });
+
+  it("requires the server planner operation foundation artifacts without treating static text as DB evidence", () => {
+    const migrationPath = join(
+      repoRoot,
+      "supabase",
+      "migrations",
+      "20260905020356_planner_operation_idempotency.sql",
+    );
+    const modulePath = join(repoRoot, "supabase", "functions", "_shared", "planner-operation.ts");
+    const pgTapPath = join(repoRoot, "supabase", "tests", "database", "planner_operation_test.sql");
+
+    expect(existsSync(migrationPath)).toBe(true);
+    expect(existsSync(modulePath)).toBe(true);
+    expect(existsSync(pgTapPath)).toBe(true);
+
+    const migration = readFileSync(migrationPath, "utf8");
+    const module = readFileSync(modulePath, "utf8");
+    const pgTap = readFileSync(pgTapPath, "utf8");
+
+    expect(migration).toMatch(/BEGIN;[\s\S]*CREATE TABLE private\.runtime_planner_operations[\s\S]*COMMIT;/i);
+    expect(migration).toMatch(/UNIQUE\s*\(\s*owner_user_id\s*,\s*operation_id\s*\)/i);
+    expect(migration).toMatch(/planner_reservation_id uuid[\s\S]*gemini_reservation_id uuid[\s\S]*lease_token uuid/i);
+    expect(migration).toMatch(/CHECK\s*\(\s*state\s+IN\s*\(\s*'claimed'[\s\S]*'completed'[\s\S]*'rejected'[\s\S]*'interrupted'/i);
+    expect(migration).toMatch(/ALTER TABLE private\.runtime_planner_operations ENABLE ROW LEVEL SECURITY[\s\S]*FORCE ROW LEVEL SECURITY/i);
+    expect(migration).toMatch(/ALTER TABLE private\.runtime_planner_operations OWNER TO localens_plan_rpc_owner/i);
+    expect(migration).toMatch(/REVOKE ALL ON TABLE private\.runtime_planner_operations FROM PUBLIC, anon, authenticated, service_role/i);
+    expect(migration).toMatch(/GRANT SELECT, INSERT, UPDATE ON TABLE private\.runtime_planner_operations TO localens_plan_rpc_owner/i);
+
+    for (const signature of [
+      "claim_runtime_planner_operation(uuid, uuid, text, text, uuid, integer)",
+      "get_runtime_planner_operation(uuid, uuid, text)",
+      "complete_runtime_recommendation(uuid, uuid, text, uuid, jsonb)",
+      "complete_runtime_refinement(uuid, uuid, text, uuid, jsonb)",
+      "reject_runtime_planner_operation(uuid, uuid, text, uuid, text)",
+    ]) {
+      expect(migration).toContain(signature);
+      expect(migration).toMatch(new RegExp(`REVOKE ALL ON FUNCTION public\\.${signature.replace(/[()]/g, "\\$&")} FROM PUBLIC, anon, authenticated`));
+      expect(migration).toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${signature.replace(/[()]/g, "\\$&")} TO service_role`));
+    }
+    expect(migration).toMatch(/SECURITY DEFINER[\s\S]*SET search_path = ''[\s\S]*SET statement_timeout = '5s'/i);
+    expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.create_authenticated_trip_plan\(uuid, jsonb\) FROM PUBLIC, anon, authenticated, service_role/i);
+    expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.advance_authenticated_trip_plan_revision\(uuid, integer, jsonb\) FROM PUBLIC, anon, authenticated, service_role/i);
+    expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.advance_trip_plan_revision\(uuid, integer, jsonb\) FROM PUBLIC, anon, authenticated, service_role/i);
+    expect(migration).not.toMatch(/INSERT INTO private\.runtime_planner_operations[\s\S]{0,400}(raw|feedback|locale|owner_user_id::text)/i);
+
+    const claimStart = migration.indexOf("CREATE OR REPLACE FUNCTION public.claim_runtime_planner_operation(");
+    const claimEnd = migration.indexOf("-- Read-only status never takes a row lock", claimStart);
+    const claim = migration.slice(claimStart, claimEnd);
+    const existingOperationLock = claim.indexOf("FOR UPDATE");
+    const targetOwnershipValidation = claim.indexOf("FROM public.trip_plans AS plans");
+    const operationInsert = claim.indexOf("INSERT INTO private.runtime_planner_operations");
+    expect(existingOperationLock).toBeGreaterThanOrEqual(0);
+    expect(targetOwnershipValidation).toBeGreaterThan(existingOperationLock);
+    expect(operationInsert).toBeGreaterThan(targetOwnershipValidation);
+    expect(claim.slice(operationInsert)).toMatch(/ON CONFLICT \(owner_user_id, operation_id\) DO NOTHING/i);
+
+    expect(module).not.toMatch(/(?:from|require\s*\()["']node:/i);
+    expect(module).toMatch(/subtle\.digest\s*\(\s*["']SHA-256["']/i);
+    expect(module).toMatch(/parsePlannerOperationId/);
+    expect(module).toMatch(/OperationRejectedCode/);
+    expect(pgTap).toMatch(/SELECT plan\(\d+\)/i);
+    expect(pgTap).toMatch(/has_function_privilege[\s\S]*service_role/i);
+    expect(pgTap).toMatch(/legacy|create_authenticated_trip_plan|advance_authenticated_trip_plan_revision|advance_trip_plan_revision/i);
   });
 });

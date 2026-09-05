@@ -15,7 +15,7 @@ function unavailableResponse(): Response {
   return errorResponse(
     {
       code: "SERVICE_UNAVAILABLE",
-      messageKey: "gateway.service_unavailable",
+      messageKey: "planner.service_unavailable",
       retryable: true,
       status: 503,
     },
@@ -32,6 +32,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         allowedOrigins: env.allowedOrigins,
         allowedMethods: ["POST", "OPTIONS"],
       },
+      requireAuthenticated: true,
     });
     return await handler(request);
   } catch {

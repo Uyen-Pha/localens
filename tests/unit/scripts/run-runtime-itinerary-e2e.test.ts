@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  assertGeneratedDatabaseTypesMatch,
   buildIsolatedSupabaseConfig,
   createRuntimeItinerarySecrets,
   parseIsolatedRuntimeStatus,
@@ -18,6 +19,7 @@ import {
   selectRuntimeItineraryBaseEnv,
   startFakeGeminiProvider,
   startOwnedItineraryFunctions,
+  verifyIsolatedDatabaseGate,
 } from "@/scripts/run-runtime-itinerary-e2e.mjs";
 
 const ports = {
@@ -47,12 +49,14 @@ describe("isolated runtime itinerary runner", () => {
     expect(selectRuntimeItineraryBaseEnv({
       PATH: "C:/tools",
       CI: "1",
+      LOCALENS_CAPTURE_QA_PHASE: "reference",
       GEMINI_API_KEY: "must-not-pass-through",
       SUPABASE_SERVICE_ROLE_KEY: "must-not-pass-through",
       DOCKER_HOST: "npipe:////./pipe/docker_engine",
     })).toEqual({
       PATH: "C:/tools",
       CI: "1",
+      LOCALENS_CAPTURE_QA_PHASE: "reference",
       DOCKER_HOST: "npipe:////./pipe/docker_engine",
       NEXT_TELEMETRY_DISABLED: "1",
     });
@@ -161,7 +165,7 @@ describe("isolated runtime itinerary runner", () => {
       }
       return Response.json({
         code: "INVALID_REQUEST",
-        messageKey: "gateway.invalid_request",
+        messageKey: "planner.invalid_request",
         retryable: false,
         correlationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       }, { status: 400 });
@@ -202,7 +206,7 @@ describe("isolated runtime itinerary runner", () => {
       if (name === "recommend-itinerary") {
         return Response.json({
           code: "INVALID_REQUEST",
-          messageKey: "gateway.invalid_request",
+          messageKey: "planner.invalid_request",
           retryable: false,
           correlationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         }, { status: 400 });
@@ -249,6 +253,29 @@ describe("isolated runtime itinerary runner", () => {
       projectId: "localens-itinerary-test",
       ports: { ...ports, api: 54321 },
     })).toThrow(/overlap/i);
+  });
+
+  it.each([
+    "api",
+    "database",
+    "shadow",
+    "pooler",
+    "studio",
+    "mailpitHttp",
+    "mailpitSmtp",
+    "mailpitPop3",
+    "analytics",
+    "inspector",
+  ] as const)("rejects presentation ports in the %s Supabase service slot", (service) => {
+    for (const presentationPort of [54321, 54322]) {
+      expect(() => buildIsolatedSupabaseConfig(
+        'project_id = "localens"\n[api]\nenabled = true\n[db]\nmajor_version = 17\n',
+        {
+          projectId: "localens-itinerary-test",
+          ports: { ...ports, [service]: presentationPort },
+        },
+      )).toThrow(/overlap/i);
+    }
   });
 
   it("copies the pgTAP suite required by the isolated database gate", () => {
@@ -328,6 +355,41 @@ describe("isolated runtime itinerary runner", () => {
     )).toThrow(/isolated project port map/i);
   });
 
+  it("runs lint, generated-type drift, and full concurrency against the isolated database", async () => {
+    const generatedTypes = "export type Database = { public: unknown };\n";
+    const runStep = vi.fn(async (spec: { name: string }) => ({
+      status: 0,
+      stdout: spec.name === "db:types:generate" ? generatedTypes.replaceAll("\n", "\r\n") : "",
+    }));
+    const runConcurrency = vi.fn(async () => ({ ok: true }));
+
+    await expect(verifyIsolatedDatabaseGate({
+      cwd: process.cwd(),
+      workdir: "C:\\isolated-runtime",
+      env: { PATH: process.env.PATH },
+      databaseUrl: `postgresql://postgres:postgres@127.0.0.1:${ports.database}/postgres`,
+      expectedPort: ports.database,
+      logger: vi.fn(),
+      runStep,
+      runConcurrency,
+      readCommittedTypes: () => generatedTypes,
+    })).resolves.toEqual({ ok: true });
+
+    expect(runStep.mock.calls.map(([spec]) => spec.name)).toEqual([
+      "db:lint",
+      "db:types:generate",
+    ]);
+    expect(runConcurrency).toHaveBeenCalledWith({
+      databaseUrl: `postgresql://postgres:postgres@127.0.0.1:${ports.database}/postgres`,
+      expectedPort: ports.database,
+      logger: expect.any(Function),
+    });
+    expect(() => assertGeneratedDatabaseTypesMatch(
+      generatedTypes,
+      "export type Database = { stale: true };\n",
+    )).toThrow(/GENERATED_TYPES_DRIFT/);
+  });
+
   it("orchestrates only owned resources and cleans them in reverse dependency order", async () => {
     const projectRoot = mkdtempSync(join(tmpdir(), "localens-runtime-itinerary-test-"));
     temporaryPaths.push(projectRoot);
@@ -338,7 +400,15 @@ describe("isolated runtime itinerary runner", () => {
     const release = vi.fn(async () => { events.push("ports:release"); });
     const removeProject = vi.fn(() => { events.push("project:remove"); });
     const removeOutputDirectory = vi.fn(() => { events.push("output:remove"); });
-    const runStep = vi.fn(async (spec: { name: string }) => {
+    const runPlannerOperationConcurrency = vi.fn(async () => {
+      events.push("db:planner-operation-concurrency");
+      return { ok: true };
+    });
+    const verifyDatabase = vi.fn(async () => {
+      events.push("db:verify-isolated");
+      return { ok: true };
+    });
+    const runStep = vi.fn(async (spec: { name: string; args?: string[] }) => {
       events.push(spec.name);
       return { status: 0 };
     });
@@ -371,8 +441,12 @@ describe("isolated runtime itinerary runner", () => {
       startServer: vi.fn(async () => ({ stop: async () => { events.push("server:stop"); } })),
       createOutputDirectory: vi.fn(() => outputDirectory),
       removeOutputDirectory,
+      verifyDatabase,
+      runPlannerOperationConcurrency,
       runStep,
       logger: vi.fn(),
+      playwrightSpec: "tests/e2e/runtime-fixed-tour.spec.ts",
+      playwrightConfig: "playwright.runtime-fixed-tour.config.ts",
     })).resolves.toEqual({ ok: true });
 
     expect(events).toEqual([
@@ -380,6 +454,8 @@ describe("isolated runtime itinerary runner", () => {
       "db:start",
       "db:reset",
       "db:test",
+      "db:verify-isolated",
+      "db:planner-operation-concurrency",
       "seed",
       "test:e2e:runtime-itinerary:playwright",
       "server:stop",
@@ -389,6 +465,24 @@ describe("isolated runtime itinerary runner", () => {
       "output:remove",
       "project:remove",
     ]);
+    expect(runPlannerOperationConcurrency).toHaveBeenCalledWith({
+      databaseUrl: `postgresql://postgres:postgres@127.0.0.1:${ports.database}/postgres`,
+      expectedPort: ports.database,
+      logger: expect.any(Function),
+    });
+    expect(verifyDatabase).toHaveBeenCalledWith(expect.objectContaining({
+      cwd: process.cwd(),
+      workdir: projectRoot,
+      databaseUrl: `postgresql://postgres:postgres@127.0.0.1:${ports.database}/postgres`,
+      expectedPort: ports.database,
+    }));
+    const playwrightStep = runStep.mock.calls
+      .map(([spec]) => spec)
+      .find((spec) => spec.name === "test:e2e:runtime-itinerary:playwright");
+    expect(playwrightStep?.args).toEqual(expect.arrayContaining([
+      "tests/e2e/runtime-fixed-tour.spec.ts",
+      "--config=playwright.runtime-fixed-tour.config.ts",
+    ]));
     const envFile = readFileSync(
       join(projectRoot, "supabase", "functions", ".env.runtime-itinerary"),
       "utf8",
@@ -440,6 +534,8 @@ describe("isolated runtime itinerary runner", () => {
       startServer: vi.fn(async () => ({ stop: async () => {} })),
       createOutputDirectory: vi.fn(() => outputDirectory),
       removeOutputDirectory: vi.fn(),
+      verifyDatabase: vi.fn(async () => ({ ok: true })),
+      runPlannerOperationConcurrency: vi.fn(async () => ({ ok: true })),
       runStep,
       logger,
     })).rejects.toMatchObject({ code: "RUNTIME_ITINERARY_CLEANUP_FAILED" });
@@ -493,6 +589,8 @@ describe("isolated runtime itinerary runner", () => {
         : vi.fn(async () => ({ stop: async () => {} })),
       createOutputDirectory: vi.fn(() => outputDirectory),
       removeOutputDirectory: vi.fn(),
+      verifyDatabase: vi.fn(async () => ({ ok: true })),
+      runPlannerOperationConcurrency: vi.fn(async () => ({ ok: true })),
       runStep: vi.fn(async () => ({ status: 0 })),
       logger,
     })).rejects.toMatchObject({ cleanupFailed: true });
@@ -589,6 +687,8 @@ describe("isolated runtime itinerary runner", () => {
       startServer: vi.fn(async () => ({ stop: async () => { events.push("server:stop"); } })),
       createOutputDirectory: vi.fn(() => outputDirectory),
       removeOutputDirectory: vi.fn(() => { events.push("output:remove"); }),
+      verifyDatabase: vi.fn(async () => ({ ok: true })),
+      runPlannerOperationConcurrency: vi.fn(async () => ({ ok: true })),
       runStep,
       logger: vi.fn(),
     })).rejects.toMatchObject({ code: "RUNTIME_ITINERARY_ABORTED" });

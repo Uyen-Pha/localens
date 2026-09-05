@@ -154,9 +154,10 @@ describe("Task 13 RLS/RPC access matrix", () => {
       rpcs: Array<{ name: string; signature: string; owner: string; readerRoles: string[] }>;
       internalFunctions: string[];
     };
-    expect(matrix.tables).toHaveLength(83);
+    expect(matrix.tables).toHaveLength(84);
     expect(matrix.views).toHaveLength(24);
-    expect(matrix.rpcs).toHaveLength(26);
+    expect(matrix.rpcs).toHaveLength(28);
+    expect(matrix.internalFunctions).toHaveLength(110);
     expect(matrix.views).toEqual(expect.arrayContaining([
       expect.objectContaining({
         name: "public.itinerary_fx_snapshot_history_v",
@@ -173,12 +174,44 @@ describe("Task 13 RLS/RPC access matrix", () => {
         securityBarrier: true,
       }),
     ]));
-    expect(matrix.rpcs).toContainEqual(expect.objectContaining({
-      name: "public.advance_authenticated_trip_plan_revision",
-      signature: "public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)",
-      owner: "localens_plan_rpc_owner",
-      readerRoles: ["authenticated"],
-    }));
+    expect(matrix.internalFunctions).toEqual(expect.arrayContaining([
+      "public.create_authenticated_trip_plan(uuid,jsonb)",
+      "public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)",
+      "public.advance_trip_plan_revision(uuid,integer,jsonb)",
+      "private.guard_runtime_planner_operation_transition()",
+    ]));
+    expect(matrix.rpcs).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: "public.claim_runtime_planner_operation",
+        signature: "public.claim_runtime_planner_operation(uuid,uuid,text,text,uuid,integer)",
+        owner: "localens_plan_rpc_owner",
+        readerRoles: ["service_role"],
+      }),
+      expect.objectContaining({
+        name: "public.get_runtime_planner_operation",
+        signature: "public.get_runtime_planner_operation(uuid,uuid,text)",
+        owner: "localens_plan_rpc_owner",
+        readerRoles: ["service_role"],
+      }),
+      expect.objectContaining({
+        name: "public.complete_runtime_recommendation",
+        signature: "public.complete_runtime_recommendation(uuid,uuid,text,uuid,jsonb)",
+        owner: "localens_plan_rpc_owner",
+        readerRoles: ["service_role"],
+      }),
+      expect.objectContaining({
+        name: "public.complete_runtime_refinement",
+        signature: "public.complete_runtime_refinement(uuid,uuid,text,uuid,jsonb)",
+        owner: "localens_plan_rpc_owner",
+        readerRoles: ["service_role"],
+      }),
+      expect.objectContaining({
+        name: "public.reject_runtime_planner_operation",
+        signature: "public.reject_runtime_planner_operation(uuid,uuid,text,uuid,text)",
+        owner: "localens_plan_rpc_owner",
+        readerRoles: ["service_role"],
+      }),
+    ]));
     expect(matrix.rpcs).toContainEqual(expect.objectContaining({
       name: "public.begin_fixed_tour_booking",
       signature: "public.begin_fixed_tour_booking(uuid,integer,public.locale,text)",
@@ -266,6 +299,42 @@ describe("Task 13 RLS/RPC access matrix", () => {
     ]));
     expect(readFileSync(markdownPath, "utf8")).toContain("# LocalLens data-access matrix");
     expect(readFileSync(markdownPath, "utf8")).toContain("Migration owner for default privileges: postgres");
+  });
+
+  it("asserts the operation RPC privilege boundary and legacy route revocation", () => {
+    const migration = readFileSync(
+      join(repoRoot, "supabase", "migrations", "20260905020356_planner_operation_idempotency.sql"),
+      "utf8",
+    );
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA private TO localens_plan_rpc_owner;\s*ALTER TABLE private\.runtime_planner_operations OWNER TO localens_plan_rpc_owner;\s*REVOKE CREATE ON SCHEMA private FROM localens_plan_rpc_owner;/i);
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA private TO localens_plan_rpc_owner;\s*ALTER FUNCTION private\.guard_runtime_planner_operation_transition\(\) OWNER TO localens_plan_rpc_owner;\s*REVOKE CREATE ON SCHEMA private FROM localens_plan_rpc_owner;/i);
+    expect(migration).toMatch(/CREATE POLICY runtime_planner_operations_plan_rpc_owner_all\s+ON private\.runtime_planner_operations/i);
+    expect(migration).toMatch(/USING\s*\(\s*current_user = 'localens_plan_rpc_owner'\s*\)[\s\S]*WITH CHECK\s*\(\s*current_user = 'localens_plan_rpc_owner'\s*\)/i);
+    expect(migration).toMatch(/REVOKE ALL ON TABLE private\.runtime_planner_operations FROM PUBLIC, anon, authenticated, service_role/i);
+    expect(migration).toMatch(/GRANT SELECT, INSERT, UPDATE ON TABLE private\.runtime_planner_operations TO localens_plan_rpc_owner/i);
+
+    const operationFunctions = [
+      "claim_runtime_planner_operation",
+      "get_runtime_planner_operation",
+      "complete_runtime_recommendation",
+      "complete_runtime_refinement",
+      "reject_runtime_planner_operation",
+    ];
+    for (const name of operationFunctions) {
+      expect(migration).toMatch(new RegExp(`ALTER FUNCTION public\\.${name}\\([^;]+\\)\\s+OWNER TO localens_plan_rpc_owner`, "i"));
+      expect(migration).toMatch(new RegExp(`REVOKE ALL ON FUNCTION public\\.${name}\\([^;]+\\) FROM PUBLIC, anon, authenticated, service_role`, "i"));
+      expect(migration).toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${name}\\([^;]+\\) TO service_role`, "i"));
+    }
+    expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_plan_rpc_owner;[\s\S]*ALTER FUNCTION public\.claim_runtime_planner_operation\([^;]+\)\s+OWNER TO localens_plan_rpc_owner;[\s\S]*ALTER FUNCTION public\.reject_runtime_planner_operation\([^;]+\)\s+OWNER TO localens_plan_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_plan_rpc_owner;/i);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*REVOKE ALL ON FUNCTION public\.claim_runtime_planner_operation\([^;]+\) FROM PUBLIC, anon, authenticated, service_role;[\s\S]*GRANT EXECUTE ON FUNCTION public\.reject_runtime_planner_operation\([^;]+\) TO service_role;[\s\S]*REVOKE ALL ON FUNCTION public\.advance_trip_plan_revision\([^;]+\) FROM PUBLIC, anon, authenticated, service_role;\s*RESET ROLE;/i);
+    for (const name of [
+      "create_authenticated_trip_plan",
+      "advance_authenticated_trip_plan_revision",
+      "advance_trip_plan_revision",
+    ]) {
+      expect(migration).toMatch(new RegExp(`REVOKE ALL ON FUNCTION public\\.${name}\\([^;]+\\) FROM PUBLIC, anon, authenticated, service_role`, "i"));
+      expect(migration).not.toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${name}\\([^;]+\\) TO (?:anon|authenticated|service_role)`, "i"));
+    }
   });
 
   it("fails closed when generated policies or later definer hardening drift", () => {

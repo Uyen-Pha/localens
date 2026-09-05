@@ -2,7 +2,7 @@ BEGIN;
 
 SELECT plan(49);
 
-GRANT USAGE ON SCHEMA extensions TO authenticated, service_role;
+GRANT USAGE ON SCHEMA extensions TO authenticated, service_role, localens_plan_rpc_owner;
 SELECT set_config('search_path', 'public, extensions, pg_catalog', true);
 
 -- The fixture deliberately includes unpublished metadata, a newer demo FX
@@ -161,7 +161,7 @@ SELECT jsonb_build_object(
 ) AS persistence_dto
 FROM request_fixture;
 
-GRANT SELECT ON ai_runtime_fixture TO authenticated;
+GRANT SELECT ON ai_runtime_fixture TO authenticated, localens_plan_rpc_owner;
 
 SELECT extensions.ok(
   to_regclass('public.current_itinerary_snapshot_v') IS NOT NULL
@@ -265,7 +265,7 @@ SELECT extensions.ok(
   'history projections expose only immutable published production facts'
 );
 
-SELECT extensions.ok(has_function_privilege('authenticated', 'public.create_authenticated_trip_plan(uuid,jsonb)', 'EXECUTE'), 'authenticated can create its initial itinerary revision');
+SELECT extensions.ok(NOT has_function_privilege('authenticated', 'public.create_authenticated_trip_plan(uuid,jsonb)', 'EXECUTE'), 'authenticated cannot bypass the operation-aware planner write surface');
 SELECT extensions.ok(
   NOT has_function_privilege('anon', 'public.create_authenticated_trip_plan(uuid,jsonb)', 'EXECUTE')
   AND NOT has_function_privilege('service_role', 'public.create_authenticated_trip_plan(uuid,jsonb)', 'EXECUTE'),
@@ -306,9 +306,9 @@ CREATE TEMP TABLE ai_runtime_created (
   plan_id uuid,
   revision_no integer
 ) ON COMMIT DROP;
-GRANT INSERT, SELECT ON ai_runtime_created TO authenticated;
+GRANT INSERT, SELECT ON ai_runtime_created TO authenticated, localens_plan_rpc_owner;
 
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '', true);
 SELECT set_config(
   'request.jwt.claims',
@@ -322,7 +322,7 @@ SELECT extensions.lives_ok($$
     '00000000-0000-0000-0000-000000004121'::uuid,
     (SELECT persistence_dto FROM ai_runtime_fixture)
   )
-$$, 'authenticated customer creates revision one from JWT claims fallback');
+$$, 'internal create routine derives the customer from JWT claims fallback');
 RESET ROLE;
 SELECT extensions.is((SELECT count(*)::integer FROM ai_runtime_created), 1, 'create RPC returns one plan binding');
 SELECT extensions.is((
@@ -355,7 +355,7 @@ SELECT extensions.is((
 ), 1, 'owner reads the revision through claims JSON used by PostgREST');
 RESET ROLE;
 
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000004101', true);
 SELECT extensions.lives_ok($$
   SELECT *
@@ -371,7 +371,7 @@ SELECT extensions.ok(
   'exact create replay adds no history rows'
 );
 
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000004101', true);
 SELECT extensions.throws_ok($$
   SELECT *
@@ -391,7 +391,7 @@ SELECT extensions.is((
 ), 0, 'another authenticated customer cannot read the created plan');
 RESET ROLE;
 
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000004103', true);
 SELECT extensions.throws_ok($$
   SELECT *
@@ -402,7 +402,7 @@ SELECT extensions.throws_ok($$
 $$, '42501', 'customer role required', 'authenticated principal without customer role is rejected');
 RESET ROLE;
 
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000004101', true);
 SELECT extensions.throws_ok($$
   SELECT *
@@ -419,10 +419,11 @@ SELECT extensions.is((
 ), 0, 'failed validation rolls back the empty plan row');
 
 SELECT extensions.ok(
-  to_regprocedure('public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)') IS NOT NULL,
-  'authenticated refinement wrapper exists'
+  to_regprocedure('public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)') IS NOT NULL
+  AND NOT has_function_privilege('authenticated', 'public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)', 'EXECUTE'),
+  'internal refinement wrapper exists without browser execute access'
 );
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE localens_plan_rpc_owner;
 SELECT set_config('request.jwt.claim.sub', '', true);
 SELECT set_config(
   'request.jwt.claims',
@@ -439,7 +440,7 @@ SELECT extensions.lives_ok($$
       '{fingerprint}', to_jsonb(repeat('d', 64)), false
     )
   )
-$$, 'authenticated customer advances through claims JSON used by PostgREST');
+$$, 'internal refinement wrapper advances through the verified claims JSON');
 RESET ROLE;
 SELECT extensions.is((
   SELECT latest_revision_no

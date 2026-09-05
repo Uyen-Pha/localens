@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 // @ts-expect-error The executable JavaScript boundary is covered by focused runtime tests.
 import { createRuntimeAuthPasswords, dockerCliDirectories, ensureDockerCliOnPath, forceOwnedRuntimeProcessTree, parseLocalRuntimeStatus, requirePinnedLocalSupabase, runRuntimeAuthE2E, startOwnedRuntimeServer, stopOwnedRuntimeServer } from "@/scripts/run-runtime-auth-e2e.mjs";
+// @ts-expect-error The executable JavaScript boundary is covered by focused runtime tests.
+import { createIsolatedRuntimeAuthOptions } from "@/scripts/run-runtime-auth-isolated-e2e.mjs";
 
 const LOCAL_STATUS = [
   'API_URL="http://127.0.0.1:54321"',
@@ -27,6 +29,14 @@ afterEach(() => {
 });
 
 describe("Task 6 runtime Auth runner", () => {
+  it("routes the executable Auth gate through the isolated random-port harness", () => {
+    expect(createIsolatedRuntimeAuthOptions({ env: { PATH: "C:/tools" } })).toEqual({
+      env: { PATH: "C:/tools" },
+      playwrightSpec: "tests/e2e/runtime-auth.spec.ts",
+      playwrightConfig: "playwright.runtime.config.ts",
+    });
+  });
+
   it("accepts only the loopback Supabase status fields needed by browser and seed children", () => {
     expect(parseLocalRuntimeStatus(LOCAL_STATUS)).toEqual({
       apiUrl: "http://127.0.0.1:54321",

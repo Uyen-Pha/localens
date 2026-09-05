@@ -102,6 +102,15 @@ export function parseIsolatedRuntimeStatus(
   serviceRoleKey: string;
 };
 
+export function assertGeneratedDatabaseTypesMatch(
+  committed: string,
+  generated: string,
+): void;
+
+export function verifyIsolatedDatabaseGate(
+  options: Record<string, unknown>,
+): Promise<{ ok: true }>;
+
 export function runRuntimeItineraryE2E(
   options?: Record<string, unknown>,
 ): Promise<{ ok: true }>;

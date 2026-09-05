@@ -13,6 +13,7 @@ import {
   startOwnedRuntimeServer,
 } from "./run-runtime-auth-e2e.mjs";
 import { requireLocalSupabaseCli, runLocalSupabase } from "./supabase-local.mjs";
+import { runRuntimeItineraryE2E } from "./run-runtime-itinerary-e2e.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const LOCAL_DATABASE_PORT = "54322";
@@ -306,13 +307,41 @@ export async function runRuntimeFixedTourE2E(options = {}) {
   if (cleanupError) throw cleanupError;
 }
 
+export function createIsolatedRuntimeFixedTourOptions(options = {}) {
+  return {
+    ...options,
+    playwrightSpec: "tests/e2e/runtime-fixed-tour.spec.ts",
+    playwrightConfig: "playwright.runtime-fixed-tour.config.ts",
+  };
+}
+
+export function runIsolatedRuntimeFixedTourE2E(options = {}) {
+  return runRuntimeItineraryE2E(createIsolatedRuntimeFixedTourOptions(options));
+}
+
 export async function runRuntimeFixedTourE2EMain({
-  run = runRuntimeFixedTourE2E,
+  run = runIsolatedRuntimeFixedTourE2E,
   errorLogger = console.error,
+  signals = process,
 } = {}) {
+  const controller = new AbortController();
+  let receivedSignal;
+  const receiveSignal = (name, status) => {
+    if (receivedSignal) return;
+    receivedSignal = { name, status };
+    controller.abort(runtimeError(
+      "RUNTIME_FIXED_TOUR_ABORTED",
+      `isolated local fixed-tour acceptance received ${name}`,
+      { status },
+    ));
+  };
+  const onSigint = () => receiveSignal("SIGINT", 130);
+  const onSigterm = () => receiveSignal("SIGTERM", 143);
+  signals.once("SIGINT", onSigint);
+  signals.once("SIGTERM", onSigterm);
   try {
-    await run();
-    return 0;
+    await run({ signal: controller.signal });
+    return receivedSignal?.status ?? 0;
   } catch (error) {
     const stable = stableError(error);
     const messages = [stable.message];
@@ -328,7 +357,10 @@ export async function runRuntimeFixedTourE2EMain({
         // Logging failure must not change the stable exit contract.
       }
     }
-    return stable.status ?? 2;
+    return receivedSignal?.status ?? stable.status ?? 2;
+  } finally {
+    signals.removeListener("SIGINT", onSigint);
+    signals.removeListener("SIGTERM", onSigterm);
   }
 }
 
