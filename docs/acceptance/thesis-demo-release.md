@@ -2,24 +2,26 @@
 
 ## Decision
 
-Task 15 records a reproducible release-candidate baseline. It does not claim a
-cloud deployment.
+Task 17 extends the reproducible release candidate with a guarded, synthetic
+cloud-seed package and disposable local-database acceptance. It does not claim
+a cloud deployment.
 
 | Field | Recorded value |
 | --- | --- |
 | Repository | [Uyen-Pha/localens](https://github.com/Uyen-Pha/localens) — **PUBLIC** |
 | Candidate branch | `codex/task7-clean-typecheck` |
-| Candidate SHA | `b86dc3dbbe0d220f734b58d3345bf9b716ab32e7` |
+| Candidate SHA | `caeb182acceb9a3c5b4604500de7a5b732925de2` |
 | Default branch at capture | `main` at `b9f08d589bb972d290c4c367e8a02c636224d512` |
-| Candidate relation to `main` | 5 commits ahead, 0 commits behind |
+| Candidate relation to `main` | 7 commits ahead, 0 commits behind |
 | Product SHA | `0a4c8ecd87dc1413471c464730d4632f63278e41` |
 | Evidence SHA | `392160d4948dd0e4d75988e6879f65f999cffe44` |
 | CI portability SHA | `66d1b2c957cf16e9d10ac6ac2c8884007cffb099` |
 | Task 14 acceptance SHA | `11ced60a1e7127b1e7507722de346ce00339182d` |
 | Task 15 release-document SHA | `b86dc3dbbe0d220f734b58d3345bf9b716ab32e7` |
+| Task 17 seed product SHA | `caeb182acceb9a3c5b4604500de7a5b732925de2` |
 | Accepted HEAD CI | [GitHub Actions 33968403528](https://github.com/Uyen-Pha/localens/actions/runs/33968403528) — **PASS** |
 | Captured on | 2026-09-05, Asia/Ho_Chi_Minh |
-| Candidate label | `thesis-demo-candidate@b86dc3dbbe0d220f734b58d3345bf9b716ab32e7` |
+| Candidate label | `thesis-demo-candidate@caeb182acceb9a3c5b4604500de7a5b732925de2` |
 
 The candidate is intentionally still on its public candidate branch. It has
 not been merged into `main`, linked to a cloud backend, or promoted to a public
@@ -30,7 +32,7 @@ web deployment.
 | Layer | Status | Evidence and limit |
 | --- | --- | --- |
 | Fixture demo | **PASS** | Google Chrome fixture acceptance passed 34/34. This is deterministic demo behavior, not cloud runtime. |
-| Isolated local runtime | **PASS** | Local Supabase Auth/PostgreSQL/RLS/RPC/Edge integration passed on runner-owned random ports. The presentation database on standard ports was not mutated. |
+| Isolated local runtime | **PASS** | Local Supabase Auth/PostgreSQL/RLS/RPC/Edge integration passed on runner-owned random ports. Task 17 additionally passed 1,744 pgTAP assertions, apply-twice exact graph verification, rollback probes, and a real cancellation RPC rolled back to the seed graph. The presentation database on standard ports was not mutated. |
 | Public repository | **PASS** | Repository visibility is public; candidate and evidence commits are pushed to the branch above. |
 | Public CI | **PASS** | `quality-demo` passed in 3m16s, Chrome `demo-e2e` in 3m07s, and `runtime-local` in 10m33s at the accepted HEAD. The cloud-only job is separately **SKIPPED/PENDING**. |
 | Supabase Cloud backend | **PENDING — Task 18** | No selected project ref, migration deployment, function version, secret-store verification, or cloud seed is recorded. |
@@ -44,7 +46,7 @@ collected and no real payment processor is contacted.
 
 ## Candidate changeset
 
-The accepted candidate is the baseline `b9f08d5` plus five commits:
+The Task 17 product candidate is the baseline `b9f08d5` plus seven commits:
 
 | Commit | Scope |
 | --- | --- |
@@ -53,9 +55,11 @@ The accepted candidate is the baseline `b9f08d5` plus five commits:
 | `66d1b2c` | One cross-platform runtime-auth test fixture; strict runtime output guards unchanged. |
 | `11ced60` | One Task 14 acceptance ledger update. |
 | `b86dc3d` | Task 15 release-candidate record and Vietnamese cloud runbook. |
+| `eec6a05` | Task 16 public-repository and accepted CI evidence. |
+| `caeb182` | Guarded thesis-demo v1 dataset, cloud seeder, migration marker, and tests. |
 
 The full committed path inventory is available from `git diff --name-only
-b9f08d589bb972d290c4c367e8a02c636224d512..b86dc3dbbe0d220f734b58d3345bf9b716ab32e7`.
+b9f08d589bb972d290c4c367e8a02c636224d512..caeb182acceb9a3c5b4604500de7a5b732925de2`.
 Any later implementation, seed, smoke-runner, environment, or deployment change
 invalidates this candidate identity and requires a new candidate SHA and the
 gates listed in the release plan.
@@ -64,7 +68,7 @@ gates listed in the release plan.
 
 Hashes are lowercase SHA-256 of the committed file bytes, in filename order.
 The current migration head is
-`20260905020356_planner_operation_idempotency.sql`.
+`20260905140000_thesis_demo_manifest.sql`.
 
 | Order | Migration | SHA-256 |
 | ---: | --- | --- |
@@ -98,6 +102,7 @@ The current migration head is
 | 28 | `20260904140000_itinerary_snapshot_history.sql` | `6b348d15b2925b823094c303161725bdb5a115c8caf0251efb53751be9bc95e3` |
 | 29 | `20260904150000_authenticated_revision_wrapper.sql` | `6532c7b5ee676dbf87ab6d7b8f7bd12c29dac0f81c2b82dbd0b02240076b082c` |
 | 30 | `20260905020356_planner_operation_idempotency.sql` | `de34e11cf2db3c72bcc9cb61d31add9d4e9c8b73ad2876478542d13b1b4583d0` |
+| 31 | `20260905140000_thesis_demo_manifest.sql` | `e6cdd5439a726a2d4b86138f0332f896a35c9e49fb2afda94f2f97b846777592` |
 
 ## Edge Function source manifest
 
@@ -130,14 +135,15 @@ after migration and secret verification.
 | Field | Status |
 | --- | --- |
 | `supabase/seed.sql` | **ABSENT by design at this candidate** |
-| Thesis demo dataset version | **PENDING — Task 17** |
-| Cloud seed manifest row | **PENDING — Task 17/18** |
+| Thesis demo dataset version | **PASS locally — `thesis-demo.v1`, SHA-256 `c2e26f3a24f803e7cbc20d3f777da92eadccf48208ae3271abb5277fb6515b8f`** |
+| Guarded cloud seeder | **PASS locally — library `ad9d6850cfa704a52afc27c375607ae18635ed35794a779181f81cdbdbe4a6da`; entrypoint `a634a0633c836c8f570cddb8c8713dd3e6f3da46027aca2f9c3d728651a3745b`** |
+| Cloud seed manifest row | **PENDING — Task 18; no cloud row exists yet** |
 | Cloud demo identities | **PENDING — no passwords or users are recorded here** |
 
-The current research approval/readiness generator remains fail-closed and must
-not be bypassed. Task 17 will introduce the separately labelled synthetic or
-source-approved thesis dataset, version marker, guarded seeder, and tests. That
-work will create a new candidate SHA.
+The current research approval/readiness generator remains fail-closed and was
+not bypassed. Task 17 introduced a separately labelled synthetic dataset,
+version marker, guarded seeder, and tests at the product SHA above. It did not
+seed Supabase Cloud.
 
 ## Browser-safe build variables
 
@@ -178,7 +184,7 @@ must equal the pinned `gemini-3.6-flash`. The local-only
 | Google Chrome used for local visual/browser acceptance | `152.0.7977.65` |
 | Git | `2.53.0.windows.1` |
 | GitHub CLI | `2.98.0` |
-| `package.json` SHA-256 | `d497643e337d6e44e344eb30d67592e36cedca553397597cbb393bc3699b4438` |
+| `package.json` SHA-256 | `b0fa8e727baca367bb5db046fbb2fb8f7dc9f8436b7e189269de87097d969c46` |
 | `pnpm-lock.yaml` SHA-256 | `dbcfe8a83081b01ced32c7f4875222144e2d21eba121c4527a7aa0338c7bee4a` |
 | `.github/workflows/ci.yml` SHA-256 | `0069b0365bae433fa11b7635bebccf16458d955edd289b9d1fed343fbc5422bd` |
 | `supabase/config.toml` SHA-256 | `a2f050e5aec1d0ee88495a086e40ecb031d2f75121223370c38eb16fed6e3172` |
@@ -251,6 +257,34 @@ completed successfully; the warning remains a maintenance item and is not
 hidden with `continue-on-error`. No `.github/workflows/ci.yml` or `package.json`
 change was necessary for this gate.
 
+## Task 17 seed-package acceptance
+
+Task 17 changed exactly 11 reviewed paths at `caeb182`. The manifest pins four
+exact `key/email/role/audience` tuples across three roles, 12 bilingual
+synthetic places, three fixed tours, five dated departures, two QA-owned
+booking fixtures, one complete pending-payment checkout graph, and one guide
+assignment. Payment remains simulated; there is no provider session or payment
+row on the cancellation fixture.
+
+The final verification sequence recorded:
+
+- full local unit regression immediately before the allowlist-only hardening:
+  136 files and 1,942 tests passed;
+- focused G17 regression after that hardening: 3 files and 85 tests passed;
+- TypeScript typecheck, ESLint with zero warnings, `git diff --check`, and
+  static validation of all 31 migrations passed;
+- a disposable random-port Supabase project passed 21 pgTAP files and 1,744
+  assertions, then proved forced pre-marker rollback, Auth-trigger recovery,
+  two identical applies, an exact 86-relation inventory with zero unclassified
+  rows, real `public.cancel_booking` success followed by rollback to the exact
+  seed graph, and stable-content conflict refusal with the marker unchanged;
+- independent final review returned PASS with no actionable finding after a
+  role-swap mutation test was added.
+
+These are local and CI-ready facts only. Task 18 must still select the isolated
+Supabase project, review remote drift, push migrations without reset, provision
+secrets/accounts, run dry-run/apply twice, and record the cloud marker.
+
 ## Preserved dirty baseline
 
 The following pre-existing local paths remain outside Task 15 and must not be
@@ -287,3 +321,10 @@ local/CI jobs are green on that SHA, and the absent cloud target remains
 explicitly SKIPPED/PENDING. This record meets those conditions at `b86dc3d` and
 opens Task 17. It does not claim Supabase Cloud, live Gemini, Vercel preview, or
 production acceptance.
+
+## Task 17 gate
+
+Task 17 passes only when the 11-path product commit, disposable integration
+evidence, exact local verification, independent review, public push, and CI for
+the resulting branch head are all green. Passing this gate opens Task 18; it
+does not itself claim a Supabase Cloud mutation or advance Tasks 18–22.
