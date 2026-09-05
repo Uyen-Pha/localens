@@ -98,6 +98,9 @@ connection panel or a supported Management API response:
 Never create either file by parsing the database URL. A shared pooler hostname
 alone is insufficient: project ref, organization, runtime endpoint, hostname,
 username, database, port, and the live TLS verification must all agree.
+Port `6543` above is a transaction-pooler example. A Management API-verified
+direct host may instead use user `postgres`, database `postgres`, and port
+`5432`; the metadata and the live client connection must still match exactly.
 
 ## Process-only environment
 
@@ -109,6 +112,7 @@ them to Auth.
 LOCALLENS_THESIS_DEMO_SEED_CONFIRM=localens-thesis-demo
 LOCALLENS_THESIS_DEMO_SEED_DRY_RUN=1
 LOCALLENS_THESIS_DEMO_DB_URL=<verified PostgreSQL URL with sslmode=verify-full>
+NODE_EXTRA_CA_CERTS=<path to the verified Supabase CA certificate when Node does not already trust it>
 LOCALLENS_THESIS_DEMO_EXPECTED_PROJECT_REF=<verified project ref>
 LOCALLENS_THESIS_DEMO_EXPECTED_ORGANIZATION_ID=<verified organization id>
 LOCALLENS_THESIS_DEMO_SELECTED_PROJECT_FILE=<absolute temporary file path>
@@ -123,6 +127,16 @@ LOCALLENS_DEMO_QA_CUSTOMER_PASSWORD=<process-only value>
 
 Do not print the shell environment. Do not save a plaintext env file in the
 repository.
+
+If Node reports `SELF_SIGNED_CERT_IN_CHAIN`, do not weaken TLS or change
+`sslmode`. Download the certificate linked by the selected project's Database
+Settings page, validate that it is the public `Supabase Root 2021 CA` without a
+private key, and set `NODE_EXTRA_CA_CERTS` only in the operator process. The
+Task 18 certificate observed on 2026-09-06 was downloaded from the authenticated
+Supabase dashboard and had SHA-256 fingerprint
+`700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7`;
+it expires in 2031. The seeder must still observe both an encrypted and an
+authorized live TLS stream.
 
 ## Dry-run
 
@@ -176,9 +190,10 @@ match.
 
 ## Apply and safe rerun
 
-Review the dry-run result before changing the mode. For apply, remove
-`LOCALLENS_THESIS_DEMO_SEED_DRY_RUN` from the process environment and rerun the
-same command.
+Review the dry-run result before changing the mode. For apply, set
+`LOCALLENS_THESIS_DEMO_SEED_DRY_RUN=0` exactly and rerun the same command. Never
+remove the selector: the CLI accepts only explicit `"1"` for dry-run and
+explicit `"0"` for apply.
 
 Apply sequencing is fixed:
 

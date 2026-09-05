@@ -2,14 +2,14 @@
 
 ## Mục tiêu hiện tại
 
-Runbook này khóa release candidate tiền cloud
-`5bba6564e80bb3abf259409c475d2f81e000a4b3` trên nhánh công khai
+Runbook này khóa release candidate backend cloud
+`d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6` trên nhánh công khai
 `codex/task7-clean-typecheck` của
 [Uyen-Pha/localens](https://github.com/Uyen-Pha/localens).
 
-Ở đầu Task 18, đây là bản ứng viên đã qua Task 17, guard cloud fail-closed,
-local runtime và public CI trên đúng SHA. Chưa có Supabase organization/project,
-Gemini thật, Vercel preview hay production URL được nghiệm thu.
+Task 18 đã nghiệm thu một Supabase Cloud project riêng cho đồ án: migration,
+Auth, Edge Functions, secret/config và dataset tổng hợp đều có readback. Gemini
+thật vẫn tắt; chưa có Vercel preview hoặc production URL được nghiệm thu.
 Thanh toán luôn là mô phỏng; không cấu hình cổng thanh toán hoặc thu thập số thẻ.
 
 ## Ranh giới an toàn bắt buộc
@@ -36,12 +36,13 @@ Thanh toán luôn là mô phỏng; không cấu hình cổng thanh toán hoặc 
 
 | Thành phần | Giá trị |
 | --- | --- |
-| Candidate SHA | `5bba6564e80bb3abf259409c475d2f81e000a4b3` |
+| Candidate SHA | `d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6` |
 | Task 17 seed product SHA | `caeb182acceb9a3c5b4604500de7a5b732925de2` |
 | Task 17 acceptance SHA | `f476e83c40c1b8ee65df696f6a1fd9e7654332ba` |
 | Task 18 cloud-guard SHA | `5bba6564e80bb3abf259409c475d2f81e000a4b3` |
+| Task 18 hosted-migration SHA | `d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6` |
 | Migration head | `20260905140000_thesis_demo_manifest.sql` |
-| Public CI | [Run 33980046296](https://github.com/Uyen-Pha/localens/actions/runs/33980046296) — PASS |
+| Public CI | [Run 33983849459](https://github.com/Uyen-Pha/localens/actions/runs/33983849459) — PASS |
 | Trình duyệt nghiệm thu | Google Chrome `152.0.7977.65` |
 
 Manifest checksum đầy đủ nằm trong
@@ -57,19 +58,19 @@ git rev-parse --abbrev-ref HEAD
 git rev-parse HEAD
 git status --short
 git rev-parse origin/codex/task7-clean-typecheck
-git merge-base --is-ancestor 5bba6564e80bb3abf259409c475d2f81e000a4b3 HEAD
-git diff --name-only 5bba6564e80bb3abf259409c475d2f81e000a4b3..HEAD
+git merge-base --is-ancestor d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6 HEAD
+git diff --name-only d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6..HEAD
 gh repo view Uyen-Pha/localens --json nameWithOwner,visibility,url,defaultBranchRef
-gh run view 33980046296 --json status,conclusion,headSha,url,jobs
+gh run view 33983849459 --json status,conclusion,headSha,url,jobs
 corepack.cmd pnpm --version
 corepack.cmd pnpm exec supabase --version
 ```
 
-Kỳ vọng trước mutation Task 18:
+Kỳ vọng trước mọi mutation cloud tiếp theo:
 
 - nhánh `codex/task7-clean-typecheck`;
-- local HEAD và remote branch cùng SHA; candidate `5bba656` là ancestor, và
-  các commit sau candidate chỉ được đổi hai tài liệu release đã review;
+- local HEAD và remote branch cùng SHA; candidate `d5b8ea8` là ancestor, và
+  các commit sau candidate chỉ được đổi tài liệu release đã review;
 - repo `PUBLIC`;
 - CI `success` trên đúng head;
 - pnpm `10.17.1`, Supabase CLI `2.115.0`;
@@ -89,7 +90,7 @@ thật và bằng chứng thật:
 | Fixture demo | PASS | Giữ Chrome E2E xanh trên candidate mới. |
 | Local runtime | PASS | Giữ DB/RLS/concurrency/auth/AI-contract/fixed-tour/guide xanh trên candidate mới. |
 | Public CI | PASS | Tất cả job bắt buộc xanh trên đúng HEAD. |
-| Supabase Cloud | PENDING | G18 xác minh project, migrations, Functions, secrets và seed. |
+| Supabase Cloud | PASS | G18: 31/31 migration, 2 Function v1/JWT, Auth khóa signup công khai, 4 custom secret/config và seed graph exact. |
 | Live AI smoke | PENDING | G19 có request Gemini thật giới hạn, fallback và quyền/readback. |
 | Vercel preview | PENDING | G20 có deployment ID, URL và Chrome browser-origin acceptance. |
 | Product QA cloud | PENDING | G21 hoàn thành 20 kịch bản và bằng chứng UX. |
@@ -138,8 +139,9 @@ biến này trên Supabase Cloud.
 1. Xác minh remote/owner/visibility và quét secret trên toàn history sẽ public.
 2. Đối chiếu CI với candidate; giữ local quality, Chrome demo và isolated
    runtime.
-3. Staging smoke thiếu URL phải ở trạng thái PENDING/SKIPPED rõ ràng; G22 vẫn
-   yêu cầu một cloud smoke thật PASS.
+3. Staging smoke thiếu URL phải ở trạng thái PENDING/SKIPPED rõ ràng; G19 vẫn
+   yêu cầu bounded live-AI cloud smoke và G22 yêu cầu smoke riêng trên URL
+   production cuối.
 4. Nếu workflow hoặc code thay đổi, tạo candidate SHA mới và chạy CI lại.
 
 ### Task 17 — Dataset đồ án có version
@@ -148,7 +150,7 @@ biến này trên Supabase Cloud.
    dataset version.
 2. Thêm marker schema `private.thesis_demo_manifest` bằng migration mới.
 3. Tạo seeder guard fail-closed, dry-run không mutation, apply idempotent và
-   postcondition 4 account/3 role.
+   postcondition 4 account, 4 role row thuộc 3 role category.
 4. Chạy SQL privilege/rollback test trong project local cô lập; không cloud
    seed ở task này.
 5. Vì đây là thay đổi code/schema, cập nhật candidate, checksum và CI.
@@ -169,10 +171,38 @@ Hai lệnh sau chỉ được chạy sau khi link target đã được xác minh
 
 ```powershell
 corepack.cmd pnpm exec supabase migration list --linked
-corepack.cmd pnpm exec supabase db push --linked --dry-run
+corepack.cmd pnpm exec supabase db push --linked --dry-run --skip-vault
 ```
 
 Không chạy `db reset --linked`.
+
+Kết quả G18 ghi nhận ngày 2026-09-06:
+
+- tài khoản có đúng một project `localens-thesis-demo`, gói Free, vùng
+  Singapore và trạng thái `ACTIVE_HEALTHY`; project ref/organization ID không
+  được ghi vào Git;
+- migration 4 đã commit schema nhưng lần chạy đầu không ghi được history do
+  `RESET ROLE` làm mất session role của hosted CLI. Candidate `d5b8ea8` loại
+  session-level reset, giữ `SET LOCAL ROLE postgres`, vượt 1.952 unit tests và
+  public CI. Chỉ sau khi truy vấn read-only xác minh toàn bộ object của migration
+  4 đã tồn tại và history còn thiếu, operator mới dùng `migration repair
+  --status applied` cho đúng một version theo tài liệu Supabase; 27 migration
+  còn lại được push forward-only;
+- readback cuối có 31 version local/remote và `db push --dry-run --skip-vault`
+  trả về up-to-date;
+- `recommend-itinerary` và `refine-itinerary` đều `ACTIVE`, version `1`,
+  `verify_jwt=true`;
+- bốn custom secret/config đã đặt là `ALLOWED_ORIGINS`, `GEMINI_MODEL`,
+  `LOCALLENS_GEMINI_ENABLED`, `LOCALLENS_QUOTA_HMAC_KEY`; Gemini đang tắt và
+  `GEMINI_API_KEY` chưa tồn tại;
+- Email provider vẫn bật, confirm-email bật; public signup, anonymous sign-in
+  và manual linking đều tắt theo dashboard readback;
+- seed chạy `dry-run -> apply -> apply` trên kết nối TLS được xác thực. Lượt đầu
+  tạo bốn Auth identity, lượt hai tái sử dụng cả bốn; postcondition là 4 account,
+  4 role row thuộc 3 role category, 12 place, 3 tour, 5 departure, 2 booking,
+  1 assignment, 1 marker, 86 relation, 0 unclassified row, graph `exact`;
+- không có reset/truncate/down migration; Supabase local trình chiếu trên cổng
+  chuẩn không bị chạm. Thanh toán vẫn chỉ là dữ liệu mô phỏng.
 
 ### Task 19 — Cloud smoke giới hạn
 
