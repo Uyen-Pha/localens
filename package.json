@@ -38,6 +38,7 @@
     "db:types:check": "node scripts/check-generated-db-types.mjs",
     "db:concurrency": "node scripts/test-db-concurrency.mjs",
     "db:planner-operation-concurrency": "node scripts/test-planner-operation-concurrency.mjs",
+    "db:thesis-demo-upgrade-locking": "node scripts/test-thesis-demo-upgrade-locking.mjs",
     "db:stop": "node scripts/supabase-local.mjs stop",
     "db:verify": "node scripts/run-db-gate.mjs",
     "check": "pnpm lint && pnpm typecheck && pnpm test:run --no-file-parallelism --testTimeout=30000 && pnpm db:static && pnpm build:demo"

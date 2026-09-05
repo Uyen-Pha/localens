@@ -92,6 +92,15 @@ export const THESIS_DEMO_RELATIONS = Object.freeze([
   "public.trip_plan_revisions",
   "public.trip_plans",
 ]);
+const THESIS_DEMO_QA_REGISTRY_RELATION = "private.thesis_demo_qa_slots";
+const THESIS_DEMO_INVENTORY_WRITE_LOCK_RELATIONS = Object.freeze(
+  THESIS_DEMO_RELATIONS
+    .filter((relation) => relation !== THESIS_DEMO_QA_REGISTRY_RELATION)
+    .sort(),
+);
+const THESIS_DEMO_INVENTORY_LOCK_OWNERS = Object.freeze({
+  "private.runtime_planner_operations": "localens_plan_rpc_owner",
+});
 const THESIS_DEMO_CLASSIFICATION = "synthetic_demo";
 const THESIS_DEMO_TIMEZONE = "Asia/Ho_Chi_Minh";
 const THESIS_DEMO_ACCOUNT_ALLOWLIST = Object.freeze([
@@ -1696,6 +1705,19 @@ function applySummary() {
   };
 }
 
+export async function lockThesisDemoInventory(query) {
+  // Registry readers take ACCESS SHARE for the lifetime of their transaction.
+  // Taking this lock first lets a lifecycle RPC that already observed an empty
+  // registry finish before the seed snapshot, while later RPCs wait for v2.
+  await query(`LOCK TABLE ${THESIS_DEMO_QA_REGISTRY_RELATION} IN ACCESS EXCLUSIVE MODE`);
+  for (const relation of THESIS_DEMO_INVENTORY_WRITE_LOCK_RELATIONS) {
+    const ownerRole = THESIS_DEMO_INVENTORY_LOCK_OWNERS[relation];
+    if (ownerRole) await query(`SET LOCAL ROLE ${ownerRole}`);
+    await query(`LOCK TABLE ${relation} IN SHARE ROW EXCLUSIVE MODE`);
+    if (ownerRole) await query("RESET ROLE");
+  }
+}
+
 export async function runThesisDemoApplyTransaction({
   query,
   dataset,
@@ -1713,9 +1735,10 @@ export async function runThesisDemoApplyTransaction({
   const qaCustomer = identityRows.find(({ email }) => email === "customer.qa@localens.invalid");
   let started = false;
   try {
-    await query("BEGIN ISOLATION LEVEL SERIALIZABLE READ WRITE");
+    await query("BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE");
     started = true;
     await query("SET LOCAL statement_timeout = '15s'");
+    await lockThesisDemoInventory(query);
     const initialGraph = await inspectDatasetGraph({ query, dataset, projectRef, identities });
     if (initialGraph?.state === "conflict") {
       throw seedError("THESIS_DEMO_DATABASE_FAILED", "conflicting thesis-demo graph refused");

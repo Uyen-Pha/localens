@@ -999,7 +999,7 @@ describe("thesis demo database transactions", () => {
       assignmentCount: 1,
       markerCount: 1,
     });
-    expect(database.statements[0]?.sql).toBe("BEGIN ISOLATION LEVEL SERIALIZABLE READ WRITE");
+    expect(database.statements[0]?.sql).toBe("BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE");
     expect(database.statements[1]?.sql).toMatch(/SET LOCAL statement_timeout/i);
     expect(database.statements.at(-1)?.sql).toBe("COMMIT");
     const sql = database.statements.map(({ sql }) => sql).join("\n");
@@ -1044,6 +1044,47 @@ describe("thesis demo database transactions", () => {
     }
   });
 
+  it("locks the complete inventory in deterministic writer-blocking order before graph inspection", async () => {
+    const database = createTransactionQuery();
+    const inspectionStatementCounts: number[] = [];
+    const inspectDatasetGraph = vi.fn(async () => {
+      inspectionStatementCounts.push(database.statements.length);
+      return inspectionStatementCounts.length === 1
+        ? { state: "auth-recovery", conflicts: [] }
+        : { state: "exact", conflicts: [] };
+    });
+
+    await runThesisDemoApplyTransaction({
+      query: database.query,
+      dataset: readDataset(),
+      projectRef: PROJECT_REF,
+      identities: stableIdentities(),
+      inspectDatasetGraph,
+    });
+
+    const lockStatements = database.statements.filter(({ sql }) => /^LOCK TABLE /i.test(sql));
+    expect(lockStatements[0]?.sql).toBe(
+      "LOCK TABLE private.thesis_demo_qa_slots IN ACCESS EXCLUSIVE MODE",
+    );
+    const inventoryLocks = lockStatements.slice(1);
+    expect(inventoryLocks.map(({ sql }) => sql)).toEqual(
+      THESIS_DEMO_RELATIONS
+        .filter((relation: string) => relation !== "private.thesis_demo_qa_slots")
+        .sort()
+        .map((relation: string) => `LOCK TABLE ${relation} IN SHARE ROW EXCLUSIVE MODE`),
+    );
+    expect(new Set(lockStatements.map(({ sql }) => sql.match(/^LOCK TABLE ([^ ]+)/i)?.[1])).size)
+      .toBe(THESIS_DEMO_RELATIONS.length);
+    const plannerLockIndex = database.statements.findIndex(({ sql }) =>
+      sql === "LOCK TABLE private.runtime_planner_operations IN SHARE ROW EXCLUSIVE MODE");
+    expect(database.statements[plannerLockIndex - 1]?.sql).toBe("SET LOCAL ROLE localens_plan_rpc_owner");
+    expect(database.statements[plannerLockIndex + 1]?.sql).toBe("RESET ROLE");
+    const finalLockIndex = database.statements.findLastIndex(({ sql }) => /^LOCK TABLE /i.test(sql));
+    expect(inspectionStatementCounts[0]).toBe(finalLockIndex + 1);
+    expect(database.statements.slice(0, inspectionStatementCounts[0]).every(({ sql }) =>
+      /^(?:BEGIN|SET LOCAL (?:statement_timeout|ROLE)|RESET ROLE|LOCK TABLE )/i.test(sql))).toBe(true);
+  });
+
   it("upgrades only an exact v1 graph by inserting registry metadata and advancing the marker atomically", async () => {
     const database = createTransactionQuery({ initialGraphState: "upgrade-v1" });
     const readInventory = vi.fn(async () => readInventoryFixture(completeInventory({
@@ -1060,7 +1101,7 @@ describe("thesis demo database transactions", () => {
       readInventory,
     });
 
-    expect(database.statements[0]?.sql).toBe("BEGIN ISOLATION LEVEL SERIALIZABLE READ WRITE");
+    expect(database.statements[0]?.sql).toBe("BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE");
     expect(database.statements.at(-1)?.sql).toBe("COMMIT");
     const mutations = database.statements.filter(({ sql }) =>
       /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i.test(sql));
