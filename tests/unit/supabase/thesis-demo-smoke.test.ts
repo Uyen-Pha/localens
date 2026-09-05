@@ -3,12 +3,14 @@
 import { describe, expect, it } from "vitest";
 
 // @ts-expect-error -- the production entrypoint is executable .mjs and has no declaration artifact.
-import {
+import * as thesisDemoSmoke from "@/scripts/smoke-thesis-demo.mjs";
+
+const {
   LIVE_SMOKE_OPT_IN,
   ThesisDemoSmokeError,
   runThesisDemoSmoke,
   runThesisDemoSmokeMain,
-} from "@/scripts/smoke-thesis-demo.mjs";
+} = thesisDemoSmoke;
 
 const PROJECT_REF = "abcdefghijklmnopqrst";
 const ORGANIZATION_ID = "00000000-0000-4000-8000-000000000090";
