@@ -30,6 +30,7 @@
     "db:reset": "node scripts/supabase-local.mjs db reset --local",
     "db:seed:runtime-auth": "node scripts/seed-runtime-auth.mjs",
     "db:seed:runtime-fixed-tour": "node scripts/seed-runtime-fixed-tour.mjs",
+    "db:seed:thesis-demo-cloud": "node scripts/seed-thesis-demo-cloud.mjs",
     "db:lint": "node scripts/supabase-local.mjs db lint --local --level error --fail-on error",
     "db:test": "node scripts/supabase-local.mjs test db --local",
     "db:types": "node scripts/write-generated-db-types.mjs",

@@ -568,6 +568,15 @@
       "forceRls": true
     },
     {
+      "name": "private.thesis_demo_manifest",
+      "policies": [
+        "thesis_demo_manifest_migration_owner_all"
+      ],
+      "writerOperation": "verified thesis-demo seeder through the migration-owner database connection only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
       "name": "private.user_roles",
       "policies": [
         "user_roles_admin_guide_runtime_projection_select",
