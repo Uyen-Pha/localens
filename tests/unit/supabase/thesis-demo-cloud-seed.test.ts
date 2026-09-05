@@ -999,7 +999,7 @@ describe("thesis demo database transactions", () => {
       assignmentCount: 1,
       markerCount: 1,
     });
-    expect(database.statements[0]?.sql).toBe("BEGIN");
+    expect(database.statements[0]?.sql).toBe("BEGIN ISOLATION LEVEL SERIALIZABLE READ WRITE");
     expect(database.statements[1]?.sql).toMatch(/SET LOCAL statement_timeout/i);
     expect(database.statements.at(-1)?.sql).toBe("COMMIT");
     const sql = database.statements.map(({ sql }) => sql).join("\n");
@@ -1060,7 +1060,7 @@ describe("thesis demo database transactions", () => {
       readInventory,
     });
 
-    expect(database.statements[0]?.sql).toBe("BEGIN");
+    expect(database.statements[0]?.sql).toBe("BEGIN ISOLATION LEVEL SERIALIZABLE READ WRITE");
     expect(database.statements.at(-1)?.sql).toBe("COMMIT");
     const mutations = database.statements.filter(({ sql }) =>
       /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i.test(sql));

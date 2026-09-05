@@ -1713,7 +1713,7 @@ export async function runThesisDemoApplyTransaction({
   const qaCustomer = identityRows.find(({ email }) => email === "customer.qa@localens.invalid");
   let started = false;
   try {
-    await query("BEGIN");
+    await query("BEGIN ISOLATION LEVEL SERIALIZABLE READ WRITE");
     started = true;
     await query("SET LOCAL statement_timeout = '15s'");
     const initialGraph = await inspectDatasetGraph({ query, dataset, projectRef, identities });
