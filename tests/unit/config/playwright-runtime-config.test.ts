@@ -7,7 +7,8 @@ const originalEnv = vi.hoisted(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:60327";
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "publishable-test";
   process.env.LOCALENS_RUNTIME_ISOLATED_PROJECT_ID = "localens-itinerary-0123456789abcdef";
-  process.env.LOCALENS_RUNTIME_PLAYWRIGHT_OUTPUT_DIR = `${process.env.TEMP}/localens-runtime-itinerary-playwright-auth`;
+  const temporaryRoot = process.env.TEMP ?? process.env.TMPDIR ?? process.env.TMP ?? "/tmp";
+  process.env.LOCALENS_RUNTIME_PLAYWRIGHT_OUTPUT_DIR = `${temporaryRoot}/localens-runtime-itinerary-playwright-auth`;
   process.env.LOCALENS_RUNTIME_BROWSER = "chrome";
   return original;
 });
