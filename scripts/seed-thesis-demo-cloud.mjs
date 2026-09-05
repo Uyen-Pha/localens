@@ -102,6 +102,9 @@ function requireCliEnv(env) {
       throw cliError("THESIS_DEMO_ENV_REQUIRED", "complete guarded thesis-demo environment is required");
     }
   }
+  if (!["0", "1"].includes(env.LOCALLENS_THESIS_DEMO_SEED_DRY_RUN)) {
+    throw cliError("THESIS_DEMO_ENV_REQUIRED", "complete guarded thesis-demo environment is required");
+  }
   let databaseUrl;
   try {
     databaseUrl = new URL(env.LOCALLENS_THESIS_DEMO_DB_URL);

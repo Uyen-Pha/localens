@@ -1762,7 +1762,7 @@ export function verifyDemoTarget(input) {
     || typeof selectedProject !== "object"
     || selectedProject.id !== expectedProjectRef
     || selectedProject.organizationId !== expectedOrganizationId
-    || !hasExactText(selectedProject.name)
+    || selectedProject.name !== SEED_CONFIRMATION
     || !validRuntimeUrl(input?.runtimeUrl, expectedProjectRef)
   ) {
     return { ok: false, code: "PROJECT_MISMATCH" };

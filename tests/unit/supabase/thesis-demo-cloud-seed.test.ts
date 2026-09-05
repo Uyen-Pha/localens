@@ -163,6 +163,9 @@ describe("verifyDemoTarget", () => {
     {
       selectedProject: { id: PROJECT_REF, organizationId: "wrong-organization", name: "localens-thesis-demo" },
     },
+    {
+      selectedProject: { id: PROJECT_REF, organizationId: ORGANIZATION_ID, name: "another-project" },
+    },
     { runtimeUrl: "http://127.0.0.1:54321" },
     { runtimeUrl: "https://forged-project.supabase.co" },
     { dashboardConnection: undefined },
@@ -1038,6 +1041,33 @@ describe("thesis demo database transactions", () => {
 });
 
 describe("thesis demo cloud CLI boundary", () => {
+  it.each([undefined, "", "true", "apply", "yes", " 1"])(
+    "fails closed before opening clients when the dry-run selector is invalid: %o",
+    async (dryRunSelector) => {
+      const createRuntime = vi.fn();
+      const env = {
+        LOCALLENS_THESIS_DEMO_SEED_CONFIRM: "localens-thesis-demo",
+        LOCALLENS_THESIS_DEMO_SEED_DRY_RUN: dryRunSelector,
+        LOCALLENS_THESIS_DEMO_DB_URL: DATABASE_URL,
+        LOCALLENS_THESIS_DEMO_EXPECTED_PROJECT_REF: PROJECT_REF,
+        LOCALLENS_THESIS_DEMO_EXPECTED_ORGANIZATION_ID: ORGANIZATION_ID,
+        LOCALLENS_THESIS_DEMO_SELECTED_PROJECT_FILE: "C:\\secure\\selected-project.json",
+        LOCALLENS_THESIS_DEMO_DASHBOARD_CONNECTION_FILE: "C:\\secure\\dashboard-connection.json",
+        NEXT_PUBLIC_SUPABASE_URL: `https://${PROJECT_REF}.supabase.co`,
+        SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
+        LOCALLENS_DEMO_CUSTOMER_PASSWORD: PASSWORDS.customer,
+        LOCALLENS_DEMO_GUIDE_PASSWORD: PASSWORDS.guide,
+        LOCALLENS_DEMO_ADMIN_PASSWORD: PASSWORDS.admin,
+        LOCALLENS_DEMO_QA_CUSTOMER_PASSWORD: PASSWORDS.qaCustomer,
+      };
+
+      await expect(runThesisDemoCloudCli({ env, createRuntime })).rejects.toMatchObject({
+        code: "THESIS_DEMO_ENV_REQUIRED",
+      });
+      expect(createRuntime).not.toHaveBeenCalled();
+    },
+  );
+
   it("requires two explicit verified metadata files and never derives them from URLs", () => {
     const readJsonFile = vi.fn();
 
@@ -1118,6 +1148,37 @@ describe("thesis demo cloud CLI boundary", () => {
       selectedProject: validTarget().selectedProject,
       dashboardConnection: validTarget().dashboardConnection,
     }));
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("requires an explicit zero selector before mapping the CLI boundary to apply", async () => {
+    const { dependencies } = createSeedHarness();
+    const close = vi.fn(async () => {});
+    const createRuntime = vi.fn(() => ({ dependencies, close }));
+    const readJsonFile = vi.fn((filePath: string) => filePath.endsWith("selected-project.json")
+      ? { source: "supabase-cli-projects-list", verified: true, project: validTarget().selectedProject }
+      : { source: "supabase-management-api", verified: true, connection: validTarget().dashboardConnection });
+    const env = {
+      LOCALLENS_THESIS_DEMO_SEED_CONFIRM: "localens-thesis-demo",
+      LOCALLENS_THESIS_DEMO_SEED_DRY_RUN: "0",
+      LOCALLENS_THESIS_DEMO_DB_URL: DATABASE_URL,
+      LOCALLENS_THESIS_DEMO_EXPECTED_PROJECT_REF: PROJECT_REF,
+      LOCALLENS_THESIS_DEMO_EXPECTED_ORGANIZATION_ID: ORGANIZATION_ID,
+      LOCALLENS_THESIS_DEMO_SELECTED_PROJECT_FILE: "C:\\secure\\selected-project.json",
+      LOCALLENS_THESIS_DEMO_DASHBOARD_CONNECTION_FILE: "C:\\secure\\dashboard-connection.json",
+      NEXT_PUBLIC_SUPABASE_URL: `https://${PROJECT_REF}.supabase.co`,
+      SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
+      LOCALLENS_DEMO_CUSTOMER_PASSWORD: PASSWORDS.customer,
+      LOCALLENS_DEMO_GUIDE_PASSWORD: PASSWORDS.guide,
+      LOCALLENS_DEMO_ADMIN_PASSWORD: PASSWORDS.admin,
+      LOCALLENS_DEMO_QA_CUSTOMER_PASSWORD: PASSWORDS.qaCustomer,
+    };
+
+    const result = await runThesisDemoCloudCli({ env, readJsonFile, createRuntime });
+
+    expect(result).toEqual(expect.objectContaining({ mode: "apply", accountCount: 4 }));
+    expect(dependencies.runApplyTransaction).toHaveBeenCalledTimes(1);
+    expect(dependencies.runDryRunTransaction).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalledTimes(1);
   });
 
