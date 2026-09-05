@@ -2,26 +2,31 @@
 
 ## Current status
 
-This ledger records verified local browser and database evidence for product
-commit `0a4c8ecd87dc1413471c464730d4632f63278e41`. It is **not a final Task 14
-acceptance** because the evidence commit and final GitHub Actions result are
-still pending.
+This ledger records accepted local browser and database evidence for product
+commit `0a4c8ecd87dc1413471c464730d4632f63278e41`, evidence commit
+`392160d4948dd0e4d75988e6879f65f999cffe44`, and the public GitHub Actions
+result for CI head `66d1b2c957cf16e9d10ac6ac2c8884007cffb099`.
 
 | Field | Current value |
 | --- | --- |
-| Acceptance result | **LOCAL PASS — evidence commit and public CI pending** |
+| Acceptance result | **PASS — product, evidence, and public CI accepted** |
 | Evidence base SHA | `b9f08d589bb972d290c4c367e8a02c636224d512` |
 | Final tested product SHA | `0a4c8ecd87dc1413471c464730d4632f63278e41` |
-| Final CI run | `<FINAL_CI_RUN_URL_PENDING>` |
+| Evidence commit SHA | `392160d4948dd0e4d75988e6879f65f999cffe44` |
+| Final CI head SHA | `66d1b2c957cf16e9d10ac6ac2c8884007cffb099` |
+| Final CI run | [GitHub Actions 33966418207](https://github.com/Uyen-Pha/localens/actions/runs/33966418207) — **PASS** |
 | Approved local browser | Google Chrome |
 | Chrome version recorded with the evidence | `152.0.7977.65` |
-| Demo verification label | `PENDING CI — demo-verified@0a4c8ecd87dc1413471c464730d4632f63278e41` |
-| Local-runtime verification label | `PENDING CI — runtime-verified-local@0a4c8ecd87dc1413471c464730d4632f63278e41` |
+| Demo verification label | `demo-verified@0a4c8ecd87dc1413471c464730d4632f63278e41` |
+| Local-runtime verification label | `runtime-verified-local@0a4c8ecd87dc1413471c464730d4632f63278e41` |
 
 The base SHA is the commit checked out before Task 14. Product commit
 `0a4c8ec` contains the reviewed 82-file implementation allowlist and was made
 with the GitHub no-reply identity. Evidence files are intentionally committed
-separately. Neither verification label is issued until public CI is accepted.
+in `392160d`. CI portability commit `66d1b2c` changes only the runtime-auth test
+fixture so it uses a cross-platform temporary-directory fallback. Public CI
+accepted that final head, so both verification labels above are issued for the
+unchanged product SHA.
 
 Current product-SHA static evidence is PASS: lint, typecheck, database static
 checks, both 25-route production builds, and full Vitest at **135 files / 1,888
@@ -58,8 +63,9 @@ scenarios, and 3 planner-operation concurrency scenarios.
 ## Local Chrome gate results
 
 These results passed against product commit `0a4c8ec` using the approved Google
-Chrome channel. They are accepted local evidence, but not staging or public-CI
-evidence.
+Chrome channel. Public CI repeated the Chrome demo and isolated runtime gates
+successfully at head `66d1b2c`. They remain local-runtime evidence, not staging
+or production evidence.
 
 | Gate | Current working-tree result | Scope demonstrated |
 | --- | --- | --- |
@@ -97,18 +103,18 @@ for the file-by-file matrix and evidence limits.
 
 | Journey or property | Evidence source | Current result |
 | --- | --- | --- |
-| Homepage preferences survive sign-in return | Chrome runtime itinerary E2E | **PASS — working tree; final SHA pending** |
-| AI generation is explicit and does not run on planner load or reload | Chrome runtime itinerary E2E plus provider-call counter | **PASS — working tree; final SHA pending** |
-| Valid provider-contract output displays the AI notice and persists revision 1 | Chrome runtime itinerary E2E plus local Supabase assertions | **PASS — working tree; final SHA pending** |
-| A locked stop survives partial refinement and revision 2 persists | Chrome runtime itinerary E2E plus local Supabase assertions | **PASS — working tree; final SHA pending** |
-| Reload restores the visible revision 2 proposal without another provider call | Chrome runtime itinerary E2E plus owner-scoped queries | **PASS — working tree; final SHA pending** |
-| A different customer cannot read or refine the owner's plan | RLS queries and Edge Function response | **PASS — working tree; final SHA pending** |
-| Malformed provider output becomes a visible deterministic fallback | Chrome runtime itinerary E2E with loopback fake provider | **PASS — working tree; final SHA pending** |
+| Homepage preferences survive sign-in return | Chrome runtime itinerary E2E | **PASS — product SHA; public CI accepted** |
+| AI generation is explicit and does not run on planner load or reload | Chrome runtime itinerary E2E plus provider-call counter | **PASS — product SHA; public CI accepted** |
+| Valid provider-contract output displays the AI notice and persists revision 1 | Chrome runtime itinerary E2E plus local Supabase assertions | **PASS — product SHA; public CI accepted** |
+| A locked stop survives partial refinement and revision 2 persists | Chrome runtime itinerary E2E plus local Supabase assertions | **PASS — product SHA; public CI accepted** |
+| Reload restores the visible revision 2 proposal without another provider call | Chrome runtime itinerary E2E plus owner-scoped queries | **PASS — product SHA; public CI accepted** |
+| A different customer cannot read or refine the owner's plan | RLS queries and Edge Function response | **PASS — product SHA; public CI accepted** |
+| Malformed provider output becomes a visible deterministic fallback | Chrome runtime itinerary E2E with loopback fake provider | **PASS — product SHA; public CI accepted** |
 | Demo AI quota refuses the new operation without persisting a proposal or making a sixth provider call | Runtime itinerary E2E provider counter plus database assertions | **PASS — 3/3 product-SHA runtime gate** |
-| Simulated-payment disclosure is visible and no card/real-charge action is offered | Chrome fixture and runtime fixed-tour E2E | **PASS — working tree; final SHA pending** |
-| Eligible cancellation before simulated payment is immediate and role-scoped | Chrome fixture and runtime fixed-tour E2E | **PASS — working tree; final SHA pending** |
-| English and Vietnamese exposed flows retain their disclosures and role boundaries | Chrome fixture/runtime E2E | **PASS — working tree; final SHA pending** |
-| Vietnamese visual layout remains readable at three responsive sizes | Chrome fixture screenshots plus visual inspection | **PASS — 3/3; final SHA pending** |
+| Simulated-payment disclosure is visible and no card/real-charge action is offered | Chrome fixture and runtime fixed-tour E2E | **PASS — product SHA; public CI accepted** |
+| Eligible cancellation before simulated payment is immediate and role-scoped | Chrome fixture and runtime fixed-tour E2E | **PASS — product SHA; public CI accepted** |
+| English and Vietnamese exposed flows retain their disclosures and role boundaries | Chrome fixture/runtime E2E | **PASS — product SHA; public CI accepted** |
+| Vietnamese visual layout remains readable at three responsive sizes | Chrome fixture screenshots plus visual inspection | **PASS — 3/3 in evidence commit `392160d`** |
 
 ## Final gate ledger
 
@@ -128,14 +134,13 @@ mutating verification against the presentation project `localens-mvp`.
 | 9 | Chrome `corepack pnpm test:e2e:runtime-auth` | **PASS — 3/3 product SHA** | Isolated runtime and cleanup |
 | 10 | Chrome `corepack pnpm test:e2e:runtime-fixed-tour` | **PASS — 7/7 product SHA** | Isolated runtime and cleanup after stable booking/guide selection fixes |
 | 11 | Chrome `corepack pnpm test:e2e:runtime-guide-assignment` | **PASS — 1/1 product SHA** | Authoritative guide IDs prove A-to-B-to-A reassignment and cleanup |
-| 12 | Required matched visual comparisons | **PASS — 15/15 inspected** | Five states x three viewports; final SHA attachment pending |
-| 13 | Vietnamese responsive visual spot-check | **PASS — 3/3 inspected** | Desktop, tablet, and mobile current implementation; final SHA attachment pending |
-| 14 | Final GitHub Actions run | `<PENDING>` | Quality, demo E2E, runtime-local, and staging status pending |
+| 12 | Required matched visual comparisons | **PASS — 15/15 inspected** | Five states x three viewports in evidence commit `392160d` |
+| 13 | Vietnamese responsive visual spot-check | **PASS — 3/3 inspected** | Desktop, tablet, and mobile current implementation in evidence commit `392160d` |
+| 14 | Final GitHub Actions run | **PASS — CI head `66d1b2c`** | Quality-demo, Chrome demo E2E, runtime-local, and Supabase build passed; staging smoke skipped because no staging URL is configured |
 
 ## Promotion rule
 
-Keep Task 14 in **NOT FINAL** status until the evidence commit is pushed, the
-final GitHub Actions run is linked and reviewed, and the two verification
-labels are issued for product SHA `0a4c8ec`. Even then, the result remains a
-fixture demo plus isolated local-runtime acceptance; it does not promote
-staging or production.
+Task 14 is **FINAL ACCEPTED** for product SHA `0a4c8ec`: the evidence commit is
+public, the final GitHub Actions run is linked and accepted, and both
+verification labels are issued. This result remains a fixture demo plus
+isolated local-runtime acceptance; it does not promote staging or production.
