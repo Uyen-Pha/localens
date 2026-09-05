@@ -209,10 +209,14 @@ Kết quả G18 ghi nhận ngày 2026-09-06:
 **Trạng thái: PENDING.** Task 19 hiện chỉ có scaffold fail-closed và unit test;
 chưa có lần chạy cloud, chưa tiêu quota Gemini và chưa thay đổi kill switch.
 
-Runner `pnpm smoke:thesis-demo` chỉ nhận `qa-01` đến `qa-04`, bắt buộc target
-`localens-thesis-demo` chính xác, HTTPS, đủ bốn tài khoản đúng vai trò và opt-in
-`RUN_LIVE_THESIS_DEMO`. Nó không có lệnh seed/reset/link/deploy, không theo
-redirect và chỉ ghi tên gate, trạng thái, correlation ID an toàn cùng số đếm.
+Runner `pnpm smoke:thesis-demo` chỉ nhận các slot hữu hạn `qa-01` đến `qa-04`,
+bắt buộc target `localens-thesis-demo` chính xác, HTTPS và đủ bốn tài khoản.
+`live-success` yêu cầu confirmation `RUN_LIVE_THESIS_DEMO`, payment/replay dùng
+đúng `qa-01` và cancellation/replay dùng đúng `qa-02`. `fallback-only` yêu cầu
+confirmation riêng `RUN_FALLBACK_THESIS_DEMO`, dùng `runId` hữu hạn của
+`qa-03`, không phụ thuộc preflight slot/quota của live mode. Runner không có
+lệnh seed/reset/link/deploy, không theo redirect và chỉ ghi tên gate, trạng
+thái, correlation ID an toàn cùng số đếm.
 
 Hai blocker phải được xử lý bằng một task schema/dataset riêng trước khi G19 có
 thể chạy:
@@ -228,11 +232,26 @@ thể chạy:
 
 Unit seam chứng minh orchestration dự kiến sau remediation: live-success có tối
 đa hai provider-eligible operation, bốn planner endpoint invocation (primary và
-replay byte-identical cho recommend/refine), bảy denial probe, tối đa 20 request
-trước provider và chín mutation fixed-tour có thanh toán mô phỏng. Nếu cả hai
-planner call degrade thì gate AI thật thất bại. Fallback-only có đúng một
-planner invocation, không có provider attempt, hạ kill switch trong cửa sổ do
-controller sở hữu và luôn restore/readback trong `finally`.
+replay byte-identical cho recommend/refine), bảy denial probe, 17 request được
+đếm trước provider và tối đa 20 request auth/owner/service/denial evidence.
+Provider count chỉ lấy từ attestation delta. Fixed-tour có 11 mutation: `qa-01`
+được begin/pay/assign/accept và đọc lại, còn `qa-02` được begin/cancel; không
+thanh toán rồi hủy cùng một booking. Nếu cả hai planner call degrade thì gate AI
+thật thất bại. Fallback-only có đúng một planner invocation, không có provider
+attempt và khôi phục/đọc lại kill switch trong `finally` ở các đường thoát mà
+process còn chạy.
+
+Nếu workflow bị hard-cancel, runner hoặc máy bị kill khiến `finally` không thể
+chạy, người giữ protected environment phải phục hồi thủ công trước mọi lần chạy
+khác:
+
+1. xác nhận job serialized đã dừng và không còn cloud smoke nào đang chạy;
+2. xác minh lại đúng project ref/name, rồi qua Supabase Dashboard hoặc cơ chế
+   quản trị được bảo vệ đặt `LOCALLENS_GEMINI_ENABLED=0` làm trạng thái an toàn;
+3. đọc lại secret/config và xác nhận giá trị đang là `0`, không chụp/in token hay
+   response body;
+4. chỉ khôi phục `1` khi owner phê duyệt, Gemini key/origin đã sẵn sàng và không
+   có job cạnh tranh; sau đó đọc lại trạng thái một lần nữa.
 
 GitHub job `thesis-demo-cloud-smoke` chỉ xuất hiện trên `workflow_dispatch`, dùng
 protected environment cùng tên, concurrency group cố định và
@@ -246,8 +265,9 @@ protected environment cùng tên, concurrency group cố định và
 3. đặt environment variables cho URL, project ref, organization ID và allowed
    origin; đặt publishable key, service-role key, access token và bốn mật khẩu
    vào environment secrets;
-4. chỉ chọn opt-in sau khi hai blocker trên đã được giải quyết. Secret chỉ được
-   đưa vào env của đúng bước smoke, không ở job-level và không được ghi ra log.
+4. nhập đúng confirmation theo mode; chỉ dùng `RUN_LIVE_THESIS_DEMO` sau khi hai
+   blocker trên đã được giải quyết. Secret chỉ được đưa vào env của đúng bước
+   smoke, không ở job-level và không được ghi ra log.
 
 Push/PR thông thường không chạy staging hoặc cloud smoke, không nhận cloud
 secret và không tiêu quota AI. G19 chỉ đổi sang PASS khi có run protected thật

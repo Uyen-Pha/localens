@@ -13,8 +13,12 @@ on:
         options:
           - fallback-only
           - live-success
-      qa_slot:
-        description: Finite synthetic QA slot
+      confirmation:
+        description: Type RUN_FALLBACK_THESIS_DEMO or RUN_LIVE_THESIS_DEMO for the selected mode
+        required: true
+        type: string
+      payment_qa_slot:
+        description: Exact finite payment/replay slot for live-success
         required: true
         default: qa-01
         type: choice
@@ -23,11 +27,16 @@ on:
           - qa-02
           - qa-03
           - qa-04
-      live_ai_opt_in:
-        description: Confirm this protected cloud run is explicitly authorized
+      cancellation_qa_slot:
+        description: Exact finite cancellation/replay slot for live-success
         required: true
-        default: false
-        type: boolean
+        default: qa-02
+        type: choice
+        options:
+          - qa-01
+          - qa-02
+          - qa-03
+          - qa-04
 
 permissions:
   contents: read
@@ -269,8 +278,9 @@ jobs:
         shell: bash
         env:
           LOCALLENS_THESIS_DEMO_SMOKE_MODE: ${{ inputs.mode }}
-          LOCALLENS_THESIS_DEMO_LIVE_OPT_IN: ${{ inputs.live_ai_opt_in && 'RUN_LIVE_THESIS_DEMO' || '' }}
-          LOCALLENS_THESIS_DEMO_QA_SLOT: ${{ inputs.qa_slot }}
+          LOCALLENS_THESIS_DEMO_CONFIRMATION: ${{ inputs.confirmation }}
+          LOCALLENS_THESIS_DEMO_PAYMENT_QA_SLOT: ${{ inputs.payment_qa_slot }}
+          LOCALLENS_THESIS_DEMO_CANCELLATION_QA_SLOT: ${{ inputs.cancellation_qa_slot }}
           LOCALLENS_THESIS_DEMO_EXPECTED_PROJECT_NAME: localens-thesis-demo
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.LOCALLENS_THESIS_DEMO_URL }}
           LOCALLENS_THESIS_DEMO_PROJECT_REF: ${{ vars.LOCALLENS_THESIS_DEMO_PROJECT_REF }}

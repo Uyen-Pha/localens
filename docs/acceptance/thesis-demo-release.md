@@ -448,13 +448,18 @@ requires the current ref or SHA to be listed explicitly by the protected
 `LOCALLENS_THESIS_DEMO_RELEASE_REFS` environment variable.
 
 The focused tests execute exported runner behavior through injected HTTP,
-quota-evidence, QA-slot inspection, logging, and kill-switch seams. They cover
-local preflight refusal, cross-host redirect refusal, secret redaction, seven
-pre-provider denial probes, byte-identical same-operation replay, two bounded
-provider-eligible operations, user/service readback, locked refinement, nine
-fixed-tour mutations with simulated payment, real-AI failure when both calls
-degrade, no timeout retry, and `finally` restoration/readback of the kill
-switch. These are deterministic unit proofs, not hosted acceptance.
+operation-attestation, exact two-slot inspection, explicit post-commit
+response-loss, logging, and kill-switch seams. They cover local preflight
+refusal, mode-specific confirmation, cross-host redirect refusal, secret
+redaction, seven denial probes, byte-identical same-operation replay, two
+bounded provider-eligible operations, two owner revision readbacks with a
+persisted item ID distinct from place ID, all five attestation deltas, and 11
+fixed-tour mutations. Payment/replay uses `qa-01`; cancellation/replay uses
+`qa-02`, so one booking is never both paid and cancelled. Fallback runs
+independently with the finite `qa-03` run ID, no provider attempt, no live
+slot/quota preflight, and restoration/readback in `finally` while the process
+remains alive. The runbook records manual recovery for hard cancellation.
+These are deterministic unit proofs, not hosted acceptance.
 
 G19 remains **PENDING** for two fail-closed blockers:
 

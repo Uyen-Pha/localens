@@ -6,8 +6,8 @@ import { describe, expect, it } from "vitest";
 import * as thesisDemoSmoke from "@/scripts/smoke-thesis-demo.mjs";
 
 const {
+  FALLBACK_SMOKE_CONFIRMATION,
   LIVE_SMOKE_OPT_IN,
-  ThesisDemoSmokeError,
   runThesisDemoSmoke,
   runThesisDemoSmokeMain,
 } = thesisDemoSmoke;
@@ -20,9 +20,17 @@ const PUBLISHABLE_KEY = "sb_publishable_test_only_123456789";
 const SERVICE_ROLE_KEY = "sb_secret_test_only_123456789";
 const MANAGEMENT_TOKEN = "sbp_test_only_12345678901234567890";
 const PLAN_ID = "d1700000-0000-4000-8000-000000000801";
-const ITEM_ID = "d1700000-0000-4000-8000-000000000811";
 const PLACE_ID = "d1700000-0000-4000-8000-000000000101";
+const ITEM_ID = "d1700000-0000-4000-8000-000000000811";
 const REVISION_ID = "d1700000-0000-4000-8000-000000000821";
+const REVISION_TWO_ID = "d1700000-0000-4000-8000-000000000822";
+const PAYMENT_BOOKING_ID = "d1700000-0000-4000-8000-000000000711";
+const CANCELLATION_BOOKING_ID = "d1700000-0000-4000-8000-000000000712";
+const RECOMMEND_OPERATION_ID = "d1700000-0000-4000-8000-000000000701";
+const REFINE_OPERATION_ID = "d1700000-0000-4000-8000-000000000702";
+const FALLBACK_OPERATION_ID = "d1700000-0000-4000-8000-000000000703";
+const LOCKED_START_AT = "2026-09-12T09:00:00+07:00";
+const LOCKED_END_AT = "2026-09-12T10:00:00+07:00";
 
 const ACCOUNT_IDS = {
   customer: "d1700000-0000-4000-8000-000000000901",
@@ -42,8 +50,13 @@ type RequestRecord = {
 function validOptions(overrides: Record<string, unknown> = {}) {
   return {
     mode: "live-success" as const,
+    confirmation: LIVE_SMOKE_OPT_IN,
     liveOptIn: LIVE_SMOKE_OPT_IN,
     qaSlot: "qa-01",
+    qaSlots: {
+      payment: "qa-01",
+      cancellation: "qa-02",
+    },
     target: {
       supabaseUrl: SUPABASE_URL,
       projectRef: PROJECT_REF,
@@ -66,10 +79,83 @@ function validOptions(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function proposal(rankingSource: "ai" | "deterministic") {
+function wireItem(overrides: Record<string, unknown> = {}) {
   return {
+    placeId: PLACE_ID,
+    startAt: LOCKED_START_AT,
+    endAt: LOCKED_END_AT,
+    visitDurationMinutes: 60,
+    travelMinutesBefore: 0,
+    transitionBufferMinutesBefore: 0,
+    travelCostVndBefore: "0",
+    placeCostVnd: "80000",
+    foodSelection: null,
+    foodCostMinVnd: "0",
+    foodCostMaxVnd: "0",
+    payAtVendorMinVnd: "0",
+    payAtVendorMaxVnd: "0",
+    customerPayableVnd: "80000",
+    score: 4,
+    ...overrides,
+  };
+}
+
+function proposal(rankingSource: "ai" | "deterministic", itemOverrides: Record<string, unknown> = {}) {
+  return {
+    normalizedStartAt: LOCKED_START_AT,
+    budgetVnd: "2000000",
     rankingSource,
-    items: [{ itemId: ITEM_ID, placeId: PLACE_ID }],
+    items: [wireItem(itemOverrides)],
+    totals: {
+      durationMinutes: 60,
+      visitMinutes: 60,
+      travelMinutes: 0,
+      transitionBufferMinutes: 0,
+      admissionCostVnd: "80000",
+      foodCostMinVnd: "0",
+      foodCostMaxVnd: "0",
+      travelCostVnd: "0",
+      guideCostVnd: "0",
+      payAtVendorMinVnd: "0",
+      payAtVendorMaxVnd: "0",
+      customerPayableVnd: "80000",
+      groupCostMinVnd: "80000",
+      groupCostMaxVnd: "80000",
+      groupCostVnd: "80000",
+      score: 4,
+    },
+    snapshotIds: {
+      catalog: "d1700000-0000-4000-8000-000000000061",
+      travel: "d1700000-0000-4000-8000-000000000062",
+      fx: null,
+    },
+  };
+}
+
+function persistedItem(overrides: Record<string, unknown> = {}) {
+  return {
+    id: ITEM_ID,
+    place_id: PLACE_ID,
+    position: 1,
+    start_at: LOCKED_START_AT,
+    end_at: LOCKED_END_AT,
+    visit_duration_minutes: 60,
+    ...overrides,
+  };
+}
+
+function attestation(operation: "recommend" | "refine", phase: "before" | "after", providerDelta = 1) {
+  const baseline = 0;
+  const delta = phase === "after" ? 1 : 0;
+  return {
+    state: phase === "after" ? "completed" : "missing",
+    planId: phase === "after" ? PLAN_ID : null,
+    revision: phase === "after" ? (operation === "recommend" ? 1 : 2) : null,
+    operationCount: baseline + delta,
+    plannerReservationCount: baseline + delta,
+    geminiReservationCount: baseline + delta,
+    recommendationRunCount: baseline + delta,
+    providerAttemptedCount: baseline + (phase === "after" ? providerDelta : 0),
   };
 }
 
@@ -80,6 +166,10 @@ function createHarness({
   failGate,
   qaSlotSafe = true,
   quotaObservable = true,
+  attestedProviderDelta = 1,
+  responseLossAuthorized = true,
+  tamperReturnedLockedItem = false,
+  tamperPersistedLockedItem = false,
 }: {
   degradedLive?: boolean;
   targetRedirect?: string;
@@ -87,14 +177,22 @@ function createHarness({
   failGate?: string;
   qaSlotSafe?: boolean;
   quotaObservable?: boolean;
+  attestedProviderDelta?: number;
+  responseLossAuthorized?: boolean;
+  tamperReturnedLockedItem?: boolean;
+  tamperPersistedLockedItem?: boolean;
 } = {}) {
   const requests: RequestRecord[] = [];
   const logs: string[] = [];
   const killSwitchEvents: string[] = [];
+  const responseLossEvents: string[] = [];
+  const orchestrationEvents: string[] = [];
+  const qaInspectionRequests: unknown[] = [];
   let killSwitchState = true;
 
   const request = async (spec: RequestRecord) => {
     requests.push(structuredClone(spec));
+    orchestrationEvents.push(`request:${spec.gate}`);
     if (spec.gate === failGate) throw new Error(`${SERVICE_ROLE_KEY} dependency detail`);
     if (spec.gate === "target") {
       if (targetRedirect) {
@@ -191,7 +289,10 @@ function createHarness({
           baseRevision: 1,
           degraded: degradedLive,
           planId: PLAN_ID,
-          proposal: proposal(degradedLive ? "deterministic" : "ai"),
+          proposal: proposal(
+            degradedLive ? "deterministic" : "ai",
+            tamperReturnedLockedItem ? { endAt: "2026-09-12T10:15:00+07:00" } : {},
+          ),
           rationales: {},
           regeneration: "partial",
           revision: 2,
@@ -215,7 +316,7 @@ function createHarness({
       return {
         status: 200,
         headers: {},
-        json: [{ id: ITEM_ID, place_id: PLACE_ID, position: 1 }],
+        json: [persistedItem()],
       };
     }
     if (spec.gate === "read.user-revision-2") {
@@ -232,23 +333,65 @@ function createHarness({
         json: { state: "completed", planId: PLAN_ID, revision: spec.gate.endsWith("recommend") ? 1 : 2 },
       };
     }
-    if (spec.gate.startsWith("fixed.begin")) {
-      return { status: 200, headers: {}, json: [{ booking_id: "d1700000-0000-4000-8000-000000000711", state: spec.gate.endsWith("replay") ? "replayed" : "created" }] };
+    if (spec.gate === "read.owner-revision-1") {
+      return {
+        status: 200,
+        headers: {},
+        json: [{
+          id: REVISION_ID,
+          plan_id: PLAN_ID,
+          revision_no: 1,
+          ranking_source: degradedLive ? "deterministic" : "ai",
+          result_json: proposal(degradedLive ? "deterministic" : "ai"),
+          trip_plans: { id: PLAN_ID, latest_revision_no: 1 },
+          trip_plan_items: [persistedItem()],
+        }],
+      };
     }
-    if (spec.gate.startsWith("fixed.payment")) {
-      return { status: 200, headers: {}, json: [{ booking_id: "d1700000-0000-4000-8000-000000000711", state: spec.gate.endsWith("replay") ? "replayed" : "created", simulated: true }] };
+    if (spec.gate === "read.owner-revision-2") {
+      return {
+        status: 200,
+        headers: {},
+        json: [{
+          id: REVISION_TWO_ID,
+          plan_id: PLAN_ID,
+          revision_no: 2,
+          ranking_source: degradedLive ? "deterministic" : "ai",
+          result_json: proposal(
+            degradedLive ? "deterministic" : "ai",
+            tamperPersistedLockedItem ? { startAt: "2026-09-12T09:15:00+07:00" } : {},
+          ),
+          trip_plans: { id: PLAN_ID, latest_revision_no: 2 },
+          trip_plan_items: [persistedItem(
+            tamperPersistedLockedItem ? { start_at: "2026-09-12T09:15:00+07:00" } : {},
+          )],
+        }],
+      };
     }
-    if (spec.gate.startsWith("fixed.assign")) {
-      return { status: 200, headers: {}, json: [{ assignment_id: "d1700000-0000-4000-8000-000000000741", booking_id: "d1700000-0000-4000-8000-000000000711", state: spec.gate.endsWith("replay") ? "replayed" : "created" }] };
+    if (spec.gate.startsWith("read.attestation.")) {
+      const [, , phase, operation] = spec.gate.split(".") as [string, string, "before" | "after", "recommend" | "refine"];
+      return { status: 200, headers: {}, json: attestation(operation, phase, attestedProviderDelta) };
     }
-    if (spec.gate === "fixed.accept") {
+    if (spec.gate.startsWith("fixed.payment.begin")) {
+      return { status: 200, headers: {}, json: [{ booking_id: PAYMENT_BOOKING_ID, state: spec.gate.endsWith("replay") ? "replayed" : "created" }] };
+    }
+    if (spec.gate.startsWith("fixed.payment.complete")) {
+      return { status: 200, headers: {}, json: [{ booking_id: PAYMENT_BOOKING_ID, state: spec.gate.endsWith("replay") ? "replayed" : "created", simulated: true }] };
+    }
+    if (spec.gate.startsWith("fixed.payment.assign")) {
+      return { status: 200, headers: {}, json: [{ assignment_id: "d1700000-0000-4000-8000-000000000741", booking_id: PAYMENT_BOOKING_ID, state: spec.gate.endsWith("replay") ? "replayed" : "created" }] };
+    }
+    if (spec.gate === "fixed.payment.accept") {
       return { status: 200, headers: {}, json: [{ assignment_id: "d1700000-0000-4000-8000-000000000741", status: "accepted" }] };
     }
-    if (spec.gate.startsWith("fixed.cancel")) {
-      return { status: 200, headers: {}, json: [{ booking_id: "d1700000-0000-4000-8000-000000000711", state: spec.gate.endsWith("replay") ? "replayed" : "cancelled" }] };
+    if (spec.gate.startsWith("fixed.cancellation.begin")) {
+      return { status: 200, headers: {}, json: [{ booking_id: CANCELLATION_BOOKING_ID, state: spec.gate.endsWith("replay") ? "replayed" : "created" }] };
     }
-    if (spec.gate.startsWith("fixed.read")) {
-      return { status: 200, headers: {}, json: [{ booking_id: "d1700000-0000-4000-8000-000000000711" }] };
+    if (spec.gate.startsWith("fixed.cancellation.cancel")) {
+      return { status: 200, headers: {}, json: [{ booking_id: CANCELLATION_BOOKING_ID, state: spec.gate.endsWith("replay") ? "replayed" : "cancelled" }] };
+    }
+    if (spec.gate.startsWith("fixed.payment.read")) {
+      return { status: 200, headers: {}, json: [{ booking_id: PAYMENT_BOOKING_ID }] };
     }
     throw new Error(`unexpected gate ${spec.gate}`);
   };
@@ -256,18 +399,62 @@ function createHarness({
   const dependencies = {
     request,
     logger: (line: string) => { logs.push(line); },
-    inspectQaSlot: async () => qaSlotSafe
-      ? { safe: true as const, bookingId: "d1700000-0000-4000-8000-000000000711" }
-      : { safe: false as const, code: "SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN" },
+    inspectQaSlots: async (assignment: unknown) => {
+      qaInspectionRequests.push(structuredClone(assignment));
+      return qaSlotSafe
+        ? {
+          safe: true as const,
+          assignments: {
+            payment: {
+              slotId: "qa-01",
+              bookingId: PAYMENT_BOOKING_ID,
+              operationId: RECOMMEND_OPERATION_ID,
+            },
+            cancellation: {
+              slotId: "qa-02",
+              bookingId: CANCELLATION_BOOKING_ID,
+              operationId: REFINE_OPERATION_ID,
+            },
+          },
+        }
+        : { safe: false as const, code: "SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN" };
+    },
     ...(quotaObservable
       ? {
-          readQuotaEvidence: async () => ({
-            plannerQuotaReceipts: 1,
-            geminiQuotaReceipts: 1,
-            recommendationRuns: 1,
+          quotaAttestationRequest: ({
+            operation,
+            phase,
+          }: {
+            operation: "recommend" | "refine";
+            phase: "before" | "after";
+          }): RequestRecord => ({
+            gate: `read.attestation.${phase}.${operation}`,
+            url: `${SUPABASE_URL}/rest/v1/rpc/get_runtime_planner_operation`,
+            method: "POST",
+            headers: {
+              apikey: SERVICE_ROLE_KEY,
+              authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({ operation, phase }),
           }),
         }
       : {}),
+    postCommitResponseLoss: {
+      authorizeReplay: async ({
+        operationId,
+        requestIdentity,
+      }: {
+        operationId: string;
+        requestIdentity: string;
+      }) => {
+        responseLossEvents.push(`${operationId}:${requestIdentity}`);
+        orchestrationEvents.push(`response-loss:${operationId}`);
+        return responseLossAuthorized
+          ? { replay: true as const, requestIdentity }
+          : { replay: false as const, requestIdentity };
+      },
+    },
     killSwitch: {
       read: async () => {
         killSwitchEvents.push(`read:${killSwitchState}`);
@@ -284,11 +471,28 @@ function createHarness({
     },
   };
 
-  return { dependencies, requests, logs, killSwitchEvents };
+  return {
+    dependencies,
+    requests,
+    logs,
+    killSwitchEvents,
+    orchestrationEvents,
+    responseLossEvents,
+    qaInspectionRequests,
+  };
 }
 
 async function captureCode(work: Promise<unknown>) {
-  return work.catch((error: unknown) => (error as InstanceType<typeof ThesisDemoSmokeError>).code);
+  return work.catch((error: unknown) => (error as { code?: string }).code);
+}
+
+function fallbackOptions(overrides: Record<string, unknown> = {}) {
+  return validOptions({
+    mode: "fallback-only",
+    confirmation: FALLBACK_SMOKE_CONFIRMATION,
+    qaSlots: undefined,
+    ...overrides,
+  });
 }
 
 describe("bounded thesis-demo cloud smoke", () => {
@@ -296,8 +500,10 @@ describe("bounded thesis-demo cloud smoke", () => {
     ["unverified target", { target: { ...validOptions().target, expectedProjectName: "production" } }, "SMOKE_TARGET_UNVERIFIED"],
     ["non-HTTPS target", { target: { ...validOptions().target, supabaseUrl: `http://${PROJECT_REF}.supabase.co` } }, "SMOKE_TARGET_INSECURE"],
     ["missing role account", { accounts: { ...validOptions().accounts, admin: undefined } }, "SMOKE_ACCOUNTS_INCOMPLETE"],
-    ["missing live opt-in", { liveOptIn: "" }, "SMOKE_LIVE_OPT_IN_REQUIRED"],
-    ["unsafe QA slot", { qaSlot: "qa-05" }, "SMOKE_QA_SLOT_UNSAFE"],
+    ["missing live opt-in", { confirmation: "" }, "SMOKE_LIVE_OPT_IN_REQUIRED"],
+    ["unsafe QA slot", { qaSlots: { payment: "qa-01", cancellation: "qa-05" } }, "SMOKE_QA_SLOT_UNSAFE"],
+    ["same payment/cancellation slot", { qaSlots: { payment: "qa-01", cancellation: "qa-01" } }, "SMOKE_QA_SLOT_ASSIGNMENTS_UNSAFE"],
+    ["swapped payment/cancellation slots", { qaSlots: { payment: "qa-02", cancellation: "qa-01" } }, "SMOKE_QA_SLOT_ASSIGNMENTS_UNSAFE"],
   ])("rejects %s before opening HTTP", async (_label, overrides, expectedCode) => {
     const harness = createHarness();
 
@@ -316,6 +522,16 @@ describe("bounded thesis-demo cloud smoke", () => {
     expect(harness.requests).toEqual([]);
   });
 
+  it("requires the exact two-slot live inspection seam before cloud I/O", async () => {
+    const harness = createHarness();
+    const dependencies = { ...harness.dependencies, inspectQaSlots: undefined };
+
+    const code = await captureCode(runThesisDemoSmoke(validOptions(), dependencies));
+
+    expect(code).toBe("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
+    expect(harness.requests).toEqual([]);
+  });
+
   it("keeps live replay fail-closed when quota evidence is not observable", async () => {
     const harness = createHarness({ quotaObservable: false });
 
@@ -325,10 +541,20 @@ describe("bounded thesis-demo cloud smoke", () => {
     expect(harness.requests).toEqual([]);
   });
 
+  it("keeps live replay fail-closed when the post-commit response-loss seam is unavailable", async () => {
+    const harness = createHarness();
+    const dependencies = { ...harness.dependencies, postCommitResponseLoss: undefined };
+
+    const code = await captureCode(runThesisDemoSmoke(validOptions(), dependencies));
+
+    expect(code).toBe("SMOKE_RESPONSE_LOSS_SEAM_UNAVAILABLE");
+    expect(harness.requests).toEqual([]);
+  });
+
   it("rejects a redirect to another host without following it", async () => {
     const harness = createHarness({ targetRedirect: "https://attacker.invalid/capture" });
 
-    const code = await captureCode(runThesisDemoSmoke(validOptions({ mode: "fallback-only" }), harness.dependencies));
+    const code = await captureCode(runThesisDemoSmoke(fallbackOptions(), harness.dependencies));
 
     expect(code).toBe("SMOKE_REDIRECT_CROSS_HOST");
     expect(harness.requests.map(({ gate }) => gate)).toEqual(["target"]);
@@ -337,16 +563,21 @@ describe("bounded thesis-demo cloud smoke", () => {
   it("refuses a credential-shaped correlation value before it reaches the logger", async () => {
     const harness = createHarness({ targetCorrelationId: SERVICE_ROLE_KEY });
 
-    const code = await captureCode(runThesisDemoSmoke(validOptions({ mode: "fallback-only" }), harness.dependencies));
+    const code = await captureCode(runThesisDemoSmoke(fallbackOptions(), harness.dependencies));
 
     expect(code).toBe("SMOKE_SECRET_LOG_BLOCKED");
     expect(harness.logs.join("\n")).not.toContain(SERVICE_ROLE_KEY);
   });
 
-  it("runs fallback under one endpoint invocation and restores the prior switch state", async () => {
+  it("runs fallback independently of live QA-slot, quota, and response-loss seams", async () => {
     const harness = createHarness();
+    const { request, logger, killSwitch } = harness.dependencies;
 
-    const result = await runThesisDemoSmoke(validOptions({ mode: "fallback-only" }), harness.dependencies);
+    const result = await runThesisDemoSmoke(fallbackOptions(), {
+      request,
+      logger,
+      killSwitch,
+    });
 
     expect(result).toMatchObject({
       ok: true,
@@ -356,10 +587,13 @@ describe("bounded thesis-demo cloud smoke", () => {
         plannerEndpointInvocations: 1,
         providerEligibleAttempts: 0,
         denialProbes: 0,
-        preProviderHttpRequests: 9,
+        preProviderHttpRequests: 8,
+        evidenceHttpRequests: 7,
       },
     });
-    expect(harness.requests.filter(({ gate }) => gate.startsWith("planner."))).toHaveLength(1);
+    const fallbackRequests = harness.requests.filter(({ gate }) => gate.startsWith("planner."));
+    expect(fallbackRequests).toHaveLength(1);
+    expect(JSON.parse(fallbackRequests[0]?.body ?? "{}").operationId).toBe(FALLBACK_OPERATION_ID);
     expect(harness.killSwitchEvents).toEqual([
       "read:true",
       "secret:GEMINI_API_KEY",
@@ -370,10 +604,19 @@ describe("bounded thesis-demo cloud smoke", () => {
     ]);
   });
 
+  it("requires the fallback-specific protected confirmation before HTTP", async () => {
+    const harness = createHarness();
+
+    const code = await captureCode(runThesisDemoSmoke(fallbackOptions({ confirmation: "" }), harness.dependencies));
+
+    expect(code).toBe("SMOKE_FALLBACK_CONFIRMATION_REQUIRED");
+    expect(harness.requests).toEqual([]);
+  });
+
   it("restores the kill switch in finally when fallback HTTP fails and never retries", async () => {
     const harness = createHarness({ failGate: "planner.fallback" });
 
-    const code = await captureCode(runThesisDemoSmoke(validOptions({ mode: "fallback-only" }), harness.dependencies));
+    const code = await captureCode(runThesisDemoSmoke(fallbackOptions(), harness.dependencies));
 
     expect(code).toBe("SMOKE_HTTP_FAILED");
     expect(harness.requests.filter(({ gate }) => gate === "planner.fallback")).toHaveLength(1);
@@ -393,22 +636,102 @@ describe("bounded thesis-demo cloud smoke", () => {
         plannerEndpointInvocations: 4,
         providerEligibleAttempts: 2,
         denialProbes: 7,
-        preProviderHttpRequests: 16,
-        productMutationRequests: 9,
+        preProviderHttpRequests: 17,
+        evidenceHttpRequests: 20,
+        productMutationRequests: 11,
       },
     });
-    const plannerBodies = harness.requests
-      .filter(({ gate }) => gate.startsWith("planner.recommend") || gate.startsWith("planner.refine"))
-      .map(({ body }) => body);
-    expect(plannerBodies[0]).toBe(plannerBodies[1]);
-    expect(plannerBodies[2]).toBe(plannerBodies[3]);
-    expect(JSON.parse(plannerBodies[2] ?? "{}").lockedItemIds).toEqual([ITEM_ID]);
+    expect(harness.qaInspectionRequests).toEqual([{
+      payment: {
+        slotId: "qa-01",
+        bookingId: PAYMENT_BOOKING_ID,
+        operationId: RECOMMEND_OPERATION_ID,
+      },
+      cancellation: {
+        slotId: "qa-02",
+        bookingId: CANCELLATION_BOOKING_ID,
+        operationId: REFINE_OPERATION_ID,
+      },
+    }]);
+
+    const plannerRequests = harness.requests
+      .filter(({ gate }) => gate.startsWith("planner.recommend") || gate.startsWith("planner.refine"));
+    const withoutGate = ({ url, method, headers, body }: RequestRecord) => ({ url, method, headers, body });
+    expect(withoutGate(plannerRequests[0]!)).toEqual(withoutGate(plannerRequests[1]!));
+    expect(withoutGate(plannerRequests[2]!)).toEqual(withoutGate(plannerRequests[3]!));
+    expect(JSON.parse(plannerRequests[2]?.body ?? "{}").lockedItemIds).toEqual([ITEM_ID]);
+    expect(harness.responseLossEvents).toHaveLength(2);
+    expect(harness.orchestrationEvents.indexOf("request:planner.recommend.primary")).toBeLessThan(
+      harness.orchestrationEvents.indexOf(`response-loss:${RECOMMEND_OPERATION_ID}`),
+    );
+    expect(harness.orchestrationEvents.indexOf(`response-loss:${RECOMMEND_OPERATION_ID}`)).toBeLessThan(
+      harness.orchestrationEvents.indexOf("request:planner.recommend.replay"),
+    );
+
+    const evidenceRequests = harness.requests.filter(({ gate }) => (
+      gate.startsWith("auth.")
+      || gate.startsWith("role.")
+      || gate.startsWith("denial.")
+      || gate.startsWith("read.owner-revision-")
+      || gate.startsWith("read.attestation.")
+    ));
+    expect(evidenceRequests).toHaveLength(20);
+    expect(harness.requests.filter(({ gate }) => gate.startsWith("read.attestation."))).toHaveLength(4);
+    expect(harness.requests.filter(({ gate }) => gate.startsWith("read.owner-revision-"))).toHaveLength(2);
+    expect(harness.requests.find(({ gate }) => gate === "read.owner-revision-1")?.url).toContain(
+      "trip_plan_items(id,place_id,position,start_at,end_at,visit_duration_minutes)",
+    );
+
+    const paymentBodies = harness.requests
+      .filter(({ gate }) => gate.startsWith("fixed.payment.complete"))
+      .map(({ body }) => JSON.parse(body ?? "{}"));
+    const cancellationBodies = harness.requests
+      .filter(({ gate }) => gate.startsWith("fixed.cancellation.cancel"))
+      .map(({ body }) => JSON.parse(body ?? "{}"));
+    expect(paymentBodies).toHaveLength(2);
+    expect(cancellationBodies).toHaveLength(2);
+    expect(paymentBodies.every(({ booking_id }) => booking_id === PAYMENT_BOOKING_ID)).toBe(true);
+    expect(cancellationBodies.every(({ booking_id }) => booking_id === CANCELLATION_BOOKING_ID)).toBe(true);
+    expect(PAYMENT_BOOKING_ID).not.toBe(CANCELLATION_BOOKING_ID);
+    expect(harness.requests.filter(({ gate }) => gate.startsWith("fixed.payment.read"))).toHaveLength(3);
     expect(result.gates.map(({ name, status }: { name: string; status: string }) => `${name}:${status}`)).toEqual(expect.arrayContaining([
       "real-ai:pass",
       "replay:pass",
       "fixed-tour-simulated-payment:pass",
       "permissions:pass",
     ]));
+  });
+
+  it("fails closed when attestation does not prove one provider attempt per live operation", async () => {
+    const harness = createHarness({ attestedProviderDelta: 0 });
+
+    const code = await captureCode(runThesisDemoSmoke(validOptions(), harness.dependencies));
+
+    expect(code).toBe("SMOKE_QUOTA_REPLAY_UNPROVEN");
+    expect(harness.requests.filter(({ gate }) => gate.startsWith("fixed."))).toEqual([]);
+  });
+
+  it("requires explicit post-commit replay authorization and makes no replay when denied", async () => {
+    const harness = createHarness({ responseLossAuthorized: false });
+
+    const code = await captureCode(runThesisDemoSmoke(validOptions(), harness.dependencies));
+
+    expect(code).toBe("SMOKE_RESPONSE_LOSS_REPLAY_UNAUTHORIZED");
+    expect(harness.requests.filter(({ gate }) => gate.startsWith("planner.recommend")).map(({ gate }) => gate)).toEqual([
+      "planner.recommend.primary",
+    ]);
+  });
+
+  it.each([
+    ["returned revision", { tamperReturnedLockedItem: true }],
+    ["persisted revision", { tamperPersistedLockedItem: true }],
+  ])("rejects changed locked item identity or immutable fields in the %s", async (_label, harnessOptions) => {
+    const harness = createHarness(harnessOptions);
+
+    const code = await captureCode(runThesisDemoSmoke(validOptions(), harness.dependencies));
+
+    expect(code).toBe("SMOKE_LOCKED_ITEM_CHANGED");
+    expect(harness.requests.filter(({ gate }) => gate.startsWith("fixed."))).toEqual([]);
   });
 
   it("fails the real-AI gate when both bounded live operations degrade", async () => {
@@ -429,6 +752,7 @@ describe("bounded thesis-demo cloud smoke", () => {
     const recommendRequests = harness.requests.filter(({ gate }) => gate.startsWith("planner.recommend"));
     expect(recommendRequests.map(({ gate }) => gate)).toEqual(["planner.recommend.primary"]);
     expect(new Set(recommendRequests.map(({ body }) => JSON.parse(body ?? "{}").operationId)).size).toBe(1);
+    expect(harness.responseLossEvents).toEqual([]);
   });
 
   it("returns one stable redacted main-process failure line", async () => {

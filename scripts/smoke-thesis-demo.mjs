@@ -6,13 +6,15 @@ import { fileURLToPath } from "node:url";
 import { computePlannerOperationDigest } from "../supabase/functions/_shared/planner-operation.ts";
 
 export const LIVE_SMOKE_OPT_IN = "RUN_LIVE_THESIS_DEMO";
+export const FALLBACK_SMOKE_CONFIRMATION = "RUN_FALLBACK_THESIS_DEMO";
 
 const EXPECTED_PROJECT_NAME = "localens-thesis-demo";
 const MANAGEMENT_ORIGIN = "https://api.supabase.com";
 const MAX_PRE_PROVIDER_HTTP = 20;
+const MAX_EVIDENCE_HTTP = 20;
 const MAX_PLANNER_INVOCATIONS = 4;
 const MAX_PROVIDER_ELIGIBLE_ATTEMPTS = 2;
-const MAX_PRODUCT_MUTATIONS = 9;
+const MAX_PRODUCT_MUTATIONS = 11;
 const CORRELATION_HEADERS = ["x-correlation-id", "x-request-id", "cf-ray"];
 const ACCOUNT_CONTRACT = Object.freeze({
   customer: Object.freeze({ email: "customer.demo@localens.invalid", role: "customer" }),
@@ -72,9 +74,22 @@ function validateOptions(options) {
     fail("SMOKE_TARGET_INSECURE");
   }
   if (options?.mode !== "live-success" && options?.mode !== "fallback-only") fail("SMOKE_MODE_INVALID");
-  if (options.liveOptIn !== LIVE_SMOKE_OPT_IN) fail("SMOKE_LIVE_OPT_IN_REQUIRED");
-  const slot = QA_SLOTS.get(options.qaSlot);
-  if (slot === undefined) fail("SMOKE_QA_SLOT_UNSAFE");
+  if (options.mode === "live-success" && options.confirmation !== LIVE_SMOKE_OPT_IN) {
+    fail("SMOKE_LIVE_OPT_IN_REQUIRED");
+  }
+  if (options.mode === "fallback-only" && options.confirmation !== FALLBACK_SMOKE_CONFIRMATION) {
+    fail("SMOKE_FALLBACK_CONFIRMATION_REQUIRED");
+  }
+  let slots;
+  if (options.mode === "live-success") {
+    const paymentSlot = QA_SLOTS.get(options?.qaSlots?.payment);
+    const cancellationSlot = QA_SLOTS.get(options?.qaSlots?.cancellation);
+    if (paymentSlot === undefined || cancellationSlot === undefined) fail("SMOKE_QA_SLOT_UNSAFE");
+    if (paymentSlot.id !== "qa-01" || cancellationSlot.id !== "qa-02") {
+      fail("SMOKE_QA_SLOT_ASSIGNMENTS_UNSAFE");
+    }
+    slots = { payment: paymentSlot, cancellation: cancellationSlot };
+  }
 
   for (const [key, contract] of Object.entries(ACCOUNT_CONTRACT)) {
     const account = options?.accounts?.[key];
@@ -83,7 +98,10 @@ function validateOptions(options) {
   for (const name of ["publishableKey", "serviceRoleKey", "managementToken"]) {
     if (!nonEmpty(options?.credentials?.[name])) fail("SMOKE_CREDENTIALS_INCOMPLETE");
   }
-  return { runtimeUrl, slot };
+  return {
+    runtimeUrl,
+    slots,
+  };
 }
 
 function knownSecrets(options) {
@@ -134,14 +152,6 @@ function bearerHeaders(options, token) {
   };
 }
 
-function serviceHeaders(options) {
-  return {
-    apikey: options.credentials.serviceRoleKey,
-    authorization: `Bearer ${options.credentials.serviceRoleKey}`,
-    "content-type": "application/json",
-  };
-}
-
 function makeState(options, dependencies) {
   const secrets = knownSecrets(options);
   const counts = {
@@ -149,6 +159,7 @@ function makeState(options, dependencies) {
     providerEligibleAttempts: 0,
     denialProbes: 0,
     preProviderHttpRequests: 0,
+    evidenceHttpRequests: 0,
     productMutationRequests: 0,
   };
   const gates = [];
@@ -167,6 +178,10 @@ function makeState(options, dependencies) {
       counts.preProviderHttpRequests += 1;
       if (counts.preProviderHttpRequests > MAX_PRE_PROVIDER_HTTP) fail("SMOKE_PRE_PROVIDER_BUDGET_EXCEEDED");
     }
+    if (accounting.evidence === true) {
+      counts.evidenceHttpRequests += 1;
+      if (counts.evidenceHttpRequests > MAX_EVIDENCE_HTTP) fail("SMOKE_EVIDENCE_HTTP_BUDGET_EXCEEDED");
+    }
     if (accounting.planner === true) {
       counts.plannerEndpointInvocations += 1;
       if (counts.plannerEndpointInvocations > MAX_PLANNER_INVOCATIONS) fail("SMOKE_PLANNER_BUDGET_EXCEEDED");
@@ -178,8 +193,7 @@ function makeState(options, dependencies) {
     }
     if (accounting.providerOperation !== undefined && !providerOperations.has(accounting.providerOperation)) {
       providerOperations.add(accounting.providerOperation);
-      counts.providerEligibleAttempts += 1;
-      if (counts.providerEligibleAttempts > MAX_PROVIDER_ELIGIBLE_ATTEMPTS) fail("SMOKE_PROVIDER_BUDGET_EXCEEDED");
+      if (providerOperations.size > MAX_PROVIDER_ELIGIBLE_ATTEMPTS) fail("SMOKE_PROVIDER_BUDGET_EXCEEDED");
     }
 
     let response;
@@ -204,7 +218,14 @@ function makeState(options, dependencies) {
     return response;
   };
 
-  return { counts, gates, log, pass, request, secrets };
+  const setAttestedProviderAttempts = (count) => {
+    if (!Number.isInteger(count) || count < 0 || count > MAX_PROVIDER_ELIGIBLE_ATTEMPTS) {
+      fail("SMOKE_PROVIDER_BUDGET_EXCEEDED");
+    }
+    counts.providerEligibleAttempts = count;
+  };
+
+  return { counts, gates, log, pass, request, secrets, setAttestedProviderAttempts };
 }
 
 function requireStatus(response, expected, code = "SMOKE_HTTP_FAILED") {
@@ -252,7 +273,7 @@ async function authenticate(options, state) {
         origin: options.target.allowedOrigin,
       },
       body: JSON.stringify({ email: account.email, password: account.password }),
-    }, { preProvider: true });
+    }, { preProvider: true, evidence: true });
     requireStatus(response, 200);
     if (!nonEmpty(response.json?.access_token) || !nonEmpty(response.json?.user?.id)) fail("SMOKE_AUTH_FAILED");
     sessions[key] = { token: response.json.access_token, userId: response.json.user.id };
@@ -264,13 +285,17 @@ async function authenticate(options, state) {
 
 async function verifyRoles(options, sessions, state) {
   for (const [key, contract] of Object.entries(ACCOUNT_CONTRACT)) {
+    // Both planner handlers enforce the exact customer role before provider
+    // eligibility. Keep the separate pre-provider role reads for the three
+    // fixed-tour actors so all owner/service evidence stays within 20 HTTP calls.
+    if (key === "customer") continue;
     const response = await state.request({
       gate: `role.${key}`,
       url: `${options.target.supabaseUrl}/rest/v1/rpc/get_portal_identity`,
       method: "POST",
       headers: bearerHeaders(options, sessions[key].token),
       body: "{}",
-    }, { preProvider: true });
+    }, { preProvider: true, evidence: true });
     requireStatus(response, 200);
     const identity = requireSingleRow(response, "SMOKE_ROLE_MISMATCH");
     if (identity.user_id !== sessions[key].userId || identity.role !== contract.role) fail("SMOKE_ROLE_MISMATCH");
@@ -344,7 +369,10 @@ async function runDenialProbes(options, sessions, state, slot) {
   ];
 
   for (const probe of probes) {
-    const response = await state.request({ gate: probe.gate, ...probe.spec }, { preProvider: true, denial: true });
+    const response = await state.request(
+      { gate: probe.gate, ...probe.spec },
+      { preProvider: true, evidence: true, denial: true },
+    );
     requireStatus(response, probe.expected, "SMOKE_DENIAL_FAILED");
     if (probe.validate !== undefined && !probe.validate(response)) fail("SMOKE_DENIAL_FAILED");
     state.pass(probe.gate, response);
@@ -378,148 +406,257 @@ async function plannerCall(options, sessions, state, { gate, functionName, body,
   });
 }
 
-async function readUserRevision(options, sessions, state, { planId, revision, includeItems = false }) {
-  const plan = await state.request({
-    gate: `read.user-plan-${revision}`,
-    url: `${options.target.supabaseUrl}/rest/v1/trip_plans?id=eq.${planId}&select=id,latest_revision_no`,
-    method: "GET",
-    headers: bearerHeaders(options, sessions.customer.token),
-  });
-  const planRow = requireSingleRow(requireStatus(plan, 200), "SMOKE_REPLAY_UNPROVEN");
-  if (planRow.id !== planId || planRow.latest_revision_no !== revision) fail("SMOKE_REPLAY_UNPROVEN");
-
-  const revisionResponse = await state.request({
-    gate: `read.user-revision-${revision}`,
-    url: `${options.target.supabaseUrl}/rest/v1/trip_plan_revisions?plan_id=eq.${planId}&revision_no=eq.${revision}&select=id,plan_id,revision_no,ranking_source,result_json`,
-    method: "GET",
-    headers: bearerHeaders(options, sessions.customer.token),
-  });
-  const revisionRow = requireSingleRow(requireStatus(revisionResponse, 200), "SMOKE_REPLAY_UNPROVEN");
-  if (revisionRow.plan_id !== planId || revisionRow.revision_no !== revision) fail("SMOKE_REPLAY_UNPROVEN");
-
-  let items = [];
-  if (includeItems) {
-    if (!nonEmpty(revisionRow.id)) fail("SMOKE_REPLAY_UNPROVEN");
-    const itemResponse = await state.request({
-      gate: "read.user-items-1",
-      url: `${options.target.supabaseUrl}/rest/v1/trip_plan_items?revision_id=eq.${revisionRow.id}&select=id,place_id,position&order=position.asc`,
-      method: "GET",
-      headers: bearerHeaders(options, sessions.customer.token),
-    });
-    requireStatus(itemResponse, 200);
-    if (!Array.isArray(itemResponse.json) || itemResponse.json.length === 0 || !nonEmpty(itemResponse.json[0]?.id)) {
-      fail("SMOKE_REPLAY_UNPROVEN");
-    }
-    items = itemResponse.json;
-  }
-  return { revisionRow, items };
+function lockedWireItem(item, position) {
+  if (
+    item === null
+    || typeof item !== "object"
+    || !nonEmpty(item.placeId)
+    || !nonEmpty(item.startAt)
+    || !nonEmpty(item.endAt)
+    || !Number.isInteger(item.visitDurationMinutes)
+  ) fail("SMOKE_PLANNER_RESPONSE_INVALID");
+  return {
+    placeId: item.placeId,
+    position,
+    startAt: item.startAt,
+    endAt: item.endAt,
+    visitDurationMinutes: item.visitDurationMinutes,
+  };
 }
 
-async function proveOperation(options, sessions, state, { operationId, requestDigest, planId, revision, kind }) {
-  const response = await state.request({
-    gate: `read.operation.${kind}`,
-    url: `${options.target.supabaseUrl}/rest/v1/rpc/get_runtime_planner_operation`,
+function sameLockedWireItem(item, locked) {
+  return item?.placeId === locked.placeId
+    && item?.startAt === locked.startAt
+    && item?.endAt === locked.endAt
+    && item?.visitDurationMinutes === locked.visitDurationMinutes;
+}
+
+function samePersistedLockedItem(item, locked) {
+  return item?.id === locked.itemId
+    && item?.place_id === locked.placeId
+    && item?.position === locked.position
+    && item?.start_at === locked.startAt
+    && item?.end_at === locked.endAt
+    && item?.visit_duration_minutes === locked.visitDurationMinutes;
+}
+
+function plannerNetworkRequest(options, sessions, { functionName, body }) {
+  return {
+    url: `${options.target.supabaseUrl}/functions/v1/${functionName}`,
     method: "POST",
-    headers: serviceHeaders(options),
-    body: JSON.stringify({
-      p_actor_user_id: sessions.customer.userId,
-      p_operation_id: operationId,
-      p_request_digest: requestDigest,
-    }),
-  });
-  requireStatus(response, 200);
-  const operation = Array.isArray(response.json) ? response.json[0] : response.json;
-  if (operation?.state !== "completed" || operation?.planId !== planId || operation?.revision !== revision) {
-    fail("SMOKE_REPLAY_UNPROVEN");
-  }
+    headers: bearerHeaders(options, sessions.customer.token),
+    body,
+  };
 }
 
-async function proveQuota(readQuotaEvidence, context) {
-  let evidence;
+function networkRequestIdentity(spec) {
+  const headers = Object.fromEntries(
+    Object.entries(spec.headers).sort(([left], [right]) => left.localeCompare(right)),
+  );
+  return createHash("sha256")
+    .update(JSON.stringify({ method: spec.method, url: spec.url, headers, body: spec.body }), "utf8")
+    .digest("hex");
+}
+
+async function plannerResponseLossReplay(options, dependencies, sessions, state, {
+  functionName,
+  kind,
+  body,
+  operationId,
+}) {
+  const networkSpec = plannerNetworkRequest(options, sessions, { functionName, body });
+  await state.request({ gate: `planner.${kind}.primary`, ...networkSpec }, {
+    planner: true,
+    providerOperation: operationId,
+  });
+
+  const requestIdentity = networkRequestIdentity(networkSpec);
+  let authorization;
   try {
-    evidence = await readQuotaEvidence(context);
+    authorization = await dependencies.postCommitResponseLoss.authorizeReplay({
+      operationId,
+      requestIdentity,
+    });
+  } catch {
+    fail("SMOKE_RESPONSE_LOSS_REPLAY_UNAUTHORIZED");
+  }
+  if (authorization?.replay !== true || authorization.requestIdentity !== requestIdentity) {
+    fail("SMOKE_RESPONSE_LOSS_REPLAY_UNAUTHORIZED");
+  }
+
+  const replaySpec = { ...networkSpec };
+  if (networkRequestIdentity(replaySpec) !== requestIdentity) fail("SMOKE_RESPONSE_LOSS_REPLAY_UNAUTHORIZED");
+  return state.request({ gate: `planner.${kind}.replay`, ...replaySpec }, {
+    planner: true,
+    providerOperation: operationId,
+  });
+}
+
+const ATTESTATION_COUNT_FIELDS = [
+  "operationCount",
+  "plannerReservationCount",
+  "geminiReservationCount",
+  "recommendationRunCount",
+  "providerAttemptedCount",
+];
+
+function validAttestationCounts(value) {
+  return ATTESTATION_COUNT_FIELDS.every((field) => Number.isInteger(value?.[field]) && value[field] >= 0);
+}
+
+async function readOperationAttestation(options, dependencies, sessions, state, {
+  kind,
+  phase,
+  operationId,
+  requestDigest,
+  planId = null,
+  revision = null,
+}) {
+  let spec;
+  try {
+    spec = await dependencies.quotaAttestationRequest({
+      operation: kind,
+      phase,
+      operationId,
+      requestDigest,
+      actorUserId: sessions.customer.userId,
+    });
   } catch {
     fail("SMOKE_QUOTA_REPLAY_UNPROVEN");
   }
+  const expectedGate = `read.attestation.${phase}.${kind}`;
+  const url = exactHttpsUrl(spec?.url);
   if (
-    evidence?.plannerQuotaReceipts !== 1
-    || evidence?.geminiQuotaReceipts !== 1
-    || evidence?.recommendationRuns !== 1
+    url === null
+    || url.origin !== options.target.supabaseUrl
+    || spec?.method !== "POST"
+    || spec?.gate !== expectedGate
   ) fail("SMOKE_QUOTA_REPLAY_UNPROVEN");
+  const response = await state.request(spec, {
+    evidence: true,
+    preProvider: phase === "before",
+  });
+  requireStatus(response, 200, "SMOKE_QUOTA_REPLAY_UNPROVEN");
+  const evidence = Array.isArray(response.json) ? response.json[0] : response.json;
+  if (!validAttestationCounts(evidence)) fail("SMOKE_QUOTA_REPLAY_UNPROVEN");
+  if (phase === "before") {
+    if (evidence.state !== "missing" || ATTESTATION_COUNT_FIELDS.some((field) => evidence[field] !== 0)) {
+      fail("SMOKE_QUOTA_REPLAY_UNPROVEN");
+    }
+  } else if (evidence.state !== "completed" || evidence.planId !== planId || evidence.revision !== revision) {
+    fail("SMOKE_QUOTA_REPLAY_UNPROVEN");
+  }
+  return evidence;
 }
 
-async function runLive(options, dependencies, sessions, state, slot) {
-  await runDenialProbes(options, sessions, state, slot);
+function attestationDelta(before, after) {
+  const deltas = Object.fromEntries(
+    ATTESTATION_COUNT_FIELDS.map((field) => [field, after[field] - before[field]]),
+  );
+  if (ATTESTATION_COUNT_FIELDS.some((field) => deltas[field] !== 1)) {
+    fail("SMOKE_QUOTA_REPLAY_UNPROVEN");
+  }
+  return deltas;
+}
 
-  const recommendOperationId = slot.runId;
+const OWNER_REVISION_SELECT = "id,plan_id,revision_no,ranking_source,result_json,trip_plans!inner(id,latest_revision_no),trip_plan_items(id,place_id,position,start_at,end_at,visit_duration_minutes)";
+
+async function readOwnerRevisionOne(options, sessions, state, { planId, wireLocked }) {
+  const response = await state.request({
+    gate: "read.owner-revision-1",
+    url: `${options.target.supabaseUrl}/rest/v1/trip_plan_revisions?plan_id=eq.${planId}&revision_no=eq.1&select=${OWNER_REVISION_SELECT}`,
+    method: "GET",
+    headers: bearerHeaders(options, sessions.customer.token),
+  }, { evidence: true });
+  requireStatus(response, 200, "SMOKE_REPLAY_UNPROVEN");
+  const row = requireSingleRow(response, "SMOKE_REPLAY_UNPROVEN");
+  const plan = Array.isArray(row.trip_plans) ? row.trip_plans[0] : row.trip_plans;
+  const persisted = row.trip_plan_items?.find((item) => (
+    item?.place_id === wireLocked.placeId && item?.position === wireLocked.position
+  ));
+  const resultItem = row.result_json?.items?.find((item) => item?.placeId === wireLocked.placeId);
+  if (
+    row.plan_id !== planId
+    || row.revision_no !== 1
+    || plan?.id !== planId
+    || plan?.latest_revision_no !== 1
+    || !Array.isArray(row.trip_plan_items)
+    || !nonEmpty(persisted?.id)
+    || !sameLockedWireItem(resultItem, wireLocked)
+  ) fail("SMOKE_REPLAY_UNPROVEN");
+  const locked = { ...wireLocked, itemId: persisted.id };
+  if (!samePersistedLockedItem(persisted, locked)) fail("SMOKE_LOCKED_ITEM_CHANGED");
+  return locked;
+}
+
+async function readOwnerRevisionTwo(options, sessions, state, { planId, locked, refined }) {
+  const response = await state.request({
+    gate: "read.owner-revision-2",
+    url: `${options.target.supabaseUrl}/rest/v1/trip_plan_revisions?plan_id=eq.${planId}&revision_no=eq.2&select=${OWNER_REVISION_SELECT}`,
+    method: "GET",
+    headers: bearerHeaders(options, sessions.customer.token),
+  }, { evidence: true });
+  requireStatus(response, 200, "SMOKE_REPLAY_UNPROVEN");
+  const row = requireSingleRow(response, "SMOKE_REPLAY_UNPROVEN");
+  const plan = Array.isArray(row.trip_plans) ? row.trip_plans[0] : row.trip_plans;
+  const persisted = row.trip_plan_items?.find((item) => item?.id === locked.itemId);
+  const resultItem = row.result_json?.items?.find((item) => item?.placeId === locked.placeId);
+  if (
+    row.plan_id !== planId
+    || row.revision_no !== 2
+    || plan?.id !== planId
+    || plan?.latest_revision_no !== 2
+    || !Array.isArray(row.trip_plan_items)
+  ) fail("SMOKE_REPLAY_UNPROVEN");
+  if (
+    !samePersistedLockedItem(persisted, locked)
+    || !sameLockedWireItem(resultItem, locked)
+    || !sameLockedWireItem(refined, locked)
+  ) fail("SMOKE_LOCKED_ITEM_CHANGED");
+}
+
+async function runLive(options, dependencies, sessions, state, slots) {
+  const paymentAssignment = {
+    slotId: slots.payment.id,
+    bookingId: slots.payment.bookingId,
+    operationId: slots.payment.runId,
+  };
+  const cancellationAssignment = {
+    slotId: slots.cancellation.id,
+    bookingId: slots.cancellation.bookingId,
+    operationId: slots.cancellation.runId,
+  };
+  await runDenialProbes(options, sessions, state, slots.payment);
+
   const input = plannerInput();
-  const recommendBody = JSON.stringify({ operationId: recommendOperationId, input });
-  await plannerCall(options, sessions, state, {
-    gate: "planner.recommend.primary",
-    functionName: "recommend-itinerary",
-    body: recommendBody,
+  const recommendOperationId = paymentAssignment.operationId;
+  const recommendDigest = await computePlannerOperationDigest("recommend", input);
+  const beforeRecommend = await readOperationAttestation(options, dependencies, sessions, state, {
+    kind: "recommend",
+    phase: "before",
     operationId: recommendOperationId,
-    providerEligible: true,
+    requestDigest: recommendDigest,
   });
-  const recommendReplay = await plannerCall(options, sessions, state, {
-    gate: "planner.recommend.replay",
+  const recommendBody = JSON.stringify({ operationId: recommendOperationId, input });
+  const recommendReplay = await plannerResponseLossReplay(options, dependencies, sessions, state, {
     functionName: "recommend-itinerary",
+    kind: "recommend",
     body: recommendBody,
     operationId: recommendOperationId,
-    providerEligible: true,
   });
   const recommend = validatePlannerResponse(recommendReplay, {
     revision: 1,
     rankingSource: recommendReplay.json?.degraded === true ? "deterministic" : "ai",
   });
-  const firstReadback = await readUserRevision(options, sessions, state, {
+  const wireLocked = lockedWireItem(recommend.proposal.items[0], 1);
+  const locked = await readOwnerRevisionOne(options, sessions, state, {
     planId: recommend.planId,
-    revision: 1,
-    includeItems: true,
+    wireLocked,
   });
-  const recommendDigest = await computePlannerOperationDigest("recommend", input);
-  await proveOperation(options, sessions, state, {
-    operationId: recommendOperationId,
-    requestDigest: recommendDigest,
-    planId: recommend.planId,
-    revision: 1,
-    kind: "recommend",
-  });
-  await proveQuota(dependencies.readQuotaEvidence, { kind: "recommend", operationId: recommendOperationId });
 
-  const lockedItemIds = [firstReadback.items[0].id];
+  const lockedItemIds = [locked.itemId];
   const signals = { pace: "slower", food: "keep", preferTypes: ["history"], avoidTypes: [] };
-  const refineOperationId = slot.paymentId;
-  const refinePayload = {
-    operationId: refineOperationId,
-    planId: recommend.planId,
-    baseRevision: 1,
-    delta: { feedback: "slower; history", scope: "partial" },
-    lockedItemIds,
-  };
-  const refineBody = JSON.stringify(refinePayload);
-  await plannerCall(options, sessions, state, {
-    gate: "planner.refine.primary",
-    functionName: "refine-itinerary",
-    body: refineBody,
-    operationId: refineOperationId,
-    providerEligible: true,
-  });
-  const refineReplay = await plannerCall(options, sessions, state, {
-    gate: "planner.refine.replay",
-    functionName: "refine-itinerary",
-    body: refineBody,
-    operationId: refineOperationId,
-    providerEligible: true,
-  });
-  const refined = validatePlannerResponse(refineReplay, {
-    revision: 2,
-    rankingSource: refineReplay.json?.degraded === true ? "deterministic" : "ai",
-  });
-  if (refined.planId !== recommend.planId || !refined.proposal.items.some(({ placeId }) => placeId === firstReadback.items[0].place_id)) {
-    fail("SMOKE_REPLAY_UNPROVEN");
-  }
-  await readUserRevision(options, sessions, state, { planId: recommend.planId, revision: 2 });
+  const refineOperationId = cancellationAssignment.operationId;
   const refineDigest = await computePlannerOperationDigest("refine", {
     planId: recommend.planId,
     baseRevision: 1,
@@ -527,21 +664,67 @@ async function runLive(options, dependencies, sessions, state, slot) {
     lockedItemIds,
     signals,
   });
-  await proveOperation(options, sessions, state, {
+  const beforeRefine = await readOperationAttestation(options, dependencies, sessions, state, {
+    kind: "refine",
+    phase: "before",
+    operationId: refineOperationId,
+    requestDigest: refineDigest,
+  });
+  const refineBody = JSON.stringify({
+    operationId: refineOperationId,
+    planId: recommend.planId,
+    baseRevision: 1,
+    delta: { feedback: "slower; history", scope: "partial" },
+    lockedItemIds,
+  });
+  const refineReplay = await plannerResponseLossReplay(options, dependencies, sessions, state, {
+    functionName: "refine-itinerary",
+    kind: "refine",
+    body: refineBody,
+    operationId: refineOperationId,
+  });
+  const refined = validatePlannerResponse(refineReplay, {
+    revision: 2,
+    rankingSource: refineReplay.json?.degraded === true ? "deterministic" : "ai",
+  });
+  const refinedLockedItems = refined.proposal.items.filter((item) => item?.placeId === locked.placeId);
+  if (refined.planId !== recommend.planId || refinedLockedItems.length !== 1 || !sameLockedWireItem(refinedLockedItems[0], locked)) {
+    fail("SMOKE_LOCKED_ITEM_CHANGED");
+  }
+
+  await readOwnerRevisionTwo(options, sessions, state, {
+    planId: recommend.planId,
+    locked,
+    refined: refinedLockedItems[0],
+  });
+  const afterRecommend = await readOperationAttestation(options, dependencies, sessions, state, {
+    kind: "recommend",
+    phase: "after",
+    operationId: recommendOperationId,
+    requestDigest: recommendDigest,
+    planId: recommend.planId,
+    revision: 1,
+  });
+  const afterRefine = await readOperationAttestation(options, dependencies, sessions, state, {
+    kind: "refine",
+    phase: "after",
     operationId: refineOperationId,
     requestDigest: refineDigest,
     planId: recommend.planId,
     revision: 2,
-    kind: "refine",
   });
-  await proveQuota(dependencies.readQuotaEvidence, { kind: "refine", operationId: refineOperationId });
+  const recommendDelta = attestationDelta(beforeRecommend, afterRecommend);
+  const refineDelta = attestationDelta(beforeRefine, afterRefine);
+  state.setAttestedProviderAttempts(
+    recommendDelta.providerAttemptedCount + refineDelta.providerAttemptedCount,
+  );
   state.pass("replay");
 
   const realAi = [recommend, refined].some((value) => value.degraded === false && value.proposal.rankingSource === "ai");
   if (!realAi) fail("SMOKE_REAL_AI_UNPROVEN");
   state.pass("real-ai");
 
-  await runFixedTour(options, sessions, state, slot);
+  await runFixedTour(options, sessions, state, { paymentAssignment, cancellationAssignment, slots });
   return true;
 }
 
@@ -557,44 +740,91 @@ async function mutation(options, state, { gate, rpc, token, body }) {
   return requireSingleRow(response, "SMOKE_FIXED_TOUR_FAILED");
 }
 
-async function runFixedTour(options, sessions, state, slot) {
-  const bookingBody = {
-    departure_id: dataset.qa.slotDepartureId,
-    party_size: Math.min(2, slot.maxSeats),
-    booking_locale: "vi",
-    idempotency_key: slot.bookingIdempotencyKey,
-  };
-  const bookingPrimary = await mutation(options, state, { gate: "fixed.begin.primary", rpc: "begin_fixed_tour_booking", token: sessions.qaCustomer.token, body: bookingBody });
-  const bookingReplay = await mutation(options, state, { gate: "fixed.begin.replay", rpc: "begin_fixed_tour_booking", token: sessions.qaCustomer.token, body: bookingBody });
-  if (bookingPrimary.booking_id !== slot.bookingId || bookingReplay.booking_id !== slot.bookingId) fail("SMOKE_FIXED_TOUR_FAILED");
+async function runFixedTour(options, sessions, state, {
+  paymentAssignment,
+  cancellationAssignment,
+  slots,
+}) {
+  const paymentSlot = slots.payment;
+  const cancellationSlot = slots.cancellation;
+  if (
+    paymentAssignment.slotId !== paymentSlot.id
+    || paymentAssignment.bookingId !== paymentSlot.bookingId
+    || cancellationAssignment.slotId !== cancellationSlot.id
+    || cancellationAssignment.bookingId !== cancellationSlot.bookingId
+    || paymentAssignment.bookingId === cancellationAssignment.bookingId
+  ) fail("SMOKE_QA_SLOT_ASSIGNMENTS_UNSAFE");
 
-  const paymentBody = { booking_id: slot.bookingId, idempotency_key: slot.paymentIdempotencyKey };
-  await mutation(options, state, { gate: "fixed.payment.primary", rpc: "complete_simulated_fixed_tour_payment", token: sessions.qaCustomer.token, body: paymentBody });
-  await mutation(options, state, { gate: "fixed.payment.replay", rpc: "complete_simulated_fixed_tour_payment", token: sessions.qaCustomer.token, body: paymentBody });
+  const paymentBookingBody = {
+    departure_id: dataset.qa.slotDepartureId,
+    party_size: Math.min(2, paymentSlot.maxSeats),
+    booking_locale: "vi",
+    idempotency_key: paymentSlot.bookingIdempotencyKey,
+  };
+  const paymentBookingPrimary = await mutation(options, state, { gate: "fixed.payment.begin.primary", rpc: "begin_fixed_tour_booking", token: sessions.qaCustomer.token, body: paymentBookingBody });
+  const paymentBookingReplay = await mutation(options, state, { gate: "fixed.payment.begin.replay", rpc: "begin_fixed_tour_booking", token: sessions.qaCustomer.token, body: paymentBookingBody });
+  if (
+    paymentBookingPrimary.booking_id !== paymentAssignment.bookingId
+    || paymentBookingReplay.booking_id !== paymentAssignment.bookingId
+  ) fail("SMOKE_FIXED_TOUR_FAILED");
+
+  const paymentBody = { booking_id: paymentAssignment.bookingId, idempotency_key: paymentSlot.paymentIdempotencyKey };
+  const paymentPrimary = await mutation(options, state, { gate: "fixed.payment.complete.primary", rpc: "complete_simulated_fixed_tour_payment", token: sessions.qaCustomer.token, body: paymentBody });
+  const paymentReplay = await mutation(options, state, { gate: "fixed.payment.complete.replay", rpc: "complete_simulated_fixed_tour_payment", token: sessions.qaCustomer.token, body: paymentBody });
+  if (
+    paymentPrimary.booking_id !== paymentAssignment.bookingId
+    || paymentReplay.booking_id !== paymentAssignment.bookingId
+    || paymentPrimary.simulated !== true
+    || paymentReplay.simulated !== true
+  ) fail("SMOKE_FIXED_TOUR_FAILED");
 
   const assignmentBody = {
-    booking_id: slot.bookingId,
+    booking_id: paymentAssignment.bookingId,
     guide_user_id: sessions.guide.userId,
-    idempotency_key: `thesis-demo:v1:${slot.id}:assignment`,
+    idempotency_key: `thesis-demo:v1:${paymentSlot.id}:assignment`,
   };
-  const assignment = await mutation(options, state, { gate: "fixed.assign.primary", rpc: "assign_fixed_departure_guide", token: sessions.admin.token, body: assignmentBody });
-  await mutation(options, state, { gate: "fixed.assign.replay", rpc: "assign_fixed_departure_guide", token: sessions.admin.token, body: assignmentBody });
-  if (!nonEmpty(assignment.assignment_id)) fail("SMOKE_FIXED_TOUR_FAILED");
-  await mutation(options, state, { gate: "fixed.accept", rpc: "accept_guide_assignment", token: sessions.guide.token, body: { p_assignment_id: assignment.assignment_id } });
+  const assignment = await mutation(options, state, { gate: "fixed.payment.assign.primary", rpc: "assign_fixed_departure_guide", token: sessions.admin.token, body: assignmentBody });
+  const assignmentReplay = await mutation(options, state, { gate: "fixed.payment.assign.replay", rpc: "assign_fixed_departure_guide", token: sessions.admin.token, body: assignmentBody });
+  if (
+    !nonEmpty(assignment.assignment_id)
+    || assignmentReplay.assignment_id !== assignment.assignment_id
+    || assignment.booking_id !== paymentAssignment.bookingId
+    || assignmentReplay.booking_id !== paymentAssignment.bookingId
+  ) fail("SMOKE_FIXED_TOUR_FAILED");
+  const accepted = await mutation(options, state, { gate: "fixed.payment.accept", rpc: "accept_guide_assignment", token: sessions.guide.token, body: { p_assignment_id: assignment.assignment_id } });
+  if (accepted.assignment_id !== assignment.assignment_id || accepted.status !== "accepted") {
+    fail("SMOKE_FIXED_TOUR_FAILED");
+  }
 
+  const cancellationBookingBody = {
+    departure_id: dataset.qa.slotDepartureId,
+    party_size: Math.min(2, cancellationSlot.maxSeats),
+    booking_locale: "vi",
+    idempotency_key: cancellationSlot.bookingIdempotencyKey,
+  };
+  const cancellationBookingPrimary = await mutation(options, state, { gate: "fixed.cancellation.begin.primary", rpc: "begin_fixed_tour_booking", token: sessions.qaCustomer.token, body: cancellationBookingBody });
+  const cancellationBookingReplay = await mutation(options, state, { gate: "fixed.cancellation.begin.replay", rpc: "begin_fixed_tour_booking", token: sessions.qaCustomer.token, body: cancellationBookingBody });
+  if (
+    cancellationBookingPrimary.booking_id !== cancellationAssignment.bookingId
+    || cancellationBookingReplay.booking_id !== cancellationAssignment.bookingId
+  ) fail("SMOKE_FIXED_TOUR_FAILED");
   const cancelBody = {
-    booking_id: slot.bookingId,
+    booking_id: cancellationAssignment.bookingId,
     reason_code: "trip_plan_changed",
     other_reason: null,
-    idempotency_key: slot.cancelIdempotencyKey,
+    idempotency_key: cancellationSlot.cancelIdempotencyKey,
   };
-  await mutation(options, state, { gate: "fixed.cancel.primary", rpc: "cancel_booking", token: sessions.qaCustomer.token, body: cancelBody });
-  await mutation(options, state, { gate: "fixed.cancel.replay", rpc: "cancel_booking", token: sessions.qaCustomer.token, body: cancelBody });
+  const cancelPrimary = await mutation(options, state, { gate: "fixed.cancellation.cancel.primary", rpc: "cancel_booking", token: sessions.qaCustomer.token, body: cancelBody });
+  const cancelReplay = await mutation(options, state, { gate: "fixed.cancellation.cancel.replay", rpc: "cancel_booking", token: sessions.qaCustomer.token, body: cancelBody });
+  if (
+    cancelPrimary.booking_id !== cancellationAssignment.bookingId
+    || cancelReplay.booking_id !== cancellationAssignment.bookingId
+  ) fail("SMOKE_FIXED_TOUR_FAILED");
 
   const reads = [
-    ["fixed.read.customer", sessions.qaCustomer.token, `customer_bookings_v?id=eq.${slot.bookingId}&select=id`],
-    ["fixed.read.admin", sessions.admin.token, `admin_bookings_v?id=eq.${slot.bookingId}&select=id`],
-    ["fixed.read.guide", sessions.guide.token, "rpc/get_guide_assigned_bookings"],
+    ["fixed.payment.read.customer", sessions.qaCustomer.token, `customer_bookings_v?id=eq.${paymentAssignment.bookingId}&select=id`],
+    ["fixed.payment.read.admin", sessions.admin.token, `admin_bookings_v?id=eq.${paymentAssignment.bookingId}&select=id`],
+    ["fixed.payment.read.guide", sessions.guide.token, "rpc/get_guide_assigned_bookings"],
   ];
   for (const [gate, token, path] of reads) {
     const isRpc = path.startsWith("rpc/");
@@ -606,12 +836,15 @@ async function runFixedTour(options, sessions, state, slot) {
       ...(isRpc ? { body: "{}" } : {}),
     });
     requireStatus(response, 200);
-    if (!Array.isArray(response.json)) fail("SMOKE_FIXED_TOUR_FAILED");
+    if (
+      !Array.isArray(response.json)
+      || !response.json.some((row) => row?.id === paymentAssignment.bookingId || row?.booking_id === paymentAssignment.bookingId)
+    ) fail("SMOKE_FIXED_TOUR_FAILED");
   }
   state.pass("fixed-tour-simulated-payment");
 }
 
-async function runFallback(options, dependencies, sessions, state, slot) {
+async function runFallback(options, dependencies, sessions, state) {
   const killSwitch = dependencies.killSwitch;
   if (
     killSwitch === undefined
@@ -629,7 +862,9 @@ async function runFallback(options, dependencies, sessions, state, slot) {
     await killSwitch.set(false);
     if (await killSwitch.read() !== false) fail("SMOKE_KILL_SWITCH_TRANSITION_FAILED");
 
-    const operationId = slot.cancelId;
+    const fallbackSlot = QA_SLOTS.get("qa-03");
+    if (fallbackSlot === undefined) fail("SMOKE_QA_SLOT_UNSAFE");
+    const operationId = fallbackSlot.runId;
     const body = JSON.stringify({ operationId, input: plannerInput() });
     const response = await plannerCall(options, sessions, state, {
       gate: "planner.fallback",
@@ -656,24 +891,49 @@ async function runFallback(options, dependencies, sessions, state, slot) {
   if (primaryError !== undefined) throw primaryError;
 }
 
-async function preflightLive(dependencies, slot) {
-  if (!(dependencies.inspectQaSlot instanceof Function)) fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
+function sameQaAssignment(actual, expected) {
+  return actual?.slotId === expected.slotId
+    && actual?.bookingId === expected.bookingId
+    && actual?.operationId === expected.operationId;
+}
+
+async function preflightLive(dependencies, slots) {
+  if (!(dependencies.inspectQaSlots instanceof Function)) fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
+  const expected = {
+    payment: {
+      slotId: slots.payment.id,
+      bookingId: slots.payment.bookingId,
+      operationId: slots.payment.runId,
+    },
+    cancellation: {
+      slotId: slots.cancellation.id,
+      bookingId: slots.cancellation.bookingId,
+      operationId: slots.cancellation.runId,
+    },
+  };
   let inspection;
   try {
-    inspection = await dependencies.inspectQaSlot(slot.id);
+    inspection = await dependencies.inspectQaSlots(expected);
   } catch {
     fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
   }
-  if (inspection?.safe !== true || inspection.bookingId !== slot.bookingId) {
+  if (
+    inspection?.safe !== true
+    || !sameQaAssignment(inspection.assignments?.payment, expected.payment)
+    || !sameQaAssignment(inspection.assignments?.cancellation, expected.cancellation)
+  ) {
     fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
   }
-  if (!(dependencies.readQuotaEvidence instanceof Function)) fail("SMOKE_QUOTA_REPLAY_UNPROVEN");
+  if (!(dependencies.quotaAttestationRequest instanceof Function)) fail("SMOKE_QUOTA_REPLAY_UNPROVEN");
+  if (!(dependencies.postCommitResponseLoss?.authorizeReplay instanceof Function)) {
+    fail("SMOKE_RESPONSE_LOSS_SEAM_UNAVAILABLE");
+  }
 }
 
 export async function runThesisDemoSmoke(options, dependencies) {
-  const { slot } = validateOptions(options);
+  const { slots } = validateOptions(options);
   if (dependencies?.request === undefined) fail("SMOKE_HTTP_UNAVAILABLE");
-  if (options.mode === "live-success") await preflightLive(dependencies, slot);
+  if (options.mode === "live-success") await preflightLive(dependencies, slots);
 
   const state = makeState(options, dependencies);
   await verifyTarget(options, state);
@@ -681,8 +941,8 @@ export async function runThesisDemoSmoke(options, dependencies) {
   await verifyRoles(options, sessions, state);
 
   let realAi = false;
-  if (options.mode === "live-success") realAi = await runLive(options, dependencies, sessions, state, slot);
-  else await runFallback(options, dependencies, sessions, state, slot);
+  if (options.mode === "live-success") realAi = await runLive(options, dependencies, sessions, state, slots);
+  else await runFallback(options, dependencies, sessions, state);
 
   state.log(`gate=summary status=pass correlation=absent pre_provider=${state.counts.preProviderHttpRequests} planner=${state.counts.plannerEndpointInvocations} provider=${state.counts.providerEligibleAttempts} product_mutations=${state.counts.productMutationRequests}`);
   return { ok: true, mode: options.mode, realAi, counts: state.counts, gates: state.gates };
@@ -755,8 +1015,11 @@ function createManagementKillSwitch(options) {
 function optionsFromEnvironment(environment) {
   return {
     mode: environment.LOCALLENS_THESIS_DEMO_SMOKE_MODE,
-    liveOptIn: environment.LOCALLENS_THESIS_DEMO_LIVE_OPT_IN,
-    qaSlot: environment.LOCALLENS_THESIS_DEMO_QA_SLOT,
+    confirmation: environment.LOCALLENS_THESIS_DEMO_CONFIRMATION,
+    qaSlots: {
+      payment: environment.LOCALLENS_THESIS_DEMO_PAYMENT_QA_SLOT,
+      cancellation: environment.LOCALLENS_THESIS_DEMO_CANCELLATION_QA_SLOT,
+    },
     target: {
       supabaseUrl: environment.NEXT_PUBLIC_SUPABASE_URL,
       projectRef: environment.LOCALLENS_THESIS_DEMO_PROJECT_REF,
@@ -784,9 +1047,12 @@ function environmentDependencies(options) {
     logger: (line) => process.stdout.write(`${line}\n`),
     // Dataset v1 cannot prove that begin_fixed_tour_booking will reuse its
     // predeclared booking ID. The real adapter therefore remains fail-closed.
-    inspectQaSlot: async () => ({ safe: false, code: "SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN" }),
-    // Deliberately no readQuotaEvidence seam until a protected observable
+    inspectQaSlots: async () => ({ safe: false, code: "SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN" }),
+    // Deliberately no quotaAttestationRequest seam until a protected observable
     // boundary can prove one receipt/run per same-operation replay.
+    postCommitResponseLoss: {
+      authorizeReplay: async ({ requestIdentity }) => ({ replay: true, requestIdentity }),
+    },
     killSwitch: createManagementKillSwitch(options),
   };
 }
