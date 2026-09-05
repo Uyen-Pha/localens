@@ -9,16 +9,17 @@ cloud deployment.
 | --- | --- |
 | Repository | [Uyen-Pha/localens](https://github.com/Uyen-Pha/localens) — **PUBLIC** |
 | Candidate branch | `codex/task7-clean-typecheck` |
-| Candidate SHA | `11ced60a1e7127b1e7507722de346ce00339182d` |
+| Candidate SHA | `b86dc3dbbe0d220f734b58d3345bf9b716ab32e7` |
 | Default branch at capture | `main` at `b9f08d589bb972d290c4c367e8a02c636224d512` |
-| Candidate relation to `main` | 4 commits ahead, 0 commits behind |
+| Candidate relation to `main` | 5 commits ahead, 0 commits behind |
 | Product SHA | `0a4c8ecd87dc1413471c464730d4632f63278e41` |
 | Evidence SHA | `392160d4948dd0e4d75988e6879f65f999cffe44` |
 | CI portability SHA | `66d1b2c957cf16e9d10ac6ac2c8884007cffb099` |
-| Acceptance SHA | `11ced60a1e7127b1e7507722de346ce00339182d` |
-| Accepted HEAD CI | [GitHub Actions 33967081834](https://github.com/Uyen-Pha/localens/actions/runs/33967081834) — **PASS** |
+| Task 14 acceptance SHA | `11ced60a1e7127b1e7507722de346ce00339182d` |
+| Task 15 release-document SHA | `b86dc3dbbe0d220f734b58d3345bf9b716ab32e7` |
+| Accepted HEAD CI | [GitHub Actions 33968403528](https://github.com/Uyen-Pha/localens/actions/runs/33968403528) — **PASS** |
 | Captured on | 2026-09-05, Asia/Ho_Chi_Minh |
-| Candidate label | `thesis-demo-candidate@11ced60a1e7127b1e7507722de346ce00339182d` |
+| Candidate label | `thesis-demo-candidate@b86dc3dbbe0d220f734b58d3345bf9b716ab32e7` |
 
 The candidate is intentionally still on its public candidate branch. It has
 not been merged into `main`, linked to a cloud backend, or promoted to a public
@@ -31,7 +32,7 @@ web deployment.
 | Fixture demo | **PASS** | Google Chrome fixture acceptance passed 34/34. This is deterministic demo behavior, not cloud runtime. |
 | Isolated local runtime | **PASS** | Local Supabase Auth/PostgreSQL/RLS/RPC/Edge integration passed on runner-owned random ports. The presentation database on standard ports was not mutated. |
 | Public repository | **PASS** | Repository visibility is public; candidate and evidence commits are pushed to the branch above. |
-| Public CI | **PASS** | `quality-demo` passed in 3m18s, Chrome `demo-e2e` in 3m04s, and `runtime-local` in 10m54s at the accepted HEAD. |
+| Public CI | **PASS** | `quality-demo` passed in 3m16s, Chrome `demo-e2e` in 3m07s, and `runtime-local` in 10m33s at the accepted HEAD. The cloud-only job is separately **SKIPPED/PENDING**. |
 | Supabase Cloud backend | **PENDING — Task 18** | No selected project ref, migration deployment, function version, secret-store verification, or cloud seed is recorded. |
 | Live Gemini smoke | **PENDING — Task 19** | Local evidence uses a loopback Gemini-compatible provider. No billed/live provider request is claimed. |
 | Vercel preview | **PENDING — Task 20** | No project link, deployment ID, preview URL, or browser-origin acceptance is recorded. |
@@ -43,7 +44,7 @@ collected and no real payment processor is contacted.
 
 ## Candidate changeset
 
-The accepted candidate is the baseline `b9f08d5` plus four commits:
+The accepted candidate is the baseline `b9f08d5` plus five commits:
 
 | Commit | Scope |
 | --- | --- |
@@ -51,9 +52,10 @@ The accepted candidate is the baseline `b9f08d5` plus four commits:
 | `392160d` | Acceptance and visual evidence; 60 paths. |
 | `66d1b2c` | One cross-platform runtime-auth test fixture; strict runtime output guards unchanged. |
 | `11ced60` | One Task 14 acceptance ledger update. |
+| `b86dc3d` | Task 15 release-candidate record and Vietnamese cloud runbook. |
 
 The full committed path inventory is available from `git diff --name-only
-b9f08d589bb972d290c4c367e8a02c636224d512..11ced60a1e7127b1e7507722de346ce00339182d`.
+b9f08d589bb972d290c4c367e8a02c636224d512..b86dc3dbbe0d220f734b58d3345bf9b716ab32e7`.
 Any later implementation, seed, smoke-runner, environment, or deployment change
 invalidates this candidate identity and requires a new candidate SHA and the
 gates listed in the release plan.
@@ -205,6 +207,50 @@ Vercel deployment or a rollback target.
   rollback target must be compatible with that schema; do not restore old RPC
   grants to make an obsolete Function work.
 
+## Task 16 repository and CI acceptance
+
+The public scope at `b86dc3d` contains two reachable branches, 387 reachable
+commits, and no tags. `origin` resolves to the public
+`Uyen-Pha/localens` repository. The candidate is five commits ahead of and zero
+commits behind `origin/main`.
+
+Repository history was scanned without printing matched values:
+
+- GitHub secret scanning and push protection are enabled. The redacted alerts
+  API returned zero alerts. This covers GitHub-supported provider patterns; it
+  is not represented as a universal arbitrary-secret proof.
+- Gitleaks 8.30.1 scanned `git log --all --full-history`, covering all 387
+  reachable commits. The initial redacted report contained 11 detector hits:
+  two private-key-shaped redaction fixtures, five Stripe-shaped artifact
+  validator fixtures, three synthetic idempotency keys, and one recognizable
+  token redaction fixture. All are under unit-test paths and were reconciled
+  against the owning test descriptions without exposing their values.
+- The 11 reviewed test-only fingerprints were allowlisted in a temporary file
+  outside the repository. The same full-history scan then exited zero with no
+  remaining findings. The temporary report and allowlist are not release
+  artifacts and were not committed.
+- The focused public-repository hygiene test passed 1/1. No repository secret,
+  credential file, machine configuration, or private database content was
+  added by Tasks 15–16.
+
+Legacy public commits retain one institutional author-email domain in Git
+metadata. New release commits use the GitHub no-reply identity. Rewriting
+already-public history is a separate destructive operation and is not part of
+this candidate.
+
+[GitHub Actions 33968403528](https://github.com/Uyen-Pha/localens/actions/runs/33968403528)
+ran on exact head `b86dc3d`: `quality-demo` passed in 3m16s, Google Chrome
+`demo-e2e` passed in 3m07s, and the isolated `runtime-local` gate passed in
+10m33s. `staging-smoke` was skipped at whole-job level because
+`LOCALLENS_STAGING_URL` is not configured. Its state is **SKIPPED/PENDING**, not
+cloud PASS; Task 22 still requires a real cloud smoke run.
+
+The run emitted a platform deprecation annotation for Node 20-based action
+runtimes while GitHub forced those actions onto Node 24. The product jobs
+completed successfully; the warning remains a maintenance item and is not
+hidden with `continue-on-error`. No `.github/workflows/ci.yml` or `package.json`
+change was necessary for this gate.
+
 ## Preserved dirty baseline
 
 The following pre-existing local paths remain outside Task 15 and must not be
@@ -232,3 +278,12 @@ Task 15 passes only when a reviewer reconciles this manifest against Git,
 checksums, Task 14 evidence, and the accepted CI run; `git diff --check` must
 also pass. Passing Task 15 opens repository/CI Task 16. It does not advance any
 cloud layer from PENDING.
+
+## Task 16 gate
+
+Task 16 passes when the public target and exact candidate SHA are reconciled,
+the full reachable history has no unreviewed secret finding, all required
+local/CI jobs are green on that SHA, and the absent cloud target remains
+explicitly SKIPPED/PENDING. This record meets those conditions at `b86dc3d` and
+opens Task 17. It does not claim Supabase Cloud, live Gemini, Vercel preview, or
+production acceptance.
