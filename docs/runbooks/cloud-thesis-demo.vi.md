@@ -206,15 +206,53 @@ Kết quả G18 ghi nhận ngày 2026-09-06:
 
 ### Task 19 — Cloud smoke giới hạn
 
-1. Runner phải từ chối target sai, HTTP, thiếu opt-in, redirect host khác và
-   log chứa secret.
-2. Live-success tối đa 2 provider attempts; fallback-only đúng 0 provider
-   attempt.
-3. Kiểm auth/RLS/replay/quota/readback và fixed-tour/payment mô phỏng trên QA
-   slots hữu hạn; không phá dữ liệu thầy.
-4. Tắt AI bằng kill switch trong cửa sổ kiểm soát, smoke fallback, khôi phục
-   trong `finally`, rồi đọc lại trạng thái.
-5. Ghi correlation ID đã che và số request; không lưu response/token thô.
+**Trạng thái: PENDING.** Task 19 hiện chỉ có scaffold fail-closed và unit test;
+chưa có lần chạy cloud, chưa tiêu quota Gemini và chưa thay đổi kill switch.
+
+Runner `pnpm smoke:thesis-demo` chỉ nhận `qa-01` đến `qa-04`, bắt buộc target
+`localens-thesis-demo` chính xác, HTTPS, đủ bốn tài khoản đúng vai trò và opt-in
+`RUN_LIVE_THESIS_DEMO`. Nó không có lệnh seed/reset/link/deploy, không theo
+redirect và chỉ ghi tên gate, trạng thái, correlation ID an toàn cùng số đếm.
+
+Hai blocker phải được xử lý bằng một task schema/dataset riêng trước khi G19 có
+thể chạy:
+
+- `SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN`: `begin_fixed_tour_booking` sinh
+  `booking_id` ngẫu nhiên, trong khi dataset v1 và inventory allowlist chỉ khai
+  báo trước bốn booking ID. Vì vậy runner thật từ chối live mode trước HTTP;
+  không được tạo booking ngoài allowlist hay giả bằng chứng.
+- `SMOKE_QUOTA_REPLAY_UNPROVEN`: service-role readback hiện chứng minh được
+  operation/plan/revision nhưng chưa có boundary quan sát đủ để chứng minh cùng
+  operation replay không trừ quota lần hai. Runner thật không cung cấp seam
+  quota cho tới khi có remediation được review.
+
+Unit seam chứng minh orchestration dự kiến sau remediation: live-success có tối
+đa hai provider-eligible operation, bốn planner endpoint invocation (primary và
+replay byte-identical cho recommend/refine), bảy denial probe, tối đa 20 request
+trước provider và chín mutation fixed-tour có thanh toán mô phỏng. Nếu cả hai
+planner call degrade thì gate AI thật thất bại. Fallback-only có đúng một
+planner invocation, không có provider attempt, hạ kill switch trong cửa sổ do
+controller sở hữu và luôn restore/readback trong `finally`.
+
+GitHub job `thesis-demo-cloud-smoke` chỉ xuất hiện trên `workflow_dispatch`, dùng
+protected environment cùng tên, concurrency group cố định và
+`cancel-in-progress: false`. Trước khi cho phép job chạy, repository owner phải:
+
+1. cấu hình required reviewer và deployment branch/tag rules cho environment;
+2. đặt `LOCALLENS_THESIS_DEMO_RELEASE_REFS` thành danh sách chính xác các
+   `refs/heads/...`, `refs/tags/...` hoặc SHA được duyệt, phân tách bằng dấu phẩy
+   hoặc dòng mới; candidate branch không được tự động tin chỉ vì không phải
+   default branch;
+3. đặt environment variables cho URL, project ref, organization ID và allowed
+   origin; đặt publishable key, service-role key, access token và bốn mật khẩu
+   vào environment secrets;
+4. chỉ chọn opt-in sau khi hai blocker trên đã được giải quyết. Secret chỉ được
+   đưa vào env của đúng bước smoke, không ở job-level và không được ghi ra log.
+
+Push/PR thông thường không chạy staging hoặc cloud smoke, không nhận cloud
+secret và không tiêu quota AI. G19 chỉ đổi sang PASS khi có run protected thật
+trên exact candidate, đủ evidence replay/quota/permission/fallback và kill
+switch được khôi phục; scaffold GREEN không phải cloud acceptance.
 
 ### Task 20 — Vercel preview
 

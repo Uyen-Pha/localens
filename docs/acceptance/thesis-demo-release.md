@@ -436,3 +436,40 @@ signup lock, bounded custom secret/config inventory, guarded seed apply-twice,
 and exact read-only graph all reconcile without secret disclosure. This record
 meets those conditions at `d5b8ea8` and opens Task 19. It does not claim live
 Gemini, Vercel preview, product QA on cloud, or production deployment.
+
+## Task 19 bounded-smoke scaffold — PENDING
+
+The Task 19 candidate adds a fail-closed runner, focused orchestration tests,
+and a separate protected GitHub Actions job. No cloud command or provider call
+was run while producing this scaffold. Ordinary push and pull-request CI cannot
+receive its environment secrets or spend AI quota; the cloud job is
+`workflow_dispatch`-only, serialized with `cancel-in-progress: false`, and
+requires the current ref or SHA to be listed explicitly by the protected
+`LOCALLENS_THESIS_DEMO_RELEASE_REFS` environment variable.
+
+The focused tests execute exported runner behavior through injected HTTP,
+quota-evidence, QA-slot inspection, logging, and kill-switch seams. They cover
+local preflight refusal, cross-host redirect refusal, secret redaction, seven
+pre-provider denial probes, byte-identical same-operation replay, two bounded
+provider-eligible operations, user/service readback, locked refinement, nine
+fixed-tour mutations with simulated payment, real-AI failure when both calls
+degrade, no timeout retry, and `finally` restoration/readback of the kill
+switch. These are deterministic unit proofs, not hosted acceptance.
+
+G19 remains **PENDING** for two fail-closed blockers:
+
+- `SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN`: the current
+  `begin_fixed_tour_booking` contract generates a random booking ID, while
+  `thesis-demo.v1` and its inventory allowlist predeclare only four QA booking
+  IDs. The real environment adapter refuses before HTTP rather than create an
+  unclassified row or fake reusable-slot proof.
+- `SMOKE_QUOTA_REPLAY_UNPROVEN`: the service-role operation RPC can prove the
+  completed plan and revision, but the existing boundary cannot directly prove
+  that same-operation response-loss replay consumed only one planner/Gemini
+  quota receipt. The real adapter therefore exposes no quota-evidence seam.
+
+No migration, dataset v2, diagnostic endpoint, direct cloud SQL, real payment
+provider, or live Gemini run is included. G19 may pass only after a separately
+reviewed remediation resolves both blockers and a protected exact-candidate run
+proves live success, fallback-only restoration, permissions, readback, and
+request budgets without exposing secrets.
