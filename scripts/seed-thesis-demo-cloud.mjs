@@ -137,6 +137,27 @@ function valuesFromConfig(key) {
     pg_catalog.jsonb_array_elements_text(config.data->'${key}') AS values(value))`;
 }
 
+const THESIS_DEMO_QUOTA_BUCKET_POSITIONS = Object.freeze([
+  Object.freeze({ bucketKind: "planner_ip", reservationKind: "planner", hashIndex: 0 }),
+  Object.freeze({ bucketKind: "planner_device", reservationKind: "planner", hashIndex: 1 }),
+  Object.freeze({ bucketKind: "gemini_ip", reservationKind: "gemini", hashIndex: 0 }),
+  Object.freeze({ bucketKind: "gemini_device", reservationKind: "gemini", hashIndex: 1 }),
+]);
+
+function quotaBucketDemoPredicate() {
+  const exactPairs = THESIS_DEMO_QUOTA_BUCKET_POSITIONS.map(({ bucketKind, reservationKind, hashIndex }) =>
+    `(reservations.kind = '${reservationKind}' AND candidate.bucket_kind = '${bucketKind}' AND candidate.bucket_hash = reservations.bucket_hashes[${hashIndex + 1}])`);
+  return `EXISTS (SELECT 1 FROM allowed_quota_reservations AS reservations WHERE reservations.period_start = candidate.period_start AND (${exactPairs.join(" OR ")}))`;
+}
+
+export function matchesThesisDemoQuotaBucket(bucket, reservation) {
+  if (bucket?.periodStart !== reservation?.periodStart) return false;
+  return THESIS_DEMO_QUOTA_BUCKET_POSITIONS.some(({ bucketKind, reservationKind, hashIndex }) =>
+    bucket?.bucketKind === bucketKind
+      && reservation?.kind === reservationKind
+      && bucket?.bucketHash === reservation?.bucketHashes?.[hashIndex]);
+}
+
 function demoPredicate(relation) {
   const ids = (column, key) => `candidate.${column}::text IN ${valuesFromConfig(key)}`;
   const allowedAuth = (column) => `candidate.${column} IN (SELECT id FROM allowed_auth)`;
@@ -153,7 +174,7 @@ function demoPredicate(relation) {
     "private.checkout_idempotency": `${allowedAuth("owner_user_id")} AND ${ids("id", "checkoutIdempotencyIds")} AND ${ids("booking_id", "bookingIds")}`,
     "private.fixed_tour_cancellation_requests": `${allowedAuth("owner_user_id")} AND ${ids("booking_id", "bookingIds")}`,
     "private.guide_assignment_idempotency": `${allowedAuth("actor_user_id")} AND ${ids("booking_id", "bookingIds")}`,
-    "private.quota_buckets": "EXISTS (SELECT 1 FROM allowed_quota_reservations AS reservations WHERE reservations.period_start = candidate.period_start AND candidate.bucket_hash = ANY(reservations.bucket_hashes) AND candidate.bucket_kind LIKE reservations.kind || '_%')",
+    "private.quota_buckets": quotaBucketDemoPredicate(),
     "private.quota_global_buckets": "EXISTS (SELECT 1 FROM allowed_quota_reservations AS reservations WHERE reservations.period_start = candidate.period_start)",
     "private.quota_reservations": "candidate.reservation_id IN (SELECT reservation_id FROM allowed_quota_reservations)",
     "private.recommendation_runs": "candidate.revision_id IN (SELECT id FROM allowed_revisions) AND candidate.actor_user_id IN (SELECT id FROM allowed_auth)",
@@ -277,6 +298,7 @@ export async function readThesisDemoInventory({
   dataset,
   projectRef,
   inspectDatasetGraph = inspectThesisDemoDatasetGraph,
+  identities,
 }) {
   const discoveredRelations = listExpectedThesisDemoRelations();
   if (JSON.stringify(discoveredRelations) !== JSON.stringify(THESIS_DEMO_RELATIONS)) {
@@ -353,7 +375,7 @@ export async function readThesisDemoInventory({
       unclassifiedRows: totalRows - demoRows - baselineRows,
     };
   });
-  const graph = await inspectDatasetGraph({ query, dataset, projectRef });
+  const graph = await inspectDatasetGraph({ query, dataset, projectRef, identities });
   return {
     relations,
     graphState: graph?.state,
@@ -411,6 +433,12 @@ function createDefaultRuntime({ databaseUrl, serviceRoleKey, selectedProject, da
     return authAdmin;
   }
 
+  const readInventory = async ({ identities } = {}) => readThesisDemoInventory({
+    query,
+    dataset,
+    projectRef: selectedProject.id,
+    identities,
+  });
   const dependencies = {
     readSelectedProject: async () => selectedProject,
     readDashboardConnection: async () => dashboardConnection,
@@ -426,11 +454,7 @@ function createDefaultRuntime({ databaseUrl, serviceRoleKey, selectedProject, da
         tlsVerified: stream?.encrypted === true && stream?.authorized === true,
       };
     },
-    readInventory: async () => readThesisDemoInventory({
-      query,
-      dataset,
-      projectRef: selectedProject.id,
-    }),
+    readInventory,
     readMarker: async () => readMarker(query),
     runDryRunTransaction: async (input) => runThesisDemoDryRunTransaction({ ...input, query }),
     listAuthUsers: async () => {
@@ -459,6 +483,7 @@ function createDefaultRuntime({ databaseUrl, serviceRoleKey, selectedProject, da
       ...input,
       query,
       inspectDatasetGraph: inspectThesisDemoDatasetGraph,
+      readInventory,
     }),
   };
 

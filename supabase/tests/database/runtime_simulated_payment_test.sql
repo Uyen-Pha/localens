@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(48);
+SELECT plan(50);
 
 DELETE FROM auth.users
 WHERE id IN (
@@ -538,6 +538,50 @@ SELECT is(
   '00000000-0000-0000-0000-000000002591'::uuid,
   'payment QA tuple creates the registered booking'
 );
+RESET ROLE;
+INSERT INTO public.bookings (
+  id, owner_user_id, source_kind, source_id, departure_id, quote_id, status,
+  tour_version_id, title_en, title_vi, cancellation_policy, catalog_snapshot_id,
+  travel_snapshot_id, fx_snapshot_id, fx_vnd_per_usd, per_person_vnd_minor,
+  total_vnd_minor, checkout_currency, checkout_amount_minor, party_size,
+  language, meeting_point, hold_duration_seconds, hold_expires_at, created_at
+)
+SELECT
+  '00000000-0000-0000-0000-000000002599'::uuid,
+  owner_user_id, source_kind, source_id, departure_id, quote_id, status,
+  tour_version_id, title_en, title_vi, cancellation_policy, catalog_snapshot_id,
+  travel_snapshot_id, fx_snapshot_id, fx_vnd_per_usd, per_person_vnd_minor,
+  total_vnd_minor, checkout_currency, checkout_amount_minor, party_size,
+  language, meeting_point, hold_duration_seconds, hold_expires_at, created_at
+FROM public.bookings
+WHERE id = '00000000-0000-0000-0000-000000002591'::uuid;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object(
+  'sub', '00000000-0000-0000-0000-000000002501',
+  'role', 'authenticated'
+)::text, true);
+SELECT throws_ok(
+  $$SELECT * FROM public.complete_simulated_fixed_tour_payment(
+    '00000000-0000-0000-0000-000000002599'::uuid,
+    'unregistered-qa-payment'
+  )$$,
+  '22023', 'THESIS_DEMO_QA_SLOT_MISMATCH',
+  'unregistered booking on a registry-backed departure is rejected before payment mutation'
+);
+RESET ROLE;
+SELECT is(
+  (SELECT count(*)::integer FROM private.simulated_payment_receipts
+   WHERE booking_id = '00000000-0000-0000-0000-000000002599'::uuid),
+  0,
+  'rejected unregistered QA booking creates no simulated-payment receipt'
+);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object(
+  'sub', '00000000-0000-0000-0000-000000002501',
+  'role', 'authenticated'
+)::text, true);
 SELECT is(
   (SELECT result.state
    FROM public.complete_simulated_fixed_tour_payment(

@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(77);
+SELECT plan(79);
 
 DELETE FROM auth.users
 WHERE id BETWEEN '00000000-0000-0000-0000-000000002601'::uuid
@@ -92,12 +92,19 @@ WHERE id = '00000000-0000-0000-0000-000000002616';
 UPDATE public.tours SET status = 'published'
 WHERE id = '00000000-0000-0000-0000-000000002615';
 INSERT INTO public.departures (id, tour_version_id, start_at, end_at, status, capacity)
-VALUES (
-  '00000000-0000-0000-0000-000000002617',
-  '00000000-0000-0000-0000-000000002616',
-  clock_timestamp() + interval '7 days', clock_timestamp() + interval '7 days 2 hours',
-  'scheduled', 100
-);
+VALUES
+  (
+    '00000000-0000-0000-0000-000000002617',
+    '00000000-0000-0000-0000-000000002616',
+    clock_timestamp() + interval '7 days', clock_timestamp() + interval '7 days 2 hours',
+    'scheduled', 100
+  ),
+  (
+    '00000000-0000-0000-0000-000000002618',
+    '00000000-0000-0000-0000-000000002616',
+    clock_timestamp() + interval '8 days', clock_timestamp() + interval '8 days 2 hours',
+    'scheduled', 10
+  );
 RESET ROLE;
 
 INSERT INTO public.trip_plans (id, owner_user_id, latest_revision_no)
@@ -152,7 +159,7 @@ CREATE TEMP TABLE cancellation_fixtures (
 );
 INSERT INTO cancellation_fixtures (label, booking_id, attempt_id, owner_user_id, source_kind, source_id, booking_status, attempt_status, provider_session_id, hold_status)
 VALUES
-  ('dep-main', '00000000-0000-0000-0000-000000002701', '00000000-0000-0000-0000-000000002801', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
+  ('dep-main', '00000000-0000-0000-0000-000000002701', '00000000-0000-0000-0000-000000002801', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002618', 'pending_payment', 'created', NULL, 'active'),
   ('dep-optional', '00000000-0000-0000-0000-000000002702', '00000000-0000-0000-0000-000000002802', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
   ('dep-conflict', '00000000-0000-0000-0000-000000002703', '00000000-0000-0000-0000-000000002803', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
   ('dep-cross', '00000000-0000-0000-0000-000000002704', '00000000-0000-0000-0000-000000002804', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
@@ -167,7 +174,8 @@ VALUES
   ('quote-expired', '00000000-0000-0000-0000-000000002713', '00000000-0000-0000-0000-000000002813', '00000000-0000-0000-0000-000000002601', 'quote', '00000000-0000-0000-0000-000000002652', 'pending_payment', 'created', NULL, NULL),
   ('legacy-approved', '00000000-0000-0000-0000-000000002714', '00000000-0000-0000-0000-000000002814', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'cancelled', 'compensated', NULL, 'released'),
   ('legacy-pending', '00000000-0000-0000-0000-000000002715', '00000000-0000-0000-0000-000000002815', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
-  ('legacy-rejected', '00000000-0000-0000-0000-000000002716', '00000000-0000-0000-0000-000000002816', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active');
+  ('legacy-rejected', '00000000-0000-0000-0000-000000002716', '00000000-0000-0000-0000-000000002816', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
+  ('qa-unregistered', '00000000-0000-0000-0000-000000002717', '00000000-0000-0000-0000-000000002817', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002618', 'pending_payment', 'created', NULL, 'active');
 
 INSERT INTO public.bookings (
   id, owner_user_id, source_kind, source_id, departure_id, quote_id, status,
@@ -247,7 +255,7 @@ INSERT INTO private.thesis_demo_qa_slots (
 VALUES (
   'qa-02', 'thesis-demo.v2', 'cancellation',
   '00000000-0000-0000-0000-000000002601',
-  '00000000-0000-0000-0000-000000002617',
+  '00000000-0000-0000-0000-000000002618',
   2,
   '00000000-0000-0000-0000-000000002701',
   '00000000-0000-0000-0000-000000002801',
@@ -497,6 +505,29 @@ SELECT throws_ok(
   $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'trip_plan_changed', NULL, 'cancel-dep-other-key')$$,
   '22023', 'THESIS_DEMO_QA_SLOT_MISMATCH', 'registered booking rejects a non-slot cancellation key before mutation'
 );
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking(
+    '00000000-0000-0000-0000-000000002717',
+    'trip_plan_changed',
+    NULL,
+    'unregistered-qa-cancel'
+  )$$,
+  '22023', 'THESIS_DEMO_QA_SLOT_MISMATCH',
+  'unregistered booking on a registry-backed departure is rejected before cancellation mutation'
+);
+RESET ROLE;
+SELECT is(
+  (SELECT count(*)::integer FROM private.booking_cancellations
+   WHERE booking_id = '00000000-0000-0000-0000-000000002717'::uuid),
+  0,
+  'rejected unregistered QA booking creates no cancellation row'
+);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object(
+  'sub', '00000000-0000-0000-0000-000000002601',
+  'role', 'authenticated'
+)::text, true);
 SELECT is(
   (SELECT id FROM public.cancel_booking(
     '00000000-0000-0000-0000-000000002701',

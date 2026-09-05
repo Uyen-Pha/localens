@@ -500,7 +500,17 @@ VALUES (
     '00000000-0000-0000-0000-000000009423'::uuid,
     repeat('e', 64),
     ((SELECT decision FROM planner_operation_decisions WHERE label = 'recommend-claim')->>'leaseToken')::uuid,
-    (SELECT persistence_dto FROM planner_operation_fixture)
+    jsonb_set(
+      jsonb_set(
+        (SELECT persistence_dto FROM planner_operation_fixture),
+        '{rankingSource}',
+        '"ai"'::jsonb,
+        false
+      ),
+      '{result,rankingSource}',
+      '"ai"'::jsonb,
+      false
+    )
   )
 );
 INSERT INTO planner_operation_decisions
@@ -511,7 +521,17 @@ VALUES (
     '00000000-0000-0000-0000-000000009423'::uuid,
     repeat('e', 64),
     ((SELECT decision FROM planner_operation_decisions WHERE label = 'recommend-claim')->>'leaseToken')::uuid,
-    (SELECT persistence_dto FROM planner_operation_fixture)
+    jsonb_set(
+      jsonb_set(
+        (SELECT persistence_dto FROM planner_operation_fixture),
+        '{rankingSource}',
+        '"ai"'::jsonb,
+        false
+      ),
+      '{result,rankingSource}',
+      '"ai"'::jsonb,
+      false
+    )
   )
 );
 INSERT INTO planner_operation_decisions
@@ -535,7 +555,7 @@ SELECT extensions.ok(
     AND (decision->>'plannerReservationCount')::integer = 1
     AND (decision->>'geminiReservationCount')::integer = 1
     AND (decision->>'recommendationRunCount')::integer = 1
-    AND (decision->>'providerAttemptedCount')::integer = 0
+    AND (decision->>'providerAttemptedCount')::integer = 1
    FROM planner_operation_decisions WHERE label = 'recommend-get'),
   'completed get returns exact non-secret operation, quota, run, and provider-attempted counts'
 );

@@ -24,6 +24,8 @@ import {
   runThesisDemoCloudMain,
 // @ts-expect-error Task 17 exercises this JavaScript CLI through injected local-only dependencies.
 } from "../../../scripts/seed-thesis-demo-cloud.mjs";
+// @ts-expect-error Task 19A checks the JavaScript inventory classifier contract.
+import * as thesisDemoCloudSeed from "../../../scripts/seed-thesis-demo-cloud.mjs";
 
 const PROJECT_REF = "abcdefghijklmnopqrst";
 const ORGANIZATION_ID = "organization-demo";
@@ -126,6 +128,31 @@ function readV1DatasetSource() {
   return readFileSync(path.join(PROJECT_ROOT, "data", "demo", "thesis-demo.v1.json"), "utf8");
 }
 
+async function readInventoryFixture(inventory: ReturnType<typeof completeInventory>) {
+  const query = vi.fn(async (sql: string) => {
+    if (/information_schema\.tables/i.test(sql)) return { rows: [] };
+    return {
+      rows: inventory.relations.map((row: {
+        relation: string;
+        totalRows: number;
+        demoRows: number;
+        baselineRows: number;
+      }) => ({
+        relation: row.relation,
+        total_rows: row.totalRows,
+        demo_rows: row.demoRows,
+        baseline_rows: row.baselineRows,
+      })),
+    };
+  });
+  return readThesisDemoInventory({
+    query,
+    dataset: readDataset(),
+    projectRef: PROJECT_REF,
+    inspectDatasetGraph: vi.fn(async () => ({ state: "upgrade-v1", conflicts: [] })),
+  });
+}
+
 function validTarget(overrides: Record<string, unknown> = {}) {
   return {
     expectedProjectRef: PROJECT_REF,
@@ -181,6 +208,47 @@ describe("verifyDemoTarget", () => {
 
     expect(verifyDemoTarget(validTarget({
       inventory: completeInventory({ graphState: "conflict", authDemoRows: 4 }),
+      marker: {
+        projectRef: PROJECT_REF,
+        environment: "thesis-demo",
+        datasetVersion: "thesis-demo.v1",
+      },
+    }))).toEqual({ ok: false, code: "MARKER_MISMATCH" });
+  });
+
+  it.each([
+    "private.thesis_demo_qa_slots",
+    "private.booking_cancellations",
+    "private.capacity_holds",
+    "private.checkout_attempts",
+    "private.checkout_idempotency",
+    "private.simulated_payment_receipts",
+    "private.runtime_planner_operations",
+    "private.quota_reservations",
+    "private.quota_buckets",
+    "private.quota_global_buckets",
+    "private.recommendation_runs",
+    "public.bookings",
+    "public.trip_plans",
+    "public.trip_plan_revisions",
+    "public.trip_plan_items",
+  ])("rejects a classified %s row from the exact v1 upgrade inventory", (relation) => {
+    const expectedV1Rows = relation === "private.thesis_demo_qa_slots"
+      ? 0
+      : (REQUIRED_RELATION_ROWS[relation] ?? 0);
+    const inventory = completeInventory({
+      graphState: "upgrade-v1",
+      authDemoRows: 4,
+      relationOverrides: {
+        [relation]: {
+          totalRows: expectedV1Rows + 1,
+          demoRows: expectedV1Rows + 1,
+        },
+      },
+    });
+
+    expect(verifyDemoTarget(validTarget({
+      inventory,
       marker: {
         projectRef: PROJECT_REF,
         environment: "thesis-demo",
@@ -537,6 +605,27 @@ describe("complete inventory and stable graph comparison", () => {
     }
     expect(countSql).not.toMatch(/LIKE\s+['"]%.*demo/i);
     expect(countSql).not.toMatch(/position\s*\(/i);
+  });
+
+  it("rejects crossed quota bucket hash positions while accepting each exact kind/hash pair", () => {
+    const matchesQuotaBucket = (thesisDemoCloudSeed as unknown as {
+      matchesThesisDemoQuotaBucket?: (
+        bucket: { bucketKind: string; bucketHash: string; periodStart: string },
+        reservation: { kind: string; bucketHashes: [string, string]; periodStart: string },
+      ) => boolean;
+    }).matchesThesisDemoQuotaBucket;
+    const reservation = {
+      kind: "planner",
+      bucketHashes: ["ip-hash", "device-hash"] as [string, string],
+      periodStart: "2026-09-05T00:00:00.000Z",
+    };
+
+    expect([
+      matchesQuotaBucket?.({ bucketKind: "planner_ip", bucketHash: "ip-hash", periodStart: reservation.periodStart }, reservation),
+      matchesQuotaBucket?.({ bucketKind: "planner_device", bucketHash: "device-hash", periodStart: reservation.periodStart }, reservation),
+      matchesQuotaBucket?.({ bucketKind: "planner_ip", bucketHash: "device-hash", periodStart: reservation.periodStart }, reservation),
+      matchesQuotaBucket?.({ bucketKind: "planner_device", bucketHash: "ip-hash", periodStart: reservation.periodStart }, reservation),
+    ]).toEqual([true, true, false, false]);
   });
 
   it("compares full stable booking ownership and departure relationships", () => {
@@ -957,6 +1046,10 @@ describe("thesis demo database transactions", () => {
 
   it("upgrades only an exact v1 graph by inserting registry metadata and advancing the marker atomically", async () => {
     const database = createTransactionQuery({ initialGraphState: "upgrade-v1" });
+    const readInventory = vi.fn(async () => readInventoryFixture(completeInventory({
+      graphState: "upgrade-v1",
+      authDemoRows: 4,
+    })));
 
     await runThesisDemoApplyTransaction({
       query: database.query,
@@ -964,6 +1057,7 @@ describe("thesis demo database transactions", () => {
       projectRef: PROJECT_REF,
       identities: stableIdentities(),
       inspectDatasetGraph: database.inspectDatasetGraph,
+      readInventory,
     });
 
     expect(database.statements[0]?.sql).toBe("BEGIN");
@@ -983,6 +1077,32 @@ describe("thesis demo database transactions", () => {
       "2026-09-05",
     ]);
     expect(database.inspectDatasetGraph).toHaveBeenCalledTimes(2);
+    expect(readInventory).toHaveBeenCalledTimes(1);
+  });
+
+  it("rolls back a v1 upgrade when the in-transaction inventory contains a classified v2 lifecycle row", async () => {
+    const database = createTransactionQuery({ initialGraphState: "upgrade-v1" });
+    const readInventory = vi.fn(async () => readInventoryFixture(completeInventory({
+      graphState: "upgrade-v1",
+      authDemoRows: 4,
+      relationOverrides: {
+        "private.runtime_planner_operations": { totalRows: 1, demoRows: 1 },
+      },
+    })));
+
+    const cause = await runThesisDemoApplyTransaction({
+      query: database.query,
+      dataset: readDataset(),
+      projectRef: PROJECT_REF,
+      identities: stableIdentities(),
+      inspectDatasetGraph: database.inspectDatasetGraph,
+      readInventory,
+    }).catch((error: unknown) => error as Error & { code?: string });
+
+    expect(cause.code).toBe("THESIS_DEMO_DATABASE_FAILED");
+    expect(database.statements.at(-1)?.sql).toBe("ROLLBACK");
+    expect(database.statements.some(({ sql }) => /INSERT INTO private\.thesis_demo_qa_slots/i.test(sql)))
+      .toBe(false);
   });
 
   it("never pre-creates slot-owned booking, payment, cancellation, hold, checkout, or planner rows", async () => {

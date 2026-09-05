@@ -452,12 +452,31 @@ BEGIN
     RAISE EXCEPTION 'simulated payment input rejected' USING ERRCODE = '22023';
   END IF;
 
+  -- Resolve the booking before touching any payment authority. A registered
+  -- departure is a closed QA namespace: every booking on it must match one
+  -- exact slot, even when the booking ID itself is otherwise well formed.
+  SELECT *
+  INTO booking_row
+  FROM public.bookings AS bookings
+  WHERE bookings.id = requested_booking_id;
   SELECT *
   INTO qa_slot
   FROM private.thesis_demo_qa_slots AS registered
   WHERE registered.booking_id = requested_booking_id;
-  IF FOUND THEN
-    IF qa_slot.owner_user_id IS DISTINCT FROM actor_user_id
+  IF qa_slot.slot_id IS NOT NULL
+     OR (
+       booking_row.id IS NOT NULL
+       AND EXISTS (
+         SELECT 1
+         FROM private.thesis_demo_qa_slots AS registered
+         WHERE registered.departure_id = booking_row.departure_id
+       )
+     ) THEN
+    IF qa_slot.slot_id IS NULL
+       OR booking_row.id IS NULL
+       OR qa_slot.departure_id IS DISTINCT FROM booking_row.departure_id
+       OR qa_slot.owner_user_id IS DISTINCT FROM actor_user_id
+       OR booking_row.owner_user_id IS DISTINCT FROM actor_user_id
        OR qa_slot.terminal_flow IS DISTINCT FROM 'payment'
        OR qa_slot.payment_idempotency_key IS DISTINCT FROM requested_idempotency_key THEN
       RAISE EXCEPTION 'THESIS_DEMO_QA_SLOT_MISMATCH' USING ERRCODE = '22023';
@@ -708,12 +727,31 @@ BEGIN
     RAISE EXCEPTION 'cancellation input rejected' USING ERRCODE = '22023';
   END IF;
 
+  -- Resolve the booking before touching cancellation authorities. Once a
+  -- departure is registered for thesis QA, unknown bookings on that departure
+  -- cannot fall through to the ordinary random-ID path.
+  SELECT *
+  INTO booking_row
+  FROM public.bookings AS bookings
+  WHERE bookings.id = requested_booking_id;
   SELECT *
   INTO qa_slot
   FROM private.thesis_demo_qa_slots AS registered
   WHERE registered.booking_id = requested_booking_id;
-  IF FOUND THEN
-    IF qa_slot.owner_user_id IS DISTINCT FROM actor_user_id
+  IF qa_slot.slot_id IS NOT NULL
+     OR (
+       booking_row.id IS NOT NULL
+       AND EXISTS (
+         SELECT 1
+         FROM private.thesis_demo_qa_slots AS registered
+         WHERE registered.departure_id = booking_row.departure_id
+       )
+     ) THEN
+    IF qa_slot.slot_id IS NULL
+       OR booking_row.id IS NULL
+       OR qa_slot.departure_id IS DISTINCT FROM booking_row.departure_id
+       OR qa_slot.owner_user_id IS DISTINCT FROM actor_user_id
+       OR booking_row.owner_user_id IS DISTINCT FROM actor_user_id
        OR qa_slot.terminal_flow IS DISTINCT FROM 'cancellation'
        OR qa_slot.cancellation_idempotency_key IS DISTINCT FROM requested_idempotency_key THEN
       RAISE EXCEPTION 'THESIS_DEMO_QA_SLOT_MISMATCH' USING ERRCODE = '22023';

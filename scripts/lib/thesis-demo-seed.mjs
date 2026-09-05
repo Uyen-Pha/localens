@@ -103,6 +103,44 @@ const THESIS_DEMO_ACCOUNT_ALLOWLIST = Object.freeze([
 const THESIS_DEMO_ACCOUNT_EMAILS = Object.freeze(
   THESIS_DEMO_ACCOUNT_ALLOWLIST.map(({ email }) => email),
 );
+const THESIS_DEMO_V1_DEMO_ROWS = Object.freeze({
+  "auth.users": 4,
+  "private.capacity_holds": 2,
+  "private.checkout_attempts": 1,
+  "private.checkout_idempotency": 1,
+  "private.thesis_demo_manifest": 1,
+  "private.user_roles": 4,
+  "public.area_translations": 2,
+  "public.areas": 1,
+  "public.bookings": 2,
+  "public.catalog_snapshot_area_translations": 2,
+  "public.catalog_snapshot_areas": 1,
+  "public.catalog_snapshot_place_experience_types": 13,
+  "public.catalog_snapshot_place_guide_languages": 24,
+  "public.catalog_snapshot_place_opening_hours": 12,
+  "public.catalog_snapshot_place_supports": 12,
+  "public.catalog_snapshot_place_translations": 24,
+  "public.catalog_snapshot_places": 12,
+  "public.catalog_snapshots": 1,
+  "public.departures": 5,
+  "public.guide_assignments": 1,
+  "public.guide_profiles": 1,
+  "public.place_experience_types": 13,
+  "public.place_guide_languages": 24,
+  "public.place_opening_hours": 12,
+  "public.place_supports": 12,
+  "public.place_translations": 24,
+  "public.places": 12,
+  "public.profiles": 4,
+  "public.tour_translations": 6,
+  "public.tour_version_stops": 9,
+  "public.tour_version_translations": 6,
+  "public.tour_versions": 3,
+  "public.tours": 3,
+  "public.travel_edges": 12,
+  "public.travel_snapshot_edges": 12,
+  "public.travel_snapshots": 1,
+});
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SEED_CONFIRMATION = "localens-thesis-demo";
 const SEED_ERROR = Symbol("THESIS_DEMO_SEED_ERROR");
@@ -1000,6 +1038,18 @@ function qaSlotRows(dataset) {
   }));
 }
 
+function isExactV1Inventory(inventory) {
+  const audited = auditInventory(inventory);
+  return audited !== null
+    && inventory.graphState === "upgrade-v1"
+    && inventory.graphConflicts.length === 0
+    && inventory.unexpectedObjects.length === 0
+    && audited.unclassifiedApplicationRows === 0
+    && audited.unclassifiedAuthUsers === 0
+    && THESIS_DEMO_RELATIONS.every((relation) =>
+      audited.demoRowsByRelation[relation] === (THESIS_DEMO_V1_DEMO_ROWS[relation] ?? 0));
+}
+
 function placeRows(dataset) {
   return dataset.places.map((place) => ({
     id: place.id,
@@ -1652,6 +1702,7 @@ export async function runThesisDemoApplyTransaction({
   projectRef,
   identities,
   inspectDatasetGraph,
+  readInventory,
 }) {
   requireQuery(query);
   const summary = validateThesisDemoDataset(dataset);
@@ -1675,6 +1726,21 @@ export async function runThesisDemoApplyTransaction({
       return applySummary();
     }
     if (initialGraph?.state === "upgrade-v1") {
+      requireSeed(
+        typeof readInventory === "function",
+        "THESIS_DEMO_DATABASE_REQUIRED",
+        "transactional v1 inventory reader is required",
+      );
+      const upgradeInventory = await readInventory({
+        query,
+        dataset,
+        projectRef,
+        identities,
+        inspectDatasetGraph,
+      });
+      if (!isExactV1Inventory(upgradeInventory)) {
+        throw seedError("THESIS_DEMO_DATABASE_FAILED", "non-exact v1 inventory refused");
+      }
       await executeParameterizedBatch(query, INSERT_QA_SLOTS_SQL, [
         JSON.stringify(qaSlotRows(dataset)),
         qaCustomer.userId,
@@ -1961,14 +2027,7 @@ export function verifyDemoTarget(input) {
     && marker.projectRef === expectedProjectRef
     && marker.environment === "thesis-demo"
     && marker.datasetVersion === THESIS_DEMO_UPGRADE_FROM_VERSION
-    && auditedInventory !== null
-    && auditedInventory.applicationRows > 0
-    && auditedInventory.unclassifiedApplicationRows === 0
-    && auditedInventory.demoAuthUsers === THESIS_DEMO_ACCOUNT_EMAILS.length
-    && auditedInventory.unclassifiedAuthUsers === 0
-    && inventory.unexpectedObjects.length === 0
-    && inventory.graphState === "upgrade-v1"
-    && inventory.graphConflicts.length === 0
+    && isExactV1Inventory(inventory)
   ) {
     return { ok: true, projectRef: expectedProjectRef, mode: "upgrade-v1" };
   }
