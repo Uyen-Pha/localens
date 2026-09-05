@@ -1,0 +1,204 @@
+{
+  "phase": "implemented",
+  "baseURL": "http://127.0.0.1:3414",
+  "browser": "Google Chrome 152.0.7977.65",
+  "captures": [
+    {
+      "state": "homepage-handoff",
+      "viewport": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 1024
+      },
+      "file": "desktop-1440x1024-homepage-handoff.png",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "title": "LocalLens | Cultural experiences in Ho Chi Minh City",
+        "lang": "en"
+      }
+    },
+    {
+      "state": "planner-fallback",
+      "viewport": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 1024
+      },
+      "file": "desktop-1440x1024-planner-fallback.png",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "title": "Your personalized route proposal | LocalLens",
+        "lang": "en"
+      }
+    },
+    {
+      "state": "account-payment",
+      "viewport": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 1024
+      },
+      "file": "desktop-1440x1024-account-payment.png",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "title": "Customer portal | LocalLens",
+        "lang": "en"
+      }
+    },
+    {
+      "state": "payment-error",
+      "viewport": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 1024
+      },
+      "file": "desktop-1440x1024-payment-error.png",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "title": "Book a fixed tour | LocalLens",
+        "lang": "en"
+      },
+      "diagnostics": {
+        "consoleErrors": [
+          "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        ],
+        "pageErrors": [],
+        "failedResponses": []
+      }
+    },
+    {
+      "state": "homepage-handoff",
+      "viewport": {
+        "name": "tablet",
+        "width": 768,
+        "height": 1024
+      },
+      "file": "tablet-768x1024-homepage-handoff.png",
+      "metrics": {
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "title": "LocalLens | Cultural experiences in Ho Chi Minh City",
+        "lang": "en"
+      }
+    },
+    {
+      "state": "planner-fallback",
+      "viewport": {
+        "name": "tablet",
+        "width": 768,
+        "height": 1024
+      },
+      "file": "tablet-768x1024-planner-fallback.png",
+      "metrics": {
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "title": "Your personalized route proposal | LocalLens",
+        "lang": "en"
+      }
+    },
+    {
+      "state": "account-payment",
+      "viewport": {
+        "name": "tablet",
+        "width": 768,
+        "height": 1024
+      },
+      "file": "tablet-768x1024-account-payment.png",
+      "metrics": {
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "title": "Customer portal | LocalLens",
+        "lang": "en"
+      }
+    },
+    {
+      "state": "payment-error",
+      "viewport": {
+        "name": "tablet",
+        "width": 768,
+        "height": 1024
+      },
+      "file": "tablet-768x1024-payment-error.png",
+      "metrics": {
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "title": "Book a fixed tour | LocalLens",
+        "lang": "en"
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedResponses": []
+      }
+    },
+    {
+      "state": "homepage-handoff",
+      "viewport": {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      "file": "mobile-390x844-homepage-handoff.png",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "title": "LocalLens | Cultural experiences in Ho Chi Minh City",
+        "lang": "en"
+      }
+    },
+    {
+      "state": "planner-fallback",
+      "viewport": {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      "file": "mobile-390x844-planner-fallback.png",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "title": "Your personalized route proposal | LocalLens",
+        "lang": "en"
+      }
+    },
+    {
+      "state": "account-payment",
+      "viewport": {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      "file": "mobile-390x844-account-payment.png",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "title": "Customer portal | LocalLens",
+        "lang": "en"
+      }
+    },
+    {
+      "state": "payment-error",
+      "viewport": {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      "file": "mobile-390x844-payment-error.png",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "title": "Book a fixed tour | LocalLens",
+        "lang": "en"
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedResponses": []
+      }
+    }
+  ]
+}
