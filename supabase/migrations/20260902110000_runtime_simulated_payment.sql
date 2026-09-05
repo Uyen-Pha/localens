@@ -207,6 +207,7 @@ BEGIN
 END;
 $function$;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 ALTER FUNCTION private.reject_real_payment_after_simulation()
   OWNER TO localens_payment_guard_owner;
 CREATE TRIGGER payments_simulated_payment_exclusion
@@ -216,6 +217,7 @@ SET LOCAL ROLE localens_payment_guard_owner;
 REVOKE ALL ON FUNCTION private.reject_real_payment_after_simulation()
   FROM PUBLIC, anon, authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA private FROM localens_payment_guard_owner;
 
 GRANT CREATE ON SCHEMA public TO localens_simulated_payment_projection_owner;
@@ -246,6 +248,7 @@ SET LOCAL ROLE localens_simulated_payment_projection_owner;
 REVOKE ALL ON public.customer_simulated_payment_status_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.customer_simulated_payment_status_v TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_simulated_payment_projection_owner;
 
 GRANT CREATE ON SCHEMA public TO localens_simulated_payment_rpc_owner;
@@ -458,6 +461,7 @@ BEGIN
 END;
 $function$;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 ALTER FUNCTION public.complete_simulated_fixed_tour_payment(uuid, text)
   OWNER TO localens_simulated_payment_rpc_owner;
 SET LOCAL ROLE localens_simulated_payment_rpc_owner;
@@ -466,6 +470,7 @@ REVOKE ALL ON FUNCTION public.complete_simulated_fixed_tour_payment(uuid, text)
 GRANT EXECUTE ON FUNCTION public.complete_simulated_fixed_tour_payment(uuid, text)
   TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_simulated_payment_rpc_owner;
 
 GRANT CREATE ON SCHEMA private TO localens_checkout_rpc_owner;
@@ -620,6 +625,7 @@ REVOKE ALL ON FUNCTION private.compensate_checkout_failure(uuid)
 GRANT EXECUTE ON FUNCTION private.compensate_checkout_failure(uuid)
   TO localens_checkout_rpc_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA private FROM localens_checkout_rpc_owner;
 
 COMMIT;

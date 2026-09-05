@@ -81,6 +81,7 @@ REVOKE ALL ON TABLE public.admin_booking_management_v
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT ON TABLE public.admin_booking_management_v TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_cancellation_admin_projection_owner;
 
 COMMIT;

@@ -109,6 +109,7 @@ REVOKE ALL ON FUNCTION private.assert_catalog_review_admin() FROM PUBLIC, anon, 
 GRANT SELECT ON TABLE private.user_roles TO localens_admin_rpc_owner;
 GRANT EXECUTE ON FUNCTION private.assert_catalog_review_admin() TO localens_admin_rpc_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- This guard is intentionally stricter than the older publication trigger:
 -- every evidence field that the queue asks an admin to confirm must be a real
@@ -292,6 +293,7 @@ ALTER FUNCTION private.assert_food_catalog_review_complete(uuid) OWNER TO locale
 REVOKE ALL ON FUNCTION private.assert_food_catalog_review_complete(uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION private.assert_food_catalog_review_complete(uuid) TO localens_admin_rpc_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 SET LOCAL ROLE localens_admin_rpc_owner;
 
@@ -634,6 +636,7 @@ ALTER FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) OW
 REVOKE ALL ON FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 REVOKE CREATE ON SCHEMA private FROM localens_admin_rpc_owner, localens_catalog_guard_owner;
 REVOKE CREATE ON SCHEMA public FROM localens_admin_rpc_owner;

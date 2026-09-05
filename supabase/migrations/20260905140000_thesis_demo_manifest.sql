@@ -40,6 +40,7 @@ END;
 $function$;
 REVOKE ALL ON FUNCTION private.assert_guide_assignment_mutation() FROM PUBLIC, anon, authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA private FROM localens_guide_assignment_guard_owner;
 
 -- This singleton identifies the reviewed thesis-demo dataset installed by the

@@ -55,6 +55,7 @@ OWNER TO localens_catalog_rpc_owner;
 ALTER VIEW public.itinerary_fx_snapshot_history_v
 OWNER TO localens_catalog_rpc_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_catalog_rpc_owner;
 
 COMMIT;

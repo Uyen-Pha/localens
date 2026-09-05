@@ -44,6 +44,7 @@ BEGIN
         function_record.signature
       );
       RESET ROLE;
+      SET LOCAL ROLE postgres;
       IF NOT function_record.had_schema_usage THEN
         EXECUTE pg_catalog.format(
           'REVOKE USAGE ON SCHEMA %I FROM %I',
@@ -53,6 +54,7 @@ BEGIN
       END IF;
     EXCEPTION WHEN OTHERS THEN
       RESET ROLE;
+      SET LOCAL ROLE postgres;
       IF NOT function_record.had_schema_usage THEN
         EXECUTE pg_catalog.format(
           'REVOKE USAGE ON SCHEMA %I FROM %I',
@@ -119,12 +121,15 @@ $force_rls$;
 SET LOCAL ROLE localens_tour_rpc_owner;
 GRANT SELECT ON TABLE public.published_tours_v TO anon, authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_catalog_rpc_owner;
 GRANT SELECT ON TABLE public.catalog_snapshot_places_v, public.latest_fx_snapshot_v TO anon, authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_content_public_owner;
 GRANT SELECT ON TABLE public.published_content_release_v TO anon, authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 -- travel_snapshots_v is created and granted by the later projection-fix
 -- migration; referencing it here would make a clean replay order-dependent.
 
@@ -172,18 +177,23 @@ GRANT SELECT (
 SET LOCAL ROLE localens_request_customer_rpc_owner;
 GRANT SELECT ON TABLE public.customer_custom_requests_v, public.customer_custom_quotes_v TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_booking_projection_owner;
 GRANT SELECT ON TABLE public.customer_bookings_v TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_payment_projection_owner;
 GRANT SELECT ON TABLE public.customer_payment_status_v TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_request_admin_rpc_owner;
 GRANT SELECT ON TABLE public.admin_custom_request_queue_v TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_content_admin_owner;
 GRANT SELECT ON TABLE public.admin_content_drafts_v, public.admin_audit_events_v TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 GRANT SELECT ON TABLE public.profiles TO authenticated;
 GRANT SELECT ON TABLE public.guide_profiles TO authenticated;
 
@@ -193,34 +203,43 @@ SET LOCAL ROLE localens_admin_rpc_owner;
 GRANT EXECUTE ON FUNCTION public.admin_user_summary() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.reconcile_payment(uuid, public.booking_status) TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_plan_rpc_owner;
 GRANT EXECUTE ON FUNCTION public.advance_trip_plan_revision(uuid, integer, jsonb) TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_claim_rpc_owner;
 GRANT EXECUTE ON FUNCTION public.claim_guest_plan(uuid, text, smallint) TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_request_customer_rpc_owner;
 GRANT EXECUTE ON FUNCTION public.submit_custom_request(uuid, integer) TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_request_admin_rpc_owner;
 GRANT EXECUTE ON FUNCTION public.review_custom_request(uuid, public.request_status, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_custom_quote(uuid, bigint, public.checkout_currency, text, text, text) TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_guide_assignment_rpc_owner;
 GRANT EXECUTE ON FUNCTION public.assign_guide(uuid, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.accept_guide_assignment(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.complete_guide_assignment(uuid) TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_guide_projection_owner;
 GRANT EXECUTE ON FUNCTION public.get_guide_assigned_bookings() TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_content_admin_owner;
 GRANT EXECUTE ON FUNCTION public.upsert_content_draft(public.locale, text, text, text, text, jsonb, date, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.publish_seo(text, text) TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_availability_rpc_owner;
 GRANT EXECUTE ON FUNCTION public.get_live_departure_availability() TO anon, authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- The build executor is an Edge-only credential, never a browser role.  It
 -- receives release-scoped capability RPCs only, never service_role evidence.
@@ -229,6 +248,7 @@ GRANT EXECUTE ON FUNCTION public.read_seo_build_release(uuid, text, text) TO loc
 GRANT EXECUTE ON FUNCTION public.finalize_seo_publish(uuid, text, text, text, text) TO localens_content_build_executor;
 GRANT EXECUTE ON FUNCTION public.fail_seo_publish(uuid, text, text, text) TO localens_content_build_executor;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- Internal executor credentials are intentionally narrow.  Revoke all broad
 -- inherited privileges first; the earlier migrations' column grants remain
@@ -279,6 +299,7 @@ BEGIN
         '5s'
       );
       RESET ROLE;
+      SET LOCAL ROLE postgres;
       IF NOT function_record.had_schema_usage THEN
         EXECUTE pg_catalog.format(
           'REVOKE USAGE ON SCHEMA %I FROM %I',
@@ -288,6 +309,7 @@ BEGIN
       END IF;
     EXCEPTION WHEN OTHERS THEN
       RESET ROLE;
+      SET LOCAL ROLE postgres;
       IF NOT function_record.had_schema_usage THEN
         EXECUTE pg_catalog.format(
           'REVOKE USAGE ON SCHEMA %I FROM %I',

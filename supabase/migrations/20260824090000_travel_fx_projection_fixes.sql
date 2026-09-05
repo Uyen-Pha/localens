@@ -62,6 +62,7 @@ ORDER BY f.environment, f.observed_at DESC, f.id DESC;
 REVOKE ALL ON public.latest_fx_snapshot_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.latest_fx_snapshot_v TO anon, authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 ALTER TABLE public.fx_snapshots
   ADD CONSTRAINT fx_snapshots_source_trimmed_no_controls

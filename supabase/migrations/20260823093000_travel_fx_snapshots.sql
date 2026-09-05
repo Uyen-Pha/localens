@@ -325,6 +325,7 @@ SET LOCAL ROLE localens_catalog_rpc_owner;
 REVOKE ALL ON FUNCTION private.create_travel_snapshot() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.create_travel_snapshot() TO localens_admin_rpc_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- FX observations are inserted through the same authenticated admin boundary;
 -- the table checks remain authoritative for decimal, environment, and demo
@@ -365,6 +366,7 @@ SET LOCAL ROLE localens_catalog_rpc_owner;
 REVOKE ALL ON FUNCTION private.create_fx_snapshot(numeric, text, timestamptz, text, boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.create_fx_snapshot(numeric, text, timestamptz, text, boolean) TO localens_admin_rpc_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- PostgREST receives only these explicit named projections.  Decimal money and
 -- numeric FX are text, while timestamps are canonical UTC ISO strings.

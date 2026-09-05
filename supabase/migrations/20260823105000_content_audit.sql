@@ -172,6 +172,7 @@ SET LOCAL ROLE localens_content_guard_owner;
 GRANT EXECUTE ON FUNCTION private.content_url_is_safe(text), private.content_url_is_allowlisted(text)
   TO localens_content_guard_owner, localens_content_admin_owner, localens_content_build_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 CREATE OR REPLACE FUNCTION private.content_provenance_is_allowlisted(
   p_source_urls jsonb,
@@ -234,6 +235,7 @@ REVOKE ALL ON FUNCTION private.content_provenance_is_allowlisted(jsonb, jsonb) F
 GRANT EXECUTE ON FUNCTION private.content_provenance_is_allowlisted(jsonb, jsonb)
   TO localens_content_guard_owner, localens_content_admin_owner, localens_content_build_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 CREATE TABLE public.content_drafts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -878,6 +880,7 @@ GRANT UPDATE ON TABLE private.seo_build_capabilities TO localens_content_admin_o
 SET LOCAL ROLE localens_content_audit_owner;
 GRANT EXECUTE ON FUNCTION private.record_content_audit_event(public.audit_event_type, uuid, uuid, text, text, public.audit_metadata_key, text, numeric, boolean) TO localens_content_admin_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 CREATE POLICY content_release_copies_admin_owner_insert ON private.content_release_copies
   FOR INSERT TO localens_content_admin_owner WITH CHECK (current_user = 'localens_content_admin_owner');
 CREATE POLICY seo_build_capabilities_admin_owner_insert ON private.seo_build_capabilities
@@ -1051,6 +1054,7 @@ GRANT INSERT ON TABLE private.audit_events TO localens_content_build_owner;
 SET LOCAL ROLE localens_content_audit_owner;
 GRANT EXECUTE ON FUNCTION private.record_content_audit_event(public.audit_event_type, uuid, uuid, text, text, public.audit_metadata_key, text, numeric, boolean) TO localens_content_build_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 CREATE POLICY seo_releases_build_owner_update ON public.seo_releases
   FOR UPDATE TO localens_content_build_owner USING (current_user = 'localens_content_build_owner')
   WITH CHECK (current_user = 'localens_content_build_owner');

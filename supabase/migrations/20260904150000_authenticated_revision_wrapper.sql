@@ -49,6 +49,7 @@ GRANT EXECUTE ON FUNCTION public.advance_authenticated_trip_plan_revision(uuid, 
 TO authenticated;
 
 RESET ROLE;
+SET LOCAL ROLE postgres;
 ALTER FUNCTION public.advance_authenticated_trip_plan_revision(uuid, integer, jsonb)
 OWNER TO localens_plan_rpc_owner;
 REVOKE CREATE ON SCHEMA public FROM localens_plan_rpc_owner;

@@ -125,6 +125,7 @@ END;
 $function$;
 REVOKE ALL ON FUNCTION private.assert_published_tour_complete(uuid) FROM PUBLIC, anon, authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA private FROM localens_tour_guard_owner;
 
 -- The mapper accepts only an ASCII dotted-FQDN authority without ports,

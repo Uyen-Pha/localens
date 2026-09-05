@@ -68,6 +68,7 @@ SET LOCAL ROLE localens_quota_rpc_owner;
 GRANT EXECUTE ON FUNCTION private.reserve_quota(uuid, text, text, text)
   TO localens_ai_quota_rpc_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- The Edge itinerary runtime reads immutable published facts through three
 -- narrow projections.  The existing catalog projection owner has only the
@@ -163,6 +164,7 @@ GRANT SELECT ON public.current_itinerary_snapshot_v,
 TO anon, authenticated, service_role;
 
 RESET ROLE;
+SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_catalog_rpc_owner;
 
 -- A server-generated UUID is part of the revision fingerprint, so the first
@@ -276,6 +278,7 @@ GRANT EXECUTE ON FUNCTION public.create_authenticated_trip_plan(uuid, jsonb)
   TO authenticated;
 
 RESET ROLE;
+SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_plan_rpc_owner;
 
 -- The service-role endpoint delegates to the existing quota authority through
@@ -330,6 +333,7 @@ GRANT EXECUTE ON FUNCTION public.reserve_ai_quota(uuid, text, text, text)
   TO service_role;
 
 RESET ROLE;
+SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_ai_quota_rpc_owner;
 
 COMMIT;

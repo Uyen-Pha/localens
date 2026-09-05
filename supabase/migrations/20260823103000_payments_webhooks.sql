@@ -360,6 +360,7 @@ BEGIN
 END;
 $function$;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 ALTER FUNCTION private.assert_checkout_attempt_mutation() OWNER TO localens_checkout_rpc_owner;
 REVOKE ALL ON FUNCTION private.assert_checkout_attempt_mutation() FROM PUBLIC, anon, authenticated;
 
@@ -415,6 +416,7 @@ SET LOCAL ROLE localens_identity_rpc_owner;
 GRANT EXECUTE ON FUNCTION private.record_payment_audit_event(public.audit_event_type, uuid, public.audit_target_type, uuid, text, text, public.audit_metadata_key, text, numeric, boolean)
   TO localens_payment_rpc_owner, localens_admin_rpc_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 GRANT USAGE ON SCHEMA private, public TO localens_identity_rpc_owner;
 GRANT INSERT ON TABLE private.audit_events TO localens_identity_rpc_owner;
 
@@ -698,6 +700,7 @@ SET LOCAL ROLE localens_payment_rpc_owner;
 GRANT EXECUTE ON FUNCTION private.finalize_stripe_event(text, text, text, uuid, uuid, bigint, public.checkout_currency, boolean, text, text, text, text, text, text, text)
   TO localens_webhook_executor;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- Minimal Task 9 replay hydration: if the finalizer won the race, the browser
 -- session-recording retry returns the durable payment and booking states.
@@ -892,6 +895,7 @@ BEGIN
 END;
 $function$;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 ALTER FUNCTION private.record_checkout_session(uuid, uuid, text, timestamptz) OWNER TO localens_checkout_rpc_owner;
 REVOKE ALL ON FUNCTION private.record_checkout_session(uuid, uuid, text, timestamptz) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.record_checkout_session(uuid, uuid, text, timestamptz) TO localens_checkout_rpc_owner;

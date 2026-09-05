@@ -994,6 +994,7 @@ SET LOCAL ROLE localens_plan_rpc_owner;
 REVOKE ALL ON FUNCTION private.persist_trip_plan_revision(uuid, integer, jsonb, uuid, uuid, text, smallint) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.persist_trip_plan_revision(uuid, integer, jsonb, uuid, uuid, text, smallint) TO localens_guest_rpc_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- Authenticated owner CAS remains a distinct public contract.  It derives the
 -- actor from the JWT and cannot receive a guest capability argument.
@@ -1027,6 +1028,7 @@ BEGIN
 END;
 $function$;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 ALTER FUNCTION private.advance_trip_plan_revision(uuid, integer, jsonb) OWNER TO localens_plan_rpc_owner;
 REVOKE ALL ON FUNCTION private.advance_trip_plan_revision(uuid, integer, jsonb) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION private.advance_trip_plan_revision(uuid, integer, jsonb) FROM authenticated;
@@ -1117,6 +1119,7 @@ SET LOCAL ROLE localens_guest_rpc_owner;
 REVOKE ALL ON FUNCTION private.advance_guest_trip_plan_revision(uuid, integer, jsonb, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.advance_guest_trip_plan_revision(uuid, integer, jsonb, jsonb) TO localens_guest_executor;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 CREATE OR REPLACE FUNCTION private.create_guest_plan(args jsonb)
 RETURNS TABLE (plan_id uuid, revision_no integer, expires_at timestamptz)
@@ -1179,6 +1182,7 @@ SET LOCAL ROLE localens_guest_rpc_owner;
 REVOKE ALL ON FUNCTION private.create_guest_plan(jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.create_guest_plan(jsonb) TO localens_guest_executor;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- Private claim helper.  Its errors intentionally share one SQLSTATE/message
 -- for wrong, expired, replayed, and cross-plan capabilities.
@@ -1468,6 +1472,7 @@ SET LOCAL ROLE localens_quota_rpc_owner;
 REVOKE ALL ON FUNCTION private.reserve_quota(uuid, text, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.reserve_quota(uuid, text, text, text) TO localens_quota_executor;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- Webhook/build roles are deliberately separate from guest and quota
 -- executors; no membership or table access is granted here.

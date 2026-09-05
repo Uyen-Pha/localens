@@ -121,6 +121,7 @@ REVOKE ALL ON FUNCTION public.assign_guide(uuid, uuid) FROM PUBLIC, anon, authen
 REVOKE ALL ON FUNCTION public.accept_guide_assignment(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.complete_guide_assignment(uuid) FROM PUBLIC, anon, authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 GRANT CREATE ON SCHEMA private, public TO localens_guide_assignment_rpc_owner;
 SET LOCAL ROLE localens_guide_assignment_rpc_owner;
@@ -469,6 +470,7 @@ REVOKE ALL ON FUNCTION public.assign_fixed_departure_guide(uuid, uuid, text) FRO
 GRANT EXECUTE ON FUNCTION private.assign_guide(uuid, uuid) TO localens_guide_assignment_rpc_owner;
 GRANT EXECUTE ON FUNCTION public.assign_fixed_departure_guide(uuid, uuid, text) TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 ALTER FUNCTION public.assign_fixed_departure_guide(uuid, uuid, text)
   OWNER TO localens_guide_assignment_rpc_owner;
 
@@ -610,6 +612,7 @@ REVOKE ALL ON FUNCTION public.get_admin_eligible_guides() FROM PUBLIC, anon, aut
 GRANT EXECUTE ON FUNCTION public.get_admin_guide_assignment_queue() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_admin_eligible_guides() TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 ALTER FUNCTION public.get_admin_guide_assignment_queue()
   OWNER TO localens_guide_admin_projection_owner;
 ALTER FUNCTION public.get_admin_eligible_guides()
@@ -701,6 +704,7 @@ $function$;
 REVOKE ALL ON FUNCTION public.get_guide_assigned_bookings() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_guide_assigned_bookings() TO authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 ALTER FUNCTION public.get_guide_assigned_bookings()
   OWNER TO localens_guide_projection_owner;
 

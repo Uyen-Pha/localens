@@ -800,5 +800,6 @@ REVOKE ALL ON FUNCTION public.create_authenticated_trip_plan(uuid, jsonb) FROM P
 REVOKE ALL ON FUNCTION public.advance_authenticated_trip_plan_revision(uuid, integer, jsonb) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.advance_trip_plan_revision(uuid, integer, jsonb) FROM PUBLIC, anon, authenticated, service_role;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 COMMIT;

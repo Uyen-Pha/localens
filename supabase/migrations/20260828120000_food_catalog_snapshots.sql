@@ -233,6 +233,7 @@ REVOKE ALL ON TABLE
 SET LOCAL ROLE localens_catalog_rpc_owner;
 GRANT EXECUTE ON FUNCTION private.catalog_set_updated_at() TO postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 CREATE TRIGGER food_vendors_set_updated_at
 BEFORE UPDATE ON public.food_vendors
 FOR EACH ROW EXECUTE FUNCTION private.catalog_set_updated_at();
@@ -242,6 +243,7 @@ FOR EACH ROW EXECUTE FUNCTION private.catalog_set_updated_at();
 SET LOCAL ROLE localens_catalog_rpc_owner;
 REVOKE EXECUTE ON FUNCTION private.catalog_set_updated_at() FROM postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 CREATE OR REPLACE FUNCTION private.assert_food_opening_window_nonoverlap()
 RETURNS trigger
@@ -297,12 +299,14 @@ REVOKE ALL ON FUNCTION private.assert_food_opening_window_nonoverlap() FROM PUBL
 SET LOCAL ROLE localens_catalog_guard_owner;
 GRANT EXECUTE ON FUNCTION private.assert_food_opening_window_nonoverlap() TO postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 CREATE TRIGGER food_vendor_opening_hours_no_overlap
 BEFORE INSERT OR UPDATE ON public.food_vendor_opening_hours
 FOR EACH ROW EXECUTE FUNCTION private.assert_food_opening_window_nonoverlap();
 SET LOCAL ROLE localens_catalog_guard_owner;
 REVOKE EXECUTE ON FUNCTION private.assert_food_opening_window_nonoverlap() FROM postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 CREATE OR REPLACE FUNCTION private.assert_food_exception_window_nonoverlap()
 RETURNS trigger
@@ -345,12 +349,14 @@ REVOKE ALL ON FUNCTION private.assert_food_exception_window_nonoverlap() FROM PU
 SET LOCAL ROLE localens_catalog_guard_owner;
 GRANT EXECUTE ON FUNCTION private.assert_food_exception_window_nonoverlap() TO postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 CREATE TRIGGER food_vendor_exception_windows_no_overlap
 BEFORE INSERT OR UPDATE ON public.food_vendor_opening_exception_windows
 FOR EACH ROW EXECUTE FUNCTION private.assert_food_exception_window_nonoverlap();
 SET LOCAL ROLE localens_catalog_guard_owner;
 REVOKE EXECUTE ON FUNCTION private.assert_food_exception_window_nonoverlap() FROM postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 CREATE OR REPLACE FUNCTION private.assert_food_exception_consistency()
 RETURNS trigger
@@ -375,6 +381,7 @@ REVOKE ALL ON FUNCTION private.assert_food_exception_consistency() FROM PUBLIC, 
 SET LOCAL ROLE localens_catalog_guard_owner;
 GRANT EXECUTE ON FUNCTION private.assert_food_exception_consistency() TO postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 CREATE CONSTRAINT TRIGGER food_vendor_exception_consistency
 AFTER INSERT OR UPDATE ON public.food_vendor_opening_exceptions
 DEFERRABLE INITIALLY DEFERRED
@@ -382,6 +389,7 @@ FOR EACH ROW EXECUTE FUNCTION private.assert_food_exception_consistency();
 SET LOCAL ROLE localens_catalog_guard_owner;
 REVOKE EXECUTE ON FUNCTION private.assert_food_exception_consistency() FROM postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 CREATE OR REPLACE FUNCTION private.assert_food_exception_window_parent_open()
 RETURNS trigger
@@ -408,12 +416,14 @@ REVOKE ALL ON FUNCTION private.assert_food_exception_window_parent_open() FROM P
 SET LOCAL ROLE localens_catalog_guard_owner;
 GRANT EXECUTE ON FUNCTION private.assert_food_exception_window_parent_open() TO postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 CREATE TRIGGER food_vendor_exception_window_parent_open
 BEFORE INSERT OR UPDATE ON public.food_vendor_opening_exception_windows
 FOR EACH ROW EXECUTE FUNCTION private.assert_food_exception_window_parent_open();
 SET LOCAL ROLE localens_catalog_guard_owner;
 REVOKE EXECUTE ON FUNCTION private.assert_food_exception_window_parent_open() FROM postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 CREATE INDEX food_vendors_place_status_idx ON public.food_vendors (place_id, status, slug);
 CREATE INDEX food_vendor_translations_locale_idx ON public.food_vendor_translations (locale, food_vendor_id);
@@ -642,6 +652,7 @@ REVOKE ALL ON TABLE
 SET LOCAL ROLE localens_catalog_guard_owner;
 GRANT EXECUTE ON FUNCTION private.reject_append_only_change() TO postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 CREATE TRIGGER catalog_snapshot_food_vendors_append_only BEFORE UPDATE OR DELETE ON public.catalog_snapshot_food_vendors
 FOR EACH ROW EXECUTE FUNCTION private.reject_append_only_change();
 CREATE TRIGGER catalog_snapshot_food_vendor_translations_append_only BEFORE UPDATE OR DELETE ON public.catalog_snapshot_food_vendor_translations
@@ -719,6 +730,7 @@ FOR EACH STATEMENT EXECUTE FUNCTION private.reject_append_only_change();
 SET LOCAL ROLE localens_catalog_guard_owner;
 REVOKE EXECUTE ON FUNCTION private.reject_append_only_change() FROM postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- Publication checks run as the named non-login guard owner.  Because every
 -- catalog table is FORCE RLS, the guard receives only the narrow SELECT rows
@@ -1050,6 +1062,7 @@ GRANT EXECUTE ON FUNCTION
   private.assert_published_food_item_row()
 TO postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 CREATE TRIGGER food_vendors_published_completeness
 AFTER INSERT OR UPDATE OF place_id, status, source_url, verified_at, attribution ON public.food_vendors
 FOR EACH ROW WHEN (NEW.status = 'published'::public.place_status)
@@ -1085,6 +1098,7 @@ REVOKE EXECUTE ON FUNCTION
   private.assert_published_food_item_row()
 FROM postgres;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- Extend the existing venue snapshot RPC forward-only.  The venue lock prefix
 -- and copy statements intentionally remain byte-for-byte compatible; food
@@ -1296,6 +1310,7 @@ $function$;
 REVOKE ALL ON FUNCTION private.create_catalog_snapshot() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION private.create_catalog_snapshot() TO localens_admin_rpc_owner;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 -- Task 3C: safe, published-only projections for the catalog adapter. Every
 -- nested value is built from immutable snapshot children in a deterministic
@@ -1417,6 +1432,7 @@ ALTER VIEW public.catalog_snapshot_food_items_v OWNER TO localens_catalog_rpc_ow
 REVOKE ALL ON public.catalog_snapshot_food_items_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.catalog_snapshot_food_items_v TO anon, authenticated;
 RESET ROLE;
+SET LOCAL ROLE postgres;
 
 REVOKE CREATE ON SCHEMA private FROM localens_catalog_rpc_owner, localens_catalog_guard_owner;
 REVOKE CREATE ON SCHEMA public FROM localens_catalog_rpc_owner;

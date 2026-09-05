@@ -39,6 +39,24 @@ function runChecker(root: string, ...args: string[]): { status: number; output: 
 }
 
 describe("static Supabase artifact gate", () => {
+  it("restores the hosted postgres migration role after every custom role block", () => {
+    const migrations = readdirSync(join(repoRoot, "supabase", "migrations"))
+      .filter((file) => file.endsWith(".sql") && file >= "20260823093000_")
+      .sort();
+    let resetCount = 0;
+
+    for (const migration of migrations) {
+      const source = readFileSync(join(repoRoot, "supabase", "migrations", migration), "utf8");
+      for (const match of source.matchAll(/RESET ROLE;/g)) {
+        resetCount += 1;
+        const afterReset = source.slice((match.index ?? 0) + match[0].length);
+        expect(afterReset, migration).toMatch(/^\s*SET LOCAL ROLE postgres;/);
+      }
+    }
+
+    expect(resetCount).toBeGreaterThan(0);
+  });
+
   it("keeps LocalLens policies and definers independent from the restricted auth schema", () => {
     const migrations = readdirSync(join(repoRoot, "supabase", "migrations"))
       .filter((file) => file.endsWith(".sql"))
