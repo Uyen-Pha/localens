@@ -2,7 +2,7 @@
 -- The controller runs this file only on a disposable isolated database.
 BEGIN;
 
-SELECT plan(54);
+SELECT plan(57);
 GRANT USAGE ON SCHEMA extensions TO localens_plan_rpc_owner;
 SELECT set_config('search_path', 'public, extensions, pg_catalog', true);
 
@@ -208,6 +208,15 @@ SELECT extensions.ok(
   'service role is the only API executor for operation RPCs'
 );
 SELECT extensions.ok(
+  NOT has_function_privilege('service_role', 'private.get_runtime_planner_operation_attestation(uuid,uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'private.get_runtime_planner_operation_attestation(uuid,uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'private.get_runtime_planner_operation_attestation(uuid,uuid)', 'EXECUTE')
+  AND has_function_privilege('localens_plan_rpc_owner', 'private.get_runtime_planner_operation_attestation(uuid,uuid)', 'EXECUTE')
+  AND NOT has_table_privilege('service_role', 'private.quota_reservations', 'SELECT')
+  AND NOT has_table_privilege('service_role', 'private.recommendation_runs', 'SELECT'),
+  'service role reaches attestation only through the existing public readback RPC'
+);
+SELECT extensions.ok(
   (SELECT bool_and(NOT has_function_privilege(role_name, signature, 'EXECUTE'))
    FROM unnest(ARRAY['anon', 'authenticated', 'service_role']) AS roles(role_name)
    CROSS JOIN unnest(ARRAY[
@@ -327,6 +336,16 @@ SELECT extensions.is((SELECT decision->>'state' FROM planner_operation_decisions
 SELECT extensions.is((SELECT decision->>'state' FROM planner_operation_decisions WHERE label = 'owner-kind-conflict'), 'conflict', 'same owner and key with a different kind conflicts before target lookup');
 SELECT extensions.ok((SELECT NOT (decision ? 'operationState') FROM planner_operation_decisions WHERE label = 'owner-conflict'), 'conflict carries no operation state');
 SELECT extensions.is((SELECT decision->>'state' FROM planner_operation_decisions WHERE label = 'peer-get'), 'missing', 'another owner has no operation visibility');
+SELECT extensions.ok(
+  (SELECT
+    (decision->>'operationCount')::integer = 0
+    AND (decision->>'plannerReservationCount')::integer = 0
+    AND (decision->>'geminiReservationCount')::integer = 0
+    AND (decision->>'recommendationRunCount')::integer = 0
+    AND (decision->>'providerAttemptedCount')::integer = 0
+   FROM planner_operation_decisions WHERE label = 'peer-get'),
+  'missing operation readback returns zero attestation counts without cross-owner leakage'
+);
 SELECT extensions.is((SELECT decision->>'state' FROM planner_operation_decisions WHERE label = 'peer-claim'), 'claimed', 'same operation ID is independent across owners');
 SELECT extensions.is((SELECT count(*)::integer FROM private.runtime_planner_operations WHERE operation_id = '00000000-0000-0000-0000-000000009421'::uuid), 2, 'owner scope permits independent rows');
 
@@ -461,6 +480,18 @@ VALUES (
     'recommend', repeat('e', 64), NULL::uuid, NULL::integer
   )
 );
+SELECT count(*) FROM public.reserve_ai_quota(
+  ((SELECT decision FROM planner_operation_decisions WHERE label = 'recommend-claim')->>'plannerReservationId')::uuid,
+  'planner',
+  repeat('a', 64),
+  repeat('b', 64)
+);
+SELECT count(*) FROM public.reserve_ai_quota(
+  ((SELECT decision FROM planner_operation_decisions WHERE label = 'recommend-claim')->>'geminiReservationId')::uuid,
+  'gemini',
+  repeat('c', 64),
+  repeat('d', 64)
+);
 INSERT INTO planner_operation_decisions
 VALUES (
   'recommend-complete',
@@ -498,6 +529,16 @@ SELECT extensions.is((SELECT decision FROM planner_operation_decisions WHERE lab
 SELECT extensions.is((SELECT latest_revision_no FROM public.trip_plans WHERE id = ((SELECT decision FROM planner_operation_decisions WHERE label = 'recommend-complete')->>'planId')::uuid), 1, 'recommendation completion persists revision one exactly once');
 SELECT extensions.is((SELECT decision->>'state' FROM planner_operation_decisions WHERE label = 'recommend-get'), 'completed', 'read-only get returns a completed decision');
 SELECT extensions.is((SELECT decision->>'revision' FROM planner_operation_decisions WHERE label = 'recommend-get'), '1', 'completed get returns the stored revision reference');
+SELECT extensions.ok(
+  (SELECT
+    (decision->>'operationCount')::integer = 1
+    AND (decision->>'plannerReservationCount')::integer = 1
+    AND (decision->>'geminiReservationCount')::integer = 1
+    AND (decision->>'recommendationRunCount')::integer = 1
+    AND (decision->>'providerAttemptedCount')::integer = 0
+   FROM planner_operation_decisions WHERE label = 'recommend-get'),
+  'completed get returns exact non-secret operation, quota, run, and provider-attempted counts'
+);
 
 SET LOCAL ROLE service_role;
 INSERT INTO planner_operation_decisions

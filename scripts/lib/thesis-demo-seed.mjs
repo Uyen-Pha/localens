@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 
 const SUPABASE_RUNTIME_HOST_SUFFIX = ".supabase.co";
-export const THESIS_DEMO_DATASET_VERSION = "thesis-demo.v1";
+export const THESIS_DEMO_DATASET_VERSION = "thesis-demo.v2";
+export const THESIS_DEMO_UPGRADE_FROM_VERSION = "thesis-demo.v1";
 export const THESIS_DEMO_RELATIONS = Object.freeze([
   "auth.users",
   "private.audit_events",
@@ -26,6 +27,7 @@ export const THESIS_DEMO_RELATIONS = Object.freeze([
   "private.simulated_payment_receipts",
   "private.stripe_test_settings",
   "private.thesis_demo_manifest",
+  "private.thesis_demo_qa_slots",
   "private.user_roles",
   "private.webhook_events",
   "public.area_translations",
@@ -147,7 +149,7 @@ function auditInventory(inventory) {
     || !Array.isArray(inventory.relations)
     || !Array.isArray(inventory.unexpectedObjects)
     || !inventory.unexpectedObjects.every(hasExactText)
-    || !["empty", "auth-recovery", "exact", "conflict"].includes(inventory.graphState)
+    || !["empty", "auth-recovery", "upgrade-v1", "exact", "conflict"].includes(inventory.graphState)
     || !Array.isArray(inventory.graphConflicts)
     || !inventory.graphConflicts.every(hasExactText)
   ) return null;
@@ -423,10 +425,14 @@ function requireBilingualRecord(record) {
 
 export function validateThesisDemoDataset(dataset) {
   requireDataset(dataset !== null && typeof dataset === "object", "dataset object is required");
-  requireDataset(dataset.datasetVersion === THESIS_DEMO_DATASET_VERSION, "dataset version must be thesis-demo.v1");
+  requireDataset(dataset.datasetVersion === THESIS_DEMO_DATASET_VERSION, "dataset version must be thesis-demo.v2");
+  requireDataset(
+    dataset.upgradeFromVersion === THESIS_DEMO_UPGRADE_FROM_VERSION,
+    "dataset upgrade source must be thesis-demo.v1",
+  );
   requireDataset(dataset.classification === THESIS_DEMO_CLASSIFICATION, "dataset must be synthetic_demo");
   requireDataset(dataset.timezone === THESIS_DEMO_TIMEZONE, "timezone must be Asia/Ho_Chi_Minh");
-  requireDataset(dataset.seedBaseDate === "2026-09-05", "seed base date must remain fixed for v1");
+  requireDataset(dataset.seedBaseDate === "2026-09-05", "seed base date must remain fixed for v2");
   requireDataset(Array.isArray(dataset.accounts) && dataset.accounts.length === 4, "four demo accounts are required");
   requireDataset(
     dataset.accounts.every((account, index) => {
@@ -462,7 +468,16 @@ export function validateThesisDemoDataset(dataset) {
     dataset.fixtures?.assignedGuideBooking?.id,
     dataset.fixtures?.assignedGuideBooking?.holdId,
     dataset.fixtures?.guideAssignment?.id,
-    ...dataset.qa.slots.flatMap((slot) => [slot.runId, slot.bookingId, slot.paymentId, slot.cancelId]),
+    ...dataset.qa.slots.flatMap((slot) => [
+      slot.recommendOperationId,
+      slot.refineOperationId,
+      slot.bookingId,
+      slot.checkoutAttemptId,
+      slot.checkoutIdempotencyId,
+      slot.holdId,
+      slot.paymentId,
+      slot.cancelId,
+    ]),
   ];
   requireDataset(stableIds.every((id) => UUID_PATTERN.test(id ?? "")), "all database identities must be UUIDs");
   requireDataset(new Set(stableIds).size === stableIds.length, "database identities must be unique");
@@ -504,9 +519,21 @@ export function validateThesisDemoDataset(dataset) {
   );
   requireDataset(Array.isArray(dataset.qa?.slots) && dataset.qa.slots.length === 4, "four QA slots are required");
   requireDataset(
-    dataset.qa.slots.every((slot, index) => slot.id === `qa-0${index + 1}` && slot.maxSeats === 2),
-    "QA slots must be qa-01 through qa-04 with at most two seats",
+    dataset.qa.slots.every((slot, index) =>
+      slot.id === `qa-0${index + 1}`
+      && slot.maxSeats === 2
+      && slot.runId === undefined
+      && slot.terminalFlow === ["payment", "cancellation", "spare", "spare"][index]
+      && [slot.bookingIdempotencyKey, slot.paymentIdempotencyKey, slot.cancelIdempotencyKey]
+        .every((key) => hasExactText(key) && key.startsWith(`thesis-demo:v2:${slot.id}:`))),
+    "QA slots must expose exact v2 identities, keys, and terminal assignments",
   );
+  const qaSlotKeys = dataset.qa.slots.flatMap((slot) => [
+    slot.bookingIdempotencyKey,
+    slot.paymentIdempotencyKey,
+    slot.cancelIdempotencyKey,
+  ]);
+  requireDataset(new Set(qaSlotKeys).size === qaSlotKeys.length, "QA slot keys must be unique");
   requireDataset(
     dataset.fixtures?.customerWithoutBookingAccountKey === "customer-demo"
       && dataset.fixtures?.pendingPaymentBooking?.ownerAccountKey === "customer-qa"
@@ -565,10 +592,15 @@ export async function runThesisDemoDryRunTransaction({ query, dataset }) {
     started = true;
     await query("SET LOCAL statement_timeout = '15s'");
     const schema = await query(
-      "SELECT pg_catalog.to_regclass('private.thesis_demo_manifest')::text AS marker_table",
+      `SELECT
+       pg_catalog.to_regclass('private.thesis_demo_manifest')::text AS marker_table,
+       pg_catalog.to_regclass('private.thesis_demo_qa_slots')::text AS qa_slots_table`,
     );
-    if (schema?.rows?.[0]?.marker_table !== "private.thesis_demo_manifest") {
-      throw seedError("THESIS_DEMO_SCHEMA_REQUIRED", "thesis-demo marker schema is required");
+    if (
+      schema?.rows?.[0]?.marker_table !== "private.thesis_demo_manifest"
+      || schema?.rows?.[0]?.qa_slots_table !== "private.thesis_demo_qa_slots"
+    ) {
+      throw seedError("THESIS_DEMO_SCHEMA_REQUIRED", "thesis-demo v2 schema is required");
     }
     await query("ROLLBACK");
     started = false;
@@ -919,6 +951,54 @@ INSERT INTO public.guide_assignments (
   id, booking_id, guide_user_id, status, mobility_flags, dietary_flags
 ) VALUES ($1::uuid, $2::uuid, $3::uuid, 'assigned'::public.assignment_status, '{}'::text[], '{}'::text[])
 ON CONFLICT (id) DO NOTHING;`;
+
+const INSERT_QA_SLOTS_SQL = `
+WITH slots AS (
+  SELECT * FROM pg_catalog.jsonb_to_recordset($1::jsonb) AS value(
+    slot_id text, terminal_flow text, max_party_size integer,
+    booking_id uuid, checkout_attempt_id uuid, checkout_idempotency_id uuid,
+    capacity_hold_id uuid, simulated_payment_id uuid, cancellation_id uuid,
+    booking_idempotency_key text, payment_idempotency_key text,
+    cancellation_idempotency_key text, recommend_operation_id uuid,
+    refine_operation_id uuid
+  )
+)
+INSERT INTO private.thesis_demo_qa_slots (
+  slot_id, dataset_version, terminal_flow, owner_user_id, departure_id,
+  max_party_size, booking_id, checkout_attempt_id, checkout_idempotency_id,
+  capacity_hold_id, simulated_payment_id, cancellation_id,
+  booking_idempotency_key, payment_idempotency_key,
+  cancellation_idempotency_key, recommend_operation_id, refine_operation_id
+)
+SELECT
+  slots.slot_id, 'thesis-demo.v2', slots.terminal_flow, $2::uuid, $3::uuid,
+  slots.max_party_size, slots.booking_id, slots.checkout_attempt_id,
+  slots.checkout_idempotency_id, slots.capacity_hold_id,
+  slots.simulated_payment_id, slots.cancellation_id,
+  slots.booking_idempotency_key, slots.payment_idempotency_key,
+  slots.cancellation_idempotency_key, slots.recommend_operation_id,
+  slots.refine_operation_id
+FROM slots
+ON CONFLICT (slot_id) DO NOTHING;`;
+
+function qaSlotRows(dataset) {
+  return dataset.qa.slots.map((slot) => ({
+    slot_id: slot.id,
+    terminal_flow: slot.terminalFlow,
+    max_party_size: slot.maxSeats,
+    booking_id: slot.bookingId,
+    checkout_attempt_id: slot.checkoutAttemptId,
+    checkout_idempotency_id: slot.checkoutIdempotencyId,
+    capacity_hold_id: slot.holdId,
+    simulated_payment_id: slot.paymentId,
+    cancellation_id: slot.cancelId,
+    booking_idempotency_key: slot.bookingIdempotencyKey,
+    payment_idempotency_key: slot.paymentIdempotencyKey,
+    cancellation_idempotency_key: slot.cancelIdempotencyKey,
+    recommend_operation_id: slot.recommendOperationId,
+    refine_operation_id: slot.refineOperationId,
+  }));
+}
 
 function placeRows(dataset) {
   return dataset.places.map((place) => ({
@@ -1289,6 +1369,12 @@ export function createThesisDemoExpectedGraph({
       completed_at: null,
       closed_at: null,
     }],
+    "private.thesis_demo_qa_slots": qaSlotRows(dataset).map((slot) => ({
+      ...slot,
+      dataset_version: dataset.datasetVersion,
+      owner_user_id: qaCustomer.userId,
+      departure_id: dataset.qa.slotDepartureId,
+    })),
     "private.thesis_demo_manifest": [{
       project_ref: projectRef,
       environment: "thesis-demo",
@@ -1322,6 +1408,7 @@ const GRAPH_RELATION_SCOPE_KEYS = Object.freeze({
   "private.checkout_attempts": ["id"],
   "private.checkout_idempotency": ["id"],
   "private.thesis_demo_manifest": ["environment"],
+  "private.thesis_demo_qa_slots": ["slot_id"],
   "private.user_roles": ["user_id"],
   "public.area_translations": ["area_id"],
   "public.areas": ["id"],
@@ -1518,7 +1605,16 @@ export async function inspectThesisDemoDatasetGraph({
   for (const [relation, expectedRows] of Object.entries(expected)) {
     actual[relation] = await readGraphRelation(query, relation, expectedRows);
   }
-  return compareThesisDemoDatasetGraph({ expected, actual });
+  const current = compareThesisDemoDatasetGraph({ expected, actual });
+  if (current.state === "exact") return current;
+
+  const legacyExpected = structuredClone(expected);
+  legacyExpected["private.thesis_demo_qa_slots"] = [];
+  legacyExpected["private.thesis_demo_manifest"][0].dataset_version = THESIS_DEMO_UPGRADE_FROM_VERSION;
+  const legacy = compareThesisDemoDatasetGraph({ expected: legacyExpected, actual });
+  return legacy.state === "exact"
+    ? { state: "upgrade-v1", conflicts: [] }
+    : current;
 }
 
 async function createSnapshotGraph(query, adminUserId) {
@@ -1563,6 +1659,7 @@ export async function runThesisDemoApplyTransaction({
   requireSeed(typeof inspectDatasetGraph === "function",
     "THESIS_DEMO_DATABASE_REQUIRED", "full dataset graph inspector is required");
   const identityRows = databaseIdentities(dataset, identities);
+  const qaCustomer = identityRows.find(({ email }) => email === "customer.qa@localens.invalid");
   let started = false;
   try {
     await query("BEGIN");
@@ -1573,6 +1670,43 @@ export async function runThesisDemoApplyTransaction({
       throw seedError("THESIS_DEMO_DATABASE_FAILED", "conflicting thesis-demo graph refused");
     }
     if (initialGraph?.state === "exact") {
+      await query("COMMIT");
+      started = false;
+      return applySummary();
+    }
+    if (initialGraph?.state === "upgrade-v1") {
+      await executeParameterizedBatch(query, INSERT_QA_SLOTS_SQL, [
+        JSON.stringify(qaSlotRows(dataset)),
+        qaCustomer.userId,
+        dataset.qa.slotDepartureId,
+      ]);
+      const markerUpgrade = await query(
+        `UPDATE private.thesis_demo_manifest
+         SET dataset_version = $1
+         WHERE environment = 'thesis-demo'
+           AND dataset_version = $2
+           AND project_ref = $3
+           AND seed_base_date = $4::date
+         RETURNING dataset_version`,
+        [
+          THESIS_DEMO_DATASET_VERSION,
+          THESIS_DEMO_UPGRADE_FROM_VERSION,
+          projectRef,
+          dataset.seedBaseDate,
+        ],
+      );
+      if (markerUpgrade?.rowCount !== 1) {
+        throw seedError("THESIS_DEMO_DATABASE_FAILED", "exact v1 marker upgrade failed");
+      }
+      const postconditions = await inspectDatasetGraph({
+        query,
+        dataset,
+        projectRef,
+        identities,
+      });
+      if (postconditions?.state !== "exact" || (postconditions.conflicts?.length ?? 0) !== 0) {
+        throw seedError("THESIS_DEMO_DATABASE_FAILED", "v1 to v2 upgrade postconditions failed");
+      }
       await query("COMMIT");
       started = false;
       return applySummary();
@@ -1652,7 +1786,6 @@ export async function runThesisDemoApplyTransaction({
       [dataset.qa.soldOutDepartureId],
     );
     await query("RESET ROLE");
-    const qaCustomer = identityRows.find(({ email }) => email === "customer.qa@localens.invalid");
     const guide = identityRows.find(({ role }) => role === "guide");
     await executeParameterizedBatch(query, UPSERT_FIXTURES_SQL, [
       JSON.stringify([
@@ -1702,6 +1835,11 @@ export async function runThesisDemoApplyTransaction({
     ]);
     await query("SELECT pg_catalog.set_config('localens.guide_assignment_transition', 'off', true)");
     await query("RESET ROLE");
+    await executeParameterizedBatch(query, INSERT_QA_SLOTS_SQL, [
+      JSON.stringify(qaSlotRows(dataset)),
+      qaCustomer.userId,
+      dataset.qa.slotDepartureId,
+    ]);
     await query(
       `INSERT INTO private.thesis_demo_manifest (
         project_ref, environment, dataset_version, seed_base_date
@@ -1814,6 +1952,25 @@ export function verifyDemoTarget(input) {
       projectRef: expectedProjectRef,
       mode: authRecovery ? "bootstrap-auth-recovery" : "bootstrap-unseeded",
     };
+  }
+
+  if (
+    marker !== undefined
+    && marker !== null
+    && typeof marker === "object"
+    && marker.projectRef === expectedProjectRef
+    && marker.environment === "thesis-demo"
+    && marker.datasetVersion === THESIS_DEMO_UPGRADE_FROM_VERSION
+    && auditedInventory !== null
+    && auditedInventory.applicationRows > 0
+    && auditedInventory.unclassifiedApplicationRows === 0
+    && auditedInventory.demoAuthUsers === THESIS_DEMO_ACCOUNT_EMAILS.length
+    && auditedInventory.unclassifiedAuthUsers === 0
+    && inventory.unexpectedObjects.length === 0
+    && inventory.graphState === "upgrade-v1"
+    && inventory.graphConflicts.length === 0
+  ) {
+    return { ok: true, projectRef: expectedProjectRef, mode: "upgrade-v1" };
   }
 
   if (

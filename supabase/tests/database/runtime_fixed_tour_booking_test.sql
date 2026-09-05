@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(27);
+SELECT plan(31);
 
 -- Deterministic rollback-only identities and one synthetic published departure.
 DELETE FROM auth.users
@@ -118,8 +118,39 @@ VALUES
     pg_catalog.clock_timestamp() + interval '8 days',
     pg_catalog.clock_timestamp() + interval '8 days 2 hours',
     'scheduled', 8
+  ),
+  (
+    '00000000-0000-0000-0000-000000002319'::uuid,
+    '00000000-0000-0000-0000-000000002316'::uuid,
+    pg_catalog.clock_timestamp() + interval '9 days',
+    pg_catalog.clock_timestamp() + interval '9 days 2 hours',
+    'scheduled', 8
   );
 RESET ROLE;
+
+INSERT INTO private.thesis_demo_qa_slots (
+  slot_id, dataset_version, terminal_flow, owner_user_id, departure_id,
+  max_party_size, booking_id, checkout_attempt_id, checkout_idempotency_id,
+  capacity_hold_id, simulated_payment_id, cancellation_id,
+  booking_idempotency_key, payment_idempotency_key,
+  cancellation_idempotency_key, recommend_operation_id, refine_operation_id
+) VALUES (
+  'qa-01', 'thesis-demo.v2', 'payment',
+  '00000000-0000-0000-0000-000000002301'::uuid,
+  '00000000-0000-0000-0000-000000002319'::uuid,
+  2,
+  '00000000-0000-0000-0000-000000002391'::uuid,
+  '00000000-0000-0000-0000-000000002392'::uuid,
+  '00000000-0000-0000-0000-000000002393'::uuid,
+  '00000000-0000-0000-0000-000000002394'::uuid,
+  '00000000-0000-0000-0000-000000002395'::uuid,
+  '00000000-0000-0000-0000-000000002396'::uuid,
+  'thesis-demo:v2:qa-01:booking',
+  'thesis-demo:v2:qa-01:payment',
+  'thesis-demo:v2:qa-01:cancel',
+  '00000000-0000-0000-0000-000000002397'::uuid,
+  '00000000-0000-0000-0000-000000002398'::uuid
+);
 
 SELECT has_function(
   'public',
@@ -356,6 +387,60 @@ SELECT results_eq(
     true
   )$$,
   'JSON-only customer A projection contains only its fixed-tour pending-payment bookings'
+);
+
+SELECT results_eq(
+  $$SELECT booking_id, state
+    FROM public.begin_fixed_tour_booking(
+      '00000000-0000-0000-0000-000000002319'::uuid,
+      2,
+      'en'::public.locale,
+      'thesis-demo:v2:qa-01:booking'
+    )$$,
+  $$VALUES ('00000000-0000-0000-0000-000000002391'::uuid, 'created'::text)$$,
+  'exact QA tuple allocates the registered booking id'
+);
+RESET ROLE;
+SELECT results_eq(
+  $$SELECT idempotency.id, attempts.id, holds.id
+    FROM private.checkout_idempotency AS idempotency
+    JOIN private.checkout_attempts AS attempts
+      ON attempts.id = idempotency.checkout_attempt_id
+    JOIN private.capacity_holds AS holds
+      ON holds.booking_id = idempotency.booking_id
+    WHERE idempotency.booking_id = '00000000-0000-0000-0000-000000002391'::uuid$$,
+  $$VALUES (
+    '00000000-0000-0000-0000-000000002393'::uuid,
+    '00000000-0000-0000-0000-000000002392'::uuid,
+    '00000000-0000-0000-0000-000000002394'::uuid
+  )$$,
+  'QA booking allocates the registered checkout and hold ids'
+);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', jsonb_build_object(
+  'sub', '00000000-0000-0000-0000-000000002301',
+  'role', 'authenticated'
+)::text, true);
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT is(
+  (SELECT state FROM public.begin_fixed_tour_booking(
+    '00000000-0000-0000-0000-000000002319'::uuid,
+    2,
+    'en'::public.locale,
+    'thesis-demo:v2:qa-01:booking'
+  )),
+  'resumed',
+  'exact QA booking replay returns the same registered graph'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.begin_fixed_tour_booking(
+    '00000000-0000-0000-0000-000000002319'::uuid,
+    1,
+    'en'::public.locale,
+    'thesis-demo:v2:unknown:booking'
+  )$$,
+  '22023', 'THESIS_DEMO_QA_SLOT_MISMATCH',
+  'unknown QA slot fails before checkout mutation'
 );
 RESET ROLE;
 

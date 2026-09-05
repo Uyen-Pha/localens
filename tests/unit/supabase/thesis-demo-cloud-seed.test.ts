@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
@@ -26,7 +27,7 @@ import {
 
 const PROJECT_REF = "abcdefghijklmnopqrst";
 const ORGANIZATION_ID = "organization-demo";
-const DATASET_VERSION = "thesis-demo.v1";
+const DATASET_VERSION = "thesis-demo.v2";
 const PROJECT_ROOT = path.resolve(import.meta.dirname, "../../..");
 const SERVICE_ROLE_KEY = "unit-service-role-key-not-real";
 const DATABASE_URL = "postgresql://unit-user:unit-db-value@unit.invalid:6543/postgres?sslmode=verify-full";
@@ -42,6 +43,7 @@ const REQUIRED_RELATION_ROWS: Record<string, number> = {
   "private.capacity_holds": 2,
   "private.checkout_attempts": 1,
   "private.checkout_idempotency": 1,
+  "private.thesis_demo_qa_slots": 4,
   "private.thesis_demo_manifest": 1,
   "private.user_roles": 4,
   "public.area_translations": 2,
@@ -82,7 +84,7 @@ function completeInventory({
   relationOverrides = {},
   unexpectedObjects = [],
 }: {
-  graphState?: "empty" | "auth-recovery" | "exact" | "conflict";
+  graphState?: "empty" | "auth-recovery" | "upgrade-v1" | "exact" | "conflict";
   authDemoRows?: number;
   relationOverrides?: Record<string, Partial<{
     totalRows: number;
@@ -94,10 +96,13 @@ function completeInventory({
 } = {}) {
   const relations = THESIS_DEMO_RELATIONS.map((relation: string) => {
     const baselineRows = relation === "private.stripe_test_settings" ? 1 : 0;
+    const populatedGraph = graphState === "exact" || graphState === "upgrade-v1";
     const demoRows = relation === "auth.users"
       ? authDemoRows
-      : graphState === "exact"
-        ? (REQUIRED_RELATION_ROWS[relation] ?? 0)
+      : populatedGraph
+        ? (graphState === "upgrade-v1" && relation === "private.thesis_demo_qa_slots"
+            ? 0
+            : (REQUIRED_RELATION_ROWS[relation] ?? 0))
         : graphState === "auth-recovery" && ["public.profiles", "private.user_roles"].includes(relation)
           ? authDemoRows
         : 0;
@@ -114,7 +119,11 @@ function completeInventory({
 }
 
 function readDataset() {
-  return JSON.parse(readFileSync(path.join(PROJECT_ROOT, "data", "demo", "thesis-demo.v1.json"), "utf8"));
+  return JSON.parse(readFileSync(path.join(PROJECT_ROOT, "data", "demo", "thesis-demo.v2.json"), "utf8"));
+}
+
+function readV1DatasetSource() {
+  return readFileSync(path.join(PROJECT_ROOT, "data", "demo", "thesis-demo.v1.json"), "utf8");
 }
 
 function validTarget(overrides: Record<string, unknown> = {}) {
@@ -154,6 +163,30 @@ describe("verifyDemoTarget", () => {
       projectRef: PROJECT_REF,
       mode: "bootstrap-unseeded",
     });
+  });
+
+  it("accepts only the exact immutable v1 graph as the one supported upgrade", () => {
+    expect(verifyDemoTarget(validTarget({
+      inventory: completeInventory({ graphState: "upgrade-v1", authDemoRows: 4 }),
+      marker: {
+        projectRef: PROJECT_REF,
+        environment: "thesis-demo",
+        datasetVersion: "thesis-demo.v1",
+      },
+    }))).toEqual({
+      ok: true,
+      projectRef: PROJECT_REF,
+      mode: "upgrade-v1",
+    });
+
+    expect(verifyDemoTarget(validTarget({
+      inventory: completeInventory({ graphState: "conflict", authDemoRows: 4 }),
+      marker: {
+        projectRef: PROJECT_REF,
+        environment: "thesis-demo",
+        datasetVersion: "thesis-demo.v1",
+      },
+    }))).toEqual({ ok: false, code: "MARKER_MISMATCH" });
   });
 
   it.each([
@@ -286,12 +319,20 @@ describe("verifyDemoTarget", () => {
   });
 });
 
-describe("thesis demo v1 dataset", () => {
+describe("thesis demo dataset versions", () => {
+  it("keeps the checked-in v1 dataset byte-for-byte immutable", () => {
+    const source = readV1DatasetSource();
+
+    expect(createHash("sha256").update(source, "utf8").digest("hex"))
+      .toBe("a84de06d18c7958e435d44bbd14de774f728c891585176bb4d5b47b5d8429a2f");
+    expect(JSON.parse(source).datasetVersion).toBe("thesis-demo.v1");
+  });
+
   it("is a stable, bilingual synthetic dataset with the expected account, place, and tour counts", () => {
     const dataset = readDataset();
 
     expect(validateThesisDemoDataset(dataset)).toEqual({
-      datasetVersion: "thesis-demo.v1",
+      datasetVersion: "thesis-demo.v2",
       classification: "synthetic_demo",
       accountCount: 4,
       roleCount: 3,
@@ -334,7 +375,7 @@ describe("thesis demo v1 dataset", () => {
     }
   });
 
-  it("rejects role, key, or audience swaps inside the immutable v1 account allowlist", () => {
+  it("rejects role, key, or audience swaps inside the immutable account allowlist", () => {
     const mutations = [
       (dataset: ReturnType<typeof readDataset>) => {
         [dataset.accounts[0].role, dataset.accounts[2].role] = [dataset.accounts[2].role, dataset.accounts[0].role];
@@ -388,15 +429,25 @@ describe("thesis demo v1 dataset", () => {
 
     expect(qaDeparture).toEqual(expect.objectContaining({ audience: "qa", capacity: 20, status: "scheduled" }));
     expect(dataset.qa.slots.map(({ id }: { id: string }) => id)).toEqual(["qa-01", "qa-02", "qa-03", "qa-04"]);
+    expect(dataset.qa.slots.map(({ terminalFlow }: { terminalFlow: string }) => terminalFlow))
+      .toEqual(["payment", "cancellation", "spare", "spare"]);
     expect(dataset.qa.slots.every(({ maxSeats }: { maxSeats: number }) => maxSeats === 2)).toBe(true);
     expect(new Set(dataset.qa.slots.flatMap((slot: Record<string, string>) => [
       slot.bookingId,
+      slot.checkoutAttemptId,
+      slot.checkoutIdempotencyId,
+      slot.holdId,
       slot.paymentId,
       slot.cancelId,
+      slot.recommendOperationId,
+      slot.refineOperationId,
       slot.bookingIdempotencyKey,
       slot.paymentIdempotencyKey,
       slot.cancelIdempotencyKey,
-    ])).size).toBe(24);
+    ])).size).toBe(44);
+    expect(dataset.qa.slots.every((slot: Record<string, string>) =>
+      [slot.bookingIdempotencyKey, slot.paymentIdempotencyKey, slot.cancelIdempotencyKey]
+        .every((key) => key.startsWith(`thesis-demo:v2:${slot.id}:`)))).toBe(true);
   });
 
   it("contains no password or credential values", () => {
@@ -576,7 +627,10 @@ function createSeedHarness({ marker = null }: { marker?: Record<string, string> 
     readDashboardConnection: vi.fn(async () => validTarget().dashboardConnection),
     readDatabaseConnection: vi.fn(async () => validTarget().databaseConnection),
     readInventory: vi.fn(async () => marker
-      ? completeInventory({ graphState: "exact" })
+      ? completeInventory({
+          graphState: marker.datasetVersion === "thesis-demo.v1" ? "upgrade-v1" : "exact",
+          authDemoRows: 4,
+        })
       : authUsers.size > 0
         ? completeInventory({ graphState: "auth-recovery", authDemoRows: authUsers.size })
         : completeInventory()),
@@ -776,8 +830,8 @@ function createTransactionQuery({
   graphConflicts = [],
 }: {
   failOn?: RegExp;
-  initialGraphState?: "empty" | "auth-recovery" | "exact" | "conflict";
-  postGraphState?: "empty" | "auth-recovery" | "exact" | "conflict";
+  initialGraphState?: "empty" | "auth-recovery" | "upgrade-v1" | "exact" | "conflict";
+  postGraphState?: "empty" | "auth-recovery" | "upgrade-v1" | "exact" | "conflict";
   graphConflicts?: string[];
 } = {}) {
   const statements: Array<{ sql: string; values: unknown[] }> = [];
@@ -797,7 +851,10 @@ function createTransactionQuery({
       return { rows: [{ travel_snapshot_id: "00000000-0000-4000-8000-000000000902" }] };
     }
     if (/to_regclass\('private\.thesis_demo_manifest'\)/i.test(sql)) {
-      return { rows: [{ marker_table: "private.thesis_demo_manifest" }] };
+      return { rows: [{
+        marker_table: "private.thesis_demo_manifest",
+        qa_slots_table: "private.thesis_demo_qa_slots",
+      }] };
     }
     return { rows: [], rowCount: 1 };
   });
@@ -880,6 +937,7 @@ describe("thesis demo database transactions", () => {
       "private.capacity_holds",
       "private.checkout_attempts",
       "private.checkout_idempotency",
+      "private.thesis_demo_qa_slots",
       "public.guide_assignments",
       "private.thesis_demo_manifest",
     ]) expect(sql).toContain(relation);
@@ -895,6 +953,72 @@ describe("thesis demo database transactions", () => {
       expect(positions).toEqual(Array.from({ length: positions.length }, (_, index) => index + 1));
       expect(statement.values).toHaveLength(positions.length);
     }
+  });
+
+  it("upgrades only an exact v1 graph by inserting registry metadata and advancing the marker atomically", async () => {
+    const database = createTransactionQuery({ initialGraphState: "upgrade-v1" });
+
+    await runThesisDemoApplyTransaction({
+      query: database.query,
+      dataset: readDataset(),
+      projectRef: PROJECT_REF,
+      identities: stableIdentities(),
+      inspectDatasetGraph: database.inspectDatasetGraph,
+    });
+
+    expect(database.statements[0]?.sql).toBe("BEGIN");
+    expect(database.statements.at(-1)?.sql).toBe("COMMIT");
+    const mutations = database.statements.filter(({ sql }) =>
+      /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i.test(sql));
+    expect(mutations).toHaveLength(2);
+    expect(mutations[0]?.sql).toMatch(/INSERT INTO private\.thesis_demo_qa_slots/i);
+    expect(JSON.parse(mutations[0]?.values[0] as string)).toHaveLength(4);
+    expect(mutations[1]?.sql).toMatch(
+      /UPDATE private\.thesis_demo_manifest[\s\S]+dataset_version = \$1[\s\S]+dataset_version = \$2[\s\S]+RETURNING/i,
+    );
+    expect(mutations[1]?.values).toEqual([
+      "thesis-demo.v2",
+      "thesis-demo.v1",
+      PROJECT_REF,
+      "2026-09-05",
+    ]);
+    expect(database.inspectDatasetGraph).toHaveBeenCalledTimes(2);
+  });
+
+  it("never pre-creates slot-owned booking, payment, cancellation, hold, checkout, or planner rows", async () => {
+    const database = createTransactionQuery();
+    const dataset = readDataset();
+
+    await runThesisDemoApplyTransaction({
+      query: database.query,
+      dataset,
+      projectRef: PROJECT_REF,
+      identities: stableIdentities(),
+      inspectDatasetGraph: database.inspectDatasetGraph,
+    });
+
+    const registryStatement = database.statements.find(({ sql }) =>
+      /INSERT INTO private\.thesis_demo_qa_slots/i.test(sql));
+    for (const slot of dataset.qa.slots) {
+      for (const value of [
+        slot.bookingId,
+        slot.checkoutAttemptId,
+        slot.checkoutIdempotencyId,
+        slot.holdId,
+        slot.paymentId,
+        slot.cancelId,
+        slot.recommendOperationId,
+        slot.refineOperationId,
+      ]) {
+        expect(registryStatement?.values).toContainEqual(expect.stringContaining(value));
+      }
+    }
+    const lifecycleStatements = database.statements.filter(({ sql }) =>
+      /INSERT INTO (?:public\.bookings|private\.(?:capacity_holds|checkout_attempts|checkout_idempotency|simulated_payment_receipts|booking_cancellations|runtime_planner_operations)|public\.(?:trip_plans|trip_plan_revisions|trip_plan_items))/i.test(sql));
+    expect(lifecycleStatements).toHaveLength(4);
+    const lifecycleValues = JSON.stringify(lifecycleStatements.map(({ values }) => values));
+    expect(dataset.qa.slots.every((slot: Record<string, string>) =>
+      !lifecycleValues.includes(slot.bookingId))).toBe(true);
   });
 
   it("inserts every departure as scheduled, then transitions only the dedicated QA departure under the tour owner", async () => {

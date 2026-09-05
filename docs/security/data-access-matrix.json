@@ -498,8 +498,13 @@
     {
       "name": "private.quota_reservations",
       "policies": [
+        "quota_reservations_plan_rpc_owner_select",
         "quota_reservations_quota_owner_insert",
         "quota_reservations_quota_owner_select"
+      ],
+      "readerRoles": [
+        "localens_quota_rpc_owner",
+        "localens_plan_rpc_owner"
       ],
       "writerOperation": "quota RPC only",
       "owner": "postgres",
@@ -573,6 +578,25 @@
         "thesis_demo_manifest_migration_owner_all"
       ],
       "writerOperation": "verified thesis-demo seeder through the migration-owner database connection only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "private.thesis_demo_qa_slots",
+      "policies": [
+        "thesis_demo_qa_slots_cancellation_customer_rpc_owner_select",
+        "thesis_demo_qa_slots_checkout_rpc_owner_select",
+        "thesis_demo_qa_slots_simulated_payment_rpc_owner_select"
+      ],
+      "readerRoles": [
+        "localens_checkout_rpc_owner",
+        "localens_simulated_payment_rpc_owner",
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "writerOperation": "verified thesis-demo seeder writes four metadata-only QA slots through the migration-owner database connection",
+      "grants": [
+        "column SELECT to the three named terminal-flow definer owners only"
+      ],
       "owner": "postgres",
       "forceRls": true
     },
@@ -1804,7 +1828,7 @@
       "readerRoles": [
         "service_role"
       ],
-      "writerOperation": "Edge reads one owner-scoped planner operation status without mutation",
+      "writerOperation": "Edge reads one owner-scoped planner operation status plus bounded non-secret replay attestation counts without mutation",
       "credential": "edge-service-role"
     },
     {
@@ -1934,6 +1958,7 @@
     "private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)",
     "private.guard_custom_request_insert()",
     "private.guard_custom_request_mutation()",
+    "private.get_runtime_planner_operation_attestation(uuid,uuid)",
     "private.guard_runtime_planner_operation_transition()",
     "private.guard_tour_lifecycle()",
     "private.guard_tour_translation_lifecycle()",
@@ -1990,7 +2015,7 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 679,
+  "grantCount": 684,
   "policyManifest": "docs/security/policies-manifest.json",
   "policyCount": 45
 }

@@ -78,7 +78,7 @@ Migration owner for default privileges: postgres
 | private.guide_assignment_idempotency | postgres | none |  | idempotent fixed-departure guide assignment RPC only | true | true | guide_assignment_idempotency_rpc_insert, guide_assignment_idempotency_rpc_select |  | migration-owner-only |
 | private.quota_buckets | postgres | none |  | quota RPC only | true | true | guest_owner_quota_plan_denied, quota_buckets_quota_owner_all |  | migration-owner-only |
 | private.quota_global_buckets | postgres | none |  | quota RPC only | true | true | quota_global_quota_owner_all |  | migration-owner-only |
-| private.quota_reservations | postgres | none |  | quota RPC only | true | true | quota_reservations_quota_owner_insert, quota_reservations_quota_owner_select |  | migration-owner-only |
+| private.quota_reservations | postgres | none | localens_quota_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_plan_rpc_owner (login=false, bypassrls=false, database-definer-owner) | quota RPC only | true | true | quota_reservations_plan_rpc_owner_select, quota_reservations_quota_owner_insert, quota_reservations_quota_owner_select |  | migration-owner-only |
 | private.recommendation_runs | postgres | none |  | itinerary RPC only | true | true | recommendation_runs_guest_owner_all, recommendation_runs_plan_rpc_owner_all |  | migration-owner-only |
 | private.runtime_planner_operations | localens_plan_rpc_owner | none |  | service-role planner operation RPCs only | true | true | runtime_planner_operations_plan_rpc_owner_all |  | migration-owner-only |
 | private.seo_build_capabilities | postgres | none |  | capability RPC only | true | true | seo_build_capabilities_admin_owner_insert, seo_build_capabilities_admin_owner_select, seo_build_capabilities_admin_owner_update, seo_build_capabilities_build_owner_all, seo_build_capabilities_build_owner_update |  | migration-owner-only |
@@ -86,6 +86,7 @@ Migration owner for default privileges: postgres
 | private.simulated_payment_receipts | postgres | none |  | fixed-tour simulated-payment RPC only | true | true | simulated_payment_receipts_checkout_owner_select, simulated_payment_receipts_payment_guard_select, simulated_payment_receipts_projection_owner_select, simulated_payment_receipts_rpc_owner_all, simulated_receipts_cancellation_admin_select, simulated_receipts_cancellation_customer_select |  | migration-owner-only |
 | private.stripe_test_settings | postgres | none |  | Stripe Test finalizer only | true | true | stripe_test_settings_payment_owner_lock, stripe_test_settings_payment_owner_select |  | migration-owner-only |
 | private.thesis_demo_manifest | postgres | none |  | verified thesis-demo seeder through the migration-owner database connection only | true | true | thesis_demo_manifest_migration_owner_all |  | migration-owner-only |
+| private.thesis_demo_qa_slots | postgres | none | localens_checkout_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_simulated_payment_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_cancellation_customer_rpc_owner (login=false, bypassrls=false, database-definer-owner) | verified thesis-demo seeder writes four metadata-only QA slots through the migration-owner database connection | true | true | thesis_demo_qa_slots_cancellation_customer_rpc_owner_select, thesis_demo_qa_slots_checkout_rpc_owner_select, thesis_demo_qa_slots_simulated_payment_rpc_owner_select | column SELECT to the three named terminal-flow definer owners only | migration-owner-only |
 | private.user_roles | postgres | none |  | provision_role RPC only | true | true | user_roles_admin_guide_runtime_projection_select, user_roles_admin_summary_select, user_roles_auth_trigger_insert, user_roles_auth_trigger_select, user_roles_cancellation_admin_projection_select, user_roles_cancellation_admin_rpc_select, user_roles_cancellation_customer_projection_select, user_roles_cancellation_customer_rpc_select, user_roles_catalog_rpc_select, user_roles_checkout_owner_select, user_roles_claim_rpc_select, user_roles_content_admin_select, user_roles_guide_assignment_owner_select, user_roles_identity_rpc_insert, user_roles_identity_rpc_select, user_roles_plan_rpc_select, user_roles_request_admin_rpc_select, user_roles_request_customer_rpc_select, user_roles_simulated_payment_owner_select |  | migration-owner-only |
 | private.webhook_events | postgres | none |  | Stripe webhook finalizer only | true | true | webhook_events_payment_owner_all |  | migration-owner-only |
 | public.area_translations | postgres | none |  | none | true | true | area_translations_public_select, catalog_owner_all |  | migration-owner-only |
@@ -201,7 +202,7 @@ Migration owner for default privileges: postgres
 | public.get_guide_assigned_bookings | localens_guide_projection_owner | authenticated (login=false, bypassrls=false, browser-jwt) | guide reads sanitized queue | browser-jwt |
 | public.get_live_departure_availability | localens_availability_rpc_owner | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | hold-aware published availability read | browser-anonymous-or-jwt |
 | public.get_portal_identity | localens_identity_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | authenticated owner identity read | browser-jwt |
-| public.get_runtime_planner_operation | localens_plan_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Edge reads one owner-scoped planner operation status without mutation | edge-service-role |
+| public.get_runtime_planner_operation | localens_plan_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Edge reads one owner-scoped planner operation status plus bounded non-secret replay attestation counts without mutation | edge-service-role |
 | public.publish_seo | localens_content_admin_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin creates one publishing release | browser-jwt |
 | public.read_seo_build_release | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | capability-scoped build read | edge-internal-content-build |
 | public.reconcile_payment | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | audited admin payment reconciliation | browser-jwt |
@@ -214,7 +215,7 @@ Migration owner for default privileges: postgres
 
 ## Internal functions
 
-Enumerated internal functions: 110. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
+Enumerated internal functions: 111. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
 
 - `private.accept_guide_assignment(uuid)`
 - `private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)`
@@ -270,6 +271,7 @@ Enumerated internal functions: 110. All are non-API and must use a named NOLOGIN
 - `private.create_guest_plan(jsonb)`
 - `private.create_travel_snapshot()`
 - `private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)`
+- `private.get_runtime_planner_operation_attestation(uuid,uuid)`
 - `private.guard_custom_request_insert()`
 - `private.guard_custom_request_mutation()`
 - `private.guard_runtime_planner_operation_transition()`
@@ -329,7 +331,7 @@ Enumerated internal functions: 110. All are non-API and must use a named NOLOGIN
 
 ## Explicit grants
 
-Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (679 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (684 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Dynamic policy semantics
 

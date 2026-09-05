@@ -790,4 +790,54 @@ COMMIT;
     expect(pgTap).toMatch(/has_function_privilege[\s\S]*service_role/i);
     expect(pgTap).toMatch(/legacy|create_authenticated_trip_plan|advance_authenticated_trip_plan_revision|advance_trip_plan_revision/i);
   });
+
+  it("requires the Task 19A deterministic QA registry and narrow replay attestation remediation", () => {
+    const migrationPath = join(
+      repoRoot,
+      "supabase",
+      "migrations",
+      "20260905150000_thesis_demo_qa_slots.sql",
+    );
+    expect(existsSync(migrationPath)).toBe(true);
+
+    const migration = readFileSync(migrationPath, "utf8");
+    expect(migration).toMatch(/^BEGIN;[\s\S]*COMMIT;\s*$/i);
+    expect(migration).toMatch(/CREATE TABLE private\.thesis_demo_qa_slots/i);
+    expect(migration).toMatch(/CHECK\s*\(\s*dataset_version = 'thesis-demo\.v2'/i);
+    expect(migration).toMatch(/ALTER TABLE private\.thesis_demo_qa_slots ENABLE ROW LEVEL SECURITY[\s\S]*FORCE ROW LEVEL SECURITY/i);
+    expect(migration).toMatch(/REVOKE ALL ON TABLE private\.thesis_demo_qa_slots FROM PUBLIC, anon, authenticated, service_role/i);
+    for (const owner of [
+      "localens_checkout_rpc_owner",
+      "localens_simulated_payment_rpc_owner",
+      "localens_cancellation_customer_rpc_owner",
+    ]) {
+      expect(migration).toMatch(new RegExp(
+        `CREATE POLICY thesis_demo_qa_slots_${owner.replace("localens_", "").replaceAll("_", "_")}_select[\\s\\S]+TO ${owner}`,
+        "i",
+      ));
+      expect(migration).toMatch(new RegExp(
+        `GRANT SELECT \\([^)]+\\) ON TABLE private\\.thesis_demo_qa_slots TO ${owner}`,
+        "i",
+      ));
+    }
+    expect(migration).not.toMatch(/GRANT\s+SELECT[^;]+private\.thesis_demo_qa_slots\s+TO\s+(?:PUBLIC|anon|authenticated|service_role)/i);
+
+    for (const signature of [
+      "private.start_checkout_tx(text, uuid, integer, public.locale, text, text)",
+      "public.complete_simulated_fixed_tour_payment(uuid, text)",
+      "public.cancel_booking(uuid, text, text, text)",
+      "public.get_runtime_planner_operation(uuid, uuid, text)",
+    ]) expect(migration).toContain(signature);
+    expect(migration).toMatch(/new_booking_id uuid := pg_catalog\.gen_random_uuid\(\)/i);
+    expect(migration).toMatch(/THESIS_DEMO_QA_SLOT_MISMATCH[\s\S]*INSERT INTO private\.checkout_idempotency/i);
+    expect(migration).toMatch(/INSERT INTO private\.simulated_payment_receipts\s*\(\s*id,/i);
+    expect(migration).toMatch(/INSERT INTO private\.booking_cancellations\s*\(\s*id,/i);
+
+    expect(migration).toMatch(/CREATE OR REPLACE FUNCTION private\.get_runtime_planner_operation_attestation\(uuid, uuid\)/i);
+    expect(migration).toMatch(/operation_count[\s\S]*planner_reservation_count[\s\S]*gemini_reservation_count[\s\S]*recommendation_run_count[\s\S]*provider_attempted_count/i);
+    expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION private\.get_runtime_planner_operation_attestation\(uuid, uuid\)\s+TO localens_plan_rpc_owner/i);
+    expect(migration).not.toMatch(/GRANT SELECT[^;]+TO service_role/i);
+    expect(migration).not.toMatch(/GRANT EXECUTE ON FUNCTION private\.get_runtime_planner_operation_attestation\([^;]+\) TO service_role/i);
+    expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.get_runtime_planner_operation\(uuid, uuid, text\) FROM PUBLIC, anon, authenticated, service_role[\s\S]*GRANT EXECUTE ON FUNCTION public\.get_runtime_planner_operation\(uuid, uuid, text\) TO service_role/i);
+  });
 });

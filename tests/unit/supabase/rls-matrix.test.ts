@@ -179,10 +179,10 @@ describe("Task 13 RLS/RPC access matrix", () => {
       rpcs: Array<{ name: string; signature: string; owner: string; readerRoles: string[] }>;
       internalFunctions: string[];
     };
-    expect(matrix.tables).toHaveLength(85);
+    expect(matrix.tables).toHaveLength(86);
     expect(matrix.views).toHaveLength(24);
     expect(matrix.rpcs).toHaveLength(28);
-    expect(matrix.internalFunctions).toHaveLength(110);
+    expect(matrix.internalFunctions).toHaveLength(111);
     expect(matrix.views).toEqual(expect.arrayContaining([
       expect.objectContaining({
         name: "public.itinerary_fx_snapshot_history_v",
@@ -360,6 +360,45 @@ describe("Task 13 RLS/RPC access matrix", () => {
       expect(migration).toMatch(new RegExp(`REVOKE ALL ON FUNCTION public\\.${name}\\([^;]+\\) FROM PUBLIC, anon, authenticated, service_role`, "i"));
       expect(migration).not.toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${name}\\([^;]+\\) TO (?:anon|authenticated|service_role)`, "i"));
     }
+  });
+
+  it("documents the private QA registry and exposes attestation only through the existing service RPC", () => {
+    const matrix = JSON.parse(readFileSync(matrixPath, "utf8")) as {
+      tables: Array<{ name: string; owner: string; forceRls: boolean; readerRoles?: string[] }>;
+      rpcs: Array<{ name: string; signature: string; readerRoles: string[] }>;
+      internalFunctions: string[];
+    };
+    const registry = matrix.tables.find((table) => table.name === "private.thesis_demo_qa_slots");
+    expect(registry).toMatchObject({
+      owner: "postgres",
+      forceRls: true,
+      readerRoles: [
+        "localens_checkout_rpc_owner",
+        "localens_simulated_payment_rpc_owner",
+        "localens_cancellation_customer_rpc_owner",
+      ],
+    });
+    expect(matrix.internalFunctions).toContain(
+      "private.get_runtime_planner_operation_attestation(uuid,uuid)",
+    );
+    expect(matrix.rpcs.find((rpc) => rpc.name === "public.get_runtime_planner_operation"))
+      .toMatchObject({
+        signature: "public.get_runtime_planner_operation(uuid,uuid,text)",
+        readerRoles: ["service_role"],
+      });
+
+    const grantManifest = JSON.parse(readFileSync(
+      join(repoRoot, "docs", "security", "grants-manifest.json"),
+      "utf8",
+    )) as { grants: Array<{ objectName: string; grantee: string; privilege: string }> };
+    expect(grantManifest.grants.some((grant) =>
+      grant.objectName === "private.thesis_demo_qa_slots"
+      && ["PUBLIC", "anon", "authenticated", "service_role"].includes(grant.grantee)
+      && grant.privilege === "select")).toBe(false);
+    expect(grantManifest.grants.some((grant) =>
+      grant.objectName === "private.get_runtime_planner_operation_attestation(uuid,uuid)"
+      && grant.grantee === "service_role"
+      && grant.privilege === "execute")).toBe(false);
   });
 
   it("fails closed when generated policies or later definer hardening drift", () => {

@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(76);
+SELECT plan(77);
 
 DELETE FROM auth.users
 WHERE id BETWEEN '00000000-0000-0000-0000-000000002601'::uuid
@@ -208,7 +208,12 @@ INSERT INTO private.checkout_idempotency (
 )
 SELECT
   ('10000000-0000-0000-0000-' || right(booking_id::text, 12))::uuid,
-  owner_user_id, 'checkout-' || label, repeat('c', 64), booking_id, attempt_id,
+  owner_user_id,
+  CASE
+    WHEN label = 'dep-main' THEN 'thesis-demo:v2:qa-02:booking'
+    ELSE 'checkout-' || label
+  END,
+  repeat('c', 64), booking_id, attempt_id,
   'localens:stripe-checkout:v1:' || attempt_id::text
 FROM cancellation_fixtures;
 
@@ -231,6 +236,31 @@ INSERT INTO public.payments (
 SELECT booking_id, attempt_id, owner_user_id, 'cs_real_authority', 'pi_real_authority',
   'acct_localens_test', 'we_localens_test', 'payment', 125000, 'vnd', 'pending'
 FROM cancellation_fixtures WHERE label = 'dep-real-payment';
+
+INSERT INTO private.thesis_demo_qa_slots (
+  slot_id, dataset_version, terminal_flow, owner_user_id, departure_id,
+  max_party_size, booking_id, checkout_attempt_id, checkout_idempotency_id,
+  capacity_hold_id, simulated_payment_id, cancellation_id,
+  booking_idempotency_key, payment_idempotency_key,
+  cancellation_idempotency_key, recommend_operation_id, refine_operation_id
+)
+VALUES (
+  'qa-02', 'thesis-demo.v2', 'cancellation',
+  '00000000-0000-0000-0000-000000002601',
+  '00000000-0000-0000-0000-000000002617',
+  2,
+  '00000000-0000-0000-0000-000000002701',
+  '00000000-0000-0000-0000-000000002801',
+  '10000000-0000-0000-0000-000000002701',
+  '20000000-0000-0000-0000-000000002701',
+  '00000000-0000-0000-0000-000000002905',
+  '00000000-0000-0000-0000-000000002906',
+  'thesis-demo:v2:qa-02:booking',
+  'thesis-demo:v2:qa-02:payment',
+  'thesis-demo:v2:qa-02:cancel',
+  '00000000-0000-0000-0000-000000002907',
+  '00000000-0000-0000-0000-000000002908'
+);
 
 SELECT ok(to_regclass('private.booking_cancellations') IS NOT NULL, 'immutable booking cancellation table exists');
 SELECT ok(to_regclass('public.customer_booking_cancellations_v') IS NOT NULL, 'customer cancellation projection exists');
@@ -445,9 +475,10 @@ SELECT throws_ok(
 FROM unnest(ARRAY[2, 501]) AS rejected_lengths(reason_length);
 
 SELECT ok(
-  (SELECT booking_status = 'cancelled' AND state = 'created' AND reason_code = 'trip_plan_changed'
-   FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'trip_plan_changed', NULL, 'cancel-dep-main')),
-  'customer cancels an owned departure booking with a standard reason'
+  (SELECT id = '00000000-0000-0000-0000-000000002906'::uuid
+      AND booking_status = 'cancelled' AND state = 'created' AND reason_code = 'trip_plan_changed'
+   FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'trip_plan_changed', NULL, 'thesis-demo:v2:qa-02:cancel')),
+  'customer cancellation uses the reserved deterministic identifier and standard reason'
 );
 SELECT ok(
   (SELECT booking_status = 'cancelled' AND state = 'created' AND reason_code IS NULL AND other_reason IS NULL
@@ -455,19 +486,29 @@ SELECT ok(
   'customer cancels with no reason'
 );
 SELECT is(
-  (SELECT state FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'trip_plan_changed', NULL, 'cancel-dep-main')),
+  (SELECT state FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'trip_plan_changed', NULL, 'thesis-demo:v2:qa-02:cancel')),
   'replayed', 'exact actor key booking and reason replay returns the immutable event'
 );
 SELECT throws_ok(
-  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'payment_unavailable', NULL, 'cancel-dep-main')$$,
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'payment_unavailable', NULL, 'thesis-demo:v2:qa-02:cancel')$$,
   'P0001', 'IDEMPOTENCY_CONFLICT', 'changed payload under the same key conflicts'
 );
 SELECT throws_ok(
   $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002701', 'trip_plan_changed', NULL, 'cancel-dep-other-key')$$,
-  'P0001', 'IDEMPOTENCY_CONFLICT', 'second changed key for one booking conflicts'
+  '22023', 'THESIS_DEMO_QA_SLOT_MISMATCH', 'registered booking rejects a non-slot cancellation key before mutation'
+);
+SELECT is(
+  (SELECT id FROM public.cancel_booking(
+    '00000000-0000-0000-0000-000000002701',
+    'trip_plan_changed',
+    NULL,
+    'thesis-demo:v2:qa-02:cancel'
+  )),
+  '00000000-0000-0000-0000-000000002906'::uuid,
+  'registered cancellation key mismatch leaves the original durable result replayable'
 );
 SELECT throws_ok(
-  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002703', 'trip_plan_changed', NULL, 'cancel-dep-main')$$,
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002703', 'trip_plan_changed', NULL, 'thesis-demo:v2:qa-02:cancel')$$,
   'P0001', 'IDEMPOTENCY_CONFLICT', 'same actor key reused for another booking conflicts'
 );
 SELECT ok(

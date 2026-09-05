@@ -2,7 +2,7 @@
 -- role-context tests, not as regex-only evidence.
 BEGIN;
 
-SELECT plan(28);
+SELECT plan(30);
 
 SELECT ok(
   (SELECT count(*) FROM pg_catalog.pg_class AS c
@@ -166,6 +166,32 @@ SELECT ok(
   has_table_privilege('service_role', 'public.bookings', 'SELECT') IS FALSE
   AND has_function_privilege('service_role', 'public.get_live_departure_availability()', 'EXECUTE') IS FALSE,
   'service_role is not used as RLS evidence or granted a hidden browser-equivalent path'
+);
+
+SELECT ok(
+  (SELECT relrowsecurity AND relforcerowsecurity
+   FROM pg_catalog.pg_class
+   WHERE oid = 'private.thesis_demo_qa_slots'::regclass)
+  AND NOT has_any_column_privilege('anon', 'private.thesis_demo_qa_slots', 'SELECT')
+  AND NOT has_any_column_privilege('authenticated', 'private.thesis_demo_qa_slots', 'SELECT')
+  AND NOT has_any_column_privilege('service_role', 'private.thesis_demo_qa_slots', 'SELECT')
+  AND has_any_column_privilege('localens_checkout_rpc_owner', 'private.thesis_demo_qa_slots', 'SELECT')
+  AND has_any_column_privilege('localens_simulated_payment_rpc_owner', 'private.thesis_demo_qa_slots', 'SELECT')
+  AND has_any_column_privilege('localens_cancellation_customer_rpc_owner', 'private.thesis_demo_qa_slots', 'SELECT'),
+  'the finite QA registry is FORCE RLS metadata readable only by the three terminal-flow owners'
+);
+
+SELECT ok(
+  has_function_privilege('service_role', 'public.get_runtime_planner_operation(uuid,uuid,text)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public.get_runtime_planner_operation(uuid,uuid,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.get_runtime_planner_operation(uuid,uuid,text)', 'EXECUTE')
+  AND NOT has_function_privilege('service_role', 'private.get_runtime_planner_operation_attestation(uuid,uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'private.get_runtime_planner_operation_attestation(uuid,uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'private.get_runtime_planner_operation_attestation(uuid,uuid)', 'EXECUTE')
+  AND NOT has_table_privilege('service_role', 'private.runtime_planner_operations', 'SELECT')
+  AND NOT has_table_privilege('service_role', 'private.quota_reservations', 'SELECT')
+  AND NOT has_table_privilege('service_role', 'private.recommendation_runs', 'SELECT'),
+  'service_role gets only the existing planner readback RPC and no registry or attestation internals'
 );
 
 -- Real JWT row-context fixture. No service_role is used for these checks.

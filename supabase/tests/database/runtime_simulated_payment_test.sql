@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(43);
+SELECT plan(48);
 
 DELETE FROM auth.users
 WHERE id IN (
@@ -103,14 +103,46 @@ WHERE id = '00000000-0000-0000-0000-000000002516'::uuid;
 UPDATE public.tours SET status = 'published'
 WHERE id = '00000000-0000-0000-0000-000000002515'::uuid;
 INSERT INTO public.departures (id, tour_version_id, start_at, end_at, status, capacity)
-VALUES (
-  '00000000-0000-0000-0000-000000002517'::uuid,
-  '00000000-0000-0000-0000-000000002516'::uuid,
-  pg_catalog.clock_timestamp() + interval '7 days',
-  pg_catalog.clock_timestamp() + interval '7 days 2 hours',
-  'scheduled', 10
-);
+VALUES
+  (
+    '00000000-0000-0000-0000-000000002517'::uuid,
+    '00000000-0000-0000-0000-000000002516'::uuid,
+    pg_catalog.clock_timestamp() + interval '7 days',
+    pg_catalog.clock_timestamp() + interval '7 days 2 hours',
+    'scheduled', 10
+  ),
+  (
+    '00000000-0000-0000-0000-000000002518'::uuid,
+    '00000000-0000-0000-0000-000000002516'::uuid,
+    pg_catalog.clock_timestamp() + interval '8 days',
+    pg_catalog.clock_timestamp() + interval '8 days 2 hours',
+    'scheduled', 10
+  );
 RESET ROLE;
+
+INSERT INTO private.thesis_demo_qa_slots (
+  slot_id, dataset_version, terminal_flow, owner_user_id, departure_id,
+  max_party_size, booking_id, checkout_attempt_id, checkout_idempotency_id,
+  capacity_hold_id, simulated_payment_id, cancellation_id,
+  booking_idempotency_key, payment_idempotency_key,
+  cancellation_idempotency_key, recommend_operation_id, refine_operation_id
+) VALUES (
+  'qa-01', 'thesis-demo.v2', 'payment',
+  '00000000-0000-0000-0000-000000002501'::uuid,
+  '00000000-0000-0000-0000-000000002518'::uuid,
+  2,
+  '00000000-0000-0000-0000-000000002591'::uuid,
+  '00000000-0000-0000-0000-000000002592'::uuid,
+  '00000000-0000-0000-0000-000000002593'::uuid,
+  '00000000-0000-0000-0000-000000002594'::uuid,
+  '00000000-0000-0000-0000-000000002595'::uuid,
+  '00000000-0000-0000-0000-000000002596'::uuid,
+  'thesis-demo:v2:qa-01:booking',
+  'thesis-demo:v2:qa-01:payment',
+  'thesis-demo:v2:qa-01:cancel',
+  '00000000-0000-0000-0000-000000002597'::uuid,
+  '00000000-0000-0000-0000-000000002598'::uuid
+);
 
 SELECT ok(to_regclass('private.simulated_payment_receipts') IS NOT NULL, 'simulated-payment receipt table exists');
 SELECT ok(to_regclass('public.customer_simulated_payment_status_v') IS NOT NULL, 'owner simulated-payment projection exists');
@@ -489,6 +521,63 @@ SELECT is(
   2,
   'only successful and expired terminalizations create receipts'
 );
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object(
+  'sub', '00000000-0000-0000-0000-000000002501',
+  'role', 'authenticated'
+)::text, true);
+SELECT is(
+  (SELECT booking_id FROM public.begin_fixed_tour_booking(
+    '00000000-0000-0000-0000-000000002518'::uuid,
+    2,
+    'en'::public.locale,
+    'thesis-demo:v2:qa-01:booking'
+  )),
+  '00000000-0000-0000-0000-000000002591'::uuid,
+  'payment QA tuple creates the registered booking'
+);
+SELECT is(
+  (SELECT result.state
+   FROM public.complete_simulated_fixed_tour_payment(
+     '00000000-0000-0000-0000-000000002591'::uuid,
+     'thesis-demo:v2:qa-01:payment'
+   ) AS result),
+  'completed',
+  'payment QA slot completes normally'
+);
+RESET ROLE;
+SELECT is(
+  (SELECT id FROM private.simulated_payment_receipts
+   WHERE booking_id = '00000000-0000-0000-0000-000000002591'::uuid),
+  '00000000-0000-0000-0000-000000002595'::uuid,
+  'payment QA slot uses the registered receipt id'
+);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT set_config('request.jwt.claims', jsonb_build_object(
+  'sub', '00000000-0000-0000-0000-000000002501',
+  'role', 'authenticated'
+)::text, true);
+SELECT is(
+  (SELECT result.state
+   FROM public.complete_simulated_fixed_tour_payment(
+     '00000000-0000-0000-0000-000000002591'::uuid,
+     'thesis-demo:v2:qa-01:payment'
+   ) AS result),
+  'replayed',
+  'payment QA slot replays without another receipt'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.complete_simulated_fixed_tour_payment(
+    '00000000-0000-0000-0000-000000002591'::uuid,
+    'thesis-demo:v2:qa-02:payment'
+  )$$,
+  '22023', 'THESIS_DEMO_QA_SLOT_MISMATCH',
+  'registered booking rejects a mismatched payment key before mutation'
+);
+RESET ROLE;
 
 SELECT * FROM finish();
 ROLLBACK;

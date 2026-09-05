@@ -15,7 +15,7 @@ import {
 
 const { Client } = pg;
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DATASET_PATH = path.join(PROJECT_ROOT, "data", "demo", "thesis-demo.v1.json");
+const DATASET_PATH = path.join(PROJECT_ROOT, "data", "demo", "thesis-demo.v2.json");
 const MIGRATIONS_PATH = path.join(PROJECT_ROOT, "supabase", "migrations");
 const CLI_ERROR = Symbol("THESIS_DEMO_CLI_ERROR");
 const SELECTED_PROJECT_SOURCE = "supabase-cli-projects-list";
@@ -147,15 +147,20 @@ function demoPredicate(relation) {
   const predicates = {
     "auth.users": ids("email", "accountEmails"),
     "private.audit_events": `(candidate.actor_user_id IS NULL OR ${allowedAuth("actor_user_id")}) AND ${ids("target_id", "stableIds")}`,
-    "private.booking_cancellations": `${allowedAuth("customer_user_id")} AND ${ids("booking_id", "bookingIds")}`,
-    "private.capacity_holds": ids("booking_id", "bookingIds"),
-    "private.checkout_attempts": `${allowedAuth("owner_user_id")} AND ${ids("booking_id", "bookingIds")}`,
-    "private.checkout_idempotency": `${allowedAuth("owner_user_id")} AND ${ids("booking_id", "bookingIds")}`,
+    "private.booking_cancellations": `${allowedAuth("customer_user_id")} AND ${ids("id", "cancellationIds")} AND ${ids("booking_id", "bookingIds")}`,
+    "private.capacity_holds": `${ids("id", "holdIds")} AND ${ids("booking_id", "bookingIds")}`,
+    "private.checkout_attempts": `${allowedAuth("owner_user_id")} AND ${ids("id", "checkoutAttemptIds")} AND ${ids("booking_id", "bookingIds")}`,
+    "private.checkout_idempotency": `${allowedAuth("owner_user_id")} AND ${ids("id", "checkoutIdempotencyIds")} AND ${ids("booking_id", "bookingIds")}`,
     "private.fixed_tour_cancellation_requests": `${allowedAuth("owner_user_id")} AND ${ids("booking_id", "bookingIds")}`,
     "private.guide_assignment_idempotency": `${allowedAuth("actor_user_id")} AND ${ids("booking_id", "bookingIds")}`,
-    "private.runtime_planner_operations": `${allowedAuth("owner_user_id")} AND ${ids("operation_id", "runIds")}`,
-    "private.simulated_payment_receipts": `${allowedAuth("owner_user_id")} AND ${ids("booking_id", "bookingIds")}`,
-    "private.thesis_demo_manifest": "candidate.environment = 'thesis-demo' AND candidate.dataset_version = (SELECT data->>'datasetVersion' FROM config) AND candidate.project_ref = (SELECT data->>'projectRef' FROM config)",
+    "private.quota_buckets": "EXISTS (SELECT 1 FROM allowed_quota_reservations AS reservations WHERE reservations.period_start = candidate.period_start AND candidate.bucket_hash = ANY(reservations.bucket_hashes) AND candidate.bucket_kind LIKE reservations.kind || '_%')",
+    "private.quota_global_buckets": "EXISTS (SELECT 1 FROM allowed_quota_reservations AS reservations WHERE reservations.period_start = candidate.period_start)",
+    "private.quota_reservations": "candidate.reservation_id IN (SELECT reservation_id FROM allowed_quota_reservations)",
+    "private.recommendation_runs": "candidate.revision_id IN (SELECT id FROM allowed_revisions) AND candidate.actor_user_id IN (SELECT id FROM allowed_auth)",
+    "private.runtime_planner_operations": `${allowedAuth("owner_user_id")} AND ${ids("operation_id", "operationIds")}`,
+    "private.simulated_payment_receipts": `${allowedAuth("owner_user_id")} AND ${ids("id", "paymentIds")} AND ${ids("booking_id", "bookingIds")}`,
+    "private.thesis_demo_manifest": "candidate.environment = 'thesis-demo' AND candidate.dataset_version IN ((SELECT data->>'datasetVersion' FROM config), (SELECT data->>'upgradeFromVersion' FROM config)) AND candidate.project_ref = (SELECT data->>'projectRef' FROM config)",
+    "private.thesis_demo_qa_slots": `${ids("slot_id", "slotIds")} AND ${ids("booking_id", "slotBookingIds")} AND ${allowedAuth("owner_user_id")} AND ${ids("departure_id", "qaDepartureIds")} AND candidate.dataset_version = (SELECT data->>'datasetVersion' FROM config)`,
     "private.user_roles": allowedAuth("user_id"),
     "private.webhook_events": ids("booking_id", "bookingIds"),
     "public.area_translations": ids("area_id", "areaIds"),
@@ -173,7 +178,7 @@ function demoPredicate(relation) {
     "public.departures": ids("id", "departureIds"),
     "public.guide_assignments": `${ids("booking_id", "bookingIds")} AND ${allowedAuth("guide_user_id")}`,
     "public.guide_profiles": allowedAuth("user_id"),
-    "public.payments": `${allowedAuth("owner_user_id")} AND ${ids("id", "paymentIds")} AND ${ids("booking_id", "bookingIds")}`,
+    "public.payments": "FALSE",
     "public.place_experience_types": ids("place_id", "placeIds"),
     "public.place_guide_languages": ids("place_id", "placeIds"),
     "public.place_opening_hours": ids("id", "openingIds"),
@@ -189,6 +194,9 @@ function demoPredicate(relation) {
     "public.travel_edges": ids("id", "edgeIds"),
     "public.travel_snapshot_edges": `${allowedTravel()} AND ${ids("source_edge_id", "edgeIds")}`,
     "public.travel_snapshots": allowedTravel("id"),
+    "public.trip_plan_items": "candidate.revision_id IN (SELECT id FROM allowed_revisions)",
+    "public.trip_plan_revisions": "candidate.id IN (SELECT id FROM allowed_revisions)",
+    "public.trip_plans": "candidate.id IN (SELECT plan_id FROM allowed_operation_plans)",
   };
   return predicates[relation] ?? "FALSE";
 }
@@ -215,11 +223,20 @@ function inventoryConfig(dataset, projectRef) {
     ]),
     ...bookingIds,
     dataset.fixtures.guideAssignment.id,
-    ...dataset.qa.slots.flatMap(({ runId, paymentId, cancelId }) => [runId, paymentId, cancelId]),
+    ...dataset.qa.slots.flatMap((slot) => [
+      slot.recommendOperationId,
+      slot.refineOperationId,
+      slot.checkoutAttemptId,
+      slot.checkoutIdempotencyId,
+      slot.holdId,
+      slot.paymentId,
+      slot.cancelId,
+    ]),
   ];
   return {
     projectRef,
     datasetVersion: dataset.datasetVersion,
+    upgradeFromVersion: dataset.upgradeFromVersion,
     accountEmails: dataset.accounts.map(({ email }) => email),
     areaIds: [dataset.area.id],
     placeIds: dataset.places.map(({ id }) => id),
@@ -230,8 +247,27 @@ function inventoryConfig(dataset, projectRef) {
     departureIds: dataset.tours.flatMap(({ departures }) => departures.map(({ id }) => id)),
     qaDepartureIds: dataset.qaDepartureIds,
     bookingIds,
+    slotBookingIds: dataset.qa.slots.map(({ bookingId }) => bookingId),
+    slotIds: dataset.qa.slots.map(({ id }) => id),
+    checkoutAttemptIds: [
+      dataset.fixtures.pendingPaymentBooking.checkoutAttemptId,
+      ...dataset.qa.slots.map(({ checkoutAttemptId }) => checkoutAttemptId),
+    ],
+    checkoutIdempotencyIds: [
+      dataset.fixtures.pendingPaymentBooking.checkoutIdempotencyId,
+      ...dataset.qa.slots.map(({ checkoutIdempotencyId }) => checkoutIdempotencyId),
+    ],
+    holdIds: [
+      dataset.fixtures.pendingPaymentBooking.holdId,
+      dataset.fixtures.assignedGuideBooking.holdId,
+      ...dataset.qa.slots.map(({ holdId }) => holdId),
+    ],
     paymentIds: dataset.qa.slots.map(({ paymentId }) => paymentId),
-    runIds: dataset.qa.slots.map(({ runId }) => runId),
+    cancellationIds: dataset.qa.slots.map(({ cancelId }) => cancelId),
+    operationIds: dataset.qa.slots.flatMap(({ recommendOperationId, refineOperationId }) => [
+      recommendOperationId,
+      refineOperationId,
+    ]),
     stableIds,
   };
 }
@@ -266,6 +302,34 @@ export async function readThesisDemoInventory({
      allowed_auth AS (
        SELECT id FROM auth.users
        WHERE email IN ${valuesFromConfig("accountEmails")}
+     ), allowed_operations AS (
+       SELECT operations.*
+       FROM private.runtime_planner_operations AS operations
+       WHERE operations.owner_user_id IN (SELECT id FROM allowed_auth)
+         AND operations.operation_id::text IN ${valuesFromConfig("operationIds")}
+     ), allowed_operation_plans AS (
+       SELECT DISTINCT plans.plan_id
+       FROM allowed_operations AS operations
+       CROSS JOIN LATERAL pg_catalog.unnest(ARRAY[
+         operations.recommend_plan_id,
+         operations.target_plan_id,
+         operations.result_plan_id
+       ]) AS plans(plan_id)
+       WHERE plans.plan_id IS NOT NULL
+     ), allowed_revisions AS (
+       SELECT revisions.id
+       FROM public.trip_plan_revisions AS revisions
+       JOIN allowed_operations AS operations
+         ON operations.result_plan_id = revisions.plan_id
+        AND operations.result_revision_no = revisions.revision_no
+     ), allowed_quota_reservations AS (
+       SELECT reservations.*
+       FROM private.quota_reservations AS reservations
+       JOIN allowed_operations AS operations
+         ON reservations.reservation_id IN (
+           operations.planner_reservation_id,
+           operations.gemini_reservation_id
+         )
      ), allowed_catalog AS (
        SELECT DISTINCT catalog_snapshot_id AS id FROM public.tour_versions
        WHERE id::text IN ${valuesFromConfig("versionIds")}

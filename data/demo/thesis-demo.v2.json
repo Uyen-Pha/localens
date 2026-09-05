@@ -1,0 +1,469 @@
+{
+  "schemaVersion": 2,
+  "datasetVersion": "thesis-demo.v2",
+  "upgradeFromVersion": "thesis-demo.v1",
+  "classification": "synthetic_demo",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "seedBaseDate": "2026-09-05",
+  "sourcePolicy": {
+    "kind": "synthetic_demo",
+    "attribution": "LocalLens synthetic thesis-demo fixture",
+    "license": "Synthetic demo data; no external venue or vendor claim",
+    "statementEn": "All names, descriptions, hours, prices, routes, and tour details in this dataset are fictional demonstration content.",
+    "statementVi": "Toàn bộ tên, mô tả, giờ mở cửa, giá, tuyến đường và nội dung tour trong bộ dữ liệu này là dữ liệu hư cấu để trình diễn."
+  },
+  "accounts": [
+    {
+      "key": "customer-demo",
+      "email": "customer.demo@localens.invalid",
+      "role": "customer",
+      "displayName": "Thesis Demo Traveler",
+      "language": "vi",
+      "audience": "teacher"
+    },
+    {
+      "key": "guide-demo",
+      "email": "guide.demo@localens.invalid",
+      "role": "guide",
+      "displayName": "Thesis Demo Guide",
+      "language": "vi",
+      "audience": "teacher"
+    },
+    {
+      "key": "admin-demo",
+      "email": "admin.demo@localens.invalid",
+      "role": "admin",
+      "displayName": "Thesis Demo Administrator",
+      "language": "en",
+      "audience": "operator"
+    },
+    {
+      "key": "customer-qa",
+      "email": "customer.qa@localens.invalid",
+      "role": "customer",
+      "displayName": "Thesis Demo QA Traveler",
+      "language": "en",
+      "audience": "qa"
+    }
+  ],
+  "area": {
+    "id": "d1700000-0000-4000-8000-000000000001",
+    "slug": "synthetic-central-hcmc",
+    "translations": {
+      "en": {
+        "name": "Synthetic Central HCMC Demo Area",
+        "description": "A fictional Ho Chi Minh City demonstration area that does not represent a commercial catalog."
+      },
+      "vi": {
+        "name": "Khu trung tâm TP.HCM trình diễn tổng hợp",
+        "description": "Khu vực hư cấu tại Thành phố Hồ Chí Minh dùng cho trình diễn, không đại diện danh mục thương mại."
+      }
+    }
+  },
+  "places": [
+    {
+      "id": "d1700000-0000-4000-8000-000000000101",
+      "openingId": "d1700000-0000-4000-8000-000000000201",
+      "areaId": "d1700000-0000-4000-8000-000000000001",
+      "slug": "demo-heritage-courtyard",
+      "classification": "synthetic_demo",
+      "priceVndPerPerson": 80000,
+      "visitDurationMinutes": 60,
+      "experienceTypes": ["history"],
+      "guideLanguages": ["en", "vi"],
+      "supports": [{ "kind": "mobility", "requirement": "step_free", "status": "supported" }],
+      "openingHours": { "weekday": 6, "opensAt": "08:00", "closesAt": "18:00" },
+      "translations": {
+        "en": { "title": "Demo Heritage Courtyard", "summary": "A fictional courtyard stop for a history-themed itinerary.", "description": "Synthetic architecture and storytelling content created only for the LocalLens thesis demonstration." },
+        "vi": { "title": "Sân di sản trình diễn", "summary": "Điểm sân trong hư cấu cho lịch trình chủ đề lịch sử.", "description": "Nội dung kiến trúc và câu chuyện tổng hợp chỉ được tạo cho phần trình diễn đồ án LocalLens." }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/place-01", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" }
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000102",
+      "openingId": "d1700000-0000-4000-8000-000000000202",
+      "areaId": "d1700000-0000-4000-8000-000000000001",
+      "slug": "demo-riverfront-walk",
+      "classification": "synthetic_demo",
+      "priceVndPerPerson": 0,
+      "visitDurationMinutes": 45,
+      "experienceTypes": ["history"],
+      "guideLanguages": ["en", "vi"],
+      "supports": [{ "kind": "mobility", "requirement": "step_free", "status": "supported" }],
+      "openingHours": { "weekday": 6, "opensAt": "06:00", "closesAt": "21:00" },
+      "translations": {
+        "en": { "title": "Demo Riverfront Walk", "summary": "A fictional riverside walking stop with open-air pacing.", "description": "Synthetic route copy for demonstrating timing and mobility filters without claiming a real venue." },
+        "vi": { "title": "Lối dạo ven sông trình diễn", "summary": "Điểm đi bộ ven sông hư cấu với không gian ngoài trời.", "description": "Nội dung tuyến đường tổng hợp để trình diễn thời lượng và bộ lọc di chuyển, không mô tả địa điểm thật." }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/place-02", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" }
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000103",
+      "openingId": "d1700000-0000-4000-8000-000000000203",
+      "areaId": "d1700000-0000-4000-8000-000000000001",
+      "slug": "demo-neighborhood-market",
+      "classification": "synthetic_demo",
+      "priceVndPerPerson": 70000,
+      "visitDurationMinutes": 75,
+      "experienceTypes": ["traditional_market"],
+      "guideLanguages": ["en", "vi"],
+      "supports": [{ "kind": "dietary", "requirement": "vegetarian", "status": "supported" }],
+      "openingHours": { "weekday": 6, "opensAt": "07:00", "closesAt": "17:00" },
+      "translations": {
+        "en": { "title": "Demo Neighborhood Market", "summary": "A fictional market for browsing and cultural prompts.", "description": "Synthetic stalls and stories used to demonstrate the traditional-market preference." },
+        "vi": { "title": "Chợ khu phố trình diễn", "summary": "Khu chợ hư cấu cho hoạt động tham quan và gợi ý văn hóa.", "description": "Các gian hàng và câu chuyện tổng hợp dùng để trình diễn sở thích chợ truyền thống." }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/place-03", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" }
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000104",
+      "openingId": "d1700000-0000-4000-8000-000000000204",
+      "areaId": "d1700000-0000-4000-8000-000000000001",
+      "slug": "demo-craft-studio",
+      "classification": "synthetic_demo",
+      "priceVndPerPerson": 160000,
+      "visitDurationMinutes": 90,
+      "experienceTypes": ["traditional_craft"],
+      "guideLanguages": ["en", "vi"],
+      "supports": [{ "kind": "mobility", "requirement": "step_free", "status": "unknown" }],
+      "openingHours": { "weekday": 6, "opensAt": "09:00", "closesAt": "18:00" },
+      "translations": {
+        "en": { "title": "Demo Craft Studio", "summary": "A fictional hands-on craft stop.", "description": "Synthetic workshop content for demonstrating craft interests and duration constraints." },
+        "vi": { "title": "Xưởng thủ công trình diễn", "summary": "Điểm trải nghiệm thủ công hư cấu.", "description": "Nội dung xưởng tổng hợp để trình diễn sở thích thủ công và giới hạn thời lượng." }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/place-04", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" }
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000105",
+      "openingId": "d1700000-0000-4000-8000-000000000205",
+      "areaId": "d1700000-0000-4000-8000-000000000001",
+      "slug": "demo-street-food-lane",
+      "classification": "synthetic_demo",
+      "priceVndPerPerson": 140000,
+      "visitDurationMinutes": 75,
+      "experienceTypes": ["street_food"],
+      "guideLanguages": ["en", "vi"],
+      "supports": [{ "kind": "dietary", "requirement": "vegetarian", "status": "supported" }],
+      "openingHours": { "weekday": 6, "opensAt": "10:00", "closesAt": "22:00" },
+      "translations": {
+        "en": { "title": "Demo Street Food Lane", "summary": "A fictional tasting lane with a bounded demo budget.", "description": "Synthetic food descriptions; no dish, operator, hygiene, or availability claim is made." },
+        "vi": { "title": "Hẻm ẩm thực trình diễn", "summary": "Tuyến nếm thử hư cấu với ngân sách trình diễn hữu hạn.", "description": "Mô tả món ăn tổng hợp; không đưa ra khẳng định về món, đơn vị, vệ sinh hay tình trạng phục vụ thật." }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/place-05", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" }
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000106",
+      "openingId": "d1700000-0000-4000-8000-000000000206",
+      "areaId": "d1700000-0000-4000-8000-000000000001",
+      "slug": "demo-community-kitchen",
+      "classification": "synthetic_demo",
+      "priceVndPerPerson": 190000,
+      "visitDurationMinutes": 90,
+      "experienceTypes": ["street_food"],
+      "guideLanguages": ["en", "vi"],
+      "supports": [{ "kind": "dietary", "requirement": "vegetarian", "status": "supported" }],
+      "openingHours": { "weekday": 6, "opensAt": "09:00", "closesAt": "20:00" },
+      "translations": {
+        "en": { "title": "Demo Community Kitchen", "summary": "A fictional guided tasting and preparation stop.", "description": "Synthetic content used to exercise food, language, and dietary-support filters." },
+        "vi": { "title": "Bếp cộng đồng trình diễn", "summary": "Điểm nếm thử và chuẩn bị món có hướng dẫn, hoàn toàn hư cấu.", "description": "Nội dung tổng hợp dùng để kiểm thử bộ lọc ẩm thực, ngôn ngữ và hỗ trợ chế độ ăn." }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/place-06", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" }
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000107",
+      "openingId": "d1700000-0000-4000-8000-000000000207",
+      "areaId": "d1700000-0000-4000-8000-000000000001",
+      "slug": "demo-garden-pavilion",
+      "classification": "synthetic_demo",
+      "priceVndPerPerson": 40000,
+      "visitDurationMinutes": 45,
+      "experienceTypes": ["history"],
+      "guideLanguages": ["en", "vi"],
+      "supports": [{ "kind": "mobility", "requirement": "step_free", "status": "supported" }],
+      "openingHours": { "weekday": 6, "opensAt": "07:00", "closesAt": "19:00" },
+      "translations": {
+        "en": { "title": "Demo Garden Pavilion", "summary": "A fictional shaded rest and storytelling stop.", "description": "Synthetic low-cost content for balancing route pace and accessibility options." },
+        "vi": { "title": "Nhà vườn trình diễn", "summary": "Điểm nghỉ và kể chuyện có bóng mát, hoàn toàn hư cấu.", "description": "Nội dung tổng hợp chi phí thấp để cân bằng nhịp tuyến và lựa chọn tiếp cận." }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/place-07", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" }
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000108",
+      "openingId": "d1700000-0000-4000-8000-000000000208",
+      "areaId": "d1700000-0000-4000-8000-000000000001",
+      "slug": "demo-canal-promenade",
+      "classification": "synthetic_demo",
+      "priceVndPerPerson": 0,
+      "visitDurationMinutes": 45,
+      "experienceTypes": ["history"],
+      "guideLanguages": ["en", "vi"],
+      "supports": [{ "kind": "mobility", "requirement": "step_free", "status": "unknown" }],
+      "openingHours": { "weekday": 6, "opensAt": "06:00", "closesAt": "20:00" },
+      "translations": {
+        "en": { "title": "Demo Canal Promenade", "summary": "A fictional canal-side route segment.", "description": "Synthetic walking content for route and travel-edge demonstration only." },
+        "vi": { "title": "Lối dạo ven kênh trình diễn", "summary": "Đoạn tuyến ven kênh hư cấu.", "description": "Nội dung đi bộ tổng hợp chỉ dùng để trình diễn tuyến và cạnh di chuyển." }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/place-08", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" }
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000109",
+      "openingId": "d1700000-0000-4000-8000-000000000209",
+      "areaId": "d1700000-0000-4000-8000-000000000001",
+      "slug": "demo-artisan-alley",
+      "classification": "synthetic_demo",
+      "priceVndPerPerson": 120000,
+      "visitDurationMinutes": 75,
+      "experienceTypes": ["traditional_craft"],
+      "guideLanguages": ["en", "vi"],
+      "supports": [{ "kind": "mobility", "requirement": "step_free", "status": "unsupported" }],
+      "openingHours": { "weekday": 6, "opensAt": "09:00", "closesAt": "18:00" },
+      "translations": {
+        "en": { "title": "Demo Artisan Alley", "summary": "A fictional sequence of small craft demonstrations.", "description": "Synthetic craft content with an explicit unknown-real-world status." },
+        "vi": { "title": "Hẻm nghệ nhân trình diễn", "summary": "Chuỗi hoạt động thủ công nhỏ, hoàn toàn hư cấu.", "description": "Nội dung thủ công tổng hợp với trạng thái ngoài đời thực không được khẳng định." }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/place-09", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" }
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000110",
+      "openingId": "d1700000-0000-4000-8000-000000000210",
+      "areaId": "d1700000-0000-4000-8000-000000000001",
+      "slug": "demo-evening-market",
+      "classification": "synthetic_demo",
+      "priceVndPerPerson": 110000,
+      "visitDurationMinutes": 75,
+      "experienceTypes": ["traditional_market", "street_food"],
+      "guideLanguages": ["en", "vi"],
+      "supports": [{ "kind": "dietary", "requirement": "vegetarian", "status": "unknown" }],
+      "openingHours": { "weekday": 6, "opensAt": "16:00", "closesAt": "23:00" },
+      "translations": {
+        "en": { "title": "Demo Evening Market", "summary": "A fictional after-dark market stop.", "description": "Synthetic market and tasting copy for testing time-window feasibility." },
+        "vi": { "title": "Chợ tối trình diễn", "summary": "Điểm chợ sau hoàng hôn hư cấu.", "description": "Nội dung chợ và nếm thử tổng hợp để kiểm thử tính khả thi theo khung giờ." }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/place-10", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" }
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000111",
+      "openingId": "d1700000-0000-4000-8000-000000000211",
+      "areaId": "d1700000-0000-4000-8000-000000000001",
+      "slug": "demo-coffee-workshop",
+      "classification": "synthetic_demo",
+      "priceVndPerPerson": 130000,
+      "visitDurationMinutes": 60,
+      "experienceTypes": ["traditional_craft"],
+      "guideLanguages": ["en", "vi"],
+      "supports": [{ "kind": "dietary", "requirement": "vegetarian", "status": "supported" }],
+      "openingHours": { "weekday": 6, "opensAt": "08:00", "closesAt": "19:00" },
+      "translations": {
+        "en": { "title": "Demo Coffee Workshop", "summary": "A fictional preparation workshop with a fixed demo price.", "description": "Synthetic workshop content; no product, brand, or merchant is represented." },
+        "vi": { "title": "Xưởng cà phê trình diễn", "summary": "Hoạt động pha chế hư cấu với giá trình diễn cố định.", "description": "Nội dung xưởng tổng hợp; không đại diện sản phẩm, thương hiệu hay đơn vị kinh doanh nào." }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/place-11", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" }
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000112",
+      "openingId": "d1700000-0000-4000-8000-000000000212",
+      "areaId": "d1700000-0000-4000-8000-000000000001",
+      "slug": "demo-cultural-stage",
+      "classification": "synthetic_demo",
+      "priceVndPerPerson": 90000,
+      "visitDurationMinutes": 60,
+      "experienceTypes": ["history"],
+      "guideLanguages": ["en", "vi"],
+      "supports": [{ "kind": "mobility", "requirement": "step_free", "status": "supported" }],
+      "openingHours": { "weekday": 6, "opensAt": "10:00", "closesAt": "21:00" },
+      "translations": {
+        "en": { "title": "Demo Cultural Stage", "summary": "A fictional small-format cultural storytelling stop.", "description": "Synthetic program content created for bilingual itinerary and fixed-tour demonstrations." },
+        "vi": { "title": "Sân khấu văn hóa trình diễn", "summary": "Điểm kể chuyện văn hóa quy mô nhỏ, hoàn toàn hư cấu.", "description": "Nội dung chương trình tổng hợp được tạo cho trình diễn lịch trình song ngữ và tour cố định." }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/place-12", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" }
+    }
+  ],
+  "travelEdges": [
+    { "id": "d1700000-0000-4000-8000-000000000301", "fromPlaceId": "d1700000-0000-4000-8000-000000000101", "toPlaceId": "d1700000-0000-4000-8000-000000000102", "mode": "walk", "minutes": 12, "groupCostVnd": 0 },
+    { "id": "d1700000-0000-4000-8000-000000000302", "fromPlaceId": "d1700000-0000-4000-8000-000000000102", "toPlaceId": "d1700000-0000-4000-8000-000000000103", "mode": "walk", "minutes": 16, "groupCostVnd": 0 },
+    { "id": "d1700000-0000-4000-8000-000000000303", "fromPlaceId": "d1700000-0000-4000-8000-000000000103", "toPlaceId": "d1700000-0000-4000-8000-000000000104", "mode": "taxi", "minutes": 14, "groupCostVnd": 70000 },
+    { "id": "d1700000-0000-4000-8000-000000000304", "fromPlaceId": "d1700000-0000-4000-8000-000000000104", "toPlaceId": "d1700000-0000-4000-8000-000000000105", "mode": "walk", "minutes": 10, "groupCostVnd": 0 },
+    { "id": "d1700000-0000-4000-8000-000000000305", "fromPlaceId": "d1700000-0000-4000-8000-000000000105", "toPlaceId": "d1700000-0000-4000-8000-000000000106", "mode": "walk", "minutes": 9, "groupCostVnd": 0 },
+    { "id": "d1700000-0000-4000-8000-000000000306", "fromPlaceId": "d1700000-0000-4000-8000-000000000106", "toPlaceId": "d1700000-0000-4000-8000-000000000107", "mode": "taxi", "minutes": 13, "groupCostVnd": 65000 },
+    { "id": "d1700000-0000-4000-8000-000000000307", "fromPlaceId": "d1700000-0000-4000-8000-000000000107", "toPlaceId": "d1700000-0000-4000-8000-000000000108", "mode": "walk", "minutes": 11, "groupCostVnd": 0 },
+    { "id": "d1700000-0000-4000-8000-000000000308", "fromPlaceId": "d1700000-0000-4000-8000-000000000108", "toPlaceId": "d1700000-0000-4000-8000-000000000109", "mode": "public_transport", "minutes": 20, "groupCostVnd": 30000 },
+    { "id": "d1700000-0000-4000-8000-000000000309", "fromPlaceId": "d1700000-0000-4000-8000-000000000109", "toPlaceId": "d1700000-0000-4000-8000-000000000110", "mode": "walk", "minutes": 14, "groupCostVnd": 0 },
+    { "id": "d1700000-0000-4000-8000-000000000310", "fromPlaceId": "d1700000-0000-4000-8000-000000000110", "toPlaceId": "d1700000-0000-4000-8000-000000000111", "mode": "walk", "minutes": 8, "groupCostVnd": 0 },
+    { "id": "d1700000-0000-4000-8000-000000000311", "fromPlaceId": "d1700000-0000-4000-8000-000000000111", "toPlaceId": "d1700000-0000-4000-8000-000000000112", "mode": "taxi", "minutes": 12, "groupCostVnd": 60000 },
+    { "id": "d1700000-0000-4000-8000-000000000312", "fromPlaceId": "d1700000-0000-4000-8000-000000000112", "toPlaceId": "d1700000-0000-4000-8000-000000000101", "mode": "public_transport", "minutes": 24, "groupCostVnd": 30000 }
+  ],
+  "tours": [
+    {
+      "id": "d1700000-0000-4000-8000-000000000401",
+      "versionId": "d1700000-0000-4000-8000-000000000411",
+      "slug": "demo-heritage-and-market-morning",
+      "classification": "synthetic_demo",
+      "durationMinutes": 180,
+      "priceVndPerPerson": 590000,
+      "stopPlaceIds": ["d1700000-0000-4000-8000-000000000101", "d1700000-0000-4000-8000-000000000102", "d1700000-0000-4000-8000-000000000103"],
+      "inclusions": ["Synthetic demo guide", "Synthetic tasting allowance"],
+      "exclusions": ["Travel to the fictional meeting point"],
+      "cancellationPolicy": "Simulated thesis-demo booking only; no real payment, vendor, or commercial refund applies.",
+      "translations": {
+        "en": { "title": "Demo Heritage and Market Morning", "summary": "A fictional bilingual fixed tour combining history and a market stop.", "meetingPoint": "Synthetic central HCMC meeting point A" },
+        "vi": { "title": "Buổi sáng di sản và chợ trình diễn", "summary": "Tour cố định song ngữ hư cấu kết hợp lịch sử và điểm chợ.", "meetingPoint": "Điểm hẹn A tại khu trung tâm TP.HCM hư cấu" }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/tour-01", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" },
+      "departures": [
+        { "id": "d1700000-0000-4000-8000-000000000421", "audience": "teacher", "dayOffset": 7, "startAt": "2026-09-12T02:00:00.000Z", "endAt": "2026-09-12T05:00:00.000Z", "status": "scheduled", "capacity": 12 },
+        { "id": "d1700000-0000-4000-8000-000000000431", "audience": "qa", "dayOffset": 7, "startAt": "2026-09-12T07:00:00.000Z", "endAt": "2026-09-12T10:00:00.000Z", "status": "scheduled", "capacity": 20 }
+      ]
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000402",
+      "versionId": "d1700000-0000-4000-8000-000000000412",
+      "slug": "demo-craft-and-tasting-afternoon",
+      "classification": "synthetic_demo",
+      "durationMinutes": 210,
+      "priceVndPerPerson": 690000,
+      "stopPlaceIds": ["d1700000-0000-4000-8000-000000000104", "d1700000-0000-4000-8000-000000000105", "d1700000-0000-4000-8000-000000000106"],
+      "inclusions": ["Synthetic demo guide", "Synthetic workshop and tasting allowance"],
+      "exclusions": ["Travel to the fictional meeting point"],
+      "cancellationPolicy": "Simulated thesis-demo booking only; no real payment, vendor, or commercial refund applies.",
+      "translations": {
+        "en": { "title": "Demo Craft and Tasting Afternoon", "summary": "A fictional craft and food fixed tour for thesis demonstration.", "meetingPoint": "Synthetic central HCMC meeting point B" },
+        "vi": { "title": "Buổi chiều thủ công và nếm thử trình diễn", "summary": "Tour cố định thủ công và ẩm thực hư cấu cho phần trình diễn đồ án.", "meetingPoint": "Điểm hẹn B tại khu trung tâm TP.HCM hư cấu" }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/tour-02", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" },
+      "departures": [
+        { "id": "d1700000-0000-4000-8000-000000000422", "audience": "teacher", "dayOffset": 14, "startAt": "2026-09-19T02:00:00.000Z", "endAt": "2026-09-19T05:30:00.000Z", "status": "scheduled", "capacity": 12 },
+        { "id": "d1700000-0000-4000-8000-000000000432", "audience": "qa", "dayOffset": 14, "startAt": "2026-09-19T07:00:00.000Z", "endAt": "2026-09-19T10:00:00.000Z", "status": "sold_out", "capacity": 2 }
+      ]
+    },
+    {
+      "id": "d1700000-0000-4000-8000-000000000403",
+      "versionId": "d1700000-0000-4000-8000-000000000413",
+      "slug": "demo-waterways-and-evening-stories",
+      "classification": "synthetic_demo",
+      "durationMinutes": 180,
+      "priceVndPerPerson": 490000,
+      "stopPlaceIds": ["d1700000-0000-4000-8000-000000000108", "d1700000-0000-4000-8000-000000000110", "d1700000-0000-4000-8000-000000000112"],
+      "inclusions": ["Synthetic demo guide", "Synthetic storytelling allowance"],
+      "exclusions": ["Travel to the fictional meeting point"],
+      "cancellationPolicy": "Simulated thesis-demo booking only; no real payment, vendor, or commercial refund applies.",
+      "translations": {
+        "en": { "title": "Demo Waterways and Evening Stories", "summary": "A fictional low-cost fixed tour with bilingual storytelling.", "meetingPoint": "Synthetic central HCMC meeting point C" },
+        "vi": { "title": "Đường thủy và chuyện tối trình diễn", "summary": "Tour cố định hư cấu chi phí thấp với nội dung kể chuyện song ngữ.", "meetingPoint": "Điểm hẹn C tại khu trung tâm TP.HCM hư cấu" }
+      },
+      "source": { "kind": "synthetic_demo", "url": "https://example.com/localens/thesis-demo/tour-03", "verifiedAt": "2026-09-05", "attribution": "LocalLens synthetic thesis-demo fixture", "license": "Synthetic demo data; no external venue or vendor claim" },
+      "departures": [
+        { "id": "d1700000-0000-4000-8000-000000000423", "audience": "teacher", "dayOffset": 21, "startAt": "2026-09-26T02:00:00.000Z", "endAt": "2026-09-26T05:00:00.000Z", "status": "scheduled", "capacity": 12 }
+      ]
+    }
+  ],
+  "teacherDepartureIds": [
+    "d1700000-0000-4000-8000-000000000421",
+    "d1700000-0000-4000-8000-000000000422",
+    "d1700000-0000-4000-8000-000000000423"
+  ],
+  "qaDepartureIds": [
+    "d1700000-0000-4000-8000-000000000431",
+    "d1700000-0000-4000-8000-000000000432"
+  ],
+  "qa": {
+    "customerAccountKey": "customer-qa",
+    "slotDepartureId": "d1700000-0000-4000-8000-000000000431",
+    "soldOutDepartureId": "d1700000-0000-4000-8000-000000000432",
+    "slots": [
+      {
+        "id": "qa-01",
+        "terminalFlow": "payment",
+        "maxSeats": 2,
+        "recommendOperationId": "d1700000-0000-4000-8000-000000000701",
+        "refineOperationId": "d1700000-0000-4000-8000-000000000741",
+        "bookingId": "d1700000-0000-4000-8000-000000000711",
+        "checkoutAttemptId": "d1700000-0000-4000-8000-000000000761",
+        "checkoutIdempotencyId": "d1700000-0000-4000-8000-000000000771",
+        "holdId": "d1700000-0000-4000-8000-000000000781",
+        "paymentId": "d1700000-0000-4000-8000-000000000721",
+        "cancelId": "d1700000-0000-4000-8000-000000000731",
+        "bookingIdempotencyKey": "thesis-demo:v2:qa-01:booking",
+        "paymentIdempotencyKey": "thesis-demo:v2:qa-01:payment",
+        "cancelIdempotencyKey": "thesis-demo:v2:qa-01:cancel"
+      },
+      {
+        "id": "qa-02",
+        "terminalFlow": "cancellation",
+        "maxSeats": 2,
+        "recommendOperationId": "d1700000-0000-4000-8000-000000000702",
+        "refineOperationId": "d1700000-0000-4000-8000-000000000742",
+        "bookingId": "d1700000-0000-4000-8000-000000000712",
+        "checkoutAttemptId": "d1700000-0000-4000-8000-000000000762",
+        "checkoutIdempotencyId": "d1700000-0000-4000-8000-000000000772",
+        "holdId": "d1700000-0000-4000-8000-000000000782",
+        "paymentId": "d1700000-0000-4000-8000-000000000722",
+        "cancelId": "d1700000-0000-4000-8000-000000000732",
+        "bookingIdempotencyKey": "thesis-demo:v2:qa-02:booking",
+        "paymentIdempotencyKey": "thesis-demo:v2:qa-02:payment",
+        "cancelIdempotencyKey": "thesis-demo:v2:qa-02:cancel"
+      },
+      {
+        "id": "qa-03",
+        "terminalFlow": "spare",
+        "maxSeats": 2,
+        "recommendOperationId": "d1700000-0000-4000-8000-000000000703",
+        "refineOperationId": "d1700000-0000-4000-8000-000000000743",
+        "bookingId": "d1700000-0000-4000-8000-000000000713",
+        "checkoutAttemptId": "d1700000-0000-4000-8000-000000000763",
+        "checkoutIdempotencyId": "d1700000-0000-4000-8000-000000000773",
+        "holdId": "d1700000-0000-4000-8000-000000000783",
+        "paymentId": "d1700000-0000-4000-8000-000000000723",
+        "cancelId": "d1700000-0000-4000-8000-000000000733",
+        "bookingIdempotencyKey": "thesis-demo:v2:qa-03:booking",
+        "paymentIdempotencyKey": "thesis-demo:v2:qa-03:payment",
+        "cancelIdempotencyKey": "thesis-demo:v2:qa-03:cancel"
+      },
+      {
+        "id": "qa-04",
+        "terminalFlow": "spare",
+        "maxSeats": 2,
+        "recommendOperationId": "d1700000-0000-4000-8000-000000000704",
+        "refineOperationId": "d1700000-0000-4000-8000-000000000744",
+        "bookingId": "d1700000-0000-4000-8000-000000000714",
+        "checkoutAttemptId": "d1700000-0000-4000-8000-000000000764",
+        "checkoutIdempotencyId": "d1700000-0000-4000-8000-000000000774",
+        "holdId": "d1700000-0000-4000-8000-000000000784",
+        "paymentId": "d1700000-0000-4000-8000-000000000724",
+        "cancelId": "d1700000-0000-4000-8000-000000000734",
+        "bookingIdempotencyKey": "thesis-demo:v2:qa-04:booking",
+        "paymentIdempotencyKey": "thesis-demo:v2:qa-04:payment",
+        "cancelIdempotencyKey": "thesis-demo:v2:qa-04:cancel"
+      }
+    ]
+  },
+  "fixtures": {
+    "customerWithoutBookingAccountKey": "customer-demo",
+    "pendingPaymentBooking": {
+      "id": "d1700000-0000-4000-8000-000000000501",
+      "holdId": "d1700000-0000-4000-8000-000000000551",
+      "checkoutAttemptId": "d1700000-0000-4000-8000-000000000561",
+      "checkoutIdempotencyId": "d1700000-0000-4000-8000-000000000571",
+      "checkoutIdempotencyKey": "thesis-demo:v1:fixture:pending-payment-checkout",
+      "ownerAccountKey": "customer-qa",
+      "departureId": "d1700000-0000-4000-8000-000000000431",
+      "partySize": 1,
+      "status": "pending_payment",
+      "createdAt": "2026-09-12T06:25:00.000Z",
+      "idempotencyKey": "thesis-demo:v1:fixture:cancel-before-payment"
+    },
+    "assignedGuideBooking": {
+      "id": "d1700000-0000-4000-8000-000000000502",
+      "holdId": "d1700000-0000-4000-8000-000000000552",
+      "ownerAccountKey": "customer-qa",
+      "departureId": "d1700000-0000-4000-8000-000000000431",
+      "partySize": 1,
+      "status": "confirmed"
+    },
+    "guideAssignment": {
+      "id": "d1700000-0000-4000-8000-000000000601",
+      "bookingId": "d1700000-0000-4000-8000-000000000502",
+      "guideAccountKey": "guide-demo",
+      "status": "assigned"
+    }
+  }
+}

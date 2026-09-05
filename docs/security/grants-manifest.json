@@ -179,6 +179,13 @@
     },
     {
       "objectType": "function",
+      "objectName": "private.get_runtime_planner_operation_attestation(uuid,uuid)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "function",
       "objectName": "private.guide_requirement_snapshot(uuid)",
       "privilege": "execute",
       "columns": [],
@@ -1801,6 +1808,16 @@
     },
     {
       "objectType": "table",
+      "objectName": "private.quota_reservations",
+      "privilege": "select",
+      "columns": [
+        "kind",
+        "reservation_id"
+      ],
+      "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
       "objectName": "private.recommendation_runs",
       "privilege": "insert",
       "columns": [],
@@ -1987,6 +2004,81 @@
         "id"
       ],
       "grantee": "localens_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.thesis_demo_qa_slots",
+      "privilege": "select",
+      "columns": [
+        "booking_id",
+        "booking_idempotency_key",
+        "cancellation_id",
+        "cancellation_idempotency_key",
+        "capacity_hold_id",
+        "checkout_attempt_id",
+        "checkout_idempotency_id",
+        "dataset_version",
+        "departure_id",
+        "max_party_size",
+        "owner_user_id",
+        "payment_idempotency_key",
+        "recommend_operation_id",
+        "refine_operation_id",
+        "simulated_payment_id",
+        "slot_id",
+        "terminal_flow"
+      ],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.thesis_demo_qa_slots",
+      "privilege": "select",
+      "columns": [
+        "booking_id",
+        "booking_idempotency_key",
+        "cancellation_id",
+        "cancellation_idempotency_key",
+        "capacity_hold_id",
+        "checkout_attempt_id",
+        "checkout_idempotency_id",
+        "dataset_version",
+        "departure_id",
+        "max_party_size",
+        "owner_user_id",
+        "payment_idempotency_key",
+        "recommend_operation_id",
+        "refine_operation_id",
+        "simulated_payment_id",
+        "slot_id",
+        "terminal_flow"
+      ],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.thesis_demo_qa_slots",
+      "privilege": "select",
+      "columns": [
+        "booking_id",
+        "booking_idempotency_key",
+        "cancellation_id",
+        "cancellation_idempotency_key",
+        "capacity_hold_id",
+        "checkout_attempt_id",
+        "checkout_idempotency_id",
+        "dataset_version",
+        "departure_id",
+        "max_party_size",
+        "owner_user_id",
+        "payment_idempotency_key",
+        "recommend_operation_id",
+        "refine_operation_id",
+        "simulated_payment_id",
+        "slot_id",
+        "terminal_flow"
+      ],
+      "grantee": "localens_simulated_payment_rpc_owner"
     },
     {
       "objectType": "table",
