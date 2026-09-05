@@ -40,6 +40,31 @@ function checkerFailure(root: string): string {
   }
 }
 
+function extractDoBlock(sql: string, tag: string): string {
+  const match = sql.match(new RegExp(`DO \\$${tag}\\$[\\s\\S]*?\\$${tag}\\$;`));
+  if (!match) throw new Error(`missing DO block: ${tag}`);
+  return match[0];
+}
+
+function dynamicOwnerBlockIsSafe(block: string, operation: RegExp): boolean {
+  const roleEntry = block.search(/EXECUTE pg_catalog\.format\('SET LOCAL ROLE %I', function_record\.owner_name\);/);
+  const operationMatch = operation.exec(block);
+  const restores = [...block.matchAll(/SET LOCAL ROLE postgres;/g)].map((match) => match.index ?? -1);
+  const exception = block.indexOf("EXCEPTION WHEN OTHERS THEN");
+  const cleanup = block.lastIndexOf("REVOKE USAGE ON SCHEMA %I FROM %I");
+  const rethrow = block.lastIndexOf("RAISE;");
+
+  return roleEntry >= 0
+    && operationMatch !== null
+    && restores.length === 2
+    && roleEntry < operationMatch.index
+    && operationMatch.index < restores[0]
+    && restores[0] < exception
+    && exception < restores[1]
+    && restores[1] < cleanup
+    && cleanup < rethrow;
+}
+
 describe("Task 13 RLS/RPC access matrix", () => {
   it("passes the final SQL/object/policy/signature/grant drift gate", () => {
     expect(() => execFileSync(process.execPath, [join(repoRoot, "scripts", "check-supabase-artifacts.mjs"), "--root", repoRoot], { encoding: "utf8" })).not.toThrow();
@@ -76,9 +101,9 @@ describe("Task 13 RLS/RPC access matrix", () => {
     const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260831100000_food_catalog_review.sql"), "utf8");
     expect(migration).toMatch(/GRANT CREATE ON SCHEMA private TO localens_admin_rpc_owner, localens_catalog_guard_owner/);
     expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_admin_rpc_owner/);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_admin_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.assert_catalog_review_admin\(\)[\s\S]*RESET ROLE;/);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_catalog_guard_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.assert_food_catalog_review_complete[\s\S]*RESET ROLE;/);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_admin_rpc_owner;[\s\S]*CREATE OR REPLACE VIEW public\.admin_food_catalog_review_v[\s\S]*CREATE OR REPLACE FUNCTION public\.review_food_catalog_item[\s\S]*RESET ROLE;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_admin_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.assert_catalog_review_admin\(\)[\s\S]*SET LOCAL ROLE postgres;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_catalog_guard_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.assert_food_catalog_review_complete[\s\S]*SET LOCAL ROLE postgres;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_admin_rpc_owner;[\s\S]*CREATE OR REPLACE VIEW public\.admin_food_catalog_review_v[\s\S]*CREATE OR REPLACE FUNCTION public\.review_food_catalog_item[\s\S]*SET LOCAL ROLE postgres;/);
     expect(migration).not.toMatch(/auth\.uid\(\)/);
     expect(migration.match(/NULLIF\(pg_catalog\.current_setting\('request\.jwt\.claim\.sub', true\), ''\)::uuid/g)).toHaveLength(2);
     expect(migration).toMatch(/REVOKE CREATE ON SCHEMA private FROM localens_admin_rpc_owner, localens_catalog_guard_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_admin_rpc_owner;[\s\S]*COMMIT;/);
@@ -326,7 +351,7 @@ describe("Task 13 RLS/RPC access matrix", () => {
       expect(migration).toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${name}\\([^;]+\\) TO service_role`, "i"));
     }
     expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_plan_rpc_owner;[\s\S]*ALTER FUNCTION public\.claim_runtime_planner_operation\([^;]+\)\s+OWNER TO localens_plan_rpc_owner;[\s\S]*ALTER FUNCTION public\.reject_runtime_planner_operation\([^;]+\)\s+OWNER TO localens_plan_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_plan_rpc_owner;/i);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*REVOKE ALL ON FUNCTION public\.claim_runtime_planner_operation\([^;]+\) FROM PUBLIC, anon, authenticated, service_role;[\s\S]*GRANT EXECUTE ON FUNCTION public\.reject_runtime_planner_operation\([^;]+\) TO service_role;[\s\S]*REVOKE ALL ON FUNCTION public\.advance_trip_plan_revision\([^;]+\) FROM PUBLIC, anon, authenticated, service_role;\s*RESET ROLE;/i);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*REVOKE ALL ON FUNCTION public\.claim_runtime_planner_operation\([^;]+\) FROM PUBLIC, anon, authenticated, service_role;[\s\S]*GRANT EXECUTE ON FUNCTION public\.reject_runtime_planner_operation\([^;]+\) TO service_role;[\s\S]*REVOKE ALL ON FUNCTION public\.advance_trip_plan_revision\([^;]+\) FROM PUBLIC, anon, authenticated, service_role;\s*SET LOCAL ROLE postgres;/i);
     for (const name of [
       "create_authenticated_trip_plan",
       "advance_authenticated_trip_plan_revision",
@@ -404,10 +429,31 @@ describe("Task 13 RLS/RPC access matrix", () => {
     expect(sql).toMatch(/pg_catalog\.has_schema_privilege\(owner_role\.oid, n\.oid, 'USAGE'\) AS had_schema_usage/);
     expect(sql).toMatch(/IF NOT function_record\.had_schema_usage THEN[\s\S]*GRANT USAGE ON SCHEMA %I TO %I/);
     expect(sql).toMatch(/SET LOCAL ROLE %I[\s\S]*function_record\.owner_name/);
-    expect(sql).toMatch(/ALTER FUNCTION %s SET statement_timeout[\s\S]*RESET ROLE;[\s\S]*REVOKE USAGE ON SCHEMA %I FROM %I/);
-    expect(sql).toMatch(/EXCEPTION WHEN OTHERS[\s\S]*RESET ROLE;[\s\S]*REVOKE USAGE ON SCHEMA %I FROM %I[\s\S]*RAISE/);
     expect(sql).not.toMatch(/REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public, private, auth/);
-    expect(sql).toMatch(/function_acl_reset[\s\S]*SET LOCAL ROLE %I[\s\S]*REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role/);
+
+    const blocks = [
+      {
+        sql: extractDoBlock(sql, "function_acl_reset"),
+        operation: /REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role/,
+      },
+      {
+        sql: extractDoBlock(sql, "definer_hardening"),
+        operation: /ALTER FUNCTION %s SET statement_timeout/,
+      },
+    ];
+
+    for (const block of blocks) {
+      expect(dynamicOwnerBlockIsSafe(block.sql, block.operation)).toBe(true);
+      for (let restoreIndex = 0; restoreIndex < 2; restoreIndex += 1) {
+        let seen = 0;
+        const mutation = block.sql.replace(/SET LOCAL ROLE postgres;/g, (restore) => {
+          const remove = seen === restoreIndex;
+          seen += 1;
+          return remove ? "" : restore;
+        });
+        expect(dynamicOwnerBlockIsSafe(mutation, block.operation)).toBe(false);
+      }
+    }
   });
 
   it("checks dynamic owner policy command, roles, and predicates", () => {

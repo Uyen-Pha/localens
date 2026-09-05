@@ -187,7 +187,6 @@ GRANT SELECT (id, plan_id, revision_id, revision_no) ON TABLE public.custom_requ
 GRANT SELECT (id, plan_id, revision_no, request_json) ON TABLE public.trip_plan_revisions TO localens_guide_assignment_rpc_owner;
 SET LOCAL ROLE localens_guide_assignment_guard_owner;
 GRANT EXECUTE ON FUNCTION private.valid_guide_requirement_flags(text[], text) TO localens_guide_assignment_rpc_owner;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 REVOKE ALL ON TABLE public.guide_assignments FROM PUBLIC, anon, authenticated;

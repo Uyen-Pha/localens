@@ -58,7 +58,6 @@ ALTER FUNCTION public.get_portal_identity() OWNER TO localens_identity_rpc_owner
 SET LOCAL ROLE localens_identity_rpc_owner;
 REVOKE ALL ON FUNCTION public.get_portal_identity() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_portal_identity() TO authenticated;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_identity_rpc_owner;
 

@@ -39,22 +39,29 @@ function runChecker(root: string, ...args: string[]): { status: number; output: 
 }
 
 describe("static Supabase artifact gate", () => {
-  it("restores the hosted postgres migration role after every custom role block", () => {
+  it("restores postgres locally without resetting the hosted CLI session role", () => {
     const migrations = readdirSync(join(repoRoot, "supabase", "migrations"))
       .filter((file) => file.endsWith(".sql") && file >= "20260823093000_")
       .sort();
-    let resetCount = 0;
+    let customRoleCount = 0;
+    let dynamicRoleCount = 0;
 
     for (const migration of migrations) {
       const source = readFileSync(join(repoRoot, "supabase", "migrations", migration), "utf8");
-      for (const match of source.matchAll(/RESET ROLE;/g)) {
-        resetCount += 1;
-        const afterReset = source.slice((match.index ?? 0) + match[0].length);
-        expect(afterReset, migration).toMatch(/^\s*SET LOCAL ROLE postgres;/);
+      expect(source, migration).not.toMatch(/RESET ROLE;/);
+      expect(source, migration).not.toMatch(/(?:^|\n)\s*SET ROLE postgres;/);
+
+      for (const match of source.matchAll(/SET LOCAL ROLE localens_[a-z0-9_]+;|EXECUTE pg_catalog\.format\('SET LOCAL ROLE %I', function_record\.owner_name\);/g)) {
+        customRoleCount += 1;
+        if (match[0].startsWith("EXECUTE")) dynamicRoleCount += 1;
+        const afterCustomRole = source.slice((match.index ?? 0) + match[0].length);
+        const nextRoleChange = afterCustomRole.match(/(?:RESET ROLE|SET(?: LOCAL)? ROLE [a-z0-9_]+);/);
+        expect(nextRoleChange?.[0], migration).toBe("SET LOCAL ROLE postgres;");
       }
     }
 
-    expect(resetCount).toBeGreaterThan(0);
+    expect(customRoleCount).toBeGreaterThan(0);
+    expect(dynamicRoleCount).toBe(2);
   });
 
   it("keeps LocalLens policies and definers independent from the restricted auth schema", () => {
@@ -95,7 +102,7 @@ describe("static Supabase artifact gate", () => {
     expect(migration).toMatch(/RAISE EXCEPTION 'portal identity must have exactly one role' USING ERRCODE = '21000'/i);
     expect(migration).toMatch(/GRANT SELECT \(id, display_name, language\)\s+ON TABLE public\.profiles TO localens_identity_rpc_owner/i);
     expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_identity_rpc_owner/i);
-    expect(migration).toMatch(/ALTER FUNCTION public\.get_portal_identity\(\) OWNER TO localens_identity_rpc_owner[\s\S]*SET LOCAL ROLE localens_identity_rpc_owner[\s\S]*REVOKE ALL ON FUNCTION public\.get_portal_identity\(\) FROM PUBLIC, anon, authenticated[\s\S]*GRANT EXECUTE ON FUNCTION public\.get_portal_identity\(\) TO authenticated[\s\S]*RESET ROLE[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_identity_rpc_owner/i);
+    expect(migration).toMatch(/ALTER FUNCTION public\.get_portal_identity\(\) OWNER TO localens_identity_rpc_owner[\s\S]*SET LOCAL ROLE localens_identity_rpc_owner[\s\S]*REVOKE ALL ON FUNCTION public\.get_portal_identity\(\) FROM PUBLIC, anon, authenticated[\s\S]*GRANT EXECUTE ON FUNCTION public\.get_portal_identity\(\) TO authenticated[\s\S]*SET LOCAL ROLE postgres[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_identity_rpc_owner/i);
     expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.get_portal_identity\(\) FROM PUBLIC, anon/i);
     expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.get_portal_identity\(\) TO authenticated/i);
     expect(migration).not.toMatch(/raw_user_meta_data/i);
@@ -293,8 +300,8 @@ describe("static Supabase artifact gate", () => {
     const migration = readFileSync(join(repoRoot, "supabase", "migrations", "20260828120000_food_catalog_snapshots.sql"), "utf8");
     expect(migration).toMatch(/BEGIN;[\s\S]*GRANT CREATE ON SCHEMA private TO localens_catalog_rpc_owner, localens_catalog_guard_owner/);
     expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_catalog_rpc_owner/);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_catalog_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.create_catalog_snapshot\(\)[\s\S]*RESET ROLE/);
-    expect(migration).not.toMatch(/RESET ROLE;\s*ALTER FUNCTION private\.create_catalog_snapshot/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_catalog_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.create_catalog_snapshot\(\)[\s\S]*SET LOCAL ROLE postgres/);
+    expect(migration).not.toMatch(/SET LOCAL ROLE postgres;\s*ALTER FUNCTION private\.create_catalog_snapshot/);
     expect(migration).toMatch(/GRANT SELECT ON public\.catalog_snapshot_food_items_v TO anon, authenticated;[\s\S]*REVOKE CREATE ON SCHEMA private FROM localens_catalog_rpc_owner, localens_catalog_guard_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_catalog_rpc_owner;[\s\S]*COMMIT/);
   });
 
@@ -304,13 +311,13 @@ describe("static Supabase artifact gate", () => {
     expect(migration).toMatch(/GRANT CREATE ON SCHEMA private TO localens_plan_rpc_owner, localens_request_guard_owner, localens_request_admin_rpc_owner/);
     expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_request_admin_rpc_owner, localens_request_customer_rpc_owner/);
     expect(migration).toMatch(/GRANT USAGE ON SCHEMA private TO localens_request_guard_owner/);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*ALTER FUNCTION private\.validate_trip_plan_revision_dto\(jsonb\)[\s\S]*CREATE OR REPLACE FUNCTION private\.persist_trip_plan_revision[\s\S]*RESET ROLE;/);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_request_guard_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.reject_custom_quote_mutation\(\)[\s\S]*RESET ROLE;/);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_request_admin_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.create_custom_quote[\s\S]*CREATE OR REPLACE FUNCTION public\.create_custom_quote[\s\S]*RESET ROLE;/);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_request_customer_rpc_owner;[\s\S]*CREATE OR REPLACE VIEW public\.customer_custom_quotes_v[\s\S]*RESET ROLE;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*ALTER FUNCTION private\.validate_trip_plan_revision_dto\(jsonb\)[\s\S]*CREATE OR REPLACE FUNCTION private\.persist_trip_plan_revision[\s\S]*SET LOCAL ROLE postgres;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_request_guard_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.reject_custom_quote_mutation\(\)[\s\S]*SET LOCAL ROLE postgres;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_request_admin_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.create_custom_quote[\s\S]*CREATE OR REPLACE FUNCTION public\.create_custom_quote[\s\S]*SET LOCAL ROLE postgres;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_request_customer_rpc_owner;[\s\S]*CREATE OR REPLACE VIEW public\.customer_custom_quotes_v[\s\S]*SET LOCAL ROLE postgres;/);
     expect(migration).not.toMatch(/auth\.uid\(\)/);
     expect(migration.match(/NULLIF\(pg_catalog\.current_setting\('request\.jwt\.claim\.sub', true\), ''\)::uuid/g)).toHaveLength(2);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*ALTER FUNCTION private\.validate_food_plan_revision_dto\(jsonb\) OWNER TO localens_plan_rpc_owner;[\s\S]*RESET ROLE;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*ALTER FUNCTION private\.validate_food_plan_revision_dto\(jsonb\) OWNER TO localens_plan_rpc_owner;[\s\S]*SET LOCAL ROLE postgres;/);
     expect(migration).toMatch(/REVOKE CREATE ON SCHEMA private FROM localens_plan_rpc_owner, localens_request_guard_owner, localens_request_admin_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_request_admin_rpc_owner, localens_request_customer_rpc_owner;[\s\S]*COMMIT;/);
     expect(migration).toMatch(/REVOKE USAGE ON SCHEMA private FROM localens_request_guard_owner;[\s\S]*COMMIT;/);
   });

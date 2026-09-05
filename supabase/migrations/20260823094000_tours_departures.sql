@@ -226,7 +226,6 @@ GRANT SELECT ON TABLE public.catalog_snapshots, public.catalog_snapshot_places,
 GRANT SELECT ON TABLE public.departures TO localens_tour_guard_owner;
 SET LOCAL ROLE localens_tour_guard_owner;
 GRANT EXECUTE ON FUNCTION private.valid_tour_copy_array(text[]) TO localens_tour_rpc_owner;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 -- The invoker view needs source privileges, but only for columns represented by

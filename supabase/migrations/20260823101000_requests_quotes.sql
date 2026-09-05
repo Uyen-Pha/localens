@@ -647,7 +647,6 @@ GRANT EXECUTE ON FUNCTION private.record_request_quote_audit_event(
   public.audit_event_type, uuid, public.app_role, public.audit_target_type,
   uuid, text, text, public.audit_metadata_key, text, numeric
 ) TO localens_request_customer_rpc_owner, localens_request_admin_rpc_owner;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 -- Internal implementation.  The actor is always read from the JWT subject; no

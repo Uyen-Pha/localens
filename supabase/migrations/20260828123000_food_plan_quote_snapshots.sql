@@ -646,7 +646,6 @@ END;
 $function$;
 REVOKE ALL ON FUNCTION private.persist_trip_plan_revision(uuid, integer, jsonb, uuid, uuid, text, smallint) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.persist_trip_plan_revision(uuid, integer, jsonb, uuid, uuid, text, smallint) TO localens_guest_rpc_owner;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 -- Quote commercial facts remain immutable; only the existing guarded state
@@ -696,7 +695,6 @@ BEGIN
 END;
 $function$;
 REVOKE ALL ON FUNCTION private.reject_custom_quote_mutation() FROM PUBLIC, anon, authenticated;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 SET LOCAL ROLE localens_request_admin_rpc_owner;
@@ -1003,7 +1001,6 @@ END;
 $function$;
 REVOKE ALL ON FUNCTION public.create_custom_quote(uuid, bigint, public.checkout_currency, text, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_custom_quote(uuid, bigint, public.checkout_currency, text, text, text) TO authenticated;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 -- Extend the safe customer view without exposing owner/admin fields.  The
@@ -1035,7 +1032,6 @@ JOIN public.profiles AS owners ON owners.id = requests.owner_user_id
 WHERE requests.owner_user_id = NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid;
 REVOKE ALL ON public.customer_custom_quotes_v FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.customer_custom_quotes_v TO authenticated;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 -- The existing start_checkout_tx and webhook finalizer continue to validate

@@ -273,8 +273,8 @@ describe("travel/FX migration contract", () => {
     expect(earlyProjectionGrant).not.toMatch(/GRANT SELECT ON TABLE[\s\S]*public\.travel_snapshots_v/);
     expect(migration).toMatch(/CREATE OR REPLACE VIEW public\.travel_snapshots_v[\s\S]*GRANT SELECT ON public\.travel_snapshots_v TO anon, authenticated/);
     expect(projectionFix).toMatch(/GRANT CREATE ON SCHEMA public TO localens_catalog_rpc_owner;[\s\S]*CREATE OR REPLACE VIEW public\.travel_snapshots_v/);
-    expect(projectionFix).toMatch(/SET LOCAL ROLE localens_catalog_rpc_owner;[\s\S]*CREATE OR REPLACE VIEW public\.latest_fx_snapshot_v[\s\S]*REVOKE ALL ON public\.latest_fx_snapshot_v[\s\S]*GRANT SELECT ON public\.latest_fx_snapshot_v TO anon, authenticated;[\s\S]*RESET ROLE/);
-    expect(projectionFix).not.toMatch(/RESET ROLE;\s*ALTER VIEW public\.latest_fx_snapshot_v/);
+    expect(projectionFix).toMatch(/SET LOCAL ROLE localens_catalog_rpc_owner;[\s\S]*CREATE OR REPLACE VIEW public\.latest_fx_snapshot_v[\s\S]*REVOKE ALL ON public\.latest_fx_snapshot_v[\s\S]*GRANT SELECT ON public\.latest_fx_snapshot_v TO anon, authenticated;[\s\S]*SET LOCAL ROLE postgres/);
+    expect(projectionFix).not.toMatch(/SET LOCAL ROLE postgres;\s*ALTER VIEW public\.latest_fx_snapshot_v/);
     expect(projectionFix).toMatch(/ADD CONSTRAINT fx_snapshots_source_trimmed_no_controls[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_catalog_rpc_owner;[\s\S]*COMMIT/);
   });
   it("declares directed edge bounds and exact snapshot membership", () => {
@@ -325,7 +325,7 @@ describe("travel/FX migration contract", () => {
     expect(privilegeFix).toMatch(/GRANT UPDATE \(id\) ON TABLE public\.catalog_snapshots[\s\S]*public\.travel_snapshots TO localens_catalog_guard_owner/i);
     expect(privilegeFix).not.toMatch(/GRANT UPDATE ON TABLE public\.(?:catalog_snapshots|travel_snapshots)\b/i);
     expect(privilegeFix).toMatch(/GRANT USAGE, CREATE ON SCHEMA private TO localens_tour_guard_owner;[\s\S]*SET LOCAL ROLE localens_tour_guard_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.assert_published_tour_complete/);
-    expect(privilegeFix).toMatch(/\$function\$;[\s\S]*REVOKE ALL ON FUNCTION private\.assert_published_tour_complete\(uuid\)[\s\S]*RESET ROLE;[\s\S]*REVOKE CREATE ON SCHEMA private FROM localens_tour_guard_owner/);
+    expect(privilegeFix).toMatch(/\$function\$;[\s\S]*REVOKE ALL ON FUNCTION private\.assert_published_tour_complete\(uuid\)[\s\S]*SET LOCAL ROLE postgres;[\s\S]*REVOKE CREATE ON SCHEMA private FROM localens_tour_guard_owner/);
     expect(privilegeFix).not.toMatch(/ALTER FUNCTION private\.assert_published_tour_complete/);
   });
 });

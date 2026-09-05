@@ -485,7 +485,6 @@ ALTER FUNCTION private.record_checkout_audit_event(public.audit_event_type, uuid
 REVOKE ALL ON FUNCTION private.record_checkout_audit_event(public.audit_event_type, uuid, public.audit_target_type, uuid, text, text, public.audit_metadata_key, text, numeric, boolean) FROM PUBLIC, anon, authenticated;
 SET LOCAL ROLE localens_identity_rpc_owner;
 GRANT EXECUTE ON FUNCTION private.record_checkout_audit_event(public.audit_event_type, uuid, public.audit_target_type, uuid, text, text, public.audit_metadata_key, text, numeric, boolean) TO localens_checkout_rpc_owner;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 CREATE OR REPLACE FUNCTION private.start_checkout_tx(

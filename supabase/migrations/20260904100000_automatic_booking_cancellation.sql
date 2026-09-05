@@ -212,7 +212,6 @@ BEGIN
   RETURN inserted_count;
 END;
 $function$;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 ALTER FUNCTION private.reject_booking_cancellation_mutation() OWNER TO localens_cancellation_guard_owner;
@@ -276,7 +275,6 @@ WHERE cancellations.customer_user_id = COALESCE(
 ALTER VIEW public.customer_booking_cancellations_v OWNER TO localens_cancellation_customer_projection_owner;
 REVOKE ALL ON public.customer_booking_cancellations_v FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT ON public.customer_booking_cancellations_v TO authenticated;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_cancellation_customer_projection_owner;
 
@@ -320,7 +318,6 @@ WHERE EXISTS (
 ALTER VIEW public.admin_booking_cancellations_v OWNER TO localens_cancellation_admin_projection_owner;
 REVOKE ALL ON public.admin_booking_cancellations_v FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT ON public.admin_booking_cancellations_v TO authenticated;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_cancellation_admin_projection_owner;
 
@@ -598,7 +595,6 @@ BEGIN
   )::public.booking_cancellation_result;
 END;
 $function$;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 ALTER FUNCTION public.cancel_booking(uuid, text, text, text)
@@ -612,12 +608,10 @@ REVOKE CREATE ON SCHEMA public FROM localens_cancellation_customer_rpc_owner;
 SET LOCAL ROLE localens_cancellation_customer_rpc_owner;
 REVOKE ALL ON FUNCTION public.request_fixed_tour_cancellation(uuid, text, text)
   FROM PUBLIC, anon, authenticated, service_role;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 SET LOCAL ROLE localens_cancellation_admin_rpc_owner;
 REVOKE ALL ON FUNCTION public.decide_fixed_tour_cancellation(uuid, text, text, text)
   FROM PUBLIC, anon, authenticated, service_role;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 REVOKE ALL ON public.customer_fixed_tour_cancellation_requests_v
   FROM PUBLIC, anon, authenticated, service_role;
@@ -667,7 +661,6 @@ BEGIN
   RAISE EXCEPTION 'legacy cancellation archive is immutable' USING ERRCODE = '42501';
 END;
 $function$;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 ALTER FUNCTION private.assert_fixed_tour_cancellation_request_mutation() OWNER TO localens_cancellation_guard_owner;
 ALTER FUNCTION private.reject_fixed_tour_cancellation_truncate() OWNER TO localens_cancellation_guard_owner;

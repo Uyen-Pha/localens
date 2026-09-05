@@ -99,7 +99,6 @@ REVOKE ALL ON FUNCTION public.begin_fixed_tour_booking(uuid, integer, public.loc
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.begin_fixed_tour_booking(uuid, integer, public.locale, text)
   TO authenticated;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_checkout_rpc_owner;
 

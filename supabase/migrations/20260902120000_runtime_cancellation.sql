@@ -424,7 +424,6 @@ BEGIN
   RETURN NEW;
 END;
 $function$;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 ALTER FUNCTION private.assert_fixed_tour_cancellation_request_mutation() OWNER TO localens_cancellation_guard_owner;
 ALTER FUNCTION private.reject_fixed_tour_cancellation_truncate() OWNER TO localens_cancellation_guard_owner;
@@ -442,7 +441,6 @@ SET LOCAL ROLE localens_cancellation_guard_owner;
 REVOKE ALL ON FUNCTION private.assert_fixed_tour_cancellation_request_mutation() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION private.reject_fixed_tour_cancellation_truncate() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION private.reject_payment_after_approved_cancellation() FROM PUBLIC, anon, authenticated;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA private FROM localens_cancellation_guard_owner;
 
@@ -476,7 +474,6 @@ REVOKE ALL ON public.customer_fixed_tour_cancellation_requests_v FROM PUBLIC, an
 GRANT SELECT ON public.customer_fixed_tour_cancellation_requests_v TO authenticated;
 ALTER VIEW public.customer_fixed_tour_cancellation_requests_v
   OWNER TO localens_cancellation_customer_projection_owner;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_cancellation_customer_projection_owner;
 
@@ -520,7 +517,6 @@ REVOKE ALL ON public.admin_fixed_tour_cancellation_queue_v FROM PUBLIC, anon, au
 GRANT SELECT ON public.admin_fixed_tour_cancellation_queue_v TO authenticated;
 ALTER VIEW public.admin_fixed_tour_cancellation_queue_v
   OWNER TO localens_cancellation_admin_projection_owner;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_cancellation_admin_projection_owner;
 
@@ -653,14 +649,12 @@ BEGIN
   )::public.fixed_tour_cancellation_request_result;
 END;
 $function$;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 ALTER FUNCTION public.request_fixed_tour_cancellation(uuid, text, text)
   OWNER TO localens_cancellation_customer_rpc_owner;
 SET LOCAL ROLE localens_cancellation_customer_rpc_owner;
 REVOKE ALL ON FUNCTION public.request_fixed_tour_cancellation(uuid, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.request_fixed_tour_cancellation(uuid, text, text) TO authenticated;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_cancellation_customer_rpc_owner;
 
@@ -819,14 +813,12 @@ BEGIN
   )::public.fixed_tour_cancellation_decision_result;
 END;
 $function$;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 ALTER FUNCTION public.decide_fixed_tour_cancellation(uuid, text, text, text)
   OWNER TO localens_cancellation_admin_rpc_owner;
 SET LOCAL ROLE localens_cancellation_admin_rpc_owner;
 REVOKE ALL ON FUNCTION public.decide_fixed_tour_cancellation(uuid, text, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.decide_fixed_tour_cancellation(uuid, text, text, text) TO authenticated;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 REVOKE CREATE ON SCHEMA public FROM localens_cancellation_admin_rpc_owner;
 

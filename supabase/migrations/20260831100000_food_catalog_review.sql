@@ -108,7 +108,6 @@ ALTER FUNCTION private.assert_catalog_review_admin() OWNER TO localens_admin_rpc
 REVOKE ALL ON FUNCTION private.assert_catalog_review_admin() FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT ON TABLE private.user_roles TO localens_admin_rpc_owner;
 GRANT EXECUTE ON FUNCTION private.assert_catalog_review_admin() TO localens_admin_rpc_owner;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 -- This guard is intentionally stricter than the older publication trigger:
@@ -292,7 +291,6 @@ $function$;
 ALTER FUNCTION private.assert_food_catalog_review_complete(uuid) OWNER TO localens_catalog_guard_owner;
 REVOKE ALL ON FUNCTION private.assert_food_catalog_review_complete(uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION private.assert_food_catalog_review_complete(uuid) TO localens_admin_rpc_owner;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 SET LOCAL ROLE localens_admin_rpc_owner;
@@ -635,7 +633,6 @@ $function$;
 ALTER FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) OWNER TO localens_admin_rpc_owner;
 REVOKE ALL ON FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.review_food_catalog_item(uuid, uuid, text, jsonb, text) TO authenticated;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 REVOKE CREATE ON SCHEMA private FROM localens_admin_rpc_owner, localens_catalog_guard_owner;

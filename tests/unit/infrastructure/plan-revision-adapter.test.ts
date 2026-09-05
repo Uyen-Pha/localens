@@ -381,7 +381,7 @@ describe("trip-plan revision migration contract", () => {
     expect(foodPersistenceMigration).toMatch(/food amount formula mismatch/);
     expect(foodPersistenceMigration).toMatch(/food_items\.available\s+IS\s+TRUE/);
     expect(foodPersistenceMigration).toMatch(/food totals material requires exact keys/);
-    expect(foodPersistenceMigration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.persist_trip_plan_revision[\s\S]*RESET ROLE;/);
+    expect(foodPersistenceMigration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.persist_trip_plan_revision[\s\S]*SET LOCAL ROLE postgres;/);
     expect(foodPersistenceMigration).toMatch(/SECURITY DEFINER[\s\S]*SET search_path = ''/);
     expect(foodPersistenceMigration).toMatch(/ON CONFLICT ON CONSTRAINT trip_plan_revisions_plan_id_revision_no_key DO NOTHING/);
   });

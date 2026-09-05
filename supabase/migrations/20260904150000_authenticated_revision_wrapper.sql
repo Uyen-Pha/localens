@@ -48,7 +48,6 @@ FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.advance_authenticated_trip_plan_revision(uuid, integer, jsonb)
 TO authenticated;
 
-RESET ROLE;
 SET LOCAL ROLE postgres;
 ALTER FUNCTION public.advance_authenticated_trip_plan_revision(uuid, integer, jsonb)
 OWNER TO localens_plan_rpc_owner;

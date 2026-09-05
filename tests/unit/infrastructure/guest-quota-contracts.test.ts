@@ -214,7 +214,7 @@ describe("guest quota migration contract", () => {
     expect(migration).toMatch(/unsafe pre-existing LocalLens guest or quota role attributes/);
     expect(migration).toMatch(/REVOKE ALL ON ALL TABLES IN SCHEMA public, private, auth[\s\S]*GRANT CREATE ON SCHEMA private TO localens_plan_rpc_owner, localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner/);
     expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_plan_rpc_owner, localens_claim_rpc_owner/);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.advance_trip_plan_revision[\s\S]*RESET ROLE;[\s\S]*ALTER FUNCTION private\.advance_trip_plan_revision/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_plan_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.advance_trip_plan_revision[\s\S]*SET LOCAL ROLE postgres;[\s\S]*ALTER FUNCTION private\.advance_trip_plan_revision/);
     expect(migration).toMatch(/ALTER FUNCTION private\.reserve_quota[\s\S]*OWNER TO localens_quota_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA private FROM localens_plan_rpc_owner, localens_guest_rpc_owner, localens_claim_rpc_owner, localens_quota_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_plan_rpc_owner, localens_claim_rpc_owner;[\s\S]*COMMIT/);
   });
 

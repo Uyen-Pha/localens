@@ -324,7 +324,6 @@ ALTER FUNCTION private.create_travel_snapshot() OWNER TO localens_catalog_rpc_ow
 SET LOCAL ROLE localens_catalog_rpc_owner;
 REVOKE ALL ON FUNCTION private.create_travel_snapshot() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.create_travel_snapshot() TO localens_admin_rpc_owner;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 -- FX observations are inserted through the same authenticated admin boundary;
@@ -365,7 +364,6 @@ ALTER FUNCTION private.create_fx_snapshot(numeric, text, timestamptz, text, bool
 SET LOCAL ROLE localens_catalog_rpc_owner;
 REVOKE ALL ON FUNCTION private.create_fx_snapshot(numeric, text, timestamptz, text, boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.create_fx_snapshot(numeric, text, timestamptz, text, boolean) TO localens_admin_rpc_owner;
-RESET ROLE;
 SET LOCAL ROLE postgres;
 
 -- PostgREST receives only these explicit named projections.  Decimal money and

@@ -183,8 +183,8 @@ describe("Stripe Test payment adapter contracts", () => {
     }
     expect(migration).toMatch(/GRANT CREATE ON SCHEMA private TO localens_identity_rpc_owner, localens_checkout_rpc_owner, localens_payment_rpc_owner, localens_payment_guard_owner/);
     expect(migration).toMatch(/GRANT CREATE ON SCHEMA public TO localens_admin_rpc_owner, localens_payment_projection_owner/);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_checkout_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.assert_checkout_attempt_mutation[\s\S]*RESET ROLE;/);
-    expect(migration).toMatch(/SET LOCAL ROLE localens_checkout_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.record_checkout_session[\s\S]*RESET ROLE;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_checkout_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.assert_checkout_attempt_mutation[\s\S]*SET LOCAL ROLE postgres;/);
+    expect(migration).toMatch(/SET LOCAL ROLE localens_checkout_rpc_owner;[\s\S]*CREATE OR REPLACE FUNCTION private\.record_checkout_session[\s\S]*SET LOCAL ROLE postgres;/);
     expect(migration).toMatch(/ALTER FUNCTION public\.reconcile_payment[\s\S]*OWNER TO localens_admin_rpc_owner;[\s\S]*REVOKE CREATE ON SCHEMA private FROM localens_identity_rpc_owner, localens_checkout_rpc_owner, localens_payment_rpc_owner, localens_payment_guard_owner;[\s\S]*REVOKE CREATE ON SCHEMA public FROM localens_admin_rpc_owner, localens_payment_projection_owner;[\s\S]*COMMIT/);
     expect(migration).toContain("hold_row.status");
     expect(migration).toContain("authority_time := pg_catalog.clock_timestamp()");
