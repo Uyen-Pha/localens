@@ -21,7 +21,8 @@ const SERVICE_ROLE_KEY = "sb_secret_test_only_123456789";
 const MANAGEMENT_TOKEN = "sbp_test_only_12345678901234567890";
 const PLAN_ID = "d1700000-0000-4000-8000-000000000801";
 const PLACE_ID = "d1700000-0000-4000-8000-000000000101";
-const ITEM_ID = "d1700000-0000-4000-8000-000000000811";
+const ITEM_ID = PLACE_ID;
+const OTHER_PLACE_ID = "d1700000-0000-4000-8000-000000000102";
 const REVISION_ID = "d1700000-0000-4000-8000-000000000821";
 const REVISION_TWO_ID = "d1700000-0000-4000-8000-000000000822";
 const PAYMENT_BOOKING_ID = "d1700000-0000-4000-8000-000000000711";
@@ -31,6 +32,17 @@ const REFINE_OPERATION_ID = "d1700000-0000-4000-8000-000000000702";
 const FALLBACK_OPERATION_ID = "d1700000-0000-4000-8000-000000000703";
 const LOCKED_START_AT = "2026-09-12T09:00:00+07:00";
 const LOCKED_END_AT = "2026-09-12T10:00:00+07:00";
+const EQUIVALENT_START_AT = "2026-09-12T02:00:00.000Z";
+const EQUIVALENT_END_AT = "2026-09-12T03:00:00.000Z";
+const CHANGED_FOOD_SELECTION = {
+  vendorId: "vendor-banh-mi-legacy",
+  menuItemId: "menu-banh-mi-legacy",
+  quantity: 2,
+  priceVndMin: "30000",
+  priceVndMax: "40000",
+  paymentMode: "pay_at_vendor",
+  activity: "Taste and discuss the selected dish",
+};
 
 const ACCOUNT_IDS = {
   customer: "d1700000-0000-4000-8000-000000000901",
@@ -134,7 +146,6 @@ function proposal(rankingSource: "ai" | "deterministic", itemOverrides: Record<s
 
 function persistedItem(overrides: Record<string, unknown> = {}) {
   return {
-    id: ITEM_ID,
     place_id: PLACE_ID,
     position: 1,
     start_at: LOCKED_START_AT,
@@ -168,8 +179,14 @@ function createHarness({
   quotaObservable = true,
   attestedProviderDelta = 1,
   responseLossAuthorized = true,
-  tamperReturnedLockedItem = false,
-  tamperPersistedLockedItem = false,
+  primaryRecommendStatus,
+  malformedPrimaryRecommend = false,
+  equivalentTimezoneOffsets = false,
+  returnedItemOverrides = {},
+  persistedResultItemOverrides = {},
+  persistedRowOverrides = {},
+  returnedOrderChanged = false,
+  persistedOrderChanged = false,
 }: {
   degradedLive?: boolean;
   targetRedirect?: string;
@@ -179,8 +196,14 @@ function createHarness({
   quotaObservable?: boolean;
   attestedProviderDelta?: number;
   responseLossAuthorized?: boolean;
-  tamperReturnedLockedItem?: boolean;
-  tamperPersistedLockedItem?: boolean;
+  primaryRecommendStatus?: number;
+  malformedPrimaryRecommend?: boolean;
+  equivalentTimezoneOffsets?: boolean;
+  returnedItemOverrides?: Record<string, unknown>;
+  persistedResultItemOverrides?: Record<string, unknown>;
+  persistedRowOverrides?: Record<string, unknown>;
+  returnedOrderChanged?: boolean;
+  persistedOrderChanged?: boolean;
 } = {}) {
   const requests: RequestRecord[] = [];
   const logs: string[] = [];
@@ -266,6 +289,26 @@ function createHarness({
         },
       };
     }
+    if (spec.gate === "planner.recommend.primary" && primaryRecommendStatus !== undefined) {
+      return {
+        status: primaryRecommendStatus,
+        headers: { correlationId: "primary-visible-error-01" },
+        json: { code: "VISIBLE_PRIMARY_FAILURE" },
+      };
+    }
+    if (spec.gate === "planner.recommend.primary" && malformedPrimaryRecommend) {
+      return {
+        status: 200,
+        headers: { correlationId: "primary-malformed-01" },
+        json: {
+          advisoryOnly: true,
+          planId: PLAN_ID,
+          proposal: proposal("ai"),
+          rationales: {},
+          revision: 1,
+        },
+      };
+    }
     if (spec.gate.startsWith("planner.recommend")) {
       return {
         status: 200,
@@ -281,6 +324,14 @@ function createHarness({
       };
     }
     if (spec.gate.startsWith("planner.refine")) {
+      const itemOverrides = {
+        ...(equivalentTimezoneOffsets ? { startAt: EQUIVALENT_START_AT, endAt: EQUIVALENT_END_AT } : {}),
+        ...returnedItemOverrides,
+      };
+      const refinedProposal = proposal(degradedLive ? "deterministic" : "ai", itemOverrides);
+      if (returnedOrderChanged) {
+        refinedProposal.items = [wireItem({ placeId: OTHER_PLACE_ID }), ...refinedProposal.items];
+      }
       return {
         status: 200,
         headers: { correlationId: `${spec.gate}-01` },
@@ -289,10 +340,7 @@ function createHarness({
           baseRevision: 1,
           degraded: degradedLive,
           planId: PLAN_ID,
-          proposal: proposal(
-            degradedLive ? "deterministic" : "ai",
-            tamperReturnedLockedItem ? { endAt: "2026-09-12T10:15:00+07:00" } : {},
-          ),
+          proposal: refinedProposal,
           rationales: {},
           regeneration: "partial",
           revision: 2,
@@ -344,11 +392,21 @@ function createHarness({
           ranking_source: degradedLive ? "deterministic" : "ai",
           result_json: proposal(degradedLive ? "deterministic" : "ai"),
           trip_plans: { id: PLAN_ID, latest_revision_no: 1 },
-          trip_plan_items: [persistedItem()],
+          trip_plan_items: [persistedItem(equivalentTimezoneOffsets
+            ? { start_at: EQUIVALENT_START_AT, end_at: EQUIVALENT_END_AT }
+            : {})],
         }],
       };
     }
     if (spec.gate === "read.owner-revision-2") {
+      const resultItemOverrides = {
+        ...(equivalentTimezoneOffsets ? { startAt: EQUIVALENT_START_AT, endAt: EQUIVALENT_END_AT } : {}),
+        ...persistedResultItemOverrides,
+      };
+      const persistedProposal = proposal(degradedLive ? "deterministic" : "ai", resultItemOverrides);
+      if (persistedOrderChanged) {
+        persistedProposal.items = [wireItem({ placeId: OTHER_PLACE_ID }), ...persistedProposal.items];
+      }
       return {
         status: 200,
         headers: {},
@@ -357,14 +415,12 @@ function createHarness({
           plan_id: PLAN_ID,
           revision_no: 2,
           ranking_source: degradedLive ? "deterministic" : "ai",
-          result_json: proposal(
-            degradedLive ? "deterministic" : "ai",
-            tamperPersistedLockedItem ? { startAt: "2026-09-12T09:15:00+07:00" } : {},
-          ),
+          result_json: persistedProposal,
           trip_plans: { id: PLAN_ID, latest_revision_no: 2 },
-          trip_plan_items: [persistedItem(
-            tamperPersistedLockedItem ? { start_at: "2026-09-12T09:15:00+07:00" } : {},
-          )],
+          trip_plan_items: [persistedItem({
+            ...(equivalentTimezoneOffsets ? { start_at: EQUIVALENT_START_AT, end_at: EQUIVALENT_END_AT } : {}),
+            ...persistedRowOverrides,
+          })],
         }],
       };
     }
@@ -678,9 +734,13 @@ describe("bounded thesis-demo cloud smoke", () => {
     expect(evidenceRequests).toHaveLength(20);
     expect(harness.requests.filter(({ gate }) => gate.startsWith("read.attestation."))).toHaveLength(4);
     expect(harness.requests.filter(({ gate }) => gate.startsWith("read.owner-revision-"))).toHaveLength(2);
-    expect(harness.requests.find(({ gate }) => gate === "read.owner-revision-1")?.url).toContain(
-      "trip_plan_items(id,place_id,position,start_at,end_at,visit_duration_minutes)",
-    );
+    const ownerReadUrls = harness.requests
+      .filter(({ gate }) => gate.startsWith("read.owner-revision-"))
+      .map(({ url }) => url);
+    expect(ownerReadUrls.every((url) => url.includes(
+      "trip_plan_items(place_id,position,start_at,end_at,visit_duration_minutes)",
+    ))).toBe(true);
+    expect(ownerReadUrls.every((url) => !url.includes("trip_plan_items(id,"))).toBe(true);
 
     const paymentBodies = harness.requests
       .filter(({ gate }) => gate.startsWith("fixed.payment.complete"))
@@ -722,10 +782,53 @@ describe("bounded thesis-demo cloud smoke", () => {
     ]);
   });
 
+  it("accepts equivalent timezone offsets for locked start and end instants", async () => {
+    const harness = createHarness({ equivalentTimezoneOffsets: true });
+
+    const result = await runThesisDemoSmoke(validOptions(), harness.dependencies);
+
+    expect(result.ok).toBe(true);
+    expect(JSON.parse(
+      harness.requests.find(({ gate }) => gate === "planner.refine.primary")?.body ?? "{}",
+    ).lockedItemIds).toEqual([PLACE_ID]);
+  });
+
   it.each([
-    ["returned revision", { tamperReturnedLockedItem: true }],
-    ["persisted revision", { tamperPersistedLockedItem: true }],
-  ])("rejects changed locked item identity or immutable fields in the %s", async (_label, harnessOptions) => {
+    ["returned order", { returnedOrderChanged: true }],
+    ["persisted result order", { persistedOrderChanged: true }],
+    ["persisted row position", { persistedRowOverrides: { position: 2 } }],
+  ])("rejects changed locked item %s", async (_label, harnessOptions) => {
+    const harness = createHarness(harnessOptions);
+
+    const code = await captureCode(runThesisDemoSmoke(validOptions(), harness.dependencies));
+
+    expect(code).toBe("SMOKE_LOCKED_ITEM_CHANGED");
+    expect(harness.requests.filter(({ gate }) => gate.startsWith("fixed."))).toEqual([]);
+  });
+
+  it.each([
+    ["returned foodSelection", { returnedItemOverrides: { foodSelection: CHANGED_FOOD_SELECTION } }],
+    ["persisted foodSelection", { persistedResultItemOverrides: { foodSelection: CHANGED_FOOD_SELECTION } }],
+  ])("rejects changed %s", async (_label, harnessOptions) => {
+    const harness = createHarness(harnessOptions);
+
+    const code = await captureCode(runThesisDemoSmoke(validOptions(), harness.dependencies));
+
+    expect(code).toBe("SMOKE_LOCKED_ITEM_CHANGED");
+    expect(harness.requests.filter(({ gate }) => gate.startsWith("fixed."))).toEqual([]);
+  });
+
+  it.each([
+    ["returned place", { returnedItemOverrides: { placeId: OTHER_PLACE_ID } }],
+    ["returned time", { returnedItemOverrides: { endAt: "2026-09-12T10:15:00+07:00" } }],
+    ["returned duration", { returnedItemOverrides: { visitDurationMinutes: 75 } }],
+    ["persisted result place", { persistedResultItemOverrides: { placeId: OTHER_PLACE_ID } }],
+    ["persisted result time", { persistedResultItemOverrides: { startAt: "2026-09-12T09:15:00+07:00" } }],
+    ["persisted result duration", { persistedResultItemOverrides: { visitDurationMinutes: 75 } }],
+    ["persisted row place", { persistedRowOverrides: { place_id: OTHER_PLACE_ID } }],
+    ["persisted row time", { persistedRowOverrides: { end_at: "2026-09-12T10:15:00+07:00" } }],
+    ["persisted row duration", { persistedRowOverrides: { visit_duration_minutes: 75 } }],
+  ])("rejects changed locked %s", async (_label, harnessOptions) => {
     const harness = createHarness(harnessOptions);
 
     const code = await captureCode(runThesisDemoSmoke(validOptions(), harness.dependencies));
@@ -743,15 +846,32 @@ describe("bounded thesis-demo cloud smoke", () => {
     expect(harness.requests.filter(({ gate }) => gate.startsWith("fixed."))).toEqual([]);
   });
 
-  it("does not retry a timed-out live operation or create a replacement operation", async () => {
-    const harness = createHarness({ failGate: "planner.recommend.primary" });
+  it.each([
+    ["HTTP 400", { primaryRecommendStatus: 400 }, "SMOKE_HTTP_FAILED"],
+    ["HTTP 429", { primaryRecommendStatus: 429 }, "SMOKE_HTTP_FAILED"],
+    ["HTTP 500", { primaryRecommendStatus: 500 }, "SMOKE_HTTP_FAILED"],
+    ["thrown network failure", { failGate: "planner.recommend.primary" }, "SMOKE_HTTP_FAILED"],
+  ])("does not authorize or replay after %s", async (_label, harnessOptions, expectedCode) => {
+    const harness = createHarness(harnessOptions);
 
     const code = await captureCode(runThesisDemoSmoke(validOptions(), harness.dependencies));
 
-    expect(code).toBe("SMOKE_HTTP_FAILED");
+    expect(code).toBe(expectedCode);
     const recommendRequests = harness.requests.filter(({ gate }) => gate.startsWith("planner.recommend"));
     expect(recommendRequests.map(({ gate }) => gate)).toEqual(["planner.recommend.primary"]);
     expect(new Set(recommendRequests.map(({ body }) => JSON.parse(body ?? "{}").operationId)).size).toBe(1);
+    expect(harness.responseLossEvents).toEqual([]);
+  });
+
+  it("does not authorize replay for a malformed successful primary envelope", async () => {
+    const harness = createHarness({ malformedPrimaryRecommend: true });
+
+    const code = await captureCode(runThesisDemoSmoke(validOptions(), harness.dependencies));
+
+    expect(code).toBe("SMOKE_PLANNER_RESPONSE_INVALID");
+    expect(harness.requests.filter(({ gate }) => gate.startsWith("planner.recommend")).map(({ gate }) => gate)).toEqual([
+      "planner.recommend.primary",
+    ]);
     expect(harness.responseLossEvents).toEqual([]);
   });
 

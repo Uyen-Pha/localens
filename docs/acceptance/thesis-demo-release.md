@@ -452,8 +452,8 @@ operation-attestation, exact two-slot inspection, explicit post-commit
 response-loss, logging, and kill-switch seams. They cover local preflight
 refusal, mode-specific confirmation, cross-host redirect refusal, secret
 redaction, seven denial probes, byte-identical same-operation replay, two
-bounded provider-eligible operations, two owner revision readbacks with a
-persisted item ID distinct from place ID, all five attestation deltas, and 11
+bounded provider-eligible operations, two owner revision readbacks using the
+adapter's canonical `itemId = place_id`, all five attestation deltas, and 11
 fixed-tour mutations. Payment/replay uses `qa-01`; cancellation/replay uses
 `qa-02`, so one booking is never both paid and cancelled. Fallback runs
 independently with the finite `qa-03` run ID, no provider attempt, no live

@@ -385,6 +385,7 @@ function validatePlannerResponse(response, { revision, rankingSource }) {
   const value = response.json;
   if (
     value?.advisoryOnly !== true
+    || typeof value?.degraded !== "boolean"
     || !nonEmpty(value?.planId)
     || value?.revision !== revision
     || value?.proposal?.rankingSource !== rankingSource
@@ -414,29 +415,56 @@ function lockedWireItem(item, position) {
     || !nonEmpty(item.startAt)
     || !nonEmpty(item.endAt)
     || !Number.isInteger(item.visitDurationMinutes)
+    || !Object.hasOwn(item, "foodSelection")
   ) fail("SMOKE_PLANNER_RESPONSE_INVALID");
   return {
+    itemId: item.placeId,
     placeId: item.placeId,
     position,
     startAt: item.startAt,
     endAt: item.endAt,
     visitDurationMinutes: item.visitDurationMinutes,
+    foodSelection: structuredClone(item.foodSelection),
   };
 }
 
-function sameLockedWireItem(item, locked) {
-  return item?.placeId === locked.placeId
-    && item?.startAt === locked.startAt
-    && item?.endAt === locked.endAt
-    && item?.visitDurationMinutes === locked.visitDurationMinutes;
+function sameInstant(left, right) {
+  if (!nonEmpty(left) || !nonEmpty(right)) return false;
+  const leftInstant = Date.parse(left);
+  const rightInstant = Date.parse(right);
+  return Number.isFinite(leftInstant) && Number.isFinite(rightInstant) && leftInstant === rightInstant;
+}
+
+function sameJsonValue(left, right) {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left)
+      && Array.isArray(right)
+      && left.length === right.length
+      && left.every((value, index) => sameJsonValue(value, right[index]));
+  }
+  if (left === null || right === null || typeof left !== "object" || typeof right !== "object") return false;
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return leftKeys.length === rightKeys.length
+    && leftKeys.every((key, index) => key === rightKeys[index] && sameJsonValue(left[key], right[key]));
+}
+
+function sameLockedWireItem(item, locked, position) {
+  return position === locked.position
+    && item?.placeId === locked.placeId
+    && sameInstant(item?.startAt, locked.startAt)
+    && sameInstant(item?.endAt, locked.endAt)
+    && item?.visitDurationMinutes === locked.visitDurationMinutes
+    && sameJsonValue(item?.foodSelection, locked.foodSelection);
 }
 
 function samePersistedLockedItem(item, locked) {
-  return item?.id === locked.itemId
+  return item?.place_id === locked.itemId
     && item?.place_id === locked.placeId
     && item?.position === locked.position
-    && item?.start_at === locked.startAt
-    && item?.end_at === locked.endAt
+    && sameInstant(item?.start_at, locked.startAt)
+    && sameInstant(item?.end_at, locked.endAt)
     && item?.visit_duration_minutes === locked.visitDurationMinutes;
 }
 
@@ -465,9 +493,14 @@ async function plannerResponseLossReplay(options, dependencies, sessions, state,
   operationId,
 }) {
   const networkSpec = plannerNetworkRequest(options, sessions, { functionName, body });
-  await state.request({ gate: `planner.${kind}.primary`, ...networkSpec }, {
+  const primaryResponse = await state.request({ gate: `planner.${kind}.primary`, ...networkSpec }, {
     planner: true,
     providerOperation: operationId,
+  });
+  requireStatus(primaryResponse, 200);
+  validatePlannerResponse(primaryResponse, {
+    revision: kind === "recommend" ? 1 : 2,
+    rankingSource: primaryResponse.json?.degraded === true ? "deterministic" : "ai",
   });
 
   const requestIdentity = networkRequestIdentity(networkSpec);
@@ -559,7 +592,7 @@ function attestationDelta(before, after) {
   return deltas;
 }
 
-const OWNER_REVISION_SELECT = "id,plan_id,revision_no,ranking_source,result_json,trip_plans!inner(id,latest_revision_no),trip_plan_items(id,place_id,position,start_at,end_at,visit_duration_minutes)";
+const OWNER_REVISION_SELECT = "id,plan_id,revision_no,ranking_source,result_json,trip_plans!inner(id,latest_revision_no),trip_plan_items(place_id,position,start_at,end_at,visit_duration_minutes)";
 
 async function readOwnerRevisionOne(options, sessions, state, { planId, wireLocked }) {
   const response = await state.request({
@@ -571,22 +604,20 @@ async function readOwnerRevisionOne(options, sessions, state, { planId, wireLock
   requireStatus(response, 200, "SMOKE_REPLAY_UNPROVEN");
   const row = requireSingleRow(response, "SMOKE_REPLAY_UNPROVEN");
   const plan = Array.isArray(row.trip_plans) ? row.trip_plans[0] : row.trip_plans;
-  const persisted = row.trip_plan_items?.find((item) => (
-    item?.place_id === wireLocked.placeId && item?.position === wireLocked.position
-  ));
-  const resultItem = row.result_json?.items?.find((item) => item?.placeId === wireLocked.placeId);
+  const persisted = row.trip_plan_items?.find((item) => item?.position === wireLocked.position);
+  const resultItem = row.result_json?.items?.[wireLocked.position - 1];
   if (
     row.plan_id !== planId
     || row.revision_no !== 1
     || plan?.id !== planId
     || plan?.latest_revision_no !== 1
     || !Array.isArray(row.trip_plan_items)
-    || !nonEmpty(persisted?.id)
-    || !sameLockedWireItem(resultItem, wireLocked)
   ) fail("SMOKE_REPLAY_UNPROVEN");
-  const locked = { ...wireLocked, itemId: persisted.id };
-  if (!samePersistedLockedItem(persisted, locked)) fail("SMOKE_LOCKED_ITEM_CHANGED");
-  return locked;
+  if (
+    !sameLockedWireItem(resultItem, wireLocked, wireLocked.position)
+    || !samePersistedLockedItem(persisted, wireLocked)
+  ) fail("SMOKE_LOCKED_ITEM_CHANGED");
+  return wireLocked;
 }
 
 async function readOwnerRevisionTwo(options, sessions, state, { planId, locked, refined }) {
@@ -599,8 +630,8 @@ async function readOwnerRevisionTwo(options, sessions, state, { planId, locked, 
   requireStatus(response, 200, "SMOKE_REPLAY_UNPROVEN");
   const row = requireSingleRow(response, "SMOKE_REPLAY_UNPROVEN");
   const plan = Array.isArray(row.trip_plans) ? row.trip_plans[0] : row.trip_plans;
-  const persisted = row.trip_plan_items?.find((item) => item?.id === locked.itemId);
-  const resultItem = row.result_json?.items?.find((item) => item?.placeId === locked.placeId);
+  const persisted = row.trip_plan_items?.find((item) => item?.position === locked.position);
+  const resultItem = row.result_json?.items?.[locked.position - 1];
   if (
     row.plan_id !== planId
     || row.revision_no !== 2
@@ -610,8 +641,8 @@ async function readOwnerRevisionTwo(options, sessions, state, { planId, locked, 
   ) fail("SMOKE_REPLAY_UNPROVEN");
   if (
     !samePersistedLockedItem(persisted, locked)
-    || !sameLockedWireItem(resultItem, locked)
-    || !sameLockedWireItem(refined, locked)
+    || !sameLockedWireItem(resultItem, locked, locked.position)
+    || !sameLockedWireItem(refined, locked, locked.position)
   ) fail("SMOKE_LOCKED_ITEM_CHANGED");
 }
 
@@ -688,14 +719,19 @@ async function runLive(options, dependencies, sessions, state, slots) {
     rankingSource: refineReplay.json?.degraded === true ? "deterministic" : "ai",
   });
   const refinedLockedItems = refined.proposal.items.filter((item) => item?.placeId === locked.placeId);
-  if (refined.planId !== recommend.planId || refinedLockedItems.length !== 1 || !sameLockedWireItem(refinedLockedItems[0], locked)) {
+  const refinedLocked = refined.proposal.items[locked.position - 1];
+  if (
+    refined.planId !== recommend.planId
+    || refinedLockedItems.length !== 1
+    || !sameLockedWireItem(refinedLocked, locked, locked.position)
+  ) {
     fail("SMOKE_LOCKED_ITEM_CHANGED");
   }
 
   await readOwnerRevisionTwo(options, sessions, state, {
     planId: recommend.planId,
     locked,
-    refined: refinedLockedItems[0],
+    refined: refinedLocked,
   });
   const afterRecommend = await readOperationAttestation(options, dependencies, sessions, state, {
     kind: "recommend",
