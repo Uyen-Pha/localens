@@ -2,26 +2,29 @@
 
 ## Decision
 
-Task 17 extends the reproducible release candidate with a guarded, synthetic
-cloud-seed package and disposable local-database acceptance. It does not claim
-a cloud deployment.
+Task 18 preflight hardens the reproducible Task 17 candidate so a missing or
+mistyped mode cannot apply a cloud seed and only the exact
+`localens-thesis-demo` project name is accepted. It does not claim a cloud
+deployment.
 
 | Field | Recorded value |
 | --- | --- |
 | Repository | [Uyen-Pha/localens](https://github.com/Uyen-Pha/localens) — **PUBLIC** |
 | Candidate branch | `codex/task7-clean-typecheck` |
-| Candidate SHA | `caeb182acceb9a3c5b4604500de7a5b732925de2` |
+| Candidate SHA | `5bba6564e80bb3abf259409c475d2f81e000a4b3` |
 | Default branch at capture | `main` at `b9f08d589bb972d290c4c367e8a02c636224d512` |
-| Candidate relation to `main` | 7 commits ahead, 0 commits behind |
+| Candidate relation to `main` | 9 commits ahead, 0 commits behind |
 | Product SHA | `0a4c8ecd87dc1413471c464730d4632f63278e41` |
 | Evidence SHA | `392160d4948dd0e4d75988e6879f65f999cffe44` |
 | CI portability SHA | `66d1b2c957cf16e9d10ac6ac2c8884007cffb099` |
 | Task 14 acceptance SHA | `11ced60a1e7127b1e7507722de346ce00339182d` |
 | Task 15 release-document SHA | `b86dc3dbbe0d220f734b58d3345bf9b716ab32e7` |
 | Task 17 seed product SHA | `caeb182acceb9a3c5b4604500de7a5b732925de2` |
-| Accepted HEAD CI | [GitHub Actions 33968403528](https://github.com/Uyen-Pha/localens/actions/runs/33968403528) — **PASS** |
-| Captured on | 2026-09-05, Asia/Ho_Chi_Minh |
-| Candidate label | `thesis-demo-candidate@caeb182acceb9a3c5b4604500de7a5b732925de2` |
+| Task 17 acceptance SHA | `f476e83c40c1b8ee65df696f6a1fd9e7654332ba` |
+| Task 18 cloud-guard SHA | `5bba6564e80bb3abf259409c475d2f81e000a4b3` |
+| Accepted candidate CI | [GitHub Actions 33980046296](https://github.com/Uyen-Pha/localens/actions/runs/33980046296) — **PASS** |
+| Captured on | 2026-09-06, Asia/Ho_Chi_Minh |
+| Candidate label | `thesis-demo-candidate@5bba6564e80bb3abf259409c475d2f81e000a4b3` |
 
 The candidate is intentionally still on its public candidate branch. It has
 not been merged into `main`, linked to a cloud backend, or promoted to a public
@@ -34,7 +37,7 @@ web deployment.
 | Fixture demo | **PASS** | Google Chrome fixture acceptance passed 34/34. This is deterministic demo behavior, not cloud runtime. |
 | Isolated local runtime | **PASS** | Local Supabase Auth/PostgreSQL/RLS/RPC/Edge integration passed on runner-owned random ports. Task 17 additionally passed 1,744 pgTAP assertions, apply-twice exact graph verification, rollback probes, and a real cancellation RPC rolled back to the seed graph. The presentation database on standard ports was not mutated. |
 | Public repository | **PASS** | Repository visibility is public; candidate and evidence commits are pushed to the branch above. |
-| Public CI | **PASS** | `quality-demo` passed in 3m16s, Chrome `demo-e2e` in 3m07s, and `runtime-local` in 10m33s at the accepted HEAD. The cloud-only job is separately **SKIPPED/PENDING**. |
+| Public CI | **PASS** | At candidate `5bba656`, `quality-demo` passed in 3m37s, Chrome `demo-e2e` in 2m59s, and `runtime-local` in 10m29s. The cloud-only job is separately **SKIPPED/PENDING**. |
 | Supabase Cloud backend | **PENDING — Task 18** | No selected project ref, migration deployment, function version, secret-store verification, or cloud seed is recorded. |
 | Live Gemini smoke | **PENDING — Task 19** | Local evidence uses a loopback Gemini-compatible provider. No billed/live provider request is claimed. |
 | Vercel preview | **PENDING — Task 20** | No project link, deployment ID, preview URL, or browser-origin acceptance is recorded. |
@@ -46,7 +49,7 @@ collected and no real payment processor is contacted.
 
 ## Candidate changeset
 
-The Task 17 product candidate is the baseline `b9f08d5` plus seven commits:
+The Task 18 preflight candidate is the baseline `b9f08d5` plus nine commits:
 
 | Commit | Scope |
 | --- | --- |
@@ -57,9 +60,11 @@ The Task 17 product candidate is the baseline `b9f08d5` plus seven commits:
 | `b86dc3d` | Task 15 release-candidate record and Vietnamese cloud runbook. |
 | `eec6a05` | Task 16 public-repository and accepted CI evidence. |
 | `caeb182` | Guarded thesis-demo v1 dataset, cloud seeder, migration marker, and tests. |
+| `f476e83` | Task 17 acceptance evidence and final public CI-bound branch head. |
+| `5bba656` | Fail-closed cloud seed mode and exact project-name guards with regression tests. |
 
 The full committed path inventory is available from `git diff --name-only
-b9f08d589bb972d290c4c367e8a02c636224d512..caeb182acceb9a3c5b4604500de7a5b732925de2`.
+b9f08d589bb972d290c4c367e8a02c636224d512..5bba6564e80bb3abf259409c475d2f81e000a4b3`.
 Any later implementation, seed, smoke-runner, environment, or deployment change
 invalidates this candidate identity and requires a new candidate SHA and the
 gates listed in the release plan.
@@ -244,10 +249,12 @@ metadata. New release commits use the GitHub no-reply identity. Rewriting
 already-public history is a separate destructive operation and is not part of
 this candidate.
 
-[GitHub Actions 33968403528](https://github.com/Uyen-Pha/localens/actions/runs/33968403528)
-ran on exact head `b86dc3d`: `quality-demo` passed in 3m16s, Google Chrome
-`demo-e2e` passed in 3m07s, and the isolated `runtime-local` gate passed in
-10m33s. `staging-smoke` was skipped at whole-job level because
+[GitHub Actions 33980046296](https://github.com/Uyen-Pha/localens/actions/runs/33980046296)
+ran on exact candidate `5bba656`: `quality-demo` passed in 3m37s, Google Chrome
+`demo-e2e` passed in 2m59s, and the isolated `runtime-local` gate passed in
+10m29s. The quality gate recorded 136 test files, 1,950 passing tests, one
+intentional skip, and all 31 migration artifacts. `staging-smoke` was skipped
+at whole-job level because
 `LOCALLENS_STAGING_URL` is not configured. Its state is **SKIPPED/PENDING**, not
 cloud PASS; Task 22 still requires a real cloud smoke run.
 
@@ -285,9 +292,40 @@ These are local and CI-ready facts only. Task 18 must still select the isolated
 Supabase project, review remote drift, push migrations without reset, provision
 secrets/accounts, run dry-run/apply twice, and record the cloud marker.
 
+## Task 18 preflight hardening
+
+At `5bba656`, the CLI boundary accepts only explicit seed selectors `"1"`
+(dry-run) and `"0"` (apply); missing, blank, whitespace-padded, or descriptive
+values fail before metadata or clients are opened. The independent target guard
+also requires the exact project name `localens-thesis-demo`, in addition to the
+project ref, organization, runtime URL, connection metadata, TLS, inventory,
+and marker checks already present.
+
+Evidence before any cloud mutation:
+
+- TDD reproduced seven failures covering the fail-open selector and wrong
+  project name, then the single-file suite passed 62/62 after the guard fix;
+- reviewer-requested coverage for the explicit `"0"` apply path was added;
+  the final focused group passed 93/93 and independent re-review returned PASS;
+- local full regression passed 136 files and 1,950 tests; typecheck, lint,
+  `db:static`, and `git diff --check` passed;
+- public CI 33980046296 passed all three local/fixture jobs on the exact
+  candidate SHA; cloud smoke remained intentionally skipped;
+- Supabase CLI 2.115.0 was authenticated read-only, and the account inventory
+  contained zero organizations and zero projects. No project, schema, function,
+  secret, Auth user, or demo row was created.
+
+Official references were refreshed on 2026-09-06 before execution:
+[database migrations](https://supabase.com/docs/guides/deployment/database-migrations),
+[Edge Function deployment](https://supabase.com/docs/guides/functions/deploy),
+[Edge secrets](https://supabase.com/docs/guides/functions/secrets),
+[Auth general configuration](https://supabase.com/docs/guides/auth/general-configuration),
+[Gemini 3.6 Flash](https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash),
+and [Gemini deprecations](https://ai.google.dev/gemini-api/docs/deprecations).
+
 ## Preserved dirty baseline
 
-The following pre-existing local paths remain outside Task 15 and must not be
+The following pre-existing local paths remain outside this release evidence and must not be
 staged, discarded, or published as part of this candidate documentation:
 
 ```text
@@ -302,9 +340,9 @@ M scripts/run-runtime-auth-e2e.mjs
 ?? docs/superpowers/plans/2026-09-05-localens-luna-release.md
 ```
 
-Task 15 may commit only this acceptance record and
-`docs/runbooks/cloud-thesis-demo.vi.md` after independent review. No
-implementation or cloud state changes belong to this gate.
+This evidence update may commit only this acceptance record and
+`docs/runbooks/cloud-thesis-demo.vi.md` after independent review. No cloud
+state changes belong to this documentation commit.
 
 ## Task 15 gate
 

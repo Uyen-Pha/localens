@@ -2,13 +2,14 @@
 
 ## Mục tiêu hiện tại
 
-Runbook này bắt đầu từ release candidate
-`11ced60a1e7127b1e7507722de346ce00339182d` trên nhánh công khai
+Runbook này khóa release candidate tiền cloud
+`5bba6564e80bb3abf259409c475d2f81e000a4b3` trên nhánh công khai
 `codex/task7-clean-typecheck` của
 [Uyen-Pha/localens](https://github.com/Uyen-Pha/localens).
 
-Ở Task 15, đây mới là bản ứng viên đã qua local runtime và public CI. Chưa có
-Supabase Cloud, Gemini thật, Vercel preview hay production URL được nghiệm thu.
+Ở đầu Task 18, đây là bản ứng viên đã qua Task 17, guard cloud fail-closed,
+local runtime và public CI trên đúng SHA. Chưa có Supabase organization/project,
+Gemini thật, Vercel preview hay production URL được nghiệm thu.
 Thanh toán luôn là mô phỏng; không cấu hình cổng thanh toán hoặc thu thập số thẻ.
 
 ## Ranh giới an toàn bắt buộc
@@ -35,11 +36,12 @@ Thanh toán luôn là mô phỏng; không cấu hình cổng thanh toán hoặc 
 
 | Thành phần | Giá trị |
 | --- | --- |
-| Candidate SHA | `11ced60a1e7127b1e7507722de346ce00339182d` |
-| Product SHA | `0a4c8ecd87dc1413471c464730d4632f63278e41` |
-| Evidence SHA | `392160d4948dd0e4d75988e6879f65f999cffe44` |
-| Migration head | `20260905020356_planner_operation_idempotency.sql` |
-| Public CI | [Run 33967081834](https://github.com/Uyen-Pha/localens/actions/runs/33967081834) — PASS |
+| Candidate SHA | `5bba6564e80bb3abf259409c475d2f81e000a4b3` |
+| Task 17 seed product SHA | `caeb182acceb9a3c5b4604500de7a5b732925de2` |
+| Task 17 acceptance SHA | `f476e83c40c1b8ee65df696f6a1fd9e7654332ba` |
+| Task 18 cloud-guard SHA | `5bba6564e80bb3abf259409c475d2f81e000a4b3` |
+| Migration head | `20260905140000_thesis_demo_manifest.sql` |
+| Public CI | [Run 33980046296](https://github.com/Uyen-Pha/localens/actions/runs/33980046296) — PASS |
 | Trình duyệt nghiệm thu | Google Chrome `152.0.7977.65` |
 
 Manifest checksum đầy đủ nằm trong
@@ -55,16 +57,19 @@ git rev-parse --abbrev-ref HEAD
 git rev-parse HEAD
 git status --short
 git rev-parse origin/codex/task7-clean-typecheck
+git merge-base --is-ancestor 5bba6564e80bb3abf259409c475d2f81e000a4b3 HEAD
+git diff --name-only 5bba6564e80bb3abf259409c475d2f81e000a4b3..HEAD
 gh repo view Uyen-Pha/localens --json nameWithOwner,visibility,url,defaultBranchRef
-gh run view 33967081834 --json status,conclusion,headSha,url,jobs
+gh run view 33980046296 --json status,conclusion,headSha,url,jobs
 corepack.cmd pnpm --version
 corepack.cmd pnpm exec supabase --version
 ```
 
-Kỳ vọng Task 15:
+Kỳ vọng trước mutation Task 18:
 
 - nhánh `codex/task7-clean-typecheck`;
-- local HEAD và remote candidate cùng SHA;
+- local HEAD và remote branch cùng SHA; candidate `5bba656` là ancestor, và
+  các commit sau candidate chỉ được đổi hai tài liệu release đã review;
 - repo `PUBLIC`;
 - CI `success` trên đúng head;
 - pnpm `10.17.1`, Supabase CLI `2.115.0`;
@@ -212,7 +217,7 @@ Không chạy `db reset --linked`.
 
 ## Candidate invalidation
 
-Nếu có thay đổi sau Task 15:
+Nếu có thay đổi sau candidate đã khóa:
 
 - copy thuần: review VI/EN và screenshot vùng đổi;
 - UI/router/storage/adapter: unit + lint/type + build + browser flow liên quan;
