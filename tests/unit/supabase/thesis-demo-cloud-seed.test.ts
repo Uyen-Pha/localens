@@ -388,11 +388,12 @@ describe("verifyDemoTarget", () => {
 });
 
 describe("thesis demo dataset versions", () => {
-  it("keeps the checked-in v1 dataset byte-for-byte immutable", () => {
+  it("keeps the checked-in v1 dataset content immutable across checkout line endings", () => {
     const source = readV1DatasetSource();
+    const canonicalSource = source.replace(/\r\n/g, "\n");
 
-    expect(createHash("sha256").update(source, "utf8").digest("hex"))
-      .toBe("a84de06d18c7958e435d44bbd14de774f728c891585176bb4d5b47b5d8429a2f");
+    expect(createHash("sha256").update(canonicalSource, "utf8").digest("hex"))
+      .toBe("c2e26f3a24f803e7cbc20d3f777da92eadccf48208ae3271abb5277fb6515b8f");
     expect(JSON.parse(source).datasetVersion).toBe("thesis-demo.v1");
   });
 
