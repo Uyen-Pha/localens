@@ -889,6 +889,23 @@ describe("bounded thesis-demo cloud smoke", () => {
     expect(harness.logs.join("\n")).not.toContain(SERVICE_ROLE_KEY);
   });
 
+  it("logs only the failing gate and HTTP status for an unexpected response", async () => {
+    const harness = createHarness();
+    const request = harness.dependencies.request;
+
+    const code = await captureCode(runThesisDemoSmoke(fallbackOptions(), {
+      ...harness.dependencies,
+      request: async (spec) => {
+        const response = await request(spec);
+        return spec.gate === "planner.fallback" ? { ...response, status: 503 } : response;
+      },
+    }));
+
+    expect(code).toBe("SMOKE_HTTP_FAILED");
+    expect(harness.logs).toContain("gate=planner.fallback status=503");
+    expect(harness.logs.join("\n")).not.toContain(SERVICE_ROLE_KEY);
+  });
+
   it("proves bounded live replay, user readback, locked refinement, and finite fixed-tour flow", async () => {
     const harness = createHarness();
 

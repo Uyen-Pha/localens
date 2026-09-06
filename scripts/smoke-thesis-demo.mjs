@@ -231,6 +231,7 @@ function makeState(options, dependencies) {
       log(`gate=${String(spec?.gate ?? "unknown")} status=invalid-response`);
       fail("SMOKE_HTTP_FAILED");
     }
+    log(`gate=${String(spec?.gate ?? "unknown")} status=${response.status}`);
     if (response.status >= 300 && response.status < 400) {
       const location = headerValue(response.headers, "location");
       if (!nonEmpty(location)) fail("SMOKE_REDIRECT_UNEXPECTED");
