@@ -2,9 +2,9 @@
 
 **Ngày:** 2026-09-04
 
-**Trạng thái:** Đã thống nhất hướng kiến trúc; chờ duyệt đặc tả trước khi lập kế hoạch triển khai
+**Trạng thái:** Đã chốt phạm vi demo công khai và các cổng nghiệm thu
 
-**Mục tiêu:** Hoàn thiện và phát hành LocalLens thành một website full-stack dùng được để trình diễn, có gọi AI thật nhưng thanh toán chỉ là mô phỏng.
+**Mục tiêu:** Hoàn thiện và phát hành LocalLens thành một website full-stack dùng được để trình diễn, có trải nghiệm AI dạng demo/fallback và thanh toán chỉ là mô phỏng.
 
 ## 1. Đích hoàn thành
 
@@ -25,11 +25,11 @@ LocalLens được xem là hoàn thành cho đợt này khi có một URL công 
 
 ### 2.1 Trong phạm vi
 
-- Repository GitHub riêng tư.
+- Repository GitHub công khai; mã nguồn, test và tài liệu không chứa secret.
 - Frontend Next.js hiện tại được triển khai trên Vercel ở chế độ Supabase runtime.
 - Supabase Cloud cung cấp Auth, PostgreSQL, RLS, RPC và Edge Functions.
-- Gemini API được gọi thật từ Edge Function, sử dụng khóa bí mật phía server.
-- Mô hình AI được ghim bằng tên ổn định `gemini-3.6-flash`, không dùng bí danh `latest`.
+- Edge Function giữ ranh giới AI và kill switch; release demo dùng deterministic fallback đã kiểm thử, không bắt buộc gọi provider thật.
+- Nếu bật provider ở một thí nghiệm riêng, model phải được ghim bằng tên ổn định và khóa chỉ ở server; không dùng bí danh `latest`.
 - Kết quả AI chỉ xếp hạng các ứng viên đã được mã nguồn và cơ sở dữ liệu cho phép.
 - Engine xác định hiện tại tiếp tục chịu trách nhiệm về lịch, thời lượng, tiền, tính hợp lệ và phương án dự phòng.
 - Thanh toán được mô phỏng toàn bộ ở backend bằng RPC và dữ liệu biên nhận thử nghiệm hiện có.
@@ -66,8 +66,8 @@ Trình duyệt
      -> Supabase Edge Function
         -> xác thực JWT + CORS + quota
         -> tải candidate/snapshot chuẩn từ PostgreSQL
-        -> Gemini API (khóa bí mật phía server)
-        -> kiểm tra response nghiêm ngặt
+        -> provider AI tùy chọn (server-only; release demo mặc định tắt)
+        -> kiểm tra response nghiêm ngặt nếu provider được bật
         -> engine xác định / fallback
         -> lưu kết quả đã hợp lệ và metadata an toàn
 ```
@@ -190,7 +190,7 @@ Mỗi viewport cần kiểm tra navigation, form, trạng thái AI, checkout mô
 
 ## 9. Bảo mật và riêng tư
 
-- `GEMINI_API_KEY`, Supabase service-role key và mọi secret chỉ được đặt trong Supabase secrets hoặc secret store của nền tảng phù hợp; tuyệt đối không dùng tiền tố `NEXT_PUBLIC_`.
+- Nếu có bật provider, `GEMINI_API_KEY`, Supabase service-role key và mọi secret chỉ được đặt trong Supabase secrets hoặc secret store của nền tảng phù hợp; tuyệt đối không dùng tiền tố `NEXT_PUBLIC_`.
 - Edge Function xác thực JWT của người dùng; service role chỉ tồn tại ở server.
 - CORS chỉ cho phép đúng production origin và preview origin được phê duyệt, không mặc định `*` cho endpoint có xác thực.
 - RLS tiếp tục bảo vệ dữ liệu theo người dùng/vai trò; Edge Function không được biến thành đường vòng bỏ qua thẩm quyền.
@@ -198,7 +198,7 @@ Mỗi viewport cần kiểm tra navigation, form, trạng thái AI, checkout mô
 - Log phải loại bỏ token, secret, email, số điện thoại, nội dung đặc biệt và raw prompt/response.
 - Request có correlation ID không chứa thông tin người dùng để truy vết lỗi.
 - AI không nhận dữ liệu thanh toán, auth identifier, email, số điện thoại hoặc văn bản tự do nhạy cảm.
-- Với dữ liệu gửi tới Gemini free tier, chỉ sử dụng dữ liệu demo không nhạy cảm và ID nội bộ đã giảm thiểu.
+- Nếu có thí nghiệm provider, chỉ sử dụng dữ liệu demo không nhạy cảm và ID nội bộ đã giảm thiểu. Release fallback không gửi dữ liệu ra ngoài.
 - RPC thanh toán và booking phải giữ idempotency, kiểm tra trạng thái và khóa/xử lý cạnh tranh ở tầng cơ sở dữ liệu.
 
 ## 10. Môi trường và cấu hình
@@ -219,7 +219,7 @@ Mỗi viewport cần kiểm tra navigation, form, trạng thái AI, checkout mô
 
 - Vercel chạy Next.js ở `supabase` runtime.
 - Supabase Cloud chứa schema, tài khoản và dữ liệu demo riêng.
-- Edge Functions giữ Gemini secret và model config.
+- Edge Functions giữ kill switch và ranh giới provider; release demo mặc định chạy fallback, không yêu cầu Gemini secret.
 - Không tái sử dụng project/database có dữ liệu thật.
 
 Các biến public dự kiến:
@@ -232,7 +232,7 @@ Các biến public dự kiến:
 
 Các secret phía server dự kiến:
 
-- `GEMINI_API_KEY`
+- `GEMINI_API_KEY` (tùy chọn, không cần cho release fallback-only)
 - Supabase service-role secret do nền tảng cấp
 - origin allowlist và model name nếu không dùng giá trị mặc định đã ghim
 
@@ -268,7 +268,7 @@ Các secret phía server dự kiến:
 ### 11.4 Browser/E2E
 
 - CI dùng provider giả lập xác định để tránh flake và tiêu tốn quota.
-- Staging có một smoke test provider thật, giới hạn số lần gọi và không ghi secret vào artifact.
+- Cloud có một smoke test fallback được bảo vệ, giới hạn request và không ghi secret vào artifact. Provider thật là thí nghiệm tùy chọn ngoài release.
 - Chạy toàn bộ luồng customer/admin/guide trên browser người dùng chấp thuận.
 - Lưu screenshot, console/network summary và release SHA làm bằng chứng nghiệm thu.
 
@@ -277,9 +277,9 @@ Các secret phía server dự kiến:
 1. Chốt đặc tả này và lập implementation plan theo từng checkpoint.
 2. Tách release SHA khỏi các thay đổi không liên quan trong worktree; không reset hoặc làm mất công việc hiện có.
 3. Hoàn thiện AI Edge Functions theo TDD, sau đó chạy các gate local hiện có.
-4. Người dùng xác nhận chính xác owner/tên repository; tạo repository GitHub private và push release branch.
+4. Người dùng xác nhận chính xác owner/tên repository; tạo repository GitHub public và push release branch.
 5. Tạo Supabase Cloud project riêng cho thesis demo; link CLI, kiểm tra migration diff rồi mới push migration.
-6. Người dùng nhập `GEMINI_API_KEY` trực tiếp vào secret UI/CLI an toàn; không gửi secret qua chat hoặc commit.
+6. Không cần nhập `GEMINI_API_KEY` cho release fallback-only; nếu thử provider thật về sau, key phải được nhập trực tiếp vào secret UI/CLI an toàn.
 7. Deploy Edge Functions, seed tài khoản/dữ liệu demo và chạy smoke test runtime cloud.
 8. Import repository vào Vercel, đặt biến môi trường, deploy preview ở Supabase mode.
 9. Chạy browser acceptance trên preview; sửa lỗi rồi khóa release SHA.
@@ -301,7 +301,7 @@ Không tạo custom domain trong phạm vi này. Không coi URL preview hoặc H
 | Cổng | GO khi | NO-GO khi |
 | --- | --- | --- |
 | Mã nguồn | Release SHA sạch, CI xanh, artifact xác định được | Không biết chính xác SHA hoặc lẫn thay đổi ngoài phạm vi |
-| AI | Provider thật chạy ở staging, output được validate, fallback đã chứng minh | Secret lộ ở client/log, AI có thể trả ID ngoài allowlist, không có fallback |
+| AI | Fallback demo chạy trên cloud, output/allowlist được validate, kill switch đã chứng minh | Secret lộ ở client/log, AI có thể trả ID ngoài allowlist, không có fallback |
 | Thanh toán | Chỉ mô phỏng, idempotent, không thu thập dữ liệu tài chính | Có lời gọi live hoặc UI khiến người dùng tưởng đã trả tiền thật |
 | Auth/RLS | Vai trò đúng quyền, truy cập chéo bị chặn | Service role lọt client hoặc endpoint bỏ qua RLS/thẩm quyền |
 | UX | Luồng chính chạy ở 3 viewport, keyboard/console/network đạt | Vỡ layout, CTA chính không hoạt động hoặc trạng thái lỗi không rõ |
@@ -312,7 +312,7 @@ Không tạo custom domain trong phạm vi này. Không coi URL preview hoặc H
 
 - `demo-verified@<SHA>`: chế độ demo cục bộ và E2E xác định đạt.
 - `runtime-verified-local@<SHA>`: Supabase local, RLS, pgTAP, concurrency và runtime E2E đạt.
-- `thesis-demo-deployed@<SHA>`: preview/production Vercel + Supabase Cloud + AI thật + simulated payment đã được nghiệm thu.
+- `thesis-demo-deployed@<SHA>`: preview/production Vercel + Supabase Cloud + AI demo/fallback + simulated payment đã được nghiệm thu.
 - Không sử dụng `production-deployed` vì chưa có thanh toán thật, vận hành thương mại, dữ liệu thật và các cổng tuân thủ tương ứng.
 
 Mỗi nhãn phải đi cùng ngày chạy, lệnh/gate, commit SHA, môi trường, kết quả và liên kết artifact/screenshot phù hợp.
@@ -321,9 +321,9 @@ Mỗi nhãn phải đi cùng ngày chạy, lệnh/gate, commit SHA, môi trườ
 
 Codex có thể làm phần lớn công việc kỹ thuật: code, test, migration, CI, cấu hình dự kiến, seed demo, kiểm tra browser, tài liệu triển khai và hỗ trợ deploy. Các điểm sau cần chủ dự án trực tiếp xác nhận hoặc thao tác vì liên quan tài khoản/secret:
 
-1. Xác nhận owner và tên repository GitHub private trước khi tạo/push.
+1. Xác nhận owner và tên repository GitHub public trước khi tạo/push.
 2. Đăng nhập hoặc ủy quyền Vercel và Supabase nếu CLI/UI yêu cầu.
-3. Tạo Gemini API key trong Google AI Studio và nhập trực tiếp vào Supabase secret store; không gửi key trong chat.
+3. Không cần tạo Gemini API key cho release fallback-only; chỉ tạo riêng nếu chủ đồ án muốn chạy thí nghiệm provider thật.
 4. Chấp thuận việc điều khiển browser/Playwright khi bắt đầu vòng nghiệm thu trực quan theo quy tắc Product Design.
 5. Kiểm tra URL cuối cùng và xác nhận bản demo đáp ứng kịch bản bảo vệ đồ án.
 
@@ -344,10 +344,10 @@ Codex có thể làm phần lớn công việc kỹ thuật: code, test, migrati
 - code AI provider và Edge Function đã được review, test và không chứa secret;
 - tất cả gate local liên quan đạt trên cùng release SHA;
 - Supabase Cloud có schema/functions/seeds đúng phiên bản;
-- Gemini thật tạo được ít nhất một lịch trình staging hợp lệ và fallback được chứng minh;
+- AI demo/fallback tạo được ít nhất một lịch trình cloud hợp lệ và không có provider attempt ngoài phạm vi;
 - booking, hủy và simulated payment đạt runtime test;
 - browser acceptance đạt ở desktop, tablet và mobile cho Việt/Anh;
-- GitHub private, Vercel production URL và Supabase project trỏ đúng release;
+- GitHub public, Vercel production URL và Supabase project trỏ đúng release;
 - thông báo “demo đồ án”, AI và thanh toán mô phỏng hiển thị rõ;
 - có hướng dẫn tài khoản demo, triển khai, vận hành tối thiểu và rollback;
 - người dùng xác nhận URL cuối cùng sẵn sàng cho buổi bảo vệ.

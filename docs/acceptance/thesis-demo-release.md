@@ -2,19 +2,21 @@
 
 ## Decision
 
-Task 18 accepts the dedicated Supabase Cloud backend for the synthetic thesis
-demo at product candidate `d5b8ea8`. The schema, Auth configuration, Edge
-Functions, secret/config inventory, guarded seed, idempotent rerun, and exact
-read-only graph have current cloud evidence. Live Gemini, Vercel preview,
-product QA on a web origin, and production remain separate pending gates.
+Task 18 accepted the dedicated Supabase Cloud backend at historical baseline
+`d5b8ea8`. Task 19 is accepted for the thesis-demo scope at the fallback-only
+AI boundary: migration 32, the `thesis-demo.v2` registry/seed, bounded Edge
+Function packages, exact cloud readback, and the protected fallback smoke are
+complete. A billed/live Gemini request is intentionally not required because
+AI is demo-only; Vercel preview, product QA on a web origin, and production
+remain separate pending gates.
 
 | Field | Recorded value |
 | --- | --- |
 | Repository | [Uyen-Pha/localens](https://github.com/Uyen-Pha/localens) — **PUBLIC** |
 | Candidate branch | `codex/task7-clean-typecheck` |
-| Candidate SHA | `d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6` |
+| Candidate SHA | `9c9e0b128425eb364686fed1e1b065ba7e98a186` |
 | Default branch at capture | `main` at `b9f08d589bb972d290c4c367e8a02c636224d512` |
-| Candidate relation to `main` | 12 commits ahead, 0 commits behind |
+| Candidate relation to `main` | 30 commits ahead, 0 commits behind |
 | Product implementation SHA | `0a4c8ecd87dc1413471c464730d4632f63278e41` |
 | Evidence SHA | `392160d4948dd0e4d75988e6879f65f999cffe44` |
 | CI portability SHA | `66d1b2c957cf16e9d10ac6ac2c8884007cffb099` |
@@ -24,9 +26,10 @@ product QA on a web origin, and production remain separate pending gates.
 | Task 17 acceptance SHA | `f476e83c40c1b8ee65df696f6a1fd9e7654332ba` |
 | Task 18 cloud-guard SHA | `5bba6564e80bb3abf259409c475d2f81e000a4b3` |
 | Task 18 hosted-migration SHA | `d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6` |
-| Accepted candidate CI | [GitHub Actions 33983849459](https://github.com/Uyen-Pha/localens/actions/runs/33983849459) — **PASS** |
+| Historical Task 18 CI | [GitHub Actions 33983849459](https://github.com/Uyen-Pha/localens/actions/runs/33983849459) — **PASS** at `d5b8ea8` |
+| Current candidate CI | [GitHub Actions 34009993404](https://github.com/Uyen-Pha/localens/actions/runs/34009993404) — **PASS** at `9c9e0b1` |
 | Captured on | 2026-09-06, Asia/Ho_Chi_Minh |
-| Candidate label | `thesis-demo-cloud-backend@d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6` |
+| Candidate label | `thesis-demo-cloud-smoke-fallback@9c9e0b128425eb364686fed1e1b065ba7e98a186` |
 
 The candidate remains on its public candidate branch and has not been merged
 into `main`. Its Supabase backend is provisioned, but it has not been deployed
@@ -34,14 +37,16 @@ to a Vercel preview or promoted to a public production web origin.
 
 ## Layer status
 
+Overall project progress: **19/22 — 86%**. Task 20 remains the active gate.
+
 | Layer | Status | Evidence and limit |
 | --- | --- | --- |
 | Fixture demo | **PASS** | Google Chrome fixture acceptance passed 34/34. This is deterministic demo behavior, not cloud runtime. |
 | Isolated local runtime | **PASS** | Local Supabase Auth/PostgreSQL/RLS/RPC/Edge integration passed on runner-owned random ports. Task 17 additionally passed 1,744 pgTAP assertions, apply-twice exact graph verification, rollback probes, and a real cancellation RPC rolled back to the seed graph. The presentation database on standard ports was not mutated. |
 | Public repository | **PASS** | Repository visibility is public; candidate and evidence commits are pushed to the branch above. |
-| Public CI | **PASS** | At candidate `d5b8ea8`, `quality-demo`, Chrome `demo-e2e`, and `runtime-local` passed; `staging-smoke` is separately **SKIPPED/PENDING** until a web URL exists. |
-| Supabase Cloud backend | **PASS — Task 18** | Dedicated healthy project; 31/31 migration readback and up-to-date dry-run; two active JWT-verified Function versions; Auth signup lock; four custom secret/config entries; exact idempotent thesis-demo seed. |
-| Live Gemini smoke | **PENDING — Task 19** | Local evidence uses a loopback Gemini-compatible provider. No billed/live provider request is claimed. |
+| Public CI | **PASS** | At exact candidate `9c9e0b1`, `quality-demo`, Chrome `demo-e2e`, `runtime-local`, and the protected fallback cloud smoke passed; `staging-smoke` was correctly skipped because no web origin is configured. |
+| Supabase Cloud backend | **PASS — Task 18 plus Task 19 prerequisites** | Dedicated healthy project; 32/32 migration readback and up-to-date dry-run; two active JWT-verified Function version 3 deployments; Auth signup lock; corrected quota-HMAC secret readback; exact idempotent `thesis-demo.v2` seed/registry. |
+| AI demo cloud smoke | **PASS — Task 19** | Protected fallback-only smoke passed with `provider=0`; no billed/live Gemini request is claimed or required. |
 | Vercel preview | **PENDING — Task 20** | No project link, deployment ID, preview URL, or browser-origin acceptance is recorded. |
 | Product acceptance on cloud | **PENDING — Task 21** | The 20 cloud scenarios and cloud screenshots have not run. |
 | Final production URL | **PENDING — Task 22** | No production deployment, rollback rehearsal, or owner sign-off is recorded. |
@@ -49,9 +54,10 @@ to a Vercel preview or promoted to a public production web origin.
 Payment remains strictly simulated in every layer. No card details are
 collected and no real payment processor is contacted.
 
-## Candidate changeset
+## Historical Task 18 changeset and current Task 19 delta
 
-The Task 18 cloud-backend candidate is the baseline `b9f08d5` plus 12 commits:
+The historical Task 18 cloud-backend candidate is the baseline `b9f08d5` plus
+12 commits:
 
 | Commit | Scope |
 | --- | --- |
@@ -68,18 +74,21 @@ The Task 18 cloud-backend candidate is the baseline `b9f08d5` plus 12 commits:
 | `76e61cc` | First hosted-role migration compatibility candidate; superseded after cloud history-write evidence. |
 | `d5b8ea8` | Final hosted migration session-role fix, mutation tests, and accepted public CI. |
 
-The full committed path inventory is available from `git diff --name-only
-b9f08d589bb972d290c4c367e8a02c636224d512..d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6`.
-Any later implementation, seed, smoke-runner, environment, or deployment change
-invalidates this candidate identity and requires a new candidate SHA and the
-gates listed in the release plan.
+The current Task 19 candidate adds 14 reviewed commits after `d5b8ea8`. They
+introduce the protected smoke runner, v2 QA-slot migration/dataset/seed
+serialization, persisted replay and provider-attempt attestation, and the
+bounded Edge deployment import maps. The exact current delta is available from
+`git diff --name-only
+d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6..0dde28879d8becae0ea90e05e20b0b6235a87bb3`.
+Any later product, seed, smoke-runner, environment, or deployment change
+requires a new candidate SHA and the applicable gates in the release plan.
 
 ## Ordered migration manifest
 
-Hashes are lowercase SHA-256 of Git blobs at candidate `d5b8ea8`, in filename
+Hashes are lowercase SHA-256 of Git blobs at candidate `0dde288`, in filename
 order. They are independent of checkout CRLF/LF conversion.
 The current migration head is
-`20260905140000_thesis_demo_manifest.sql`.
+`20260905150000_thesis_demo_qa_slots.sql`.
 
 | Order | Migration | SHA-256 |
 | ---: | --- | --- |
@@ -114,11 +123,12 @@ The current migration head is
 | 29 | `20260904150000_authenticated_revision_wrapper.sql` | `bb1c59ec95fb1c936f274d2973d1fd2da715bccae703d0d35d5cfce160023c0d` |
 | 30 | `20260905020356_planner_operation_idempotency.sql` | `c5f92639096975865472563ae125fb2fc28702191ef5e9f3a5c75293b451fdad` |
 | 31 | `20260905140000_thesis_demo_manifest.sql` | `d3117772a2589a6ef4348777dc40068a24ab9dd9c0b7e327074227c0576315ec` |
+| 32 | `20260905150000_thesis_demo_qa_slots.sql` | `69ba35cb54d59c78d09f15cade496c61a6e27bab71a738b177c97dc393a426bf` |
 
 ## Edge Function deployment manifest
 
 Both configured functions require JWT verification in `supabase/config.toml`.
-Hashes below are SHA-256 of Git blobs at candidate `d5b8ea8`. This source table
+Hashes below are SHA-256 of Git blobs at candidate `0dde288`. This source table
 is intentionally limited to the entrypoints, import maps, and shared modules
 under `supabase/functions/**`; it is a human-review index, not a claim that the
 transitive bundle contains only these files. The project-bound deployment
@@ -129,8 +139,8 @@ imports from `lib/**` and external packages.
 | --- | --- |
 | `supabase/functions/recommend-itinerary/index.ts` | `41ac660226c8c752f1110f586fccf3a6d4ba0f3d2d600cbf0985ba980573f89e` |
 | `supabase/functions/refine-itinerary/index.ts` | `81565b120212f6ef89bbd33bae076d077807460b5725d9f14c0a03482052217d` |
-| `supabase/functions/recommend-itinerary/deno.json` | `ad93e875230d9ff824451dff5360fb5c539a47d3ae77b94462371c2460a6463a` |
-| `supabase/functions/refine-itinerary/deno.json` | `ad93e875230d9ff824451dff5360fb5c539a47d3ae77b94462371c2460a6463a` |
+| `supabase/functions/recommend-itinerary/deno.json` | `8592b6746b19dfe965cef783f8935fce1b1c400b4aecd45c8289942ebc0ec586` |
+| `supabase/functions/refine-itinerary/deno.json` | `8592b6746b19dfe965cef783f8935fce1b1c400b4aecd45c8289942ebc0ec586` |
 | `_shared/edge-env.ts` | `3060c63d546709f352f82ecb61925bb4edeaf1abcab2aa7fe4babae667aa4532` |
 | `_shared/gateway.ts` | `e903dbd5a487661f803dddcca1b82139115309bd6c69bfd6037d1e39d6fb8a6b` |
 | `_shared/gemini-ranker.ts` | `35e11b3ef97898b7e0bccdc8c273da534a738f210b70feba8d2792e8b608470b` |
@@ -145,30 +155,36 @@ Project-bound readback from `supabase functions list --output json`:
 
 | Function | Version | JWT | Deployment bundle SHA-256 (`ezbr_sha256`) |
 | --- | ---: | --- | --- |
-| `recommend-itinerary` | 1 | required | `f59edfaf59b51b16f5d616ec8a1d9e0a1c27880499ce21df867a485827280995` |
-| `refine-itinerary` | 1 | required | `4f4b5d4123ad3195ff0d18ea766208ebaf093246cf9e05115f95a111d86d4954` |
+| `recommend-itinerary` | 3 | required | `432b9bfbe206c768e9a318c9432c37317d158d69d812c7d0cce1444fde477ecc` |
+| `refine-itinerary` | 3 | required | `5caaaf1bb7caf7745cb23976ab2b951b96a1ff03a65222744bbbc64b20a90738` |
 
 Cloud readback on the independently selected project returned exactly two
 Functions: `recommend-itinerary` and `refine-itinerary`. Both are `ACTIVE`,
-version `1`, and `verify_jwt=true`. Function IDs and project identifiers are
-intentionally omitted from Git. Task 19 must still prove bounded live-provider
-and deterministic-fallback behavior; `ACTIVE` alone is not that evidence.
+version `3`, and `verify_jwt=true`. Version 2 was deployed from a temporary
+38-file allowlist; each Function uploaded exactly 35 pinned assets and no
+`.git`, `.next`, secret, or unrelated project file. Correcting the previously
+mis-serialized quota-HMAC secret produced version 3 without changing source;
+digest readback now matches the encrypted bundle, and both Functions return the
+expected `401` for valid-body missing/invalid-JWT probes. Function IDs and
+project identifiers are intentionally omitted from Git. Task 19 must still
+prove bounded live-provider and deterministic-fallback behavior; `ACTIVE` and
+denial probes alone are not that evidence.
 
 ## Seed and dataset version
 
 | Field | Status |
 | --- | --- |
 | `supabase/seed.sql` | **ABSENT by design at this candidate** |
-| Thesis demo dataset version | **PASS locally — `thesis-demo.v1`, SHA-256 `c2e26f3a24f803e7cbc20d3f777da92eadccf48208ae3271abb5277fb6515b8f`** |
-| Guarded cloud seeder | **PASS — library `80fcd737d35148937aec6b03cf69587e59fa98b0f5c3254b6b302074396007a9`; entrypoint `852f9815ff7f3f222c5c910f628683e7641e680b777839819ed84c59debc0517`** |
-| Cloud seed manifest row | **PASS — one exact `thesis-demo.v1` marker on the selected project** |
+| Thesis demo dataset version | **PASS — `thesis-demo.v2`, SHA-256 `2291c33fcd18762098301dab66c47cb51857903c687d8239b1c3e362ad035314`** |
+| Guarded cloud seeder | **PASS — library `0cec031c47b1d5e352adfad25bd8c86efd0aa858397144fbd48ef717f69a5f5f`; entrypoint `d490babe91bf9c39a2166206133f4b1be3150ebd662bc3ad47fd7185f8d7e41c`** |
+| Cloud seed manifest row | **PASS — one exact `thesis-demo.v2` marker on the selected project** |
 | Cloud demo identities | **PASS — four exact demo identities; credentials remain outside Git and evidence** |
 
 The current research approval/readiness generator remains fail-closed and was
-not bypassed. Task 18 published only the separately labelled synthetic dataset
-through its guarded path. Dry-run was read-only; the first apply created four
-Auth identities and the stable graph; the second apply reused all identities
-and skipped duplicate immutable graph creation.
+not bypassed. The v2 dry-run was read-only; apply followed by a second apply
+reused all four existing Auth identities and finished with an exact graph and
+readback. The allowlisted inventory contains 87 relations including the four
+deterministic QA slots; no reset, truncate, or down migration was used.
 
 ## Browser-safe build variables
 
@@ -196,6 +212,9 @@ Task 18 custom names: `LOCALLENS_QUOTA_HMAC_KEY`, `ALLOWED_ORIGINS`,
 `LOCALLENS_GEMINI_ENABLED=0`; `GEMINI_API_KEY` and the local-only
 `LOCALLENS_GEMINI_TEST_ENDPOINT_BASE` are absent. The temporary origin remains
 `https://localens.invalid` until Task 20 supplies an accepted Vercel origin.
+The quota-HMAC digest now matches the encrypted operator bundle; PowerShell
+`SecureString` values must be converted in-process before invoking the CLI and
+must never be cast directly to text.
 No secret value, digest, database password, or connection URL is recorded here.
 
 ## Toolchain and reproducibility
@@ -210,17 +229,18 @@ No secret value, digest, database password, or connection URL is recorded here.
 | Google Chrome used for local visual/browser acceptance | `152.0.7977.65` |
 | Git | `2.53.0.windows.1` |
 | GitHub CLI | `2.98.0` |
-| `package.json` SHA-256 | `b0fa8e727baca367bb5db046fbb2fb8f7dc9f8436b7e189269de87097d969c46` |
+| `package.json` SHA-256 | `c156d19ac36f6b466f06ade12c9c2cd11fd5613e18b6582e25a6b4c721889c6b` |
 | `pnpm-lock.yaml` SHA-256 | `9e66f87f2587e435593e58966b874b81e1ae4b9a57fe2dd18afbd372471dc4fa` |
-| `.github/workflows/ci.yml` SHA-256 | `fc87d8e952f6ec7bfa489ea779d5c715372b28a5b2b7fef348f9296c005721df` |
+| `.github/workflows/ci.yml` SHA-256 | `75ef9a7e1784639577884fbbf3140eea54f40665df814810c1a90df4f91b3e86` |
 | `supabase/config.toml` SHA-256 | `8d5c1eef1a9c2a08b5c8df683bd9931e17d3b2a454354e9abd2fe7ffd11962db` |
 
 ## Rollback and stop path
 
 This is the first recorded cloud-backend candidate. There is no prior Vercel
 deployment or production URL to restore. The selected Supabase project now has
-Function version 1 and the exact synthetic seed; neither is a web rollback
-target.
+Function version 3 and the exact v2 synthetic seed. Function version 1 is
+historical, but compatibility with the current schema and deployment boundary
+has not been accepted; neither version is a web rollback target.
 
 GitHub contains eight older `staging` deployment records, all with latest state
 `failure` and no environment URL. They are failed workflow records, not a
@@ -233,8 +253,8 @@ Vercel deployment or a rollback target.
 - Frontend stop path: temporarily suspend public access or publish a maintenance
   response through the hosting platform. Do not invent a rollback URL.
 - Function stop path: AI is already disabled. If either Function is unsafe,
-  close access or forward-deploy a reviewed compatible version; there is no
-  earlier accepted cloud Function version to restore.
+  close access or forward-deploy a reviewed compatible version. Do not restore
+  version 1 until compatibility is separately proved.
 - Database rollback: migrations are forward-only. Never run a remote reset or
   destructive down migration. If a release is unsafe, stop traffic and
   forward-fix.
@@ -279,8 +299,8 @@ ran on exact candidate `d5b8ea8`: `quality-demo` passed in 3m15s, Google Chrome
 10m54s. All 31 migration artifacts were included. `staging-smoke` was skipped
 at whole-job level because
 `LOCALLENS_STAGING_URL` is not configured. Its state is **SKIPPED/PENDING**, not
-cloud PASS. Task 19 still requires the bounded live-AI cloud smoke, and Task 22
-separately requires a smoke on the final production URL.
+cloud PASS. Task 19 is accepted through the protected fallback-only AI demo
+smoke; Task 22 separately requires a smoke on the final production URL.
 
 The run emitted a platform deprecation annotation for Node 20-based action
 runtimes while GitHub forced those actions onto Node 24. The product jobs
@@ -315,7 +335,7 @@ The final verification sequence recorded:
 These were the local and CI-ready Task 17 facts. The separate Task 18 cloud
 evidence is recorded below.
 
-## Task 18 Supabase Cloud acceptance
+## Historical Task 18 Supabase Cloud acceptance
 
 At `5bba656`, the CLI boundary accepts only explicit seed selectors `"1"`
 (dry-run) and `"0"` (apply); missing, blank, whitespace-padded, or descriptive
@@ -342,7 +362,7 @@ inside both dynamic owner blocks. Evidence before cloud continuation:
   coverage, then returned PASS after every required restore was removed once
   and proved to fail.
 
-Cloud execution and readback:
+Historical Task 18 cloud execution and readback at `d5b8ea8`:
 
 - exactly one dedicated `localens-thesis-demo` project was selected in the new
   `LocalLens Thesis` organization. It is Free, in Singapore, and
@@ -373,6 +393,10 @@ Cloud execution and readback:
 - no remote reset, truncate, down migration, real payment provider, or live
   Gemini request was used. The presentation Supabase instance on standard local
   ports was not touched.
+
+This 31-migration/version-1/86-relation inventory is intentionally preserved as
+the historical Task 18 snapshot. The current Task 19 prerequisite state is the
+32-migration/version-3/87-relation inventory recorded above and below.
 
 Official references were refreshed on 2026-09-06 before execution:
 [database migrations](https://supabase.com/docs/guides/deployment/database-migrations),
@@ -437,14 +461,15 @@ and exact read-only graph all reconcile without secret disclosure. This record
 meets those conditions at `d5b8ea8` and opens Task 19. It does not claim live
 Gemini, Vercel preview, product QA on cloud, or production deployment.
 
-## Task 19 bounded v2 smoke candidate — PENDING
+## Task 19 bounded v2 smoke — PASS (fallback-only AI demo scope)
 
-Commit `b8e899c` updates the local Task 19 candidate to the versioned
-`thesis-demo.v2` flow. The local migration inventory is now **32 migrations**;
-this is local candidate evidence only. Migration 32, the matching Edge Function
-sources, and the v2 seed have **not** been claimed as deployed to Supabase
-Cloud. No cloud smoke or Gemini provider call is claimed here, and payment
-remains simulated.
+Commit `9c9e0b1` is the current versioned `thesis-demo.v2` Task 19 candidate.
+Cloud preparation is complete: migration 32 is applied with a 32/32 readback
+and up-to-date dry-run, the v2 seed passed dry-run/apply/apply with an exact
+registry graph, and both bounded Function packages are `ACTIVE` at version 3
+with JWT verification enabled. The protected fallback-only cloud smoke passed
+in run `34009993404`; no billed/live Gemini provider call is claimed or needed,
+and payment remains simulated.
 
 The v2 dataset and registry reserve exactly four deterministic slots. `qa-01`
 is the payment flow and carries the recommend operation; `qa-02` is the
@@ -471,23 +496,27 @@ runbook retains the manual hard-cancellation recovery procedure. The live
 response-loss seam deliberately discards a completed primary response before
 permitting one byte-identical replay; only that replay envelope is validated.
 
-Local verification for this documentation update is **44/44** focused smoke
-unit tests and **142/142** remediation tests. Those results validate local code,
-dataset, migration artifacts, RLS inventory, and orchestration only; they are
-not hosted acceptance.
+Local verification is **46/46** focused smoke unit tests, **172/172** supporting
+Supabase/remediation tests, and **259/259** Edge/AI-related tests after the
+bounded deployment fix. Exact candidate CI `34009993404` also passed the three
+required local/fixture jobs and the protected cloud smoke. The cloud smoke
+readback recorded `pre_provider=13`, `evidence=15`, `management=6`,
+`planner=1`, `provider=0`, and `product_mutations=0`; this proves the bounded
+demo fallback path, not a live-provider integration.
 
-G19 remains **PENDING** until all of the following are completed on the exact
-verified cloud target without exposing secrets:
+G19 is **PASS** for the approved demo-only AI scope. The fallback-only run
+verified permissions, cloud readback, replay/attestation boundaries, request
+budgets, kill-switch restoration, device identity, and zero provider attempts.
+The `live-success` workflow remains available as an optional future experiment,
+but is not part of this thesis release and must not be run merely to inflate
+the acceptance count or incur provider usage.
 
-- deploy migration 32 and the matching Function versions, then apply and verify
-  the v2 seed/registry;
-- add `GEMINI_API_KEY` securely and retain the bounded opt-in and kill-switch
-  controls;
-- pass a protected `live-success` cloud run and a separate protected
-  `fallback-only` cloud run, including permissions, readback, replay/attestation
-  counts, request budgets, and kill-switch restoration.
-
-The prior v1 booking-ID and quota-observability blocker text is superseded by
-the local v2 registry and attestation implementation. It does not make G19
-complete and does not state that any v2 migration, Function, seed, Gemini key,
-or smoke result already exists in cloud.
+The prior v1 booking-ID and quota-observability blockers are superseded by the
+deployed v2 registry and attestation implementation. Migration, Function, and
+seed prerequisites are now proven in cloud. The GitHub environment
+`thesis-demo-cloud-smoke` exists with one required reviewer, an exact candidate
+branch policy, five non-secret variables, and six non-Gemini secrets. The
+reviewer is owner `Uyen-Pha` and `prevent_self_review=false`, so this is an
+owner-gated release check rather than independent approval. Supabase access
+credentials remain protected; no Gemini key is needed for the accepted
+fallback-only demo gate.

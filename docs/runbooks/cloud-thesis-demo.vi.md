@@ -2,14 +2,17 @@
 
 ## Mục tiêu hiện tại
 
-Runbook này khóa release candidate backend cloud
-`d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6` trên nhánh công khai
+Runbook này khóa release candidate cloud-smoke
+`9c9e0b128425eb364686fed1e1b065ba7e98a186` trên nhánh công khai
 `codex/task7-clean-typecheck` của
 [Uyen-Pha/localens](https://github.com/Uyen-Pha/localens).
 
-Task 18 đã nghiệm thu một Supabase Cloud project riêng cho đồ án: migration,
-Auth, Edge Functions, secret/config và dataset tổng hợp đều có readback. Gemini
-thật vẫn tắt; chưa có Vercel preview hoặc production URL được nghiệm thu.
+Task 18 đã nghiệm thu một Supabase Cloud project riêng cho đồ án. Các điều kiện
+tiên quyết phía Supabase của Task 19 hiện đã sẵn sàng: 32/32 migration, Auth, hai
+Edge Function version 3, secret/config và dataset tổng hợp `thesis-demo.v2` đều
+có readback. AI cloud đã được nghiệm thu ở chế độ fallback demo; không cần gọi
+Gemini thật hoặc lưu key nhà cung cấp. Chưa có Vercel preview hoặc production
+URL được nghiệm thu.
 Thanh toán luôn là mô phỏng; không cấu hình cổng thanh toán hoặc thu thập số thẻ.
 
 ## Ranh giới an toàn bắt buộc
@@ -36,13 +39,13 @@ Thanh toán luôn là mô phỏng; không cấu hình cổng thanh toán hoặc 
 
 | Thành phần | Giá trị |
 | --- | --- |
-| Candidate SHA | `d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6` |
+| Candidate SHA | `9c9e0b128425eb364686fed1e1b065ba7e98a186` |
 | Task 17 seed product SHA | `caeb182acceb9a3c5b4604500de7a5b732925de2` |
 | Task 17 acceptance SHA | `f476e83c40c1b8ee65df696f6a1fd9e7654332ba` |
 | Task 18 cloud-guard SHA | `5bba6564e80bb3abf259409c475d2f81e000a4b3` |
 | Task 18 hosted-migration SHA | `d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6` |
-| Migration head | `20260905140000_thesis_demo_manifest.sql` |
-| Public CI | [Run 33983849459](https://github.com/Uyen-Pha/localens/actions/runs/33983849459) — PASS |
+| Migration head | `20260905150000_thesis_demo_qa_slots.sql` |
+| Public CI | [Run 34009993404](https://github.com/Uyen-Pha/localens/actions/runs/34009993404) — PASS |
 | Trình duyệt nghiệm thu | Google Chrome `152.0.7977.65` |
 
 Manifest checksum đầy đủ nằm trong
@@ -50,18 +53,19 @@ Manifest checksum đầy đủ nằm trong
 
 ## Kiểm tra trước mỗi phiên làm cloud
 
-Chạy các lệnh đọc-only sau từ đúng checkout. Nếu SHA hoặc nhánh khác, dừng và
-cập nhật candidate thay vì dùng bằng chứng cũ.
+Chạy các lệnh đọc-only sau từ đúng checkout. `9c9e0b1` là implementation
+candidate đã có CI; HEAD có thể chứa commit chỉ sửa release evidence sau đó.
+Nếu phần code/workflow/seed khác candidate, dừng và tạo candidate cùng CI mới.
 
 ```powershell
 git rev-parse --abbrev-ref HEAD
 git rev-parse HEAD
 git status --short
 git rev-parse origin/codex/task7-clean-typecheck
-git merge-base --is-ancestor d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6 HEAD
-git diff --name-only d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6..HEAD
+git merge-base --is-ancestor 9c9e0b128425eb364686fed1e1b065ba7e98a186 HEAD
+git diff --name-only 9c9e0b128425eb364686fed1e1b065ba7e98a186..HEAD
 gh repo view Uyen-Pha/localens --json nameWithOwner,visibility,url,defaultBranchRef
-gh run view 33983849459 --json status,conclusion,headSha,url,jobs
+gh run view 34009993404 --json status,conclusion,headSha,url,jobs
 corepack.cmd pnpm --version
 corepack.cmd pnpm exec supabase --version
 ```
@@ -69,10 +73,11 @@ corepack.cmd pnpm exec supabase --version
 Kỳ vọng trước mọi mutation cloud tiếp theo:
 
 - nhánh `codex/task7-clean-typecheck`;
-- local HEAD và remote branch cùng SHA; candidate `d5b8ea8` là ancestor, và
+- local HEAD và remote branch cùng SHA; candidate `9c9e0b1` là ancestor, và
   các commit sau candidate chỉ được đổi tài liệu release đã review;
 - repo `PUBLIC`;
-- CI `success` trên đúng head;
+- CI `success` trên đúng implementation candidate `9c9e0b1`; nếu bất kỳ code,
+  workflow, seed hoặc smoke runner nào đổi thì phải chạy CI trên candidate mới;
 - pnpm `10.17.1`, Supabase CLI `2.115.0`;
 - dirty baseline chỉ gồm các path được liệt kê trong release ledger cộng với
   thay đổi của task đang thực hiện.
@@ -85,13 +90,15 @@ theo cơ chế tạm thời của từng lệnh commit.
 Sau mỗi gate, cập nhật `docs/acceptance/thesis-demo-release.md` bằng trạng thái
 thật và bằng chứng thật:
 
+Tiến độ tổng hiện tại: **19/22 — 86%**. Task 20 vẫn đang thực hiện.
+
 | Lớp | Trạng thái hiện tại | Điều kiện để đổi sang PASS |
 | --- | --- | --- |
 | Fixture demo | PASS | Giữ Chrome E2E xanh trên candidate mới. |
 | Local runtime | PASS | Giữ DB/RLS/concurrency/auth/AI-contract/fixed-tour/guide xanh trên candidate mới. |
-| Public CI | PASS | Tất cả job bắt buộc xanh trên đúng HEAD. |
-| Supabase Cloud | PASS | G18: 31/31 migration, 2 Function v1/JWT, Auth khóa signup công khai, 4 custom secret/config và seed graph exact. |
-| Live AI smoke | PENDING | G19 có request Gemini thật giới hạn, fallback và quyền/readback. |
+| Public CI | PASS | Tất cả job bắt buộc xanh trên đúng implementation candidate. |
+| Supabase Cloud | PASS | G18 và điều kiện G19: 32/32 migration, 2 Function v3/JWT, Auth khóa signup công khai, quota-HMAC đúng và seed graph `thesis-demo.v2` exact. |
+| AI demo cloud smoke | PASS | G19 fallback-only đã pass; `provider=0`, không gọi Gemini thật. |
 | Vercel preview | PENDING | G20 có deployment ID, URL và Chrome browser-origin acceptance. |
 | Product QA cloud | PENDING | G21 hoàn thành 20 kịch bản và bằng chứng UX. |
 | Production | PENDING | G22 có URL cuối, rollback rehearsal và owner sign-off. |
@@ -125,8 +132,8 @@ dữ liệu/hành vi fixture ở browser.
 | `SUPABASE_SERVICE_ROLE_KEY` | Secret store only; không đưa ra browser. |
 | `LOCALLENS_QUOTA_HMAC_KEY` | Secret riêng, đủ entropy, không tái sử dụng mật khẩu. |
 | `ALLOWED_ORIGINS` | Danh sách origin HTTPS tường minh; tối đa theo validator hiện tại. |
-| `LOCALLENS_GEMINI_ENABLED` | `0` để tắt AI, `1` để bật AI thật khi đã có key. |
-| `GEMINI_API_KEY` | Chỉ bắt buộc khi AI bật; chủ dự án cấp qua secret store. |
+| `LOCALLENS_GEMINI_ENABLED` | `0` là cấu hình release demo; fallback deterministic là đường chạy được nghiệm thu. |
+| `GEMINI_API_KEY` | Không cần cho release thesis-demo fallback; không nhập key chỉ để chạy lại gate. |
 | `GEMINI_MODEL` | Nếu đặt, phải đúng `gemini-3.6-flash`. |
 
 `LOCALLENS_GEMINI_TEST_ENDPOINT_BASE` chỉ dùng cho local acceptance. Không đặt
@@ -139,8 +146,8 @@ biến này trên Supabase Cloud.
 1. Xác minh remote/owner/visibility và quét secret trên toàn history sẽ public.
 2. Đối chiếu CI với candidate; giữ local quality, Chrome demo và isolated
    runtime.
-3. Staging smoke thiếu URL phải ở trạng thái PENDING/SKIPPED rõ ràng; G19 vẫn
-   yêu cầu bounded live-AI cloud smoke và G22 yêu cầu smoke riêng trên URL
+3. Staging smoke thiếu URL phải ở trạng thái PENDING/SKIPPED rõ ràng; G19 đã
+   pass ở phạm vi AI demo fallback và G22 vẫn yêu cầu smoke riêng trên URL
    production cuối.
 4. Nếu workflow hoặc code thay đổi, tạo candidate SHA mới và chạy CI lại.
 
@@ -176,7 +183,7 @@ corepack.cmd pnpm exec supabase db push --linked --dry-run --skip-vault
 
 Không chạy `db reset --linked`.
 
-Kết quả G18 ghi nhận ngày 2026-09-06:
+Kết quả G18 và phần chuẩn bị cloud của G19 ghi nhận ngày 2026-09-06:
 
 - tài khoản có đúng một project `localens-thesis-demo`, gói Free, vùng
   Singapore và trạng thái `ACTIVE_HEALTHY`; project ref/organization ID không
@@ -188,29 +195,37 @@ Kết quả G18 ghi nhận ngày 2026-09-06:
   4 đã tồn tại và history còn thiếu, operator mới dùng `migration repair
   --status applied` cho đúng một version theo tài liệu Supabase; 27 migration
   còn lại được push forward-only;
-- readback cuối có 31 version local/remote và `db push --dry-run --skip-vault`
+- readback cuối có 32 version local/remote và `db push --dry-run --skip-vault`
   trả về up-to-date;
-- `recommend-itinerary` và `refine-itinerary` đều `ACTIVE`, version `1`,
+- `recommend-itinerary` và `refine-itinerary` đều `ACTIVE`, version `3`,
   `verify_jwt=true`;
 - bốn custom secret/config đã đặt là `ALLOWED_ORIGINS`, `GEMINI_MODEL`,
   `LOCALLENS_GEMINI_ENABLED`, `LOCALLENS_QUOTA_HMAC_KEY`; Gemini đang tắt và
   `GEMINI_API_KEY` chưa tồn tại;
 - Email provider vẫn bật, confirm-email bật; public signup, anonymous sign-in
   và manual linking đều tắt theo dashboard readback;
-- seed chạy `dry-run -> apply -> apply` trên kết nối TLS được xác thực. Lượt đầu
-  tạo bốn Auth identity, lượt hai tái sử dụng cả bốn; postcondition là 4 account,
+- seed v2 chạy `dry-run -> apply -> apply` trên kết nối TLS được xác thực. Cả
+  hai lượt apply tái sử dụng bốn Auth identity; postcondition là 4 account,
   4 role row thuộc 3 role category, 12 place, 3 tour, 5 departure, 2 booking,
-  1 assignment, 1 marker, 86 relation, 0 unclassified row, graph `exact`;
+  1 assignment, 1 marker, 87 relation gồm 4 QA slot, 0 unclassified row, graph
+  `exact`;
+- mỗi Function được deploy từ allowlist tạm đúng 38 file, upload 35 asset đã
+  ghim và không chứa `.git`, `.next`, secret hay file dự án không liên quan;
+- digest quota-HMAC hiện khớp bundle mã hóa. Không cast trực tiếp PowerShell
+  `SecureString` thành text; phải chuyển in-process và không bao giờ in giá trị;
+- probe valid-body thiếu/sai JWT trên cả hai Function đều trả `401`; các probe
+  này không dùng QA slot, quota AI hay tạo mutation sản phẩm;
 - không có reset/truncate/down migration; Supabase local trình chiếu trên cổng
   chuẩn không bị chạm. Thanh toán vẫn chỉ là dữ liệu mô phỏng.
 
-### Task 19 — Cloud smoke giới hạn
+### Task 19 — Cloud smoke giới hạn — PASS (AI demo fallback)
 
-**Trạng thái: PENDING.** Candidate cục bộ tại `b8e899c` đã chuyển runner sang
-`thesis-demo.v2`. Inventory hiện có **32 migration ở local**, nhưng migration 32,
-Function tương ứng và seed v2 chưa được ghi nhận là đã cập nhật trên cloud.
-Chưa có kết quả `live-success` hoặc `fallback-only` cloud và chưa có claim về
-request Gemini thật. Thanh toán vẫn hoàn toàn mô phỏng.
+**Trạng thái: PASS cho phạm vi AI demo fallback.** Candidate `9c9e0b1` đã
+chuyển runner sang `thesis-demo.v2`; migration 32, hai Function version 3 và
+seed v2 đã được cập nhật/readback trên đúng cloud target. Run `34009993404`
+đã pass `fallback-only` với `provider=0`; không có claim hoặc yêu cầu về
+request Gemini thật.
+Thanh toán vẫn hoàn toàn mô phỏng.
 
 Registry v2 giữ đúng bốn slot deterministic `qa-01` đến `qa-04`: `qa-01` dành
 cho payment và gắn recommend operation; `qa-02` dành cho cancellation và gắn
@@ -240,10 +255,12 @@ phép đúng một replay byte-identical; chỉ envelope replay mới được k
 Runner vẫn không seed/reset/link/deploy, không theo redirect và không in token,
 secret hoặc response thô.
 
-Bằng chứng local hiện tại gồm **44/44** focused smoke unit test và **142/142**
-remediation test cho seed/artifact/RLS. Đây chỉ là bằng chứng code, dataset,
-migration và orchestration ở local; không phải bằng chứng migration 32 đã deploy
-hoặc cloud acceptance.
+Bằng chứng local hiện tại gồm **46/46** focused smoke unit test, **172/172**
+supporting Supabase/remediation test và **259/259** Edge/AI-related test sau bản
+sửa deployment boundary. Public CI `34009993404` PASS trên đúng candidate và
+protected cloud smoke ghi nhận `pre_provider=13`, `evidence=15`,
+`management=6`, `planner=1`, `provider=0`, `product_mutations=0`.
+Đây là bằng chứng cloud fallback demo, không phải live-provider integration.
 
 Nếu workflow bị hard-cancel, runner hoặc máy bị kill khiến `finally` không thể
 chạy, người giữ protected environment phải phục hồi thủ công trước mọi lần chạy
@@ -261,25 +278,27 @@ GitHub job `thesis-demo-cloud-smoke` chỉ xuất hiện trên `workflow_dispatc
 protected environment cùng tên, concurrency group cố định và
 `cancel-in-progress: false`. Trước khi cho phép job chạy, repository owner phải:
 
-1. cấu hình required reviewer và deployment branch/tag rules cho environment;
+1. environment hiện dùng reviewer owner `Uyen-Pha`,
+   `prevent_self_review=false` và branch policy đúng candidate; đây là gate do
+   owner xác nhận, không phải review độc lập;
 2. đặt `LOCALLENS_THESIS_DEMO_RELEASE_REFS` thành danh sách chính xác các
    `refs/heads/...`, `refs/tags/...` hoặc SHA được duyệt, phân tách bằng dấu phẩy
    hoặc dòng mới; candidate branch không được tự động tin chỉ vì không phải
    default branch;
-3. đặt environment variables cho URL, project ref, organization ID và allowed
-   origin; đặt publishable key, service-role key, access token và bốn mật khẩu
-   vào environment secrets;
-4. sau khi migration 32, Function và seed v2 đã được cập nhật/readback trên
-   cloud, thêm `GEMINI_API_KEY` qua secret store an toàn rồi nhập đúng
-   confirmation theo mode. Secret chỉ được đưa vào env của đúng bước smoke,
-   không ở job-level và không được ghi ra log.
+3. environment `thesis-demo-cloud-smoke` hiện đã có required reviewer, branch
+   policy đúng candidate, năm biến URL/project/release-ref/origin và sáu secret
+   publishable/service-role/bốn mật khẩu; `SUPABASE_ACCESS_TOKEN` được dùng
+   trong bước smoke bảo vệ;
+4. không cần thêm `GEMINI_API_KEY` cho release fallback-only. Nếu chạy
+   `live-success` trong tương lai, đó là thí nghiệm riêng phải được phê duyệt
+   và không thuộc acceptance của thesis-demo này.
 
 Push/PR thông thường không chạy staging hoặc cloud smoke, không nhận cloud
-secret và không tiêu quota AI. G19 chỉ đổi sang PASS sau khi migration 32,
-Function và seed v2 đã được cập nhật trên exact cloud target, Gemini key đã được
-thêm an toàn, và cả hai run protected `live-success` và `fallback-only` đều
-PASS với đủ evidence replay/attestation, permission, readback, request budget và
-khôi phục kill switch. Local GREEN không phải cloud acceptance.
+secret và không tiêu quota AI. Migration 32, Function, seed v2 và cấu hình
+protected environment đã được chứng minh; G19 đã đổi sang PASS sau run
+protected `fallback-only` với đủ evidence replay/attestation, permission,
+readback, request budget, device identity và khôi phục kill switch. Local GREEN
+không phải cloud acceptance.
 
 ### Task 20 — Vercel preview
 
