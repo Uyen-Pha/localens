@@ -880,6 +880,15 @@ describe("bounded thesis-demo cloud smoke", () => {
     expect(harness.killSwitchEvents.slice(-2)).toEqual(["set:true", "read:true"]);
   });
 
+  it("logs only the failing gate and transport marker when a dependency request throws", async () => {
+    const harness = createHarness({ failGate: "planner.fallback" });
+
+    await captureCode(runThesisDemoSmoke(fallbackOptions(), harness.dependencies));
+
+    expect(harness.logs).toContain("gate=planner.fallback status=transport-failed");
+    expect(harness.logs.join("\n")).not.toContain(SERVICE_ROLE_KEY);
+  });
+
   it("proves bounded live replay, user readback, locked refinement, and finite fixed-tour flow", async () => {
     const harness = createHarness();
 

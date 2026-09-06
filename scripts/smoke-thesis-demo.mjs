@@ -224,9 +224,13 @@ function makeState(options, dependencies) {
     try {
       response = await dependencies.request(spec);
     } catch {
+      log(`gate=${String(spec?.gate ?? "unknown")} status=transport-failed`);
       fail("SMOKE_HTTP_FAILED");
     }
-    if (!Number.isInteger(response?.status)) fail("SMOKE_HTTP_FAILED");
+    if (!Number.isInteger(response?.status)) {
+      log(`gate=${String(spec?.gate ?? "unknown")} status=invalid-response`);
+      fail("SMOKE_HTTP_FAILED");
+    }
     if (response.status >= 300 && response.status < 400) {
       const location = headerValue(response.headers, "location");
       if (!nonEmpty(location)) fail("SMOKE_REDIRECT_UNEXPECTED");
