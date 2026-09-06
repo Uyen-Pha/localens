@@ -437,44 +437,57 @@ and exact read-only graph all reconcile without secret disclosure. This record
 meets those conditions at `d5b8ea8` and opens Task 19. It does not claim live
 Gemini, Vercel preview, product QA on cloud, or production deployment.
 
-## Task 19 bounded-smoke scaffold — PENDING
+## Task 19 bounded v2 smoke candidate — PENDING
 
-The Task 19 candidate adds a fail-closed runner, focused orchestration tests,
-and a separate protected GitHub Actions job. No cloud command or provider call
-was run while producing this scaffold. Ordinary push and pull-request CI cannot
-receive its environment secrets or spend AI quota; the cloud job is
-`workflow_dispatch`-only, serialized with `cancel-in-progress: false`, and
-requires the current ref or SHA to be listed explicitly by the protected
-`LOCALLENS_THESIS_DEMO_RELEASE_REFS` environment variable.
+Commit `b8e899c` updates the local Task 19 candidate to the versioned
+`thesis-demo.v2` flow. The local migration inventory is now **32 migrations**;
+this is local candidate evidence only. Migration 32, the matching Edge Function
+sources, and the v2 seed have **not** been claimed as deployed to Supabase
+Cloud. No cloud smoke or Gemini provider call is claimed here, and payment
+remains simulated.
 
-The focused tests execute exported runner behavior through injected HTTP,
-operation-attestation, exact two-slot inspection, explicit post-commit
-response-loss, logging, and kill-switch seams. They cover local preflight
-refusal, mode-specific confirmation, cross-host redirect refusal, secret
-redaction, seven denial probes, byte-identical same-operation replay, two
-bounded provider-eligible operations, two owner revision readbacks using the
-adapter's canonical `itemId = place_id`, all five attestation deltas, and 11
-fixed-tour mutations. Payment/replay uses `qa-01`; cancellation/replay uses
-`qa-02`, so one booking is never both paid and cancelled. Fallback runs
-independently with the finite `qa-03` run ID, no provider attempt, no live
-slot/quota preflight, and restoration/readback in `finally` while the process
-remains alive. The runbook records manual recovery for hard cancellation.
-These are deterministic unit proofs, not hosted acceptance.
+The v2 dataset and registry reserve exactly four deterministic slots. `qa-01`
+is the payment flow and carries the recommend operation; `qa-02` is the
+cancellation flow and carries the refine operation; `qa-03` is the isolated
+fallback-only slot; `qa-04` remains the fourth reserved spare. The payment and
+cancellation paths therefore use separate bookings, and no real payment
+provider is introduced.
 
-G19 remains **PENDING** for two fail-closed blockers:
+For `live-success`, the runner first verifies the exact Management API target
+and authenticates the four demo accounts. Before any provider-eligible request,
+it then calls `/database/query/read-only` and requires an exact four-row registry
+match, the v2 manifest marker, the selected project, the QA owner, and that
+owner's customer role. The assignment is fixed: `qa-01` supplies the recommend
+operation and `qa-02` supplies the refine operation. Around both operations,
+service-role calls to `get_runtime_planner_operation` attest the operation,
+planner reservation, Gemini reservation, recommendation-run, and
+provider-attempt counts so same-operation replay is counted from persisted
+evidence rather than inferred from endpoint responses. `fallback-only` uses
+`qa-03`; before/after persisted attestation requires exactly zero Gemini
+reservation and zero provider attempt. Its six Management API secret reads or
+writes pass through the counted HTTP boundary, including kill-switch
+restoration and readback in `finally` while the process remains alive; the
+runbook retains the manual hard-cancellation recovery procedure. The live
+response-loss seam deliberately discards a completed primary response before
+permitting one byte-identical replay; only that replay envelope is validated.
 
-- `SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN`: the current
-  `begin_fixed_tour_booking` contract generates a random booking ID, while
-  `thesis-demo.v1` and its inventory allowlist predeclare only four QA booking
-  IDs. The real environment adapter refuses before HTTP rather than create an
-  unclassified row or fake reusable-slot proof.
-- `SMOKE_QUOTA_REPLAY_UNPROVEN`: the service-role operation RPC can prove the
-  completed plan and revision, but the existing boundary cannot directly prove
-  that same-operation response-loss replay consumed only one planner/Gemini
-  quota receipt. The real adapter therefore exposes no quota-evidence seam.
+Local verification for this documentation update is **44/44** focused smoke
+unit tests and **142/142** remediation tests. Those results validate local code,
+dataset, migration artifacts, RLS inventory, and orchestration only; they are
+not hosted acceptance.
 
-No migration, dataset v2, diagnostic endpoint, direct cloud SQL, real payment
-provider, or live Gemini run is included. G19 may pass only after a separately
-reviewed remediation resolves both blockers and a protected exact-candidate run
-proves live success, fallback-only restoration, permissions, readback, and
-request budgets without exposing secrets.
+G19 remains **PENDING** until all of the following are completed on the exact
+verified cloud target without exposing secrets:
+
+- deploy migration 32 and the matching Function versions, then apply and verify
+  the v2 seed/registry;
+- add `GEMINI_API_KEY` securely and retain the bounded opt-in and kill-switch
+  controls;
+- pass a protected `live-success` cloud run and a separate protected
+  `fallback-only` cloud run, including permissions, readback, replay/attestation
+  counts, request budgets, and kill-switch restoration.
+
+The prior v1 booking-ID and quota-observability blocker text is superseded by
+the local v2 registry and attestation implementation. It does not make G19
+complete and does not state that any v2 migration, Function, seed, Gemini key,
+or smoke result already exists in cloud.

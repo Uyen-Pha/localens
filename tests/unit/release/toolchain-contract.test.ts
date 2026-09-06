@@ -111,8 +111,14 @@ describe("release toolchain contract", () => {
       "demo-e2e",
       "runtime-local",
     ]);
-    expect(jobs["staging-smoke"]?.env?.LOCALLENS_STAGING_URL).toBe("${{ vars.LOCALLENS_STAGING_URL }}");
-    expect(jobs["staging-smoke"]?.if).toBe("${{ vars.LOCALLENS_STAGING_URL != '' }}");
+    expect(jobs["staging-smoke"]?.env?.LOCALLENS_STAGING_URL).toBeUndefined();
+    const stagingTargetStep = jobs["staging-smoke"]?.steps?.find(
+      (step) => step.name === "Validate protected HTTPS target",
+    );
+    expect(stagingTargetStep?.env?.LOCALLENS_STAGING_URL).toBe("${{ vars.LOCALLENS_STAGING_URL }}");
+    expect(jobs["staging-smoke"]?.if).toBe(
+      "${{ github.event_name == 'workflow_dispatch' && vars.LOCALLENS_STAGING_URL != '' }}",
+    );
 
     const everyRun = Object.values(jobs).flatMap(runs).join("\n");
     expect(everyRun.split("\n").map((line) => line.trim())).not.toContain("pnpm build");

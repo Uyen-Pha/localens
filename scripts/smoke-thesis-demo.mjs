@@ -12,6 +12,7 @@ const EXPECTED_PROJECT_NAME = "localens-thesis-demo";
 const MANAGEMENT_ORIGIN = "https://api.supabase.com";
 const MAX_PRE_PROVIDER_HTTP = 20;
 const MAX_EVIDENCE_HTTP = 20;
+const MAX_MANAGEMENT_HTTP = 6;
 const MAX_PLANNER_INVOCATIONS = 4;
 const MAX_PROVIDER_ELIGIBLE_ATTEMPTS = 2;
 const MAX_PRODUCT_MUTATIONS = 11;
@@ -178,6 +179,7 @@ function makeState(options, dependencies) {
     denialProbes: 0,
     preProviderHttpRequests: 0,
     evidenceHttpRequests: 0,
+    managementHttpRequests: 0,
     productMutationRequests: 0,
   };
   const gates = [];
@@ -199,6 +201,10 @@ function makeState(options, dependencies) {
     if (accounting.evidence === true) {
       counts.evidenceHttpRequests += 1;
       if (counts.evidenceHttpRequests > MAX_EVIDENCE_HTTP) fail("SMOKE_EVIDENCE_HTTP_BUDGET_EXCEEDED");
+    }
+    if (accounting.management === true) {
+      counts.managementHttpRequests += 1;
+      if (counts.managementHttpRequests > MAX_MANAGEMENT_HTTP) fail("SMOKE_MANAGEMENT_HTTP_BUDGET_EXCEEDED");
     }
     if (accounting.planner === true) {
       counts.plannerEndpointInvocations += 1;
@@ -569,27 +575,26 @@ async function plannerResponseLossReplay(options, dependencies, sessions, state,
   operationId,
 }) {
   const networkSpec = plannerNetworkRequest(options, sessions, { functionName, body });
-  const primaryResponse = await state.request({ gate: `planner.${kind}.primary`, ...networkSpec }, {
-    planner: true,
-    providerOperation: operationId,
-  });
-  requireStatus(primaryResponse, 200);
-  validatePlannerResponse(primaryResponse, {
-    revision: kind === "recommend" ? 1 : 2,
-    rankingSource: primaryResponse.json?.degraded === true ? "deterministic" : "ai",
-  });
-
   const requestIdentity = networkRequestIdentity(networkSpec);
   let authorization;
   try {
-    authorization = await dependencies.postCommitResponseLoss.authorizeReplay({
+    authorization = await dependencies.postCommitResponseLoss.invokeAndLoseResponse({
       operationId,
       requestIdentity,
+      send: async () => {
+        const response = await state.request({ gate: `planner.${kind}.primary`, ...networkSpec }, {
+          planner: true,
+          providerOperation: operationId,
+        });
+        requireStatus(response, 200);
+        return response;
+      },
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof ThesisDemoSmokeError) throw error;
     fail("SMOKE_RESPONSE_LOSS_REPLAY_UNAUTHORIZED");
   }
-  if (authorization?.replay !== true || authorization.requestIdentity !== requestIdentity) {
+  if (authorization?.responseLost !== true || authorization.requestIdentity !== requestIdentity) {
     fail("SMOKE_RESPONSE_LOSS_REPLAY_UNAUTHORIZED");
   }
 
@@ -665,6 +670,20 @@ function attestationDelta(before, after) {
   if (ATTESTATION_COUNT_FIELDS.some((field) => deltas[field] !== 1)) {
     fail("SMOKE_QUOTA_REPLAY_UNPROVEN");
   }
+  return deltas;
+}
+
+function fallbackAttestationDelta(before, after) {
+  const deltas = Object.fromEntries(
+    ATTESTATION_COUNT_FIELDS.map((field) => [field, after[field] - before[field]]),
+  );
+  if (
+    deltas.operationCount !== 1
+    || deltas.plannerReservationCount !== 1
+    || deltas.geminiReservationCount !== 0
+    || deltas.recommendationRunCount !== 1
+  ) fail("SMOKE_FALLBACK_UNPROVEN");
+  if (deltas.providerAttemptedCount !== 0) fail("SMOKE_FALLBACK_PROVIDER_ATTEMPTED");
   return deltas;
 }
 
@@ -956,28 +975,99 @@ async function runFixedTour(options, sessions, state, {
   state.pass("fixed-tour-simulated-payment");
 }
 
+function managementSecrets(response, code) {
+  requireStatus(response, 200, code);
+  if (!Array.isArray(response.json)) fail(code);
+  return response.json;
+}
+
+function managedKillSwitchValue(rows) {
+  const row = rows.find((entry) => entry?.name === "LOCALLENS_GEMINI_ENABLED");
+  const value = row?.value;
+  if (value === "1" || value === digest("1")) return true;
+  if (value === "0" || value === digest("0")) return false;
+  fail("SMOKE_KILL_SWITCH_UNAVAILABLE");
+}
+
+async function buildKillSwitchRequest(options, builder, input, { method, code }) {
+  let spec;
+  try {
+    spec = await builder(input);
+  } catch {
+    fail(code);
+  }
+  const endpoint = `${MANAGEMENT_ORIGIN}/v1/projects/${encodeURIComponent(options.target.projectRef)}/secrets`;
+  if (spec?.gate !== input.gate || spec?.url !== endpoint || spec?.method !== method) fail(code);
+  return spec;
+}
+
+async function readManagedKillSwitch(options, killSwitch, state, gate, { preProvider = false } = {}) {
+  const spec = await buildKillSwitchRequest(options, killSwitch.readRequest, { gate }, {
+    method: "GET",
+    code: "SMOKE_KILL_SWITCH_UNAVAILABLE",
+  });
+  const response = await state.request(spec, { evidence: true, management: true, preProvider });
+  return managedKillSwitchValue(managementSecrets(response, "SMOKE_KILL_SWITCH_UNAVAILABLE"));
+}
+
+async function hasManagedSecret(options, killSwitch, state, name, gate, { preProvider = false } = {}) {
+  const spec = await buildKillSwitchRequest(options, killSwitch.secretRequest, { gate, name }, {
+    method: "GET",
+    code: "SMOKE_KILL_SWITCH_UNAVAILABLE",
+  });
+  const response = await state.request(spec, { evidence: true, management: true, preProvider });
+  return managementSecrets(response, "SMOKE_KILL_SWITCH_UNAVAILABLE").some((row) => row?.name === name);
+}
+
+async function setManagedKillSwitch(options, killSwitch, state, enabled, gate, { preProvider = false } = {}) {
+  const spec = await buildKillSwitchRequest(options, killSwitch.setRequest, { gate, enabled }, {
+    method: "POST",
+    code: "SMOKE_KILL_SWITCH_TRANSITION_FAILED",
+  });
+  let body;
+  try {
+    body = JSON.parse(spec.body);
+  } catch {
+    fail("SMOKE_KILL_SWITCH_TRANSITION_FAILED");
+  }
+  if (
+    !Array.isArray(body)
+    || body.length !== 1
+    || body[0]?.name !== "LOCALLENS_GEMINI_ENABLED"
+    || body[0]?.value !== (enabled ? "1" : "0")
+  ) fail("SMOKE_KILL_SWITCH_TRANSITION_FAILED");
+  const response = await state.request(spec, { evidence: true, management: true, preProvider });
+  requireStatus(response, [200, 201], "SMOKE_KILL_SWITCH_TRANSITION_FAILED");
+}
+
 async function runFallback(options, dependencies, sessions, state) {
   const killSwitch = dependencies.killSwitch;
-  if (
-    killSwitch === undefined
-    || !(killSwitch.read instanceof Function)
-    || !(killSwitch.set instanceof Function)
-    || !(killSwitch.hasSecret instanceof Function)
-  ) fail("SMOKE_KILL_SWITCH_UNAVAILABLE");
 
   let prior;
   let primaryError;
   try {
-    prior = await killSwitch.read();
+    prior = await readManagedKillSwitch(options, killSwitch, state, "management.kill-switch.prior.read", { preProvider: true });
     if (typeof prior !== "boolean") fail("SMOKE_KILL_SWITCH_UNAVAILABLE");
-    if (!(await killSwitch.hasSecret("GEMINI_API_KEY"))) fail("SMOKE_GEMINI_KEY_MISSING");
-    await killSwitch.set(false);
-    if (await killSwitch.read() !== false) fail("SMOKE_KILL_SWITCH_TRANSITION_FAILED");
+    if (!(await hasManagedSecret(options, killSwitch, state, "GEMINI_API_KEY", "management.kill-switch.key.secret", { preProvider: true }))) {
+      fail("SMOKE_GEMINI_KEY_MISSING");
+    }
+    await setManagedKillSwitch(options, killSwitch, state, false, "management.kill-switch.disable.set", { preProvider: true });
+    if (await readManagedKillSwitch(options, killSwitch, state, "management.kill-switch.disabled.read", { preProvider: true }) !== false) {
+      fail("SMOKE_KILL_SWITCH_TRANSITION_FAILED");
+    }
 
     const fallbackSlot = QA_SLOTS.get("qa-03");
     if (fallbackSlot === undefined) fail("SMOKE_QA_SLOT_UNSAFE");
     const operationId = fallbackSlot.recommendOperationId;
-    const body = JSON.stringify({ operationId, input: plannerInput() });
+    const input = plannerInput();
+    const requestDigest = await computePlannerOperationDigest("recommend", input);
+    const beforeFallback = await readOperationAttestation(options, dependencies, sessions, state, {
+      kind: "fallback",
+      phase: "before",
+      operationId,
+      requestDigest,
+    });
+    const body = JSON.stringify({ operationId, input });
     const response = await plannerCall(options, sessions, state, {
       gate: "planner.fallback",
       functionName: "recommend-itinerary",
@@ -985,16 +1075,28 @@ async function runFallback(options, dependencies, sessions, state) {
       operationId,
       providerEligible: false,
     });
-    validatePlannerResponse(response, { revision: 1, rankingSource: "deterministic" });
-    if (response.json.degraded !== true) fail("SMOKE_FALLBACK_UNPROVEN");
+    const fallback = validatePlannerResponse(response, { revision: 1, rankingSource: "deterministic" });
+    if (fallback.degraded !== true) fail("SMOKE_FALLBACK_UNPROVEN");
+    const afterFallback = await readOperationAttestation(options, dependencies, sessions, state, {
+      kind: "fallback",
+      phase: "after",
+      operationId,
+      requestDigest,
+      planId: fallback.planId,
+      revision: 1,
+    });
+    const delta = fallbackAttestationDelta(beforeFallback, afterFallback);
+    state.setAttestedProviderAttempts(delta.providerAttemptedCount);
     state.pass("fallback");
   } catch (error) {
     primaryError = error;
   } finally {
     if (typeof prior === "boolean") {
       try {
-        await killSwitch.set(prior);
-        if (await killSwitch.read() !== prior) fail("SMOKE_KILL_SWITCH_RESTORE_FAILED");
+        await setManagedKillSwitch(options, killSwitch, state, prior, "management.kill-switch.restore.set");
+        if (await readManagedKillSwitch(options, killSwitch, state, "management.kill-switch.restored.read") !== prior) {
+          fail("SMOKE_KILL_SWITCH_RESTORE_FAILED");
+        }
       } catch {
         fail("SMOKE_KILL_SWITCH_RESTORE_FAILED");
       }
@@ -1006,15 +1108,25 @@ async function runFallback(options, dependencies, sessions, state) {
 async function preflightLive(dependencies) {
   if (!(dependencies.qaSlotInspectionRequest instanceof Function)) fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
   if (!(dependencies.quotaAttestationRequest instanceof Function)) fail("SMOKE_QUOTA_REPLAY_UNPROVEN");
-  if (!(dependencies.postCommitResponseLoss?.authorizeReplay instanceof Function)) {
+  if (!(dependencies.postCommitResponseLoss?.invokeAndLoseResponse instanceof Function)) {
     fail("SMOKE_RESPONSE_LOSS_SEAM_UNAVAILABLE");
   }
+}
+
+async function preflightFallback(dependencies) {
+  if (!(dependencies.quotaAttestationRequest instanceof Function)) fail("SMOKE_QUOTA_REPLAY_UNPROVEN");
+  if (
+    !(dependencies.killSwitch?.readRequest instanceof Function)
+    || !(dependencies.killSwitch?.secretRequest instanceof Function)
+    || !(dependencies.killSwitch?.setRequest instanceof Function)
+  ) fail("SMOKE_KILL_SWITCH_UNAVAILABLE");
 }
 
 export async function runThesisDemoSmoke(options, dependencies) {
   const { slots } = validateOptions(options);
   if (dependencies?.request === undefined) fail("SMOKE_HTTP_UNAVAILABLE");
   if (options.mode === "live-success") await preflightLive(dependencies);
+  else await preflightFallback(dependencies);
 
   const state = makeState(options, dependencies);
   await verifyTarget(options, state);
@@ -1026,7 +1138,7 @@ export async function runThesisDemoSmoke(options, dependencies) {
   if (options.mode === "live-success") realAi = await runLive(options, dependencies, sessions, state, slots);
   else await runFallback(options, dependencies, sessions, state);
 
-  state.log(`gate=summary status=pass correlation=absent pre_provider=${state.counts.preProviderHttpRequests} planner=${state.counts.plannerEndpointInvocations} provider=${state.counts.providerEligibleAttempts} product_mutations=${state.counts.productMutationRequests}`);
+  state.log(`gate=summary status=pass correlation=absent pre_provider=${state.counts.preProviderHttpRequests} evidence=${state.counts.evidenceHttpRequests} management=${state.counts.managementHttpRequests} planner=${state.counts.plannerEndpointInvocations} provider=${state.counts.providerEligibleAttempts} product_mutations=${state.counts.productMutationRequests}`);
   return { ok: true, mode: options.mode, realAi, counts: state.counts, gates: state.gates };
 }
 
@@ -1063,33 +1175,21 @@ function createManagementKillSwitch(options) {
     authorization: `Bearer ${options.credentials.managementToken}`,
     "content-type": "application/json",
   };
-  const readSecrets = async () => {
-    const response = await defaultRequest({ url: endpoint, method: "GET", headers });
-    requireStatus(response, 200, "SMOKE_KILL_SWITCH_UNAVAILABLE");
-    if (!Array.isArray(response.json)) fail("SMOKE_KILL_SWITCH_UNAVAILABLE");
-    return response.json;
-  };
   return {
-    async hasSecret(name) {
-      const rows = await readSecrets();
-      return rows.some((row) => row?.name === name);
+    async readRequest({ gate }) {
+      return { gate, url: endpoint, method: "GET", headers };
     },
-    async read() {
-      const rows = await readSecrets();
-      const row = rows.find((entry) => entry?.name === "LOCALLENS_GEMINI_ENABLED");
-      const value = row?.value;
-      if (value === "1" || value === digest("1")) return true;
-      if (value === "0" || value === digest("0")) return false;
-      fail("SMOKE_KILL_SWITCH_UNAVAILABLE");
+    async secretRequest({ gate }) {
+      return { gate, url: endpoint, method: "GET", headers };
     },
-    async set(enabled) {
-      const response = await defaultRequest({
+    async setRequest({ gate, enabled }) {
+      return {
+        gate,
         url: endpoint,
         method: "POST",
         headers,
         body: JSON.stringify([{ name: "LOCALLENS_GEMINI_ENABLED", value: enabled ? "1" : "0" }]),
-      });
-      requireStatus(response, [200, 201], "SMOKE_KILL_SWITCH_TRANSITION_FAILED");
+      };
     },
   };
 }
@@ -1153,7 +1253,10 @@ export function createThesisDemoSmokeEnvironmentDependencies(options) {
       }),
     }),
     postCommitResponseLoss: {
-      authorizeReplay: async ({ requestIdentity }) => ({ replay: true, requestIdentity }),
+      invokeAndLoseResponse: async ({ requestIdentity, send }) => {
+        await send();
+        return { responseLost: true, requestIdentity };
+      },
     },
     killSwitch: createManagementKillSwitch(options),
   };

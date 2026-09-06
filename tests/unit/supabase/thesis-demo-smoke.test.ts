@@ -196,16 +196,21 @@ function persistedItem(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function attestation(operation: "recommend" | "refine", phase: "before" | "after", providerDelta = 1) {
+function attestation(
+  operation: "recommend" | "refine" | "fallback",
+  phase: "before" | "after",
+  providerDelta = 1,
+) {
   const baseline = 0;
   const delta = phase === "after" ? 1 : 0;
+  const fallback = operation === "fallback";
   return {
     state: phase === "after" ? "completed" : "missing",
     planId: phase === "after" ? PLAN_ID : null,
-    revision: phase === "after" ? (operation === "recommend" ? 1 : 2) : null,
+    revision: phase === "after" ? (operation === "refine" ? 2 : 1) : null,
     operationCount: baseline + delta,
     plannerReservationCount: baseline + delta,
-    geminiReservationCount: baseline + delta,
+    geminiReservationCount: baseline + (fallback ? 0 : delta),
     recommendationRunCount: baseline + delta,
     providerAttemptedCount: baseline + (phase === "after" ? providerDelta : 0),
   };
@@ -219,6 +224,7 @@ function createHarness({
   qaSlotSafe = true,
   quotaObservable = true,
   attestedProviderDelta = 1,
+  fallbackAttestedProviderDelta = 0,
   responseLossAuthorized = true,
   primaryRecommendStatus,
   malformedPrimaryRecommend = false,
@@ -236,6 +242,7 @@ function createHarness({
   qaSlotSafe?: boolean;
   quotaObservable?: boolean;
   attestedProviderDelta?: number;
+  fallbackAttestedProviderDelta?: number;
   responseLossAuthorized?: boolean;
   primaryRecommendStatus?: number;
   malformedPrimaryRecommend?: boolean;
@@ -477,8 +484,28 @@ function createHarness({
       };
     }
     if (spec.gate.startsWith("read.attestation.")) {
-      const [, , phase, operation] = spec.gate.split(".") as [string, string, "before" | "after", "recommend" | "refine"];
-      return { status: 200, headers: {}, json: attestation(operation, phase, attestedProviderDelta) };
+      const [, , phase, operation] = spec.gate.split(".") as [string, string, "before" | "after", "recommend" | "refine" | "fallback"];
+      const providerDelta = operation === "fallback" ? fallbackAttestedProviderDelta : attestedProviderDelta;
+      return { status: 200, headers: {}, json: attestation(operation, phase, providerDelta) };
+    }
+    if (spec.gate.startsWith("management.kill-switch.")) {
+      const action = spec.gate.split(".").at(-1);
+      if (action === "set") {
+        const [{ value }] = JSON.parse(spec.body ?? "[]") as [{ value: string }];
+        killSwitchState = value === "1";
+        killSwitchEvents.push(`set:${killSwitchState}`);
+        return { status: 201, headers: {}, json: null };
+      }
+      if (action === "secret") killSwitchEvents.push("secret:GEMINI_API_KEY");
+      else killSwitchEvents.push(`read:${killSwitchState}`);
+      return {
+        status: 200,
+        headers: {},
+        json: [
+          { name: "LOCALLENS_GEMINI_ENABLED", value: killSwitchState ? "1" : "0" },
+          { name: "GEMINI_API_KEY", value: "configured" },
+        ],
+      };
     }
     if (spec.gate.startsWith("fixed.payment.begin")) {
       return { status: 200, headers: {}, json: [{ booking_id: PAYMENT_BOOKING_ID, state: spec.gate.endsWith("replay") ? "replayed" : "created" }] };
@@ -526,7 +553,7 @@ function createHarness({
             operation,
             phase,
           }: {
-            operation: "recommend" | "refine";
+            operation: "recommend" | "refine" | "fallback";
             phase: "before" | "after";
           }): RequestRecord => ({
             gate: `read.attestation.${phase}.${operation}`,
@@ -542,33 +569,46 @@ function createHarness({
         }
       : {}),
     postCommitResponseLoss: {
-      authorizeReplay: async ({
+      invokeAndLoseResponse: async ({
         operationId,
         requestIdentity,
+        send,
       }: {
         operationId: string;
         requestIdentity: string;
+        send: () => Promise<unknown>;
       }) => {
+        await send();
         responseLossEvents.push(`${operationId}:${requestIdentity}`);
         orchestrationEvents.push(`response-loss:${operationId}`);
         return responseLossAuthorized
-          ? { replay: true as const, requestIdentity }
-          : { replay: false as const, requestIdentity };
+          ? { responseLost: true as const, requestIdentity }
+          : { responseLost: false as const, requestIdentity };
       },
     },
     killSwitch: {
-      read: async () => {
-        killSwitchEvents.push(`read:${killSwitchState}`);
-        return killSwitchState;
-      },
-      set: async (enabled: boolean) => {
-        killSwitchState = enabled;
-        killSwitchEvents.push(`set:${enabled}`);
-      },
-      hasSecret: async (name: string) => {
-        killSwitchEvents.push(`secret:${name}`);
-        return name === "GEMINI_API_KEY";
-      },
+      readRequest: async ({ gate }: { gate: string }) => ({
+        gate,
+        url: `https://api.supabase.com/v1/projects/${PROJECT_REF}/secrets`,
+        method: "GET",
+        headers: { authorization: `Bearer ${MANAGEMENT_TOKEN}` },
+      }),
+      secretRequest: async ({ gate }: { gate: string }) => ({
+        gate,
+        url: `https://api.supabase.com/v1/projects/${PROJECT_REF}/secrets`,
+        method: "GET",
+        headers: { authorization: `Bearer ${MANAGEMENT_TOKEN}` },
+      }),
+      setRequest: async ({ gate, enabled }: { gate: string; enabled: boolean }) => ({
+        gate,
+        url: `https://api.supabase.com/v1/projects/${PROJECT_REF}/secrets`,
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${MANAGEMENT_TOKEN}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify([{ name: "LOCALLENS_GEMINI_ENABLED", value: enabled ? "1" : "0" }]),
+      }),
     },
   };
 
@@ -689,12 +729,53 @@ describe("bounded thesis-demo cloud smoke", () => {
         p_request_digest: "f".repeat(64),
       }),
     });
+
+    const readSwitchSpec = await dependencies.killSwitch.readRequest({ gate: "management.kill-switch.prior.read" });
+    const secretSpec = await dependencies.killSwitch.secretRequest({ gate: "management.kill-switch.key.secret" });
+    const setSwitchSpec = await dependencies.killSwitch.setRequest({
+      gate: "management.kill-switch.disable.set",
+      enabled: false,
+    });
+    expect(readSwitchSpec).toMatchObject({
+      gate: "management.kill-switch.prior.read",
+      url: `https://api.supabase.com/v1/projects/${PROJECT_REF}/secrets`,
+      method: "GET",
+    });
+    expect(secretSpec).toMatchObject({
+      gate: "management.kill-switch.key.secret",
+      url: `https://api.supabase.com/v1/projects/${PROJECT_REF}/secrets`,
+      method: "GET",
+    });
+    expect(JSON.parse(setSwitchSpec.body)).toEqual([{
+      name: "LOCALLENS_GEMINI_ENABLED",
+      value: "0",
+    }]);
+
+    let sends = 0;
+    const loss = await dependencies.postCommitResponseLoss.invokeAndLoseResponse({
+      requestIdentity: "request-identity",
+      send: async () => {
+        sends += 1;
+        return { status: 200, json: { deliberately: "discarded" } };
+      },
+    });
+    expect(sends).toBe(1);
+    expect(loss).toEqual({ responseLost: true, requestIdentity: "request-identity" });
   });
 
   it("keeps live replay fail-closed when quota evidence is not observable", async () => {
     const harness = createHarness({ quotaObservable: false });
 
     const code = await captureCode(runThesisDemoSmoke(validOptions(), harness.dependencies));
+
+    expect(code).toBe("SMOKE_QUOTA_REPLAY_UNPROVEN");
+    expect(harness.requests).toEqual([]);
+  });
+
+  it("keeps fallback provider proof fail-closed when attestation is not observable", async () => {
+    const harness = createHarness({ quotaObservable: false });
+
+    const code = await captureCode(runThesisDemoSmoke(fallbackOptions(), harness.dependencies));
 
     expect(code).toBe("SMOKE_QUOTA_REPLAY_UNPROVEN");
     expect(harness.requests).toEqual([]);
@@ -728,14 +809,15 @@ describe("bounded thesis-demo cloud smoke", () => {
     expect(harness.logs.join("\n")).not.toContain(SERVICE_ROLE_KEY);
   });
 
-  it("runs fallback independently of live QA-slot, quota, and response-loss seams", async () => {
+  it("runs fallback independently of live QA-slot and response-loss seams with persisted provider attestation", async () => {
     const harness = createHarness();
-    const { request, logger, killSwitch } = harness.dependencies;
+    const { request, logger, killSwitch, quotaAttestationRequest } = harness.dependencies;
 
     const result = await runThesisDemoSmoke(fallbackOptions(), {
       request,
       logger,
       killSwitch,
+      quotaAttestationRequest,
     });
 
     expect(result).toMatchObject({
@@ -746,13 +828,19 @@ describe("bounded thesis-demo cloud smoke", () => {
         plannerEndpointInvocations: 1,
         providerEligibleAttempts: 0,
         denialProbes: 0,
-        preProviderHttpRequests: 8,
-        evidenceHttpRequests: 7,
+        preProviderHttpRequests: 13,
+        evidenceHttpRequests: 15,
+        managementHttpRequests: 6,
       },
     });
     const fallbackRequests = harness.requests.filter(({ gate }) => gate.startsWith("planner."));
     expect(fallbackRequests).toHaveLength(1);
     expect(JSON.parse(fallbackRequests[0]?.body ?? "{}").operationId).toBe(FALLBACK_OPERATION_ID);
+    expect(harness.requests.filter(({ gate }) => gate.startsWith("read.attestation.")).map(({ gate }) => gate)).toEqual([
+      "read.attestation.before.fallback",
+      "read.attestation.after.fallback",
+    ]);
+    expect(harness.requests.filter(({ gate }) => gate.startsWith("management.kill-switch."))).toHaveLength(6);
     expect(harness.killSwitchEvents).toEqual([
       "read:true",
       "secret:GEMINI_API_KEY",
@@ -761,6 +849,16 @@ describe("bounded thesis-demo cloud smoke", () => {
       "set:true",
       "read:true",
     ]);
+  });
+
+  it("fails fallback when persisted attestation reports a provider attempt", async () => {
+    const harness = createHarness({ fallbackAttestedProviderDelta: 1 });
+
+    const code = await captureCode(runThesisDemoSmoke(fallbackOptions(), harness.dependencies));
+
+    expect(code).toBe("SMOKE_FALLBACK_PROVIDER_ATTEMPTED");
+    expect(harness.requests.filter(({ gate }) => gate === "planner.fallback")).toHaveLength(1);
+    expect(harness.killSwitchEvents.slice(-2)).toEqual(["set:true", "read:true"]);
   });
 
   it("requires the fallback-specific protected confirmation before HTTP", async () => {
@@ -978,16 +1076,17 @@ describe("bounded thesis-demo cloud smoke", () => {
     expect(harness.responseLossEvents).toEqual([]);
   });
 
-  it("does not authorize replay for a malformed successful primary envelope", async () => {
+  it("discards a malformed successful primary envelope and validates only the exact replay", async () => {
     const harness = createHarness({ malformedPrimaryRecommend: true });
 
-    const code = await captureCode(runThesisDemoSmoke(validOptions(), harness.dependencies));
+    const result = await runThesisDemoSmoke(validOptions(), harness.dependencies);
 
-    expect(code).toBe("SMOKE_PLANNER_RESPONSE_INVALID");
+    expect(result.ok).toBe(true);
     expect(harness.requests.filter(({ gate }) => gate.startsWith("planner.recommend")).map(({ gate }) => gate)).toEqual([
       "planner.recommend.primary",
+      "planner.recommend.replay",
     ]);
-    expect(harness.responseLossEvents).toEqual([]);
+    expect(harness.responseLossEvents).toHaveLength(2);
   });
 
   it("returns one stable redacted main-process failure line", async () => {

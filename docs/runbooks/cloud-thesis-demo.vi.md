@@ -206,40 +206,44 @@ Kết quả G18 ghi nhận ngày 2026-09-06:
 
 ### Task 19 — Cloud smoke giới hạn
 
-**Trạng thái: PENDING.** Task 19 hiện chỉ có scaffold fail-closed và unit test;
-chưa có lần chạy cloud, chưa tiêu quota Gemini và chưa thay đổi kill switch.
+**Trạng thái: PENDING.** Candidate cục bộ tại `b8e899c` đã chuyển runner sang
+`thesis-demo.v2`. Inventory hiện có **32 migration ở local**, nhưng migration 32,
+Function tương ứng và seed v2 chưa được ghi nhận là đã cập nhật trên cloud.
+Chưa có kết quả `live-success` hoặc `fallback-only` cloud và chưa có claim về
+request Gemini thật. Thanh toán vẫn hoàn toàn mô phỏng.
 
-Runner `pnpm smoke:thesis-demo` chỉ nhận các slot hữu hạn `qa-01` đến `qa-04`,
-bắt buộc target `localens-thesis-demo` chính xác, HTTPS và đủ bốn tài khoản.
-`live-success` yêu cầu confirmation `RUN_LIVE_THESIS_DEMO`, payment/replay dùng
-đúng `qa-01` và cancellation/replay dùng đúng `qa-02`. `fallback-only` yêu cầu
-confirmation riêng `RUN_FALLBACK_THESIS_DEMO`, dùng `runId` hữu hạn của
-`qa-03`, không phụ thuộc preflight slot/quota của live mode. Runner không có
-lệnh seed/reset/link/deploy, không theo redirect và chỉ ghi tên gate, trạng
-thái, correlation ID an toàn cùng số đếm.
+Registry v2 giữ đúng bốn slot deterministic `qa-01` đến `qa-04`: `qa-01` dành
+cho payment và gắn recommend operation; `qa-02` dành cho cancellation và gắn
+refine operation; `qa-03` dành riêng cho fallback; `qa-04` là slot dự phòng thứ
+tư. Payment và cancellation dùng hai booking tách biệt, không thanh toán rồi hủy
+cùng một booking và không tích hợp cổng thanh toán thật.
 
-Hai blocker phải được xử lý bằng một task schema/dataset riêng trước khi G19 có
-thể chạy:
+`live-success` yêu cầu confirmation `RUN_LIVE_THESIS_DEMO`. Runner phải xác minh
+exact target qua Management API rồi đăng nhập đủ bốn tài khoản trước. Trước mọi
+request có thể tới provider, runner gọi Management API
+`/database/query/read-only` và chỉ tiếp tục khi đọc đúng cả bốn row registry,
+marker `thesis-demo.v2`, đúng project đã xác minh, đúng QA owner và role
+`customer` của owner đó. Assignment không được đổi: recommend dùng operation
+của `qa-01`, refine dùng operation của `qa-02`.
 
-- `SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN`: `begin_fixed_tour_booking` sinh
-  `booking_id` ngẫu nhiên, trong khi dataset v1 và inventory allowlist chỉ khai
-  báo trước bốn booking ID. Vì vậy runner thật từ chối live mode trước HTTP;
-  không được tạo booking ngoài allowlist hay giả bằng chứng.
-- `SMOKE_QUOTA_REPLAY_UNPROVEN`: service-role readback hiện chứng minh được
-  operation/plan/revision nhưng chưa có boundary quan sát đủ để chứng minh cùng
-  operation replay không trừ quota lần hai. Runner thật không cung cấp seam
-  quota cho tới khi có remediation được review.
+Trước và sau từng operation, runner gọi RPC `get_runtime_planner_operation` bằng
+service role để attest các count của operation, planner reservation, Gemini
+reservation, recommendation run và provider attempt. Delta persisted này là
+bằng chứng replay cùng operation không nhân quota/provider attempt; không suy
+diễn provider count chỉ từ response endpoint. `fallback-only` yêu cầu
+`RUN_FALLBACK_THESIS_DEMO`, dùng operation hữu hạn của `qa-03`, có đúng một
+planner invocation; attestation trước/sau phải chứng minh không tạo Gemini
+reservation và không có provider attempt. Cả sáu request Management API để đọc
+secret, tắt, xác minh, khôi phục và đọc lại kill switch đều đi qua HTTP counter
+có giới hạn. Live mode cố ý loại bỏ response primary đã hoàn tất trước khi cho
+phép đúng một replay byte-identical; chỉ envelope replay mới được kiểm tra.
+Runner vẫn không seed/reset/link/deploy, không theo redirect và không in token,
+secret hoặc response thô.
 
-Unit seam chứng minh orchestration dự kiến sau remediation: live-success có tối
-đa hai provider-eligible operation, bốn planner endpoint invocation (primary và
-replay byte-identical cho recommend/refine), bảy denial probe, 17 request được
-đếm trước provider và tối đa 20 request auth/owner/service/denial evidence.
-Provider count chỉ lấy từ attestation delta. Fixed-tour có 11 mutation: `qa-01`
-được begin/pay/assign/accept và đọc lại, còn `qa-02` được begin/cancel; không
-thanh toán rồi hủy cùng một booking. Nếu cả hai planner call degrade thì gate AI
-thật thất bại. Fallback-only có đúng một planner invocation, không có provider
-attempt và khôi phục/đọc lại kill switch trong `finally` ở các đường thoát mà
-process còn chạy.
+Bằng chứng local hiện tại gồm **44/44** focused smoke unit test và **142/142**
+remediation test cho seed/artifact/RLS. Đây chỉ là bằng chứng code, dataset,
+migration và orchestration ở local; không phải bằng chứng migration 32 đã deploy
+hoặc cloud acceptance.
 
 Nếu workflow bị hard-cancel, runner hoặc máy bị kill khiến `finally` không thể
 chạy, người giữ protected environment phải phục hồi thủ công trước mọi lần chạy
@@ -265,14 +269,17 @@ protected environment cùng tên, concurrency group cố định và
 3. đặt environment variables cho URL, project ref, organization ID và allowed
    origin; đặt publishable key, service-role key, access token và bốn mật khẩu
    vào environment secrets;
-4. nhập đúng confirmation theo mode; chỉ dùng `RUN_LIVE_THESIS_DEMO` sau khi hai
-   blocker trên đã được giải quyết. Secret chỉ được đưa vào env của đúng bước
-   smoke, không ở job-level và không được ghi ra log.
+4. sau khi migration 32, Function và seed v2 đã được cập nhật/readback trên
+   cloud, thêm `GEMINI_API_KEY` qua secret store an toàn rồi nhập đúng
+   confirmation theo mode. Secret chỉ được đưa vào env của đúng bước smoke,
+   không ở job-level và không được ghi ra log.
 
 Push/PR thông thường không chạy staging hoặc cloud smoke, không nhận cloud
-secret và không tiêu quota AI. G19 chỉ đổi sang PASS khi có run protected thật
-trên exact candidate, đủ evidence replay/quota/permission/fallback và kill
-switch được khôi phục; scaffold GREEN không phải cloud acceptance.
+secret và không tiêu quota AI. G19 chỉ đổi sang PASS sau khi migration 32,
+Function và seed v2 đã được cập nhật trên exact cloud target, Gemini key đã được
+thêm an toàn, và cả hai run protected `live-success` và `fallback-only` đều
+PASS với đủ evidence replay/attestation, permission, readback, request budget và
+khôi phục kill switch. Local GREEN không phải cloud acceptance.
 
 ### Task 20 — Vercel preview
 
