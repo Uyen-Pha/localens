@@ -246,8 +246,9 @@ service role để attest các count của operation, planner reservation, Gemin
 reservation, recommendation run và provider attempt. Delta persisted này là
 bằng chứng replay cùng operation không nhân quota/provider attempt; không suy
 diễn provider count chỉ từ response endpoint. `fallback-only` yêu cầu
-`RUN_FALLBACK_THESIS_DEMO`, dùng operation hữu hạn của `qa-03`, có đúng một
-planner invocation; attestation trước/sau phải chứng minh không tạo Gemini
+`RUN_FALLBACK_THESIS_DEMO`, dùng một operation hữu hạn của slot spare chưa từng
+chạy (bản pass `34012526072` đã tiêu thụ `qa-03`; workflow hiện mặc định chọn
+`qa-04`), có đúng một planner invocation; attestation trước/sau phải chứng minh không tạo Gemini
 reservation và không có provider attempt. Cả sáu request Management API để đọc
 secret, tắt, xác minh, khôi phục và đọc lại kill switch đều đi qua HTTP counter
 có giới hạn. Live mode cố ý loại bỏ response primary đã hoàn tất trước khi cho

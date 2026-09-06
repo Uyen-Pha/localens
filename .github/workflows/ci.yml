@@ -40,7 +40,7 @@ on:
       fallback_qa_slot:
         description: Exact finite fallback-only AI demo slot
         required: true
-        default: qa-03
+        default: qa-04
         type: choice
         options:
           - qa-03

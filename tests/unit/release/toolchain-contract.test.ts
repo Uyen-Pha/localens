@@ -125,4 +125,12 @@ describe("release toolchain contract", () => {
     expect(pkg.scripts?.check).toContain("pnpm build:demo");
     expect(everyRun).toContain("pnpm build:supabase");
   });
+
+  it("defaults fallback cloud smoke to the unused spare QA slot", () => {
+    const inputs = (parse(readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8")) as {
+      on?: { workflow_dispatch?: { inputs?: Record<string, { default?: string }> } };
+    }).on?.workflow_dispatch?.inputs;
+
+    expect(inputs?.fallback_qa_slot?.default).toBe("qa-04");
+  });
 });
