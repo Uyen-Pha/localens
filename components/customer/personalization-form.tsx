@@ -253,7 +253,9 @@ export function PersonalizationForm({
 
   const areaOptions = runtimeSelection?.mode === "supabase"
     ? runtimeSelection.areaOptions
-    : copy.areaOptions;
+    : runtimeLoadFailed
+      ? []
+      : copy.areaOptions;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

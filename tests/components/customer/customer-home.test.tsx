@@ -187,17 +187,18 @@ describe("CustomerHome", () => {
     }
   });
 
-  it("labels the current itinerary result as simulated AI in both languages", () => {
+  it("describes a synthetic demo proposal without claiming a live AI provider", () => {
     const expectations = {
-      en: /simulated AI/i,
-      vi: /AI mô phỏng/i,
+      en: /synthetic demo places/i,
+      vi: /demo tổng hợp/i,
     } as const;
 
     for (const locale of ["en", "vi"] as const) {
       const dictionary = getDictionary(locale);
       render(<CustomerHome locale={locale} dictionary={dictionary} />);
 
-      expect(dictionary.home.trustItems[1]?.title).toMatch(expectations[locale]);
+      expect(dictionary.home.trustItems[1]?.description).toMatch(expectations[locale]);
+      expect(dictionary.home.trustItems[1]?.title).not.toMatch(/AI/i);
       cleanup();
     }
   });

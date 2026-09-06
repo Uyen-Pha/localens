@@ -644,6 +644,7 @@ describe("PersonalizationForm", () => {
       "The secure planner handoff is unavailable. Try again.",
     );
     expect(screen.getByRole("button", { name: copy.submitLabel })).toBeDisabled();
+    expect(document.querySelectorAll('input[name="areas"]')).toHaveLength(0);
     expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
   });
 
