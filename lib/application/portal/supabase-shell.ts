@@ -21,6 +21,8 @@ import {
 import type { RuntimeGuideAssignmentPort } from "@/lib/application/guide-assignment/contracts";
 import type { RuntimePlannerPort } from "@/lib/application/planner/runtime-planner";
 import { createSupabasePlannerRuntimeAdapter } from "@/lib/infrastructure/supabase/planner-runtime-adapter";
+import type { PersonalizationAreaPort } from "@/lib/application/planner/personalization-areas";
+import { createSupabasePersonalizationAreaAdapter } from "@/lib/infrastructure/supabase/personalization-area-adapter";
 
 type SupabaseRuntimeConfig = Extract<BrowserRuntimeConfig, { mode: "supabase" }>;
 
@@ -28,6 +30,8 @@ export interface SupabasePortalShell extends FixedTourRuntimeComposition {
   readonly mode: "supabase";
   readonly session: RuntimeSessionPort;
   readonly planner: RuntimePlannerPort;
+  /** Public catalog options used by the browser personalization form. */
+  readonly personalizationAreas?: PersonalizationAreaPort;
   readonly bookingCancellations: SupabaseBookingCancellationHistoryAdapter;
   readonly guideAssignments: RuntimeGuideAssignmentPort;
   readonly initialized: Promise<void>;
@@ -46,6 +50,7 @@ export function createSupabasePortalShell(
       mode: "supabase",
       session: createSupabasePortalSessionAdapter(client),
       planner: createSupabasePlannerRuntimeAdapter(client),
+      personalizationAreas: createSupabasePersonalizationAreaAdapter(client),
       bookingCancellations: createSupabaseBookingCancellationAdapter(client),
       ...createFixedTourRuntimeComposition(createSupabaseFixedTourRuntimeAdapter(client)),
       guideAssignments: createSupabaseRuntimeGuideAssignmentAdapter(client),

@@ -344,6 +344,14 @@ describe("runtime pending operation", () => {
     expect(invalidRefineStorage.getItem(RUNTIME_PENDING_OPERATION_KEY)).toBeNull();
   });
 
+  it("accepts a bounded published catalog slug for runtime handoff persistence", () => {
+    const storage = createStorage();
+    expect(saveRuntimePendingOperation(storage, {
+      ...recommendOperation,
+      request: { ...request, areas: ["synthetic-central-hcmc"] },
+    })).toBe(true);
+  });
+
   it.each([
     ["areas", { areas: [FIXED_LOCALENS_AREA_IDS[2], FIXED_LOCALENS_AREA_IDS[2]] }],
     ["dietary requirements", { dietaryRequirements: ["vegetarian", "vegetarian"] }],

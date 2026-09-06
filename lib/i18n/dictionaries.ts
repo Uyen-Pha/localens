@@ -615,7 +615,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     ],
     fixedToursCta: "See all fixed tours",
     demoDisclosure:
-      "Demo catalog: fixed tours use internal sample places. Booking links open a browser-only test flow; no production booking or charge is made.",
+      "Thesis demo catalog: fixed tours use synthetic data. Booking links open the secure demo flow; holds and simulated payments are recorded in the demo environment. No production booking or real charge is made.",
     tourCatalog: {
       catalogHeading: "Fixed tours in Ho Chi Minh City",
       catalogIntro: "Browse the internal demo catalog and inspect the facts behind each fixed route.",
@@ -675,8 +675,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       },
       {
         icon: "02",
-        title: "Get a simulated AI preview",
-        description: "Review an illustrative route built from approved demo places.",
+        title: "Review a route proposal",
+        description: "Generate or review a route built from approved synthetic demo places.",
       },
       {
         icon: "03",
@@ -931,7 +931,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     ],
     fixedToursCta: "Xem tất cả tour cố định",
     demoDisclosure:
-      "Danh mục demo: các tour cố định dùng địa điểm mẫu nội bộ. Liên kết đặt tour mở quy trình thử nghiệm trong trình duyệt; không có booking production hay giao dịch thật.",
+      "Danh mục demo đồ án: các tour cố định dùng dữ liệu tổng hợp. Liên kết đặt tour mở luồng demo bảo mật; giữ chỗ và thanh toán mô phỏng được ghi nhận trong môi trường demo. Không có booking production hay giao dịch thật.",
     tourCatalog: {
       catalogHeading: "Tour cố định tại Thành phố Hồ Chí Minh",
       catalogIntro: "Xem danh mục demo nội bộ và kiểm tra thông tin của từng tuyến cố định.",
@@ -991,8 +991,8 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
       },
       {
         icon: "02",
-        title: "Nhận bản xem trước AI mô phỏng",
-        description: "Xem một lịch trình minh họa từ các địa điểm demo đã duyệt.",
+        title: "Xem đề xuất lịch trình",
+        description: "Tạo hoặc xem một lịch trình từ các địa điểm demo tổng hợp đã duyệt.",
       },
       {
         icon: "03",

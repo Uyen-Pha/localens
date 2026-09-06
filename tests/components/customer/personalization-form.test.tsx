@@ -110,6 +110,14 @@ function runtimeComposition(initialized: Promise<void> = Promise.resolve()) {
   return {
     mode: "supabase",
     initialized,
+    personalizationAreas: {
+      listAreas: vi.fn(async (locale: "en" | "vi") => getDictionary(locale).home.personalizationForm.areaOptions.map((option, index) => ({
+        ...option,
+        slug: option.value,
+        areaId: `${String(index + 1).repeat(8)}-${String(index + 1).repeat(4)}-4${String(index + 1).repeat(3)}-8${String(index + 1).repeat(3)}-${String(index + 1).repeat(12)}`,
+        snapshotId: "11111111-1111-4111-8111-111111111111",
+      }))),
+    },
     planner: {
       getSession: vi.fn(),
       recommend: vi.fn(),
@@ -471,6 +479,84 @@ describe("PersonalizationForm", () => {
     expect(composition.planner.recommend).not.toHaveBeenCalled();
     expect(composition.planner.refine).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("renders the published runtime area options and preserves their catalog slug", async () => {
+    const copy = getDictionary("en").home.personalizationForm;
+    const composition = runtimeComposition();
+    composition.personalizationAreas.listAreas.mockResolvedValue([{
+      value: "synthetic-central-hcmc",
+      slug: "synthetic-central-hcmc",
+      areaId: "22222222-2222-4222-8222-222222222222",
+      snapshotId: "11111111-1111-4111-8111-111111111111",
+      label: "Synthetic Central HCMC Demo Area",
+    }]);
+    compositionHarness.results = [composition];
+
+    render(<PersonalizationForm copy={copy} locale="en" />);
+    await waitFor(() => expect(screen.getByLabelText("Synthetic Central HCMC Demo Area")).toBeInTheDocument());
+    expect(screen.queryByLabelText(copy.areaOptions[0].label)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
+      target: { value: defaultHcmcPlannerStart(Date.now()).date },
+    });
+    fireEvent.click(screen.getByLabelText("Synthetic Central HCMC Demo Area"));
+    chooseDemoMarketPriority(copy);
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+
+    expect(readPersonalizationRequest()).toMatchObject({ areas: ["synthetic-central-hcmc"] });
+  });
+
+  it("rejects an area value that is absent from the resolved runtime catalog", async () => {
+    const copy = getDictionary("en").home.personalizationForm;
+    const composition = runtimeComposition();
+    composition.personalizationAreas.listAreas.mockResolvedValue([{
+      value: "synthetic-central-hcmc",
+      slug: "synthetic-central-hcmc",
+      areaId: "22222222-2222-4222-8222-222222222222",
+      snapshotId: "11111111-1111-4111-8111-111111111111",
+      label: "Synthetic Central HCMC Demo Area",
+    }]);
+    compositionHarness.results = [composition];
+
+    render(<PersonalizationForm copy={copy} locale="en" />);
+    await waitFor(() => expect(screen.getByLabelText("Synthetic Central HCMC Demo Area")).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
+      target: { value: defaultHcmcPlannerStart(Date.now()).date },
+    });
+    fireEvent.click(screen.getByLabelText("Synthetic Central HCMC Demo Area"));
+    chooseDemoMarketPriority(copy);
+
+    const rogueArea = document.createElement("input");
+    rogueArea.type = "hidden";
+    rogueArea.name = "areas";
+    rogueArea.value = "district-1";
+    screen.getByRole("form", { name: copy.formLabel }).appendChild(rogueArea);
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(copy.validationMessage);
+    expect(readPersonalizationRequest()).toBeNull();
+  });
+
+  it("reloads localized runtime area labels when the locale changes", async () => {
+    const enCopy = getDictionary("en").home.personalizationForm;
+    const viCopy = getDictionary("vi").home.personalizationForm;
+    const composition = runtimeComposition();
+    composition.personalizationAreas.listAreas.mockImplementation(async (locale: "en" | "vi") => [{
+      value: "synthetic-central-hcmc",
+      slug: "synthetic-central-hcmc",
+      areaId: "22222222-2222-4222-8222-222222222222",
+      snapshotId: "11111111-1111-4111-8111-111111111111",
+      label: `Runtime ${locale}`,
+    }]);
+    compositionHarness.results = [composition];
+
+    const { rerender } = render(<PersonalizationForm copy={enCopy} locale="en" />);
+    await waitFor(() => expect(screen.getByLabelText("Runtime en")).toBeInTheDocument());
+
+    rerender(<PersonalizationForm copy={viCopy} locale="vi" />);
+    await waitFor(() => expect(screen.getByLabelText("Runtime vi")).toBeInTheDocument());
+    expect(composition.personalizationAreas.listAreas).toHaveBeenNthCalledWith(2, "vi");
   });
 
   it("waits for hydration and composition initialization while guarding duplicate submits", async () => {

@@ -351,6 +351,25 @@ describe("Supabase planner runtime adapter", () => {
     expect(JSON.stringify(client.functions.invoke.mock.calls)).not.toMatch(/specialNeeds|guestToken|turnstile|email|phone|userId/i);
   });
 
+  it("canonicalizes the published synthetic area slug without a district remap", async () => {
+    const { client } = clientDouble({
+      areas: [{ snapshot_id: ids.catalog, area_id: ids.areaOne, slug: "synthetic-central-hcmc" }],
+    });
+    const adapter = createSupabasePlannerRuntimeAdapter(client as never);
+
+    const result = await adapter.recommend({
+      ...itineraryFixture.request,
+      areas: ["synthetic-central-hcmc"],
+    }, "en", runtimeOperation);
+
+    expect(result).toMatchObject({ ok: true });
+    expect(client.functions.invoke).toHaveBeenCalledWith("recommend-itinerary", expect.objectContaining({
+      body: expect.objectContaining({
+        input: expect.objectContaining({ areas: [ids.areaOne] }),
+      }),
+    }));
+  });
+
   it("keeps one validated device UUID for the tab and regenerates an invalid stored value", async () => {
     window.sessionStorage.setItem("localens.ai-device.v1", "not-a-uuid");
     const { client } = clientDouble();

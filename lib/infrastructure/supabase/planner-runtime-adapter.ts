@@ -15,6 +15,7 @@ import {
   type RuntimePlannerDisplayRow,
   type RuntimePlannerResponse,
 } from "@/lib/application/planner/itinerary-view-model";
+import { PERSONALIZATION_AREA_SLUG_PATTERN } from "@/lib/application/planner/personalization-areas";
 import { ItineraryResultSchema, type ItineraryRequest, type Locale, type Result } from "@/lib/domain/itinerary/contracts";
 import type { Database } from "@/lib/infrastructure/supabase/database.types";
 import { serializeItineraryWireResponse } from "@/supabase/functions/_shared/itinerary-wire-response";
@@ -243,6 +244,7 @@ async function canonicalizeAreas(client: PlannerSupabaseClient, request: Itinera
   const snapshotId = snapshot?.catalog_snapshot_id;
   if (snapshot === null || !isExactKeys(snapshot, ["catalog_snapshot_id"]) || !isUuid(snapshotId)) return null;
   const requestedSlugs = request.areas.map((area) => PERSONALIZATION_AREA_SLUGS[area] ?? area);
+  if (!requestedSlugs.every((slug) => PERSONALIZATION_AREA_SLUG_PATTERN.test(slug))) return null;
   const rows = await readRows(
     client.from("catalog_snapshot_areas_v").select("snapshot_id,area_id,slug")
       .eq("snapshot_id", snapshotId).in("slug", requestedSlugs),

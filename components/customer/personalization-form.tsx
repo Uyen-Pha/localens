@@ -22,6 +22,10 @@ import {
   type ItineraryPreviewError,
 } from "@/components/customer/itinerary-preview";
 import { loadPortalSurfaceComposition } from "@/components/portals/portal-session";
+import {
+  hasValidPersonalizationAreaSelection,
+  type PersonalizationAreaOption,
+} from "@/lib/application/planner/personalization-areas";
 import { signInPath } from "@/lib/navigation/safe-return-to";
 import { formatHcmMinute } from "@/lib/domain/itinerary/local-time";
 
@@ -72,7 +76,7 @@ function keepFocusedControlVisible(event: FocusEvent<HTMLFormElement>): void {
 
 type RuntimeSelection =
   | { mode: "demo"; readOnlyApi: ReadOnlyApi }
-  | { mode: "supabase" };
+  | { mode: "supabase"; areaOptions: PersonalizationAreaOption[] };
 
 export type { PersonalizationRequest } from "@/lib/application/planner/personalization-session";
 
@@ -135,7 +139,7 @@ function isInitializedComposition(
   );
 }
 
-async function resolveRuntimeSelection(isRetry: boolean): Promise<RuntimeSelection> {
+async function resolveRuntimeSelection(isRetry: boolean, locale: Locale): Promise<RuntimeSelection> {
   const composition = await loadPortalSurfaceComposition();
   if (!isInitializedComposition(composition)) {
     throw new Error("Invalid portal surface composition");
@@ -143,7 +147,11 @@ async function resolveRuntimeSelection(isRetry: boolean): Promise<RuntimeSelecti
 
   if (composition.mode === "supabase") {
     await composition.initialized;
-    return { mode: "supabase" };
+    if (composition.personalizationAreas === undefined) {
+      throw new Error("Supabase personalization area port is unavailable");
+    }
+    const areaOptions = await composition.personalizationAreas.listAreas(locale);
+    return { mode: "supabase", areaOptions };
   }
 
   if (isRetry) {
@@ -212,6 +220,7 @@ export function PersonalizationForm({
   const [priorityWeights, setPriorityWeights] = useState(DEFAULT_PRIORITY_WEIGHTS);
   const [pace, setPace] = useState<"relaxed" | "active">("relaxed");
   const runtimeLoadRef = useRef<Promise<RuntimeSelection> | null>(null);
+  const runtimeLoadLocaleRef = useRef<Locale | null>(null);
 
   useEffect(() => {
     const now = Date.now();
@@ -225,7 +234,10 @@ export function PersonalizationForm({
     let disposed = false;
     setRuntimeSelection(null);
     setRuntimeLoadFailed(false);
-    runtimeLoadRef.current ??= resolveRuntimeSelection(runtimeRetryKey > 0);
+    if (runtimeLoadRef.current === null || runtimeLoadLocaleRef.current !== locale) {
+      runtimeLoadLocaleRef.current = locale;
+      runtimeLoadRef.current = resolveRuntimeSelection(runtimeRetryKey > 0, locale);
+    }
     void runtimeLoadRef.current
       .then((selection) => {
         if (!disposed) setRuntimeSelection(selection);
@@ -237,7 +249,11 @@ export function PersonalizationForm({
     return () => {
       disposed = true;
     };
-  }, [runtimeRetryKey]);
+  }, [runtimeRetryKey, locale]);
+
+  const areaOptions = runtimeSelection?.mode === "supabase"
+    ? runtimeSelection.areaOptions
+    : copy.areaOptions;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -250,7 +266,8 @@ export function PersonalizationForm({
       String(formData.get("startTime") ?? ""),
       Date.now(),
     );
-    const hasArea = formData.getAll("areas").length > 0;
+    const submittedAreas = formData.getAll("areas");
+    const hasArea = hasValidPersonalizationAreaSelection(submittedAreas, areaOptions);
     const durationHours = numericValue(formData, "durationHours");
     const durationAdditionalMinutes = numericValue(
       formData,
@@ -430,7 +447,7 @@ export function PersonalizationForm({
         <legend>{copy.areasLabel}</legend>
         <p className="field-group__hint" id="areas-hint">{copy.areasHint}</p>
         <div className="check-grid">
-          {copy.areaOptions.map((option) => (
+          {areaOptions.map((option) => (
             <label className="check-card" key={option.value}>
               <input type="checkbox" name="areas" value={option.value} />
               <span>{option.label}</span>

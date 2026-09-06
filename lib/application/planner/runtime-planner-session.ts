@@ -1,5 +1,6 @@
 import type { ExperienceType, ItineraryRequest } from "@/lib/domain/itinerary/contracts";
 import type { RefinementSignals } from "@/lib/application/planner/refinement-signals";
+import { PERSONALIZATION_AREA_SLUG_PATTERN } from "@/lib/application/planner/personalization-areas";
 
 /** The persisted plan pointer is metadata only; the database remains authoritative. */
 export interface RuntimePlanPointer {
@@ -200,6 +201,16 @@ function normalizedIdentifierSet(
   return normalized;
 }
 
+function normalizedAreaIdentifierSet(value: unknown): string[] | null {
+  const normalized = normalizedIdentifierSet(value, 12);
+  if (normalized === null) return null;
+  return normalized.every((identifier) =>
+    LOCALENS_AREA_IDS.has(identifier) || PERSONALIZATION_AREA_SLUG_PATTERN.test(identifier),
+  )
+    ? normalized
+    : null;
+}
+
 function normalizedUuidArray(value: unknown, maximum: number): string[] | null {
   const items = readDensePlainArray(value, maximum);
   if (items === null) return null;
@@ -273,7 +284,7 @@ function normalizeItineraryRequest(value: unknown): ItineraryRequest | null {
   const amountMinor = budget.amountMinor;
   if (!isEnum(currency, ["VND", "USD"] as const) || typeof amountMinor !== "number" || !Number.isSafeInteger(amountMinor) || amountMinor < 0) return null;
 
-  const areas = normalizedIdentifierSet(snapshot.areas, 12, LOCALENS_AREA_IDS);
+  const areas = normalizedAreaIdentifierSet(snapshot.areas);
   const dietaryRequirements = normalizedIdentifierSet(
     snapshot.dietaryRequirements,
     12,

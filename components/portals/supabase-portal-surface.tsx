@@ -7,7 +7,7 @@ import type { FormEvent, ReactNode } from "react";
 import { PortalError, type PortalIdentity } from "@/lib/application/portal/contracts";
 import type { SupabasePortalShell } from "@/lib/application/portal/supabase-shell";
 import type { Locale } from "@/lib/i18n/config";
-import { destinationAfterSignIn } from "@/lib/navigation/safe-return-to";
+import { destinationAfterSignIn, parseSafeReturnTo } from "@/lib/navigation/safe-return-to";
 
 import { portalCopy, portalPath, roleLabel, signedInRoleText } from "@/components/portals/portal-copy";
 import type { PortalNavigate, PortalRole } from "@/components/portals/portal-surface";
@@ -316,6 +316,9 @@ export function SupabasePortalSurface({
         if (disposed) return;
         setSession(identity);
         setLoadState("ready");
+        if (identity !== null && expectedRole === undefined && parseSafeReturnTo(locale, returnTo ?? null) !== null) {
+          navigate(destinationAfterSignIn({ locale, role: identity.role, returnTo }));
+        }
       } catch {
         if (disposed) return;
         setSession(null);
@@ -326,7 +329,7 @@ export function SupabasePortalSurface({
     return () => {
       disposed = true;
     };
-  }, [composition, retryKey]);
+  }, [composition, retryKey, expectedRole, locale, returnTo, navigate]);
 
   async function signOut(): Promise<void> {
     setActionError(null);

@@ -251,6 +251,33 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
     expect(screen.queryByRole("button", { name: /reset|đặt lại/i })).not.toBeInTheDocument();
   });
 
+  it("continues an existing customer session to the safe planner return path", async () => {
+    const session = new MemoryRuntimeSession();
+    session.seed(ACCOUNTS[0].identity);
+    const destinations: string[] = [];
+    renderSurface({ locale, shell: shellFor(session), returnTo: `/${locale}/planner/`, destinations });
+    await waitFor(() => expect(destinations).toEqual([`/${locale}/planner/`]));
+    expect(session.signInCalls).toBe(0);
+  });
+
+  it("does not follow an unsafe return path for an existing session", async () => {
+    const session = new MemoryRuntimeSession();
+    session.seed(ACCOUNTS[0].identity);
+    const destinations: string[] = [];
+    renderSurface({ locale, shell: shellFor(session), returnTo: "https://untrusted.example/", destinations });
+    await screen.findByRole("heading", { name: copy.runtimeHeading });
+    expect(destinations).toEqual([]);
+  });
+
+  it.each(ACCOUNTS.slice(1))("keeps an existing $identity.role session out of the customer return path", async (account) => {
+    const session = new MemoryRuntimeSession();
+    session.seed(account.identity);
+    const destinations: string[] = [];
+    renderSurface({ locale, shell: shellFor(session), returnTo: `/${locale}/planner/`, destinations });
+    await waitFor(() => expect(destinations).toEqual([`/${locale}/${account.identity.role}/`]));
+    expect(session.signInCalls).toBe(0);
+  });
+
   it("maps invalid credentials to a generic localized error and clears the password", async () => {
     const email = "private.person@example.com";
     const password = "do-not-echo-this";
