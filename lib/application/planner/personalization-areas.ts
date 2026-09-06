@@ -11,6 +11,31 @@ const SYNTHETIC_AREA_LABELS: Readonly<Record<Locale, string>> = {
   vi: "Khu trung tâm TP.HCM trình diễn tổng hợp",
 };
 
+/**
+ * The public areas projection exposes canonical slugs, not localized names.
+ * Keep this small trusted map aligned with the existing public geography copy;
+ * a slug outside it invalidates the complete list instead of displaying an
+ * untrusted or guessed label.
+ */
+const PUBLIC_AREA_LABELS_BY_SLUG: Readonly<Record<string, Readonly<Record<Locale, string>>>> = {
+  "central-historical": {
+    en: "District 1 & central",
+    vi: "Quận 1 & trung tâm",
+  },
+  "district-3-cultural": {
+    en: "District 3 & museum district",
+    vi: "Quận 3 & khu bảo tàng",
+  },
+  "district-5-chinatown": {
+    en: "Cho Lon & District 5",
+    vi: "Chợ Lớn & Quận 5",
+  },
+  "outer-hcmc": {
+    en: "Thu Duc",
+    vi: "Thủ Đức",
+  },
+};
+
 export interface PersonalizationAreaOption {
   readonly value: string;
   readonly slug: string;
@@ -26,7 +51,6 @@ export interface PersonalizationAreaPort {
 export interface CatalogAreaOptionsInput {
   readonly snapshotId: unknown;
   readonly areas: unknown;
-  readonly translations: unknown;
   readonly locale: Locale;
 }
 
@@ -48,16 +72,13 @@ function exactRecord(value: unknown, fields: readonly string[]): UnknownRecord |
   return keys.length === fields.length && keys.every((key) => fields.includes(key)) ? value : null;
 }
 
-function safeText(value: unknown): value is string {
-  return typeof value === "string"
-    && value.length > 0
-    && value.length <= 160
-    && value.trim() === value
-    && !/[\u0000-\u001f\u007f-\u009f]/.test(value);
-}
-
 function uuid(value: unknown): string | null {
   return typeof value === "string" && UUID_PATTERN.test(value) ? value.toLowerCase() : null;
+}
+
+function trustedLabelForSlug(slug: string, locale: Locale): string | null {
+  if (slug === SYNTHETIC_CENTRAL_AREA_SLUG) return SYNTHETIC_AREA_LABELS[locale];
+  return PUBLIC_AREA_LABELS_BY_SLUG[slug]?.[locale] ?? null;
 }
 
 /**
@@ -70,7 +91,7 @@ export function normalizeCatalogAreaOptions(
 ): PersonalizationAreaOption[] | null {
   const snapshotId = uuid(input.snapshotId);
   if (snapshotId === null || (input.locale !== "en" && input.locale !== "vi")) return null;
-  if (!isDenseArray(input.areas) || input.areas.length < 1 || !isDenseArray(input.translations)) return null;
+  if (!isDenseArray(input.areas) || input.areas.length < 1) return null;
 
   const areaRows: Array<{ snapshotId: string; areaId: string; slug: string }> = [];
   const areaIds = new Set<string>();
@@ -94,34 +115,12 @@ export function normalizeCatalogAreaOptions(
     areaRows.push({ snapshotId: rowSnapshotId, areaId, slug });
   }
 
-  if (input.translations.length !== areaRows.length) return null;
-  const labels = new Map<string, string>();
-  for (const value of input.translations) {
-    const row = exactRecord(value, ["snapshot_id", "area_id", "locale", "name"]);
-    const rowSnapshotId = uuid(row?.snapshot_id);
-    const areaId = uuid(row?.area_id);
-    const locale = row?.locale;
-    const name = row?.name;
-    if (
-      row === null
-      || rowSnapshotId !== snapshotId
-      || areaId === null
-      || !areaIds.has(areaId)
-      || locale !== input.locale
-      || !safeText(name)
-      || labels.has(areaId)
-    ) return null;
-    labels.set(areaId, name);
-  }
-
   const options = areaRows.map(({ snapshotId: rowSnapshotId, areaId, slug }) => ({
     value: slug,
     slug,
     areaId,
     snapshotId: rowSnapshotId,
-    label: slug === SYNTHETIC_CENTRAL_AREA_SLUG
-      ? SYNTHETIC_AREA_LABELS[input.locale]
-      : labels.get(areaId) ?? "",
+    label: trustedLabelForSlug(slug, input.locale) ?? "",
   }));
   return options.every((option) => option.label.length > 0) ? options : null;
 }

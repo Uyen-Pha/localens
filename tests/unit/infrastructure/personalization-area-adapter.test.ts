@@ -16,12 +16,10 @@ function queryDouble(response: QueryResponse) {
   const query = {
     select: vi.fn(),
     eq: vi.fn(),
-    in: vi.fn(),
     then: vi.fn(),
   };
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);
-  query.in.mockReturnValue(query);
   query.then.mockImplementation((resolve, reject) => Promise.resolve(response).then(resolve, reject));
   return query;
 }
@@ -29,7 +27,6 @@ function queryDouble(response: QueryResponse) {
 function clientDouble(overrides: {
   current?: QueryResponse;
   areas?: QueryResponse;
-  translations?: QueryResponse;
 } = {}) {
   const queries = {
     current: queryDouble(overrides.current ?? { data: [{ catalog_snapshot_id: ids.snapshot }], error: null }),
@@ -37,16 +34,11 @@ function clientDouble(overrides: {
       data: [{ snapshot_id: ids.snapshot, area_id: ids.area, slug: "synthetic-central-hcmc" }],
       error: null,
     }),
-    translations: queryDouble(overrides.translations ?? {
-      data: [{ snapshot_id: ids.snapshot, area_id: ids.area, locale: "en", name: "Catalog name" }],
-      error: null,
-    }),
   };
   const client = {
     from: vi.fn((relation: string) => {
       if (relation === "current_itinerary_snapshot_v") return queries.current;
       if (relation === "catalog_snapshot_areas_v") return queries.areas;
-      if (relation === "catalog_snapshot_area_translations") return queries.translations;
       throw new Error(`unexpected relation ${relation}`);
     }),
   };
@@ -70,15 +62,31 @@ describe("Supabase personalization area adapter", () => {
       })]);
     expect(client.from).toHaveBeenNthCalledWith(1, "current_itinerary_snapshot_v");
     expect(client.from).toHaveBeenNthCalledWith(2, "catalog_snapshot_areas_v");
-    expect(client.from).toHaveBeenNthCalledWith(3, "catalog_snapshot_area_translations");
+    expect(client.from).not.toHaveBeenCalledWith("catalog_snapshot_area_translations");
     expect(queries.areas.eq).toHaveBeenCalledWith("snapshot_id", ids.snapshot);
-    expect(queries.translations.in).toHaveBeenCalledWith("area_id", [ids.area]);
+  });
+
+  it("labels a known canonical geography slug without reading translation tables", async () => {
+    const { client } = clientDouble({
+      areas: {
+        data: [{ snapshot_id: ids.snapshot, area_id: ids.area, slug: "central-historical" }],
+        error: null,
+      },
+    });
+
+    await expect(createSupabasePersonalizationAreaAdapter(client as never).listAreas("vi"))
+      .resolves.toEqual([expect.objectContaining({
+        value: "central-historical",
+        label: "Quận 1 & trung tâm",
+      })]);
+    expect(client.from).toHaveBeenCalledTimes(2);
+    expect(client.from).not.toHaveBeenCalledWith("catalog_snapshot_area_translations");
   });
 
   it.each([
     ["RLS error", { areas: { data: null, error: { code: "42501", detail: "private" } } }, "SERVICE_UNAVAILABLE"],
     ["duplicate current snapshot", { current: { data: [{ catalog_snapshot_id: ids.snapshot }, { catalog_snapshot_id: ids.snapshot }], error: null } }, "SERVICE_UNAVAILABLE"],
-    ["malformed translation", { translations: { data: [{ snapshot_id: ids.snapshot, area_id: ids.area, locale: "en", name: "" }], error: null } }, "INVALID_RESPONSE"],
+    ["unknown area slug", { areas: { data: [{ snapshot_id: ids.snapshot, area_id: ids.area, slug: "unpublished-area" }], error: null } }, "INVALID_RESPONSE"],
   ] as const)("fails closed on %s", async (_label, overrides, code) => {
     const { client } = clientDouble(overrides);
 

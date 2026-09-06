@@ -89,26 +89,9 @@ export function createSupabasePersonalizationAreaAdapter(
       );
       if (areaRows === null || areaRows.length < 1) fail("SERVICE_UNAVAILABLE");
 
-      const areaIds: string[] = [];
-      for (const row of areaRows) {
-        const areaId = isRecord(row) ? uuid(row.area_id) : null;
-        if (areaId === null) fail("INVALID_RESPONSE");
-        areaIds.push(areaId);
-      }
-
-      const translationRows = await readRows(
-        client.from("catalog_snapshot_area_translations")
-          .select("snapshot_id,area_id,locale,name")
-          .eq("snapshot_id", snapshotId)
-          .eq("locale", locale)
-          .in("area_id", areaIds),
-      );
-      if (translationRows === null) fail("SERVICE_UNAVAILABLE");
-
       const options = normalizeCatalogAreaOptions({
         snapshotId,
         areas: areaRows,
-        translations: translationRows,
         locale,
       });
       if (options === null) fail("INVALID_RESPONSE");

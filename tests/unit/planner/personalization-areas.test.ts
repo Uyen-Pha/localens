@@ -15,7 +15,6 @@ function input(overrides: Record<string, unknown> = {}) {
     snapshotId,
     locale: "en" as const,
     areas: [{ snapshot_id: snapshotId, area_id: areaId, slug: SYNTHETIC_CENTRAL_AREA_SLUG }],
-    translations: [{ snapshot_id: snapshotId, area_id: areaId, locale: "en", name: "Untrusted catalog name" }],
     ...overrides,
   };
 }
@@ -37,25 +36,43 @@ describe("personalization catalog area contract", () => {
     const ordinaryAreaId = "33333333-3333-4333-8333-333333333333";
     const options = normalizeCatalogAreaOptions(input({
       locale: "vi",
-      areas: [{ snapshot_id: snapshotId, area_id: ordinaryAreaId, slug: "district-1" }],
-      translations: [{ snapshot_id: snapshotId, area_id: ordinaryAreaId, locale: "vi", name: "Quận 1" }],
+      areas: [{ snapshot_id: snapshotId, area_id: ordinaryAreaId, slug: "central-historical" }],
     }));
 
     expect(options).toEqual([
       {
-        value: "district-1",
-        slug: "district-1",
+        value: "central-historical",
+        slug: "central-historical",
         areaId: ordinaryAreaId,
         snapshotId,
-        label: "Quận 1",
+        label: "Quận 1 & trung tâm",
       },
     ]);
+  });
+
+  it("uses only labels for canonical public geography slugs", () => {
+    const areas = [
+      ["33333333-3333-4333-8333-333333333333", "central-historical", "District 1 & central"],
+      ["44444444-4444-4444-8444-444444444444", "district-3-cultural", "District 3 & museum district"],
+      ["55555555-5555-4555-8555-555555555555", "district-5-chinatown", "Cho Lon & District 5"],
+      ["66666666-6666-4666-8666-666666666666", "outer-hcmc", "Thu Duc"],
+    ] as const;
+
+    expect(normalizeCatalogAreaOptions(input({
+      areas: areas.map(([areaId, slug]) => ({ snapshot_id: snapshotId, area_id: areaId, slug })),
+    }))).toEqual(areas.map(([areaId, slug, label]) => ({
+      value: slug,
+      slug,
+      areaId,
+      snapshotId,
+      label,
+    })));
   });
 
   it.each([
     ["missing snapshot", { snapshotId: null }],
     ["mixed snapshot area", { areas: [{ snapshot_id: "44444444-4444-4444-8444-444444444444", area_id: areaId, slug: "district-1" }] }],
-    ["missing translation", { translations: [] }],
+    ["unknown area slug", { areas: [{ snapshot_id: snapshotId, area_id: areaId, slug: "unpublished-area" }] }],
     ["duplicate area", { areas: [
       { snapshot_id: snapshotId, area_id: areaId, slug: SYNTHETIC_CENTRAL_AREA_SLUG },
       { snapshot_id: snapshotId, area_id: areaId, slug: SYNTHETIC_CENTRAL_AREA_SLUG },
