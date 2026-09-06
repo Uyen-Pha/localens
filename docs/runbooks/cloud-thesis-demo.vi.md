@@ -3,7 +3,7 @@
 ## Mục tiêu hiện tại
 
 Runbook này khóa release candidate cloud-smoke
-`9c9e0b128425eb364686fed1e1b065ba7e98a186` trên nhánh công khai
+`ef485673b2f90280d1717cf2a3a1b597ae44157b` trên nhánh công khai
 `codex/task7-clean-typecheck` của
 [Uyen-Pha/localens](https://github.com/Uyen-Pha/localens).
 
@@ -39,13 +39,13 @@ Thanh toán luôn là mô phỏng; không cấu hình cổng thanh toán hoặc 
 
 | Thành phần | Giá trị |
 | --- | --- |
-| Candidate SHA | `9c9e0b128425eb364686fed1e1b065ba7e98a186` |
+| Candidate SHA | `ef485673b2f90280d1717cf2a3a1b597ae44157b` |
 | Task 17 seed product SHA | `caeb182acceb9a3c5b4604500de7a5b732925de2` |
 | Task 17 acceptance SHA | `f476e83c40c1b8ee65df696f6a1fd9e7654332ba` |
 | Task 18 cloud-guard SHA | `5bba6564e80bb3abf259409c475d2f81e000a4b3` |
 | Task 18 hosted-migration SHA | `d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6` |
 | Migration head | `20260905150000_thesis_demo_qa_slots.sql` |
-| Public CI | [Run 34009993404](https://github.com/Uyen-Pha/localens/actions/runs/34009993404) — PASS |
+| Public CI | [Run 34012526072](https://github.com/Uyen-Pha/localens/actions/runs/34012526072) — PASS |
 | Trình duyệt nghiệm thu | Google Chrome `152.0.7977.65` |
 
 Manifest checksum đầy đủ nằm trong
@@ -53,7 +53,7 @@ Manifest checksum đầy đủ nằm trong
 
 ## Kiểm tra trước mỗi phiên làm cloud
 
-Chạy các lệnh đọc-only sau từ đúng checkout. `9c9e0b1` là implementation
+Chạy các lệnh đọc-only sau từ đúng checkout. `ef48567` là implementation
 candidate đã có CI; HEAD có thể chứa commit chỉ sửa release evidence sau đó.
 Nếu phần code/workflow/seed khác candidate, dừng và tạo candidate cùng CI mới.
 
@@ -62,10 +62,10 @@ git rev-parse --abbrev-ref HEAD
 git rev-parse HEAD
 git status --short
 git rev-parse origin/codex/task7-clean-typecheck
-git merge-base --is-ancestor 9c9e0b128425eb364686fed1e1b065ba7e98a186 HEAD
-git diff --name-only 9c9e0b128425eb364686fed1e1b065ba7e98a186..HEAD
+git merge-base --is-ancestor ef485673b2f90280d1717cf2a3a1b597ae44157b HEAD
+git diff --name-only ef485673b2f90280d1717cf2a3a1b597ae44157b..HEAD
 gh repo view Uyen-Pha/localens --json nameWithOwner,visibility,url,defaultBranchRef
-gh run view 34009993404 --json status,conclusion,headSha,url,jobs
+gh run view 34012526072 --json status,conclusion,headSha,url,jobs
 corepack.cmd pnpm --version
 corepack.cmd pnpm exec supabase --version
 ```
@@ -73,10 +73,10 @@ corepack.cmd pnpm exec supabase --version
 Kỳ vọng trước mọi mutation cloud tiếp theo:
 
 - nhánh `codex/task7-clean-typecheck`;
-- local HEAD và remote branch cùng SHA; candidate `9c9e0b1` là ancestor, và
+- local HEAD và remote branch cùng SHA; candidate `ef48567` là ancestor, và
   các commit sau candidate chỉ được đổi tài liệu release đã review;
 - repo `PUBLIC`;
-- CI `success` trên đúng implementation candidate `9c9e0b1`; nếu bất kỳ code,
+- CI `success` trên đúng implementation candidate `ef48567`; nếu bất kỳ code,
   workflow, seed hoặc smoke runner nào đổi thì phải chạy CI trên candidate mới;
 - pnpm `10.17.1`, Supabase CLI `2.115.0`;
 - dirty baseline chỉ gồm các path được liệt kê trong release ledger cộng với
@@ -220,9 +220,9 @@ Kết quả G18 và phần chuẩn bị cloud của G19 ghi nhận ngày 2026-09
 
 ### Task 19 — Cloud smoke giới hạn — PASS (AI demo fallback)
 
-**Trạng thái: PASS cho phạm vi AI demo fallback.** Candidate `9c9e0b1` đã
+**Trạng thái: PASS cho phạm vi AI demo fallback.** Candidate `ef48567` đã
 chuyển runner sang `thesis-demo.v2`; migration 32, hai Function version 3 và
-seed v2 đã được cập nhật/readback trên đúng cloud target. Run `34009993404`
+seed v2 đã được cập nhật/readback trên đúng cloud target. Run `34012526072`
 đã pass `fallback-only` với `provider=0`; không có claim hoặc yêu cầu về
 request Gemini thật.
 Thanh toán vẫn hoàn toàn mô phỏng.
@@ -255,9 +255,9 @@ phép đúng một replay byte-identical; chỉ envelope replay mới được k
 Runner vẫn không seed/reset/link/deploy, không theo redirect và không in token,
 secret hoặc response thô.
 
-Bằng chứng local hiện tại gồm **46/46** focused smoke unit test, **172/172**
+Bằng chứng local hiện tại gồm **47/47** focused smoke unit test, **172/172**
 supporting Supabase/remediation test và **259/259** Edge/AI-related test sau bản
-sửa deployment boundary. Public CI `34009993404` PASS trên đúng candidate và
+thêm lựa chọn slot fallback dự phòng. Public CI `34012526072` PASS trên đúng candidate và
 protected cloud smoke ghi nhận `pre_provider=13`, `evidence=15`,
 `management=6`, `planner=1`, `provider=0`, `product_mutations=0`.
 Đây là bằng chứng cloud fallback demo, không phải live-provider integration.

@@ -14,7 +14,7 @@ remain separate pending gates.
 | --- | --- |
 | Repository | [Uyen-Pha/localens](https://github.com/Uyen-Pha/localens) — **PUBLIC** |
 | Candidate branch | `codex/task7-clean-typecheck` |
-| Candidate SHA | `9c9e0b128425eb364686fed1e1b065ba7e98a186` |
+| Candidate SHA | `ef485673b2f90280d1717cf2a3a1b597ae44157b` |
 | Default branch at capture | `main` at `b9f08d589bb972d290c4c367e8a02c636224d512` |
 | Candidate relation to `main` | 30 commits ahead, 0 commits behind |
 | Product implementation SHA | `0a4c8ecd87dc1413471c464730d4632f63278e41` |
@@ -27,9 +27,9 @@ remain separate pending gates.
 | Task 18 cloud-guard SHA | `5bba6564e80bb3abf259409c475d2f81e000a4b3` |
 | Task 18 hosted-migration SHA | `d5b8ea89b5ffddbca9e0d0a0d0f960a7920afca6` |
 | Historical Task 18 CI | [GitHub Actions 33983849459](https://github.com/Uyen-Pha/localens/actions/runs/33983849459) — **PASS** at `d5b8ea8` |
-| Current candidate CI | [GitHub Actions 34009993404](https://github.com/Uyen-Pha/localens/actions/runs/34009993404) — **PASS** at `9c9e0b1` |
+| Current candidate CI | [GitHub Actions 34012526072](https://github.com/Uyen-Pha/localens/actions/runs/34012526072) — **PASS** at `ef48567` |
 | Captured on | 2026-09-06, Asia/Ho_Chi_Minh |
-| Candidate label | `thesis-demo-cloud-smoke-fallback@9c9e0b128425eb364686fed1e1b065ba7e98a186` |
+| Candidate label | `thesis-demo-cloud-smoke-fallback@ef485673b2f90280d1717cf2a3a1b597ae44157b` |
 
 The candidate remains on its public candidate branch and has not been merged
 into `main`. Its Supabase backend is provisioned, but it has not been deployed
@@ -44,7 +44,7 @@ Overall project progress: **19/22 — 86%**. Task 20 remains the active gate.
 | Fixture demo | **PASS** | Google Chrome fixture acceptance passed 34/34. This is deterministic demo behavior, not cloud runtime. |
 | Isolated local runtime | **PASS** | Local Supabase Auth/PostgreSQL/RLS/RPC/Edge integration passed on runner-owned random ports. Task 17 additionally passed 1,744 pgTAP assertions, apply-twice exact graph verification, rollback probes, and a real cancellation RPC rolled back to the seed graph. The presentation database on standard ports was not mutated. |
 | Public repository | **PASS** | Repository visibility is public; candidate and evidence commits are pushed to the branch above. |
-| Public CI | **PASS** | At exact candidate `9c9e0b1`, `quality-demo`, Chrome `demo-e2e`, `runtime-local`, and the protected fallback cloud smoke passed; `staging-smoke` was correctly skipped because no web origin is configured. |
+| Public CI | **PASS** | At exact candidate `ef48567`, `quality-demo`, Chrome `demo-e2e`, `runtime-local`, and the protected fallback cloud smoke passed; `staging-smoke` was correctly skipped because no web origin is configured. |
 | Supabase Cloud backend | **PASS — Task 18 plus Task 19 prerequisites** | Dedicated healthy project; 32/32 migration readback and up-to-date dry-run; two active JWT-verified Function version 3 deployments; Auth signup lock; corrected quota-HMAC secret readback; exact idempotent `thesis-demo.v2` seed/registry. |
 | AI demo cloud smoke | **PASS — Task 19** | Protected fallback-only smoke passed with `provider=0`; no billed/live Gemini request is claimed or required. |
 | Vercel preview | **PENDING — Task 20** | No project link, deployment ID, preview URL, or browser-origin acceptance is recorded. |
@@ -463,12 +463,12 @@ Gemini, Vercel preview, product QA on cloud, or production deployment.
 
 ## Task 19 bounded v2 smoke — PASS (fallback-only AI demo scope)
 
-Commit `9c9e0b1` is the current versioned `thesis-demo.v2` Task 19 candidate.
+Commit `ef48567` is the current versioned `thesis-demo.v2` Task 19 candidate.
 Cloud preparation is complete: migration 32 is applied with a 32/32 readback
 and up-to-date dry-run, the v2 seed passed dry-run/apply/apply with an exact
 registry graph, and both bounded Function packages are `ACTIVE` at version 3
 with JWT verification enabled. The protected fallback-only cloud smoke passed
-in run `34009993404`; no billed/live Gemini provider call is claimed or needed,
+in run `34012526072`; no billed/live Gemini provider call is claimed or needed,
 and payment remains simulated.
 
 The v2 dataset and registry reserve exactly four deterministic slots. `qa-01`
@@ -496,9 +496,9 @@ runbook retains the manual hard-cancellation recovery procedure. The live
 response-loss seam deliberately discards a completed primary response before
 permitting one byte-identical replay; only that replay envelope is validated.
 
-Local verification is **46/46** focused smoke unit tests, **172/172** supporting
+Local verification is **47/47** focused smoke unit tests, **172/172** supporting
 Supabase/remediation tests, and **259/259** Edge/AI-related tests after the
-bounded deployment fix. Exact candidate CI `34009993404` also passed the three
+bounded deployment fix and explicit fallback-slot selection. Exact candidate CI `34012526072` also passed the three
 required local/fixture jobs and the protected cloud smoke. The cloud smoke
 readback recorded `pre_provider=13`, `evidence=15`, `management=6`,
 `planner=1`, `provider=0`, and `product_mutations=0`; this proves the bounded
