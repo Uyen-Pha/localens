@@ -31,6 +31,7 @@ const CANCELLATION_BOOKING_ID = "d1700000-0000-4000-8000-000000000712";
 const RECOMMEND_OPERATION_ID = "d1700000-0000-4000-8000-000000000701";
 const REFINE_OPERATION_ID = "d1700000-0000-4000-8000-000000000742";
 const FALLBACK_OPERATION_ID = "d1700000-0000-4000-8000-000000000703";
+const FALLBACK_SPARE_OPERATION_ID = "d1700000-0000-4000-8000-000000000704";
 const LOCKED_START_AT = "2026-09-12T09:00:00+07:00";
 const LOCKED_END_AT = "2026-09-12T10:00:00+07:00";
 const EQUIVALENT_START_AT = "2026-09-12T02:00:00.000Z";
@@ -852,6 +853,16 @@ describe("bounded thesis-demo cloud smoke", () => {
       "set:true",
       "read:true",
     ]);
+  });
+
+  it("uses an explicitly selected spare fallback slot for a later cloud smoke run", async () => {
+    const harness = createHarness();
+
+    await runThesisDemoSmoke(fallbackOptions({ qaSlots: { fallback: "qa-04" } }), harness.dependencies);
+
+    const fallbackRequests = harness.requests.filter(({ gate }) => gate.startsWith("planner."));
+    expect(fallbackRequests).toHaveLength(1);
+    expect(JSON.parse(fallbackRequests[0]?.body ?? "{}").operationId).toBe(FALLBACK_SPARE_OPERATION_ID);
   });
 
   it("fails fallback when persisted attestation reports a provider attempt", async () => {

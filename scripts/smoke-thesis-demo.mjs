@@ -100,6 +100,7 @@ function validateOptions(options) {
     fail("SMOKE_FALLBACK_CONFIRMATION_REQUIRED");
   }
   let slots;
+  let fallbackSlot;
   if (options.mode === "live-success") {
     const paymentSlot = QA_SLOTS.get(options?.qaSlots?.payment);
     const cancellationSlot = QA_SLOTS.get(options?.qaSlots?.cancellation);
@@ -108,6 +109,9 @@ function validateOptions(options) {
       fail("SMOKE_QA_SLOT_ASSIGNMENTS_UNSAFE");
     }
     slots = { payment: paymentSlot, cancellation: cancellationSlot };
+  } else {
+    fallbackSlot = QA_SLOTS.get(options?.qaSlots?.fallback ?? "qa-03");
+    if (fallbackSlot === undefined || fallbackSlot.terminalFlow !== "spare") fail("SMOKE_QA_SLOT_UNSAFE");
   }
 
   for (const [key, contract] of Object.entries(ACCOUNT_CONTRACT)) {
@@ -120,6 +124,7 @@ function validateOptions(options) {
   return {
     runtimeUrl,
     slots,
+    fallbackSlot,
   };
 }
 
@@ -1049,7 +1054,7 @@ async function setManagedKillSwitch(options, killSwitch, state, enabled, gate, {
   requireStatus(response, [200, 201], "SMOKE_KILL_SWITCH_TRANSITION_FAILED");
 }
 
-async function runFallback(options, dependencies, sessions, state) {
+async function runFallback(options, dependencies, sessions, state, fallbackSlot) {
   const killSwitch = dependencies.killSwitch;
 
   let prior;
@@ -1065,7 +1070,6 @@ async function runFallback(options, dependencies, sessions, state) {
       fail("SMOKE_KILL_SWITCH_TRANSITION_FAILED");
     }
 
-    const fallbackSlot = QA_SLOTS.get("qa-03");
     if (fallbackSlot === undefined) fail("SMOKE_QA_SLOT_UNSAFE");
     const operationId = fallbackSlot.recommendOperationId;
     const input = plannerInput();
@@ -1132,7 +1136,7 @@ async function preflightFallback(dependencies) {
 }
 
 export async function runThesisDemoSmoke(options, dependencies) {
-  const { slots } = validateOptions(options);
+  const { slots, fallbackSlot } = validateOptions(options);
   if (dependencies?.request === undefined) fail("SMOKE_HTTP_UNAVAILABLE");
   if (options.mode === "live-success") await preflightLive(dependencies);
   else await preflightFallback(dependencies);
@@ -1145,7 +1149,7 @@ export async function runThesisDemoSmoke(options, dependencies) {
 
   let realAi = false;
   if (options.mode === "live-success") realAi = await runLive(options, dependencies, sessions, state, slots);
-  else await runFallback(options, dependencies, sessions, state);
+  else await runFallback(options, dependencies, sessions, state, fallbackSlot);
 
   state.log(`gate=summary status=pass correlation=absent pre_provider=${state.counts.preProviderHttpRequests} evidence=${state.counts.evidenceHttpRequests} management=${state.counts.managementHttpRequests} planner=${state.counts.plannerEndpointInvocations} provider=${state.counts.providerEligibleAttempts} product_mutations=${state.counts.productMutationRequests}`);
   return { ok: true, mode: options.mode, realAi, counts: state.counts, gates: state.gates };
@@ -1210,6 +1214,7 @@ function optionsFromEnvironment(environment) {
     qaSlots: {
       payment: environment.LOCALLENS_THESIS_DEMO_PAYMENT_QA_SLOT,
       cancellation: environment.LOCALLENS_THESIS_DEMO_CANCELLATION_QA_SLOT,
+      fallback: environment.LOCALLENS_THESIS_DEMO_FALLBACK_QA_SLOT,
     },
     target: {
       supabaseUrl: environment.NEXT_PUBLIC_SUPABASE_URL,

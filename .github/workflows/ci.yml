@@ -37,6 +37,14 @@ on:
           - qa-02
           - qa-03
           - qa-04
+      fallback_qa_slot:
+        description: Exact finite fallback-only AI demo slot
+        required: true
+        default: qa-03
+        type: choice
+        options:
+          - qa-03
+          - qa-04
 
 permissions:
   contents: read
@@ -281,6 +289,7 @@ jobs:
           LOCALLENS_THESIS_DEMO_CONFIRMATION: ${{ inputs.confirmation }}
           LOCALLENS_THESIS_DEMO_PAYMENT_QA_SLOT: ${{ inputs.payment_qa_slot }}
           LOCALLENS_THESIS_DEMO_CANCELLATION_QA_SLOT: ${{ inputs.cancellation_qa_slot }}
+          LOCALLENS_THESIS_DEMO_FALLBACK_QA_SLOT: ${{ inputs.fallback_qa_slot }}
           LOCALLENS_THESIS_DEMO_EXPECTED_PROJECT_NAME: localens-thesis-demo
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.LOCALLENS_THESIS_DEMO_URL }}
           LOCALLENS_THESIS_DEMO_PROJECT_REF: ${{ vars.LOCALLENS_THESIS_DEMO_PROJECT_REF }}
