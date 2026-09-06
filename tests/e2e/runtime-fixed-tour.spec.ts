@@ -311,8 +311,8 @@ async function createHoldThroughUi(
   await page.goto(`/${options.locale}/tours/`);
   await expect(page.getByRole("heading", {
     name: options.locale === "vi"
-      ? "Tour cố định từ cơ sở dữ liệu cục bộ"
-      : "Fixed tours from the live local database",
+      ? "Tour cố định tại Thành phố Hồ Chí Minh"
+      : "Fixed tours in Ho Chi Minh City",
   })).toBeVisible();
   await expect(page.getByRole("heading", { name: options.title, level: 2 })).toBeVisible();
   await expect(page.getByText(options.meetingPoint, { exact: true })).toBeVisible();

@@ -4,6 +4,59 @@
 
 ### Task 20 resume observation — 2026-09-06
 
+#### Reviewed preview candidate and cloud CORS correction
+
+- Candidate `dd9aafc37c3d8980930fc5998935817143f514e5` is pushed on
+  `codex/thesis-release-final`. Independent Astra review accepted the CI/env,
+  CORS and plan changes for preview validation. Local focused verification:
+  **5 files / 93 tests passed**; TypeScript, lint and Supabase build passed
+  before the final two-header CORS change; the latter has its own 15 passing
+  gateway tests within those 93.
+- Public CI [34027779656](https://github.com/Uyen-Pha/localens/actions/runs/34027779656)
+  completed successfully at that exact SHA: quality-demo, demo-e2e and
+  runtime-local all PASS. Protected cloud smoke was intentionally skipped.
+- Vercel preview `3Vt329LR56ZCkvxw7ehPxAzDmBUf` is **Ready** at that SHA after
+  rebuilding without cache with the exact Preview APP_URL
+  `https://localens-git-codex-thesis-release-final-local-lens2.vercel.app`.
+  Immutable hostname: `localens-kqq7w1trk-local-lens2.vercel.app`.
+  Bootstrap deployment `EQCKxNHfHyiBTd3EwX4wAP5HGYrF` is superseded.
+- Both Functions were deployed from an explicit 38-file package (35 assets
+  each). Readback after origin configuration: version **25**, ACTIVE,
+  `verify_jwt=true`; recommend package SHA-256
+  `fe292957f26cb84e9031b6542959dc5580e928e61c4b076cd011fc9986940849`,
+  refine `877eff33d73643fb09ca551d96466cfe0ef520bccb116335e26a4a587a0009e6`.
+- Production-origin HTTP preflight/auth boundary: **8/8** checks passed
+  (SDK headers 204, unknown header 403, foreign origin 403, unauthenticated
+  POST 401, on each Function). Exact preview-origin SDK preflight also
+  returns 204 on both Functions. These probes perform no product mutations.
+- ALLOWED_ORIGINS now contains exactly the production and release-preview
+  origins. The former production-only value was verified by matching its
+  SHA-256 digest before replacement. Auth Site URL remains production;
+  redirect allowlist now has six exact URLs: `/`, `/vi/sign-in/`,
+  `/en/sign-in/` on each origin. The earlier `/**` entry was removed.
+- Chrome with the operator's Vercel session renders the preview homepage
+  and bilingual catalog with all three cloud thesis tours. The catalog's
+  outdated local-runtime wording is a newly observed UX issue under repair.
+  An unauthenticated HTTP request reaches Vercel authentication, not the
+  app; preview public accessibility and app response headers remain pending.
+- A Gemini key now exists in the Edge secret store; its value was not read.
+  The enabled-switch digest matches `0`. No provider invocation was made.
+- Authenticated browser scenarios, unused QA-operation attestation, recovery
+  rehearsal and production acceptance remain pending. No G20–G22 PASS is
+  inferred from deployment readiness or these read-only observations.
+
+Read-only QA preflight joined reserved operation UUIDs across **all owners**:
+`qa-03` and `qa-04` recommend operations are already completed under the demo
+customer, each with one planner reservation and zero provider attempts.
+They must not be reused for a fresh fallback smoke. `qa-01`/`qa-02` booking
+and reserved planner-operation rows were absent at this snapshot; this does
+not establish current device/IP quota availability. Browser checkout on those
+reserved departures requires their exact existing session-storage idempotency
+keys (qa-01 payment, qa-02 cancellation). Record that as preconditioned browser
+QA; it does not prove random-key checkout on a fresh reserved QA session.
+
+#### Earlier resume baseline
+
 The active execution branch is now `codex/thesis-release-final`, based on
 `b58f4260b9b034e91fe1b16ab45ec14b46ef5e7d`. The earlier manifest below records
 Task 19 acceptance, not acceptance of subsequent changes.
@@ -22,17 +75,15 @@ production deployment `BV7tybWR2pUrDS2sV5KAsoj1BKyh`, source `b58f426`, and
 public URL <https://localens-ashen.vercel.app>. Home and password sign-in render
 in Google Chrome. These observations do not establish authenticated browser
 acceptance, G21 scenarios, or rollback readiness. Supabase Auth Site URL is
-that same production origin; the currently observed redirect entry is
-`https://localens-ashen.vercel.app/**` and must be reconciled with exact accepted
-callback paths before final acceptance.
+that same production origin; at the initial inspection the redirect entry was
+`https://localens-ashen.vercel.app/**`, since replaced as recorded above.
 
 The current production branch is `codex/task7-clean-typecheck`; pushing there
 would update production automatically. New changes are being prepared on the
 separate preview branch, preserving unrelated dirty files. The existing
 publishable-key variable was extended to Preview without changing its value
-or Production scope. A separate Preview APP_URL temporarily uses the observed
-production origin for bootstrap; it must be replaced with the observed preview
-origin and rebuilt before G20 acceptance.
+or Production scope. A separate Preview APP_URL initially used the observed
+production origin for bootstrap; it was then replaced and rebuilt as above.
 
 Overall acceptance remains **19/22**. Tasks 20–22 are not complete merely
 because an older deployment exists.

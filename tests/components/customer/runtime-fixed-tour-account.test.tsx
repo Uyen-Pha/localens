@@ -427,7 +427,7 @@ describe("runtime fixed-tour account", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Hoàn tất thanh toán mô phỏng" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(
-      "Máy chủ cục bộ đã ghi nhận thanh toán mô phỏng.",
+      "Đã ghi nhận thanh toán mô phỏng cho bản demo đồ án này.",
     ));
     expect(screen.getByText("Đã xác nhận", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Đã thanh toán", { exact: true })).toBeInTheDocument();

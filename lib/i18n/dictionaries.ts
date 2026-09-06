@@ -687,7 +687,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     personalizationEyebrow: "Your brief, your rhythm",
     personalizationTitle: "Tell us what a good day in the city feels like",
     personalizationIntro:
-      "Start with a few practical details. This preview keeps your preferences on this page until the planning service is connected.",
+      "Start with a few practical details. Review your preferences before continuing to the itinerary planner.",
     personalizationForm: {
       formLabel: "Personalized route preferences",
       durationLabel: "How much time do you have?",
@@ -1003,7 +1003,7 @@ const customerHomeCopy: Record<Locale, Dictionary["home"]> = {
     personalizationEyebrow: "Yêu cầu của bạn, nhịp điệu của bạn",
     personalizationTitle: "Hãy kể một ngày lý tưởng ở thành phố với bạn",
     personalizationIntro:
-      "Bắt đầu từ vài thông tin thực tế. Bản xem trước này giữ lựa chọn trên trang cho đến khi dịch vụ lập kế hoạch được kết nối.",
+      "Bắt đầu từ vài thông tin thực tế. Xem lại lựa chọn trước khi chuyển sang trang lập lịch trình.",
     personalizationForm: {
       formLabel: "Tùy chọn lịch trình riêng",
       durationLabel: "Bạn có bao nhiêu thời gian?",

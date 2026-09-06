@@ -42,7 +42,7 @@ describe("fixed-tour route surface", () => {
     render(<FixedTourRouteSurface locale="en" route="tours" navigate={() => undefined} />);
 
     expect(await screen.findByRole("heading", {
-      name: "Fixed tours from the live local database",
+      name: "Fixed tours in Ho Chi Minh City",
     })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
