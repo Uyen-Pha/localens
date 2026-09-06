@@ -836,6 +836,9 @@ describe("bounded thesis-demo cloud smoke", () => {
     const fallbackRequests = harness.requests.filter(({ gate }) => gate.startsWith("planner."));
     expect(fallbackRequests).toHaveLength(1);
     expect(JSON.parse(fallbackRequests[0]?.body ?? "{}").operationId).toBe(FALLBACK_OPERATION_ID);
+    expect(fallbackRequests[0]?.headers).toMatchObject({
+      "x-localens-device-id": "thesis-demo-smoke-device",
+    });
     expect(harness.requests.filter(({ gate }) => gate.startsWith("read.attestation.")).map(({ gate }) => gate)).toEqual([
       "read.attestation.before.fallback",
       "read.attestation.after.fallback",

@@ -168,6 +168,10 @@ function bearerHeaders(options, token) {
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
     origin: options.target.allowedOrigin,
+    // The cloud adapter requires a bounded synthetic device identity for its
+    // quota hash. Supabase supplies x-forwarded-for at the edge; this stable
+    // non-secret value mirrors the browser runtime's device header.
+    "x-localens-device-id": "thesis-demo-smoke-device",
   };
 }
 
