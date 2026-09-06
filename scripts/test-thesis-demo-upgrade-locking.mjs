@@ -4,13 +4,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 
-import { lockThesisDemoInventory } from "./lib/thesis-demo-seed.mjs";
+import {
+  inspectThesisDemoDatasetGraph,
+  runThesisDemoApplyTransaction,
+} from "./lib/thesis-demo-seed.mjs";
 import { readThesisDemoInventory } from "./seed-thesis-demo-cloud.mjs";
 
 const { Client } = pg;
 const DB_URL_ENV = "LOCALENS_THESIS_DEMO_LOCK_DB_URL";
 const DB_PORT_ENV = "LOCALENS_THESIS_DEMO_LOCK_DB_PORT";
 const ENABLE_ENV = "LOCALENS_THESIS_DEMO_LOCK_TEST";
+const DISPOSABLE_CONFIRM_ENV = "LOCALENS_THESIS_DEMO_LOCK_DISPOSABLE_CONFIRM";
+const DISPOSABLE_CONFIRMATION = "destructive-disposable-only";
 const PRESENTATION_PORTS = new Set(["54321", "54322"]);
 const WAIT_TIMEOUT_MS = 10_000;
 const DATASET_PATH = path.resolve(
@@ -33,6 +38,10 @@ function redact(value) {
 
 function readConfig(env = process.env) {
   invariant(env[ENABLE_ENV] === "1", `${ENABLE_ENV}=1 is required`);
+  invariant(
+    env[DISPOSABLE_CONFIRM_ENV] === DISPOSABLE_CONFIRMATION,
+    `${DISPOSABLE_CONFIRM_ENV}=${DISPOSABLE_CONFIRMATION} is required`,
+  );
   const databaseUrl = String(env[DB_URL_ENV] ?? "").trim();
   const expectedPort = String(env[DB_PORT_ENV] ?? "").trim();
   invariant(databaseUrl.length > 0 && /^\d{4,5}$/.test(expectedPort), "explicit database URL and port are required");
@@ -47,7 +56,11 @@ function readConfig(env = process.env) {
   invariant(["127.0.0.1", "localhost", "::1", "[::1]"].includes(parsed.hostname), "database must be loopback-only");
   invariant(parsed.port === expectedPort, "database URL and expected port differ");
   invariant(parsed.search === "" && parsed.hash === "", "database URL overrides are forbidden");
-  return { databaseUrl, expectedPort };
+  return {
+    databaseUrl,
+    expectedPort,
+    disposableConfirmation: env[DISPOSABLE_CONFIRM_ENV],
+  };
 }
 
 async function rollbackQuietly(client) {
@@ -91,7 +104,6 @@ async function insertWriterFixture(client, fixture) {
      )`,
     [fixture.ownerId, `thesis-demo-lock-${fixture.ownerId}@example.invalid`],
   );
-  await client.query("BEGIN");
   const registryRead = await client.query(
     "SELECT count(*)::integer AS count FROM private.thesis_demo_qa_slots",
   );
@@ -122,9 +134,42 @@ async function insertWriterFixture(client, fixture) {
   await client.query("RESET ROLE");
 }
 
-export async function runThesisDemoUpgradeLockRace({ databaseUrl, expectedPort, logger = console.log }) {
+function stableIdentities(dataset) {
+  return dataset.accounts.map((account) => ({
+    ...account,
+    userId: randomUUID(),
+    seedStatus: "created",
+  }));
+}
+
+async function requireFreshDisposableDatabase(query, dataset, projectRef) {
+  const inventory = await readThesisDemoInventory({ query, dataset, projectRef });
+  invariant(inventory.graphState === "empty", "database graph is not empty");
+  invariant(inventory.graphConflicts.length === 0, "database graph has conflicts");
+  invariant(inventory.unexpectedObjects.length === 0, "database has unexpected relations");
+  invariant(inventory.relations.every((row) => {
+    if (row.relation === "private.stripe_test_settings") {
+      return row.totalRows === 1
+        && row.demoRows === 0
+        && row.baselineRows === 1
+        && row.unclassifiedRows === 0;
+    }
+    return row.totalRows === 0
+      && row.demoRows === 0
+      && row.baselineRows === 0
+      && row.unclassifiedRows === 0;
+  }), "database is not a fresh migrated disposable instance");
+}
+
+export async function runThesisDemoUpgradeLockRace({
+  databaseUrl,
+  expectedPort,
+  disposableConfirmation,
+  logger = console.log,
+}) {
   readConfig({
     [ENABLE_ENV]: "1",
+    [DISPOSABLE_CONFIRM_ENV]: disposableConfirmation,
     [DB_URL_ENV]: databaseUrl,
     [DB_PORT_ENV]: expectedPort,
   });
@@ -132,49 +177,61 @@ export async function runThesisDemoUpgradeLockRace({ databaseUrl, expectedPort, 
   const seeder = new Client({ connectionString: databaseUrl });
   const observer = new Client({ connectionString: databaseUrl });
   const fixture = { ownerId: randomUUID(), operationId: randomUUID() };
+  const projectRef = "local-lock-race";
   let writerStarted = false;
-  let seederStarted = false;
+  let applyPromise;
+  let seederPid;
   try {
     await Promise.all([writer.connect(), seeder.connect(), observer.connect()]);
-    const baseline = await observer.query(
-      "SELECT count(*)::integer AS count FROM private.runtime_planner_operations",
+    const dataset = JSON.parse(await readFile(DATASET_PATH, "utf8"));
+    const identities = stableIdentities(dataset);
+    await requireFreshDisposableDatabase(
+      (sql, values) => observer.query(sql, values),
+      dataset,
+      projectRef,
     );
-    invariant(baseline.rows[0]?.count === 0, "race harness requires a fresh migrated database");
-    await insertWriterFixture(writer, fixture);
+    logger("INFO: destructive-to-disposable-state race harness; reset or discard this fresh local database afterward");
+    await writer.query("BEGIN");
     writerStarted = true;
+    await insertWriterFixture(writer, fixture);
 
-    await seeder.query("BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE");
-    seederStarted = true;
-    await seeder.query("SET LOCAL statement_timeout = '15s'");
     const pidResult = await seeder.query("SELECT pg_catalog.pg_backend_pid() AS pid");
-    const seederPid = Number(pidResult.rows[0]?.pid);
+    seederPid = Number(pidResult.rows[0]?.pid);
     invariant(Number.isInteger(seederPid) && seederPid > 0, "seed backend PID is unavailable");
 
-    const lockPromise = lockThesisDemoInventory((sql, values) => seeder.query(sql, values));
+    let lockedInventory;
+    applyPromise = runThesisDemoApplyTransaction({
+      query: (sql, values) => seeder.query(sql, values),
+      dataset,
+      projectRef,
+      identities,
+      inspectDatasetGraph: inspectThesisDemoDatasetGraph,
+      readInventory: async (input) => {
+        lockedInventory = await readThesisDemoInventory(input);
+        return lockedInventory;
+      },
+    });
     await waitForLock(observer, seederPid);
     await writer.query("COMMIT");
     writerStarted = false;
-    await lockPromise;
-
-    const dataset = JSON.parse(await readFile(DATASET_PATH, "utf8"));
-    const inventory = await readThesisDemoInventory({
-      query: (sql, values) => seeder.query(sql, values),
-      dataset,
-      projectRef: "local-lock-race",
-    });
-    const operationInventory = inventory.relations.find(
+    const cause = await applyPromise.catch((error) => error);
+    invariant(cause?.code === "THESIS_DEMO_DATABASE_FAILED", "apply transaction did not fail closed");
+    const operationInventory = lockedInventory?.relations.find(
       ({ relation }) => relation === "private.runtime_planner_operations",
     );
     invariant(operationInventory?.unclassifiedRows === 1, "committed writer row escaped exact inventory");
-    invariant(inventory.graphState !== "upgrade-v1", "non-exact graph was accepted as upgrade-v1");
+    invariant(lockedInventory?.graphState === "empty", "scoped empty graph was not reproduced");
 
-    await seeder.query("ROLLBACK");
-    seederStarted = false;
-    logger("PASS: preexisting registry reader committed before inventory; inventory rejected its unclassified planner row");
-    return { ok: true, waitObserved: true, unclassifiedPlannerRows: 1 };
+    logger("PASS: apply transaction rejected a writer committed between preflight and locked inventory validation");
+    return { ok: true, waitObserved: true, applyRejected: true, unclassifiedPlannerRows: 1 };
+  } catch (error) {
+    if (applyPromise && Number.isInteger(seederPid)) {
+      await observer.query("SELECT pg_catalog.pg_cancel_backend($1)", [seederPid]).catch(() => {});
+    }
+    throw error;
   } finally {
     if (writerStarted) await rollbackQuietly(writer);
-    if (seederStarted) await rollbackQuietly(seeder);
+    if (applyPromise) await applyPromise.catch(() => {});
     await Promise.allSettled([writer.end(), seeder.end(), observer.end()]);
   }
 }

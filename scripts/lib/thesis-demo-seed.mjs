@@ -93,14 +93,18 @@ export const THESIS_DEMO_RELATIONS = Object.freeze([
   "public.trip_plans",
 ]);
 const THESIS_DEMO_QA_REGISTRY_RELATION = "private.thesis_demo_qa_slots";
-const THESIS_DEMO_INVENTORY_WRITE_LOCK_RELATIONS = Object.freeze(
-  THESIS_DEMO_RELATIONS
-    .filter((relation) => relation !== THESIS_DEMO_QA_REGISTRY_RELATION)
-    .sort(),
-);
 const THESIS_DEMO_INVENTORY_LOCK_OWNERS = Object.freeze({
   "private.runtime_planner_operations": "localens_plan_rpc_owner",
 });
+const THESIS_DEMO_SPECIAL_LOCK_RELATIONS = Object.freeze(
+  Object.keys(THESIS_DEMO_INVENTORY_LOCK_OWNERS).sort(),
+);
+const THESIS_DEMO_ORDINARY_LOCK_RELATIONS = Object.freeze(
+  THESIS_DEMO_RELATIONS
+    .filter((relation) => relation !== THESIS_DEMO_QA_REGISTRY_RELATION
+      && !THESIS_DEMO_SPECIAL_LOCK_RELATIONS.includes(relation))
+    .sort(),
+);
 const THESIS_DEMO_CLASSIFICATION = "synthetic_demo";
 const THESIS_DEMO_TIMEZONE = "Asia/Ho_Chi_Minh";
 const THESIS_DEMO_ACCOUNT_ALLOWLIST = Object.freeze([
@@ -1059,6 +1063,35 @@ function isExactV1Inventory(inventory) {
       audited.demoRowsByRelation[relation] === (THESIS_DEMO_V1_DEMO_ROWS[relation] ?? 0));
 }
 
+function isLockedInventorySafeForGraph(inventory, graphState) {
+  const audited = auditInventory(inventory);
+  if (
+    audited === null
+    || inventory.graphState !== graphState
+    || inventory.graphConflicts.length !== 0
+    || inventory.unexpectedObjects.length !== 0
+    || audited.unclassifiedApplicationRows !== 0
+    || audited.unclassifiedAuthUsers !== 0
+  ) return false;
+
+  if (graphState === "upgrade-v1") return isExactV1Inventory(inventory);
+  if (graphState === "exact") {
+    return audited.applicationRows > 0
+      && audited.demoAuthUsers === THESIS_DEMO_ACCOUNT_EMAILS.length;
+  }
+  if (graphState === "empty") {
+    return audited.applicationRows === 0 && audited.demoAuthUsers === 0;
+  }
+  if (graphState === "auth-recovery") {
+    return audited.demoAuthUsers > 0
+      && audited.demoAuthUsers <= THESIS_DEMO_ACCOUNT_EMAILS.length
+      && audited.applicationRows === audited.demoAuthUsers * 2
+      && audited.demoRowsByRelation["public.profiles"] === audited.demoAuthUsers
+      && audited.demoRowsByRelation["private.user_roles"] === audited.demoAuthUsers;
+  }
+  return false;
+}
+
 function placeRows(dataset) {
   return dataset.places.map((place) => ({
     id: place.id,
@@ -1710,11 +1743,14 @@ export async function lockThesisDemoInventory(query) {
   // Taking this lock first lets a lifecycle RPC that already observed an empty
   // registry finish before the seed snapshot, while later RPCs wait for v2.
   await query(`LOCK TABLE ${THESIS_DEMO_QA_REGISTRY_RELATION} IN ACCESS EXCLUSIVE MODE`);
-  for (const relation of THESIS_DEMO_INVENTORY_WRITE_LOCK_RELATIONS) {
+  await query(
+    `LOCK TABLE ${THESIS_DEMO_ORDINARY_LOCK_RELATIONS.join(", ")} IN SHARE ROW EXCLUSIVE MODE`,
+  );
+  for (const relation of THESIS_DEMO_SPECIAL_LOCK_RELATIONS) {
     const ownerRole = THESIS_DEMO_INVENTORY_LOCK_OWNERS[relation];
-    if (ownerRole) await query(`SET LOCAL ROLE ${ownerRole}`);
+    await query(`SET LOCAL ROLE ${ownerRole}`);
     await query(`LOCK TABLE ${relation} IN SHARE ROW EXCLUSIVE MODE`);
-    if (ownerRole) await query("RESET ROLE");
+    await query("RESET ROLE");
   }
 }
 
@@ -1731,6 +1767,8 @@ export async function runThesisDemoApplyTransaction({
   requireSeed(hasExactText(projectRef), "THESIS_DEMO_PROJECT_REQUIRED", "expected project ref is required");
   requireSeed(typeof inspectDatasetGraph === "function",
     "THESIS_DEMO_DATABASE_REQUIRED", "full dataset graph inspector is required");
+  requireSeed(typeof readInventory === "function",
+    "THESIS_DEMO_DATABASE_REQUIRED", "transactional inventory reader is required");
   const identityRows = databaseIdentities(dataset, identities);
   const qaCustomer = identityRows.find(({ email }) => email === "customer.qa@localens.invalid");
   let started = false;
@@ -1738,10 +1776,22 @@ export async function runThesisDemoApplyTransaction({
     await query("BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE");
     started = true;
     await query("SET LOCAL statement_timeout = '15s'");
+    await query("SET LOCAL lock_timeout = '5s'");
     await lockThesisDemoInventory(query);
     const initialGraph = await inspectDatasetGraph({ query, dataset, projectRef, identities });
-    if (initialGraph?.state === "conflict") {
-      throw seedError("THESIS_DEMO_DATABASE_FAILED", "conflicting thesis-demo graph refused");
+    const lockedInventory = await readInventory({
+      query,
+      dataset,
+      projectRef,
+      identities,
+      inspectDatasetGraph,
+    });
+    if (
+      !Array.isArray(initialGraph?.conflicts)
+      || initialGraph.conflicts.length !== 0
+      || !isLockedInventorySafeForGraph(lockedInventory, initialGraph?.state)
+    ) {
+      throw seedError("THESIS_DEMO_DATABASE_FAILED", "locked thesis-demo inventory refused");
     }
     if (initialGraph?.state === "exact") {
       await query("COMMIT");
@@ -1749,21 +1799,6 @@ export async function runThesisDemoApplyTransaction({
       return applySummary();
     }
     if (initialGraph?.state === "upgrade-v1") {
-      requireSeed(
-        typeof readInventory === "function",
-        "THESIS_DEMO_DATABASE_REQUIRED",
-        "transactional v1 inventory reader is required",
-      );
-      const upgradeInventory = await readInventory({
-        query,
-        dataset,
-        projectRef,
-        identities,
-        inspectDatasetGraph,
-      });
-      if (!isExactV1Inventory(upgradeInventory)) {
-        throw seedError("THESIS_DEMO_DATABASE_FAILED", "non-exact v1 inventory refused");
-      }
       await executeParameterizedBatch(query, INSERT_QA_SLOTS_SQL, [
         JSON.stringify(qaSlotRows(dataset)),
         qaCustomer.userId,

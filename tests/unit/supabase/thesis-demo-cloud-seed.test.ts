@@ -927,6 +927,10 @@ function createTransactionQuery({
   const inspectDatasetGraph = vi.fn()
     .mockResolvedValueOnce({ state: initialGraphState, conflicts: graphConflicts })
     .mockResolvedValue({ state: postGraphState, conflicts: graphConflicts });
+  const readInventory = vi.fn(async () => completeInventory({
+    graphState: initialGraphState,
+    authDemoRows: ["auth-recovery", "upgrade-v1", "exact"].includes(initialGraphState) ? 4 : 0,
+  }));
   const query = vi.fn(async (sql: string, values: unknown[] = []) => {
     statements.push({ sql, values });
     if (failOn?.test(sql)) throw new Error(`${SERVICE_ROLE_KEY} ${DATABASE_URL}`);
@@ -947,7 +951,7 @@ function createTransactionQuery({
     }
     return { rows: [], rowCount: 1 };
   });
-  return { query, statements, inspectDatasetGraph };
+  return { query, statements, inspectDatasetGraph, readInventory };
 }
 
 describe("thesis demo database transactions", () => {
@@ -988,6 +992,7 @@ describe("thesis demo database transactions", () => {
       projectRef: PROJECT_REF,
       identities: stableIdentities(),
       inspectDatasetGraph: database.inspectDatasetGraph,
+      readInventory: database.readInventory,
     });
 
     expect(result).toEqual({
@@ -1044,7 +1049,7 @@ describe("thesis demo database transactions", () => {
     }
   });
 
-  it("locks the complete inventory in deterministic writer-blocking order before graph inspection", async () => {
+  it("locks the complete inventory in three bounded writer-blocking statements before graph inspection", async () => {
     const database = createTransactionQuery();
     const inspectionStatementCounts: number[] = [];
     const inspectDatasetGraph = vi.fn(async () => {
@@ -1060,29 +1065,137 @@ describe("thesis demo database transactions", () => {
       projectRef: PROJECT_REF,
       identities: stableIdentities(),
       inspectDatasetGraph,
+      readInventory: database.readInventory,
     });
 
     const lockStatements = database.statements.filter(({ sql }) => /^LOCK TABLE /i.test(sql));
     expect(lockStatements[0]?.sql).toBe(
       "LOCK TABLE private.thesis_demo_qa_slots IN ACCESS EXCLUSIVE MODE",
     );
-    const inventoryLocks = lockStatements.slice(1);
-    expect(inventoryLocks.map(({ sql }) => sql)).toEqual(
-      THESIS_DEMO_RELATIONS
-        .filter((relation: string) => relation !== "private.thesis_demo_qa_slots")
-        .sort()
-        .map((relation: string) => `LOCK TABLE ${relation} IN SHARE ROW EXCLUSIVE MODE`),
+    expect(database.statements[0]?.sql).toBe("BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE");
+    expect(database.statements[1]?.sql).toBe("SET LOCAL statement_timeout = '15s'");
+    expect(database.statements[2]?.sql).toBe("SET LOCAL lock_timeout = '5s'");
+    expect(database.statements[3]?.sql).toBe(lockStatements[0]?.sql);
+    const ordinaryRelations = THESIS_DEMO_RELATIONS
+      .filter((relation: string) => ![
+        "private.thesis_demo_qa_slots",
+        "private.runtime_planner_operations",
+      ].includes(relation))
+      .sort();
+    expect(lockStatements).toHaveLength(3);
+    expect(lockStatements[1]?.sql).toBe(
+      `LOCK TABLE ${ordinaryRelations.join(", ")} IN SHARE ROW EXCLUSIVE MODE`,
     );
-    expect(new Set(lockStatements.map(({ sql }) => sql.match(/^LOCK TABLE ([^ ]+)/i)?.[1])).size)
-      .toBe(THESIS_DEMO_RELATIONS.length);
+    expect(lockStatements[2]?.sql).toBe(
+      "LOCK TABLE private.runtime_planner_operations IN SHARE ROW EXCLUSIVE MODE",
+    );
     const plannerLockIndex = database.statements.findIndex(({ sql }) =>
       sql === "LOCK TABLE private.runtime_planner_operations IN SHARE ROW EXCLUSIVE MODE");
     expect(database.statements[plannerLockIndex - 1]?.sql).toBe("SET LOCAL ROLE localens_plan_rpc_owner");
     expect(database.statements[plannerLockIndex + 1]?.sql).toBe("RESET ROLE");
     const finalLockIndex = database.statements.findLastIndex(({ sql }) => /^LOCK TABLE /i.test(sql));
-    expect(inspectionStatementCounts[0]).toBe(finalLockIndex + 1);
+    expect(database.statements[finalLockIndex + 1]?.sql).toBe("RESET ROLE");
+    expect(inspectionStatementCounts[0]).toBe(finalLockIndex + 2);
     expect(database.statements.slice(0, inspectionStatementCounts[0]).every(({ sql }) =>
-      /^(?:BEGIN|SET LOCAL (?:statement_timeout|ROLE)|RESET ROLE|LOCK TABLE )/i.test(sql))).toBe(true);
+      /^(?:BEGIN|SET LOCAL (?:statement_timeout|lock_timeout|ROLE)|RESET ROLE|LOCK TABLE )/i.test(sql))).toBe(true);
+  });
+
+  it("requires a transactional inventory reader before opening an apply transaction", async () => {
+    const database = createTransactionQuery();
+
+    const cause = await runThesisDemoApplyTransaction({
+      query: database.query,
+      dataset: readDataset(),
+      projectRef: PROJECT_REF,
+      identities: stableIdentities(),
+      inspectDatasetGraph: database.inspectDatasetGraph,
+    }).catch((error: unknown) => error as Error & { code?: string });
+
+    expect(cause.code).toBe("THESIS_DEMO_DATABASE_REQUIRED");
+    expect(database.statements).toEqual([]);
+  });
+
+  it.each([
+    ["exact", 4],
+    ["empty", 0],
+    ["auth-recovery", 4],
+  ] as const)(
+    "rolls back %s when the locked inventory contains an unclassified writer row",
+    async (graphState, authDemoRows) => {
+      const database = createTransactionQuery({ initialGraphState: graphState });
+      const readInventory = vi.fn(async () => completeInventory({
+        graphState,
+        authDemoRows,
+        relationOverrides: {
+          "private.runtime_planner_operations": {
+            totalRows: 1,
+            demoRows: 0,
+            baselineRows: 0,
+            unclassifiedRows: 1,
+          },
+        },
+      }));
+
+      const cause = await runThesisDemoApplyTransaction({
+        query: database.query,
+        dataset: readDataset(),
+        projectRef: PROJECT_REF,
+        identities: stableIdentities(),
+        inspectDatasetGraph: database.inspectDatasetGraph,
+        readInventory,
+      }).catch((error: unknown) => error as Error & { code?: string });
+
+      expect(cause.code).toBe("THESIS_DEMO_DATABASE_FAILED");
+      expect(readInventory).toHaveBeenCalledTimes(1);
+      expect(database.statements.at(-1)?.sql).toBe("ROLLBACK");
+      expect(database.statements.some(({ sql }) => /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i.test(sql)))
+        .toBe(false);
+    },
+  );
+
+  it("rolls back when the complete inventory graph disagrees with the scoped graph inspector", async () => {
+    const database = createTransactionQuery({ initialGraphState: "exact" });
+    const readInventory = vi.fn(async () => completeInventory({ graphState: "empty" }));
+
+    const cause = await runThesisDemoApplyTransaction({
+      query: database.query,
+      dataset: readDataset(),
+      projectRef: PROJECT_REF,
+      identities: stableIdentities(),
+      inspectDatasetGraph: database.inspectDatasetGraph,
+      readInventory,
+    }).catch((error: unknown) => error as Error & { code?: string });
+
+    expect(cause.code).toBe("THESIS_DEMO_DATABASE_FAILED");
+    expect(readInventory).toHaveBeenCalledTimes(1);
+    expect(database.statements.at(-1)?.sql).toBe("ROLLBACK");
+  });
+
+  it("allows classified lifecycle evidence on an otherwise exact locked inventory", async () => {
+    const database = createTransactionQuery({ initialGraphState: "exact" });
+    const readInventory = vi.fn(async () => completeInventory({
+      graphState: "exact",
+      relationOverrides: {
+        "private.runtime_planner_operations": {
+          totalRows: 1,
+          demoRows: 1,
+          baselineRows: 0,
+          unclassifiedRows: 0,
+        },
+      },
+    }));
+
+    await runThesisDemoApplyTransaction({
+      query: database.query,
+      dataset: readDataset(),
+      projectRef: PROJECT_REF,
+      identities: stableIdentities(),
+      inspectDatasetGraph: database.inspectDatasetGraph,
+      readInventory,
+    });
+
+    expect(readInventory).toHaveBeenCalledTimes(1);
+    expect(database.statements.at(-1)?.sql).toBe("COMMIT");
   });
 
   it("upgrades only an exact v1 graph by inserting registry metadata and advancing the marker atomically", async () => {
@@ -1156,6 +1269,7 @@ describe("thesis demo database transactions", () => {
       projectRef: PROJECT_REF,
       identities: stableIdentities(),
       inspectDatasetGraph: database.inspectDatasetGraph,
+      readInventory: database.readInventory,
     });
 
     const registryStatement = database.statements.find(({ sql }) =>
@@ -1192,6 +1306,7 @@ describe("thesis demo database transactions", () => {
       projectRef: PROJECT_REF,
       identities: stableIdentities(),
       inspectDatasetGraph: database.inspectDatasetGraph,
+      readInventory: database.readInventory,
     });
 
     const departureInsertIndex = database.statements.findIndex(({ sql }) =>
@@ -1222,6 +1337,7 @@ describe("thesis demo database transactions", () => {
       projectRef: PROJECT_REF,
       identities: stableIdentities(),
       inspectDatasetGraph: database.inspectDatasetGraph,
+      readInventory: database.readInventory,
     });
 
     const assignmentIndex = database.statements.findIndex(({ sql }) =>
@@ -1246,6 +1362,7 @@ describe("thesis demo database transactions", () => {
       projectRef: PROJECT_REF,
       identities: stableIdentities(),
       inspectDatasetGraph: database.inspectDatasetGraph,
+      readInventory: database.readInventory,
     });
 
     const sql = database.statements.map(({ sql }) => sql).join("\n");
@@ -1266,6 +1383,7 @@ describe("thesis demo database transactions", () => {
         projectRef: PROJECT_REF,
         identities: stableIdentities(),
         inspectDatasetGraph: database.inspectDatasetGraph,
+        readInventory: database.readInventory,
       })).rejects.toMatchObject({ code: "THESIS_DEMO_DATABASE_FAILED" });
 
       const mutationSql = database.statements
@@ -1287,6 +1405,7 @@ describe("thesis demo database transactions", () => {
       projectRef: PROJECT_REF,
       identities: stableIdentities(),
       inspectDatasetGraph: database.inspectDatasetGraph,
+      readInventory: database.readInventory,
     });
     const second = await runThesisDemoApplyTransaction({
       query: database.query,
@@ -1294,6 +1413,7 @@ describe("thesis demo database transactions", () => {
       projectRef: PROJECT_REF,
       identities: stableIdentities(),
       inspectDatasetGraph: database.inspectDatasetGraph,
+      readInventory: database.readInventory,
     });
 
     expect(second).toEqual(first);
@@ -1315,6 +1435,7 @@ describe("thesis demo database transactions", () => {
         projectRef: PROJECT_REF,
         identities: stableIdentities(),
         inspectDatasetGraph: database.inspectDatasetGraph,
+        readInventory: database.readInventory,
       }).catch((error: unknown) => error as Error & { code?: string });
 
       expect(cause.code).toBe("THESIS_DEMO_DATABASE_FAILED");
