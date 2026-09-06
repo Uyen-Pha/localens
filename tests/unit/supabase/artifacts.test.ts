@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -677,7 +677,6 @@ COMMIT;
   it("ships authenticated recommend and refine Edge Function entrypoints with pinned imports", () => {
     const functions = ["recommend-itinerary", "refine-itinerary"];
     const expectedImports = {
-      "@/": "../../../",
       "@supabase/supabase-js": "npm:@supabase/supabase-js@2.112.3",
       zod: "npm:zod@4.4.3",
     };
@@ -711,8 +710,8 @@ COMMIT;
         "@/lib/domain/itinerary/contracts": "../../../lib/domain/itinerary/contracts.ts",
       });
       expect(Object.entries(deno.imports ?? {})
-        .filter(([specifier]) => specifier.startsWith("@/") && specifier !== "@/")
-        .every(([, target]) => target.endsWith(".ts"))).toBe(true);
+        .filter(([specifier]) => specifier.startsWith("@/"))
+        .every(([, target]) => target.endsWith(".ts") && statSync(join(directory, target)).isFile())).toBe(true);
       expect(deno.unstable).toBeUndefined();
     }
 

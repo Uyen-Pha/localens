@@ -1,6 +1,5 @@
 {
   "imports": {
-    "@/": "../../../",
     "@/lib/application/itinerary/ranking-port": "../../../lib/application/itinerary/ranking-port.ts",
     "@/lib/application/itinerary/recommend": "../../../lib/application/itinerary/recommend.ts",
     "@/lib/domain/data/contracts": "../../../lib/domain/data/contracts.ts",
