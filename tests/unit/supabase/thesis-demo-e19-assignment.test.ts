@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// @ts-expect-error The executable JavaScript fixture boundary is covered here.
 import {
   E19_ASSIGNMENT_IDEMPOTENCY_KEY,
   E19_FIXTURE_VERSION,
@@ -12,6 +11,7 @@ import {
   runE19AssignmentFixture,
   validateE19ConnectionTarget,
   validateE19AssignmentManifest,
+// @ts-expect-error The executable JavaScript fixture boundary is covered here.
 } from "@/scripts/seed-thesis-demo-e19-assignment.mjs";
 
 type QueryCall = { sql: string; values: unknown[] };
