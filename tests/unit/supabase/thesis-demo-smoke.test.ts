@@ -895,7 +895,7 @@ describe("bounded thesis-demo cloud smoke", () => {
 
     const code = await captureCode(runThesisDemoSmoke(fallbackOptions(), {
       ...harness.dependencies,
-      request: async (spec) => {
+      request: async (spec: RequestRecord) => {
         const response = await request(spec);
         return spec.gate === "planner.fallback" ? { ...response, status: 503 } : response;
       },
