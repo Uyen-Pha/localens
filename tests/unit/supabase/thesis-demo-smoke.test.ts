@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import * as thesisDemoSmoke from "@/scripts/smoke-thesis-demo.mjs";
 
 const {
+  createThesisDemoSmokeEnvironmentDependencies,
   FALLBACK_SMOKE_CONFIRMATION,
   LIVE_SMOKE_OPT_IN,
   runThesisDemoSmoke,
@@ -28,7 +29,7 @@ const REVISION_TWO_ID = "d1700000-0000-4000-8000-000000000822";
 const PAYMENT_BOOKING_ID = "d1700000-0000-4000-8000-000000000711";
 const CANCELLATION_BOOKING_ID = "d1700000-0000-4000-8000-000000000712";
 const RECOMMEND_OPERATION_ID = "d1700000-0000-4000-8000-000000000701";
-const REFINE_OPERATION_ID = "d1700000-0000-4000-8000-000000000702";
+const REFINE_OPERATION_ID = "d1700000-0000-4000-8000-000000000742";
 const FALLBACK_OPERATION_ID = "d1700000-0000-4000-8000-000000000703";
 const LOCKED_START_AT = "2026-09-12T09:00:00+07:00";
 const LOCKED_END_AT = "2026-09-12T10:00:00+07:00";
@@ -50,6 +51,46 @@ const ACCOUNT_IDS = {
   guide: "d1700000-0000-4000-8000-000000000903",
   admin: "d1700000-0000-4000-8000-000000000904",
 } as const;
+
+const QA_SLOT_ROWS = [
+  {
+    slotId: "qa-01",
+    terminalFlow: "payment",
+    bookingId: PAYMENT_BOOKING_ID,
+    recommendOperationId: RECOMMEND_OPERATION_ID,
+    refineOperationId: "d1700000-0000-4000-8000-000000000741",
+  },
+  {
+    slotId: "qa-02",
+    terminalFlow: "cancellation",
+    bookingId: CANCELLATION_BOOKING_ID,
+    recommendOperationId: "d1700000-0000-4000-8000-000000000702",
+    refineOperationId: REFINE_OPERATION_ID,
+  },
+  {
+    slotId: "qa-03",
+    terminalFlow: "spare",
+    bookingId: "d1700000-0000-4000-8000-000000000713",
+    recommendOperationId: FALLBACK_OPERATION_ID,
+    refineOperationId: "d1700000-0000-4000-8000-000000000743",
+  },
+  {
+    slotId: "qa-04",
+    terminalFlow: "spare",
+    bookingId: "d1700000-0000-4000-8000-000000000714",
+    recommendOperationId: "d1700000-0000-4000-8000-000000000704",
+    refineOperationId: "d1700000-0000-4000-8000-000000000744",
+  },
+].map((row) => ({
+  ...row,
+  datasetVersion: "thesis-demo.v2",
+  markerVersion: "thesis-demo.v2",
+  projectRef: PROJECT_REF,
+  registryCount: 4,
+  ownerUserId: ACCOUNT_IDS.qaCustomer,
+  ownerEmail: "customer.qa@localens.invalid",
+  ownerRole: "customer",
+}));
 
 type RequestRecord = {
   gate: string;
@@ -241,6 +282,17 @@ function createHarness({
           access_token: `access-token-${account}-1234567890`,
           user: { id: ACCOUNT_IDS[account] },
         },
+      };
+    }
+    if (spec.gate === "read.qa-slots") {
+      return {
+        status: 201,
+        headers: { correlationId: "qa-slots-01" },
+        json: qaSlotSafe
+          ? structuredClone(QA_SLOT_ROWS)
+          : structuredClone(QA_SLOT_ROWS.map((row, index) => (
+            index === 0 ? { ...row, bookingId: "00000000-0000-4000-8000-000000000099" } : row
+          ))),
       };
     }
     if (spec.gate.startsWith("role.")) {
@@ -455,25 +507,18 @@ function createHarness({
   const dependencies = {
     request,
     logger: (line: string) => { logs.push(line); },
-    inspectQaSlots: async (assignment: unknown) => {
+    qaSlotInspectionRequest: async (assignment: unknown) => {
       qaInspectionRequests.push(structuredClone(assignment));
-      return qaSlotSafe
-        ? {
-          safe: true as const,
-          assignments: {
-            payment: {
-              slotId: "qa-01",
-              bookingId: PAYMENT_BOOKING_ID,
-              operationId: RECOMMEND_OPERATION_ID,
-            },
-            cancellation: {
-              slotId: "qa-02",
-              bookingId: CANCELLATION_BOOKING_ID,
-              operationId: REFINE_OPERATION_ID,
-            },
-          },
-        }
-        : { safe: false as const, code: "SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN" };
+      return {
+        gate: "read.qa-slots",
+        url: `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query/read-only`,
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${MANAGEMENT_TOKEN}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ query: "SELECT exact_v2_qa_slot_inventory" }),
+      };
     },
     ...(quotaObservable
       ? {
@@ -569,23 +614,81 @@ describe("bounded thesis-demo cloud smoke", () => {
     expect(harness.requests).toEqual([]);
   });
 
-  it("keeps the known random-booking QA-slot mismatch fail-closed before cloud I/O", async () => {
+  it("keeps a cloud QA-slot mismatch fail-closed before provider or product mutation", async () => {
     const harness = createHarness({ qaSlotSafe: false });
 
     const code = await captureCode(runThesisDemoSmoke(validOptions(), harness.dependencies));
 
     expect(code).toBe("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
-    expect(harness.requests).toEqual([]);
+    expect(harness.requests.map(({ gate }) => gate)).toEqual([
+      "target",
+      "auth.customer",
+      "auth.qaCustomer",
+      "auth.guide",
+      "auth.admin",
+      "read.qa-slots",
+    ]);
+    expect(harness.requests.some(({ gate }) => gate.startsWith("planner."))).toBe(false);
+    expect(harness.requests.some(({ gate }) => gate.startsWith("fixed."))).toBe(false);
   });
 
   it("requires the exact two-slot live inspection seam before cloud I/O", async () => {
     const harness = createHarness();
-    const dependencies = { ...harness.dependencies, inspectQaSlots: undefined };
+    const dependencies = { ...harness.dependencies, qaSlotInspectionRequest: undefined };
 
     const code = await captureCode(runThesisDemoSmoke(validOptions(), dependencies));
 
     expect(code).toBe("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
     expect(harness.requests).toEqual([]);
+  });
+
+  it("builds read-only v2 registry and exact service-role attestation requests in the real adapter", async () => {
+    const options = validOptions();
+    const dependencies = createThesisDemoSmokeEnvironmentDependencies(options);
+
+    const qaSpec = await dependencies.qaSlotInspectionRequest({
+      payment: { slotId: "qa-01", bookingId: PAYMENT_BOOKING_ID, operationId: RECOMMEND_OPERATION_ID },
+      cancellation: { slotId: "qa-02", bookingId: CANCELLATION_BOOKING_ID, operationId: REFINE_OPERATION_ID },
+    });
+    expect(qaSpec).toMatchObject({
+      gate: "read.qa-slots",
+      url: `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query/read-only`,
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${MANAGEMENT_TOKEN}`,
+        "content-type": "application/json",
+      },
+    });
+    const qaBody = JSON.parse(qaSpec.body);
+    expect(qaBody).toEqual({
+      query: expect.stringMatching(/FROM private\.thesis_demo_qa_slots AS slots/),
+    });
+    expect(qaBody.query).toMatch(/JOIN private\.thesis_demo_manifest AS marker/);
+    expect(qaBody.query).toMatch(/JOIN private\.user_roles AS roles/);
+    expect(qaBody.query).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|TRUNCATE|ALTER|DROP)\b/i);
+
+    const attestationSpec = dependencies.quotaAttestationRequest({
+      operation: "refine",
+      phase: "after",
+      operationId: REFINE_OPERATION_ID,
+      requestDigest: "f".repeat(64),
+      actorUserId: ACCOUNT_IDS.customer,
+    });
+    expect(attestationSpec).toEqual({
+      gate: "read.attestation.after.refine",
+      url: `${SUPABASE_URL}/rest/v1/rpc/get_runtime_planner_operation`,
+      method: "POST",
+      headers: {
+        apikey: SERVICE_ROLE_KEY,
+        authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        p_actor_user_id: ACCOUNT_IDS.customer,
+        p_operation_id: REFINE_OPERATION_ID,
+        p_request_digest: "f".repeat(64),
+      }),
+    });
   });
 
   it("keeps live replay fail-closed when quota evidence is not observable", async () => {
@@ -709,6 +812,11 @@ describe("bounded thesis-demo cloud smoke", () => {
         operationId: REFINE_OPERATION_ID,
       },
     }]);
+    expect(harness.requests.filter(({ gate }) => gate === "read.qa-slots")).toHaveLength(1);
+    expect(harness.requests.filter(({ gate }) => gate.startsWith("role.")).map(({ gate }) => gate)).toEqual([
+      "role.guide",
+      "role.admin",
+    ]);
 
     const plannerRequests = harness.requests
       .filter(({ gate }) => gate.startsWith("planner.recommend") || gate.startsWith("planner.refine"));
@@ -728,6 +836,7 @@ describe("bounded thesis-demo cloud smoke", () => {
       gate.startsWith("auth.")
       || gate.startsWith("role.")
       || gate.startsWith("denial.")
+      || gate === "read.qa-slots"
       || gate.startsWith("read.owner-revision-")
       || gate.startsWith("read.attestation.")
     ));
@@ -753,6 +862,12 @@ describe("bounded thesis-demo cloud smoke", () => {
     expect(paymentBodies.every(({ booking_id }) => booking_id === PAYMENT_BOOKING_ID)).toBe(true);
     expect(cancellationBodies.every(({ booking_id }) => booking_id === CANCELLATION_BOOKING_ID)).toBe(true);
     expect(PAYMENT_BOOKING_ID).not.toBe(CANCELLATION_BOOKING_ID);
+    const assignmentBodies = harness.requests
+      .filter(({ gate }) => gate.startsWith("fixed.payment.assign"))
+      .map(({ body }) => JSON.parse(body ?? "{}"));
+    expect(assignmentBodies).toHaveLength(2);
+    expect(assignmentBodies.every(({ idempotency_key }) => idempotency_key === "thesis-demo:v2:qa-01:assignment"))
+      .toBe(true);
     expect(harness.requests.filter(({ gate }) => gate.startsWith("fixed.payment.read"))).toHaveLength(3);
     expect(result.gates.map(({ name, status }: { name: string; status: string }) => `${name}:${status}`)).toEqual(expect.arrayContaining([
       "real-ai:pass",

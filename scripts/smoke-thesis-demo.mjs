@@ -24,8 +24,26 @@ const ACCOUNT_CONTRACT = Object.freeze({
 });
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const dataset = JSON.parse(readFileSync(join(repoRoot, "data", "demo", "thesis-demo.v1.json"), "utf8"));
+const dataset = JSON.parse(readFileSync(join(repoRoot, "data", "demo", "thesis-demo.v2.json"), "utf8"));
 const QA_SLOTS = new Map(dataset.qa.slots.map((slot) => [slot.id, Object.freeze({ ...slot })]));
+const QA_SLOT_INSPECTION_SQL = `SELECT
+  slots.slot_id AS "slotId",
+  slots.terminal_flow AS "terminalFlow",
+  slots.booking_id AS "bookingId",
+  slots.recommend_operation_id AS "recommendOperationId",
+  slots.refine_operation_id AS "refineOperationId",
+  slots.dataset_version AS "datasetVersion",
+  pg_catalog.count(*) OVER ()::integer AS "registryCount",
+  users.id AS "ownerUserId",
+  users.email AS "ownerEmail",
+  roles.role::text AS "ownerRole",
+  marker.project_ref AS "projectRef",
+  marker.dataset_version AS "markerVersion"
+FROM private.thesis_demo_qa_slots AS slots
+JOIN auth.users AS users ON users.id = slots.owner_user_id
+JOIN private.user_roles AS roles ON roles.user_id = slots.owner_user_id
+JOIN private.thesis_demo_manifest AS marker ON marker.environment = 'thesis-demo'
+ORDER BY slots.slot_id`;
 
 export class ThesisDemoSmokeError extends Error {
   constructor(code) {
@@ -283,12 +301,13 @@ async function authenticate(options, state) {
   return sessions;
 }
 
-async function verifyRoles(options, sessions, state) {
+async function verifyRoles(options, sessions, state, { qaRoleVerified = false } = {}) {
   for (const [key, contract] of Object.entries(ACCOUNT_CONTRACT)) {
     // Both planner handlers enforce the exact customer role before provider
     // eligibility. Keep the separate pre-provider role reads for the three
-    // fixed-tour actors so all owner/service evidence stays within 20 HTTP calls.
-    if (key === "customer") continue;
+    // fixed-tour actors. Live mode proves the QA customer role in the exact
+    // registry query so all owner/service evidence stays within 20 HTTP calls.
+    if (key === "customer" || (key === "qaCustomer" && qaRoleVerified)) continue;
     const response = await state.request({
       gate: `role.${key}`,
       url: `${options.target.supabaseUrl}/rest/v1/rpc/get_portal_identity`,
@@ -301,6 +320,63 @@ async function verifyRoles(options, sessions, state) {
     if (identity.user_id !== sessions[key].userId || identity.role !== contract.role) fail("SMOKE_ROLE_MISMATCH");
     state.pass(`role-${key}`, response);
   }
+}
+
+function qaSlotRows(value) {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.result)) return value.result;
+  fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
+}
+
+function sameQaSlotRow(actual, expected, options, sessions) {
+  return actual?.slotId === expected.id
+    && actual?.terminalFlow === expected.terminalFlow
+    && actual?.bookingId === expected.bookingId
+    && actual?.recommendOperationId === expected.recommendOperationId
+    && actual?.refineOperationId === expected.refineOperationId
+    && actual?.datasetVersion === dataset.datasetVersion
+    && actual?.markerVersion === dataset.datasetVersion
+    && actual?.projectRef === options.target.projectRef
+    && actual?.registryCount === QA_SLOTS.size
+    && actual?.ownerUserId === sessions.qaCustomer.userId
+    && actual?.ownerEmail === ACCOUNT_CONTRACT.qaCustomer.email
+    && actual?.ownerRole === ACCOUNT_CONTRACT.qaCustomer.role;
+}
+
+async function verifyQaSlots(options, dependencies, sessions, state, slots) {
+  const expected = {
+    payment: {
+      slotId: slots.payment.id,
+      bookingId: slots.payment.bookingId,
+      operationId: slots.payment.recommendOperationId,
+    },
+    cancellation: {
+      slotId: slots.cancellation.id,
+      bookingId: slots.cancellation.bookingId,
+      operationId: slots.cancellation.refineOperationId,
+    },
+  };
+  let spec;
+  try {
+    spec = await dependencies.qaSlotInspectionRequest(expected);
+  } catch {
+    fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
+  }
+  const expectedUrl = `${MANAGEMENT_ORIGIN}/v1/projects/${encodeURIComponent(options.target.projectRef)}/database/query/read-only`;
+  if (spec?.gate !== "read.qa-slots" || spec?.method !== "POST" || spec?.url !== expectedUrl) {
+    fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
+  }
+  const response = await state.request(spec, { preProvider: true, evidence: true });
+  requireStatus(response, 201, "SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
+  const rows = qaSlotRows(response.json);
+  const sortedRows = [...rows].sort((left, right) => String(left?.slotId).localeCompare(String(right?.slotId)));
+  const expectedSlots = [...QA_SLOTS.values()].sort((left, right) => left.id.localeCompare(right.id));
+  if (
+    sortedRows.length !== expectedSlots.length
+    || !expectedSlots.every((slot, index) => sameQaSlotRow(sortedRows[index], slot, options, sessions))
+  ) fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
+  state.pass("qa-slots", response);
+  return expected;
 }
 
 function plannerInput() {
@@ -327,7 +403,7 @@ function plannerInput() {
 async function runDenialProbes(options, sessions, state, slot) {
   const endpoint = `${options.target.supabaseUrl}/functions/v1/recommend-itinerary`;
   const outsideId = "00000000-0000-4000-8000-000000000099";
-  const validBody = JSON.stringify({ operationId: slot.runId, input: plannerInput() });
+  const validBody = JSON.stringify({ operationId: slot.recommendOperationId, input: plannerInput() });
   const customerHeaders = bearerHeaders(options, sessions.customer.token);
   const probes = [
     {
@@ -348,7 +424,7 @@ async function runDenialProbes(options, sessions, state, slot) {
     {
       gate: "denial.invalid-payload",
       expected: 400,
-      spec: { url: endpoint, method: "POST", headers: customerHeaders, body: JSON.stringify({ operationId: slot.runId }) },
+      spec: { url: endpoint, method: "POST", headers: customerHeaders, body: JSON.stringify({ operationId: slot.recommendOperationId }) },
     },
     {
       gate: "denial.outside-allowlist",
@@ -650,12 +726,12 @@ async function runLive(options, dependencies, sessions, state, slots) {
   const paymentAssignment = {
     slotId: slots.payment.id,
     bookingId: slots.payment.bookingId,
-    operationId: slots.payment.runId,
+    operationId: slots.payment.recommendOperationId,
   };
   const cancellationAssignment = {
     slotId: slots.cancellation.id,
     bookingId: slots.cancellation.bookingId,
-    operationId: slots.cancellation.runId,
+    operationId: slots.cancellation.refineOperationId,
   };
   await runDenialProbes(options, sessions, state, slots.payment);
 
@@ -817,7 +893,7 @@ async function runFixedTour(options, sessions, state, {
   const assignmentBody = {
     booking_id: paymentAssignment.bookingId,
     guide_user_id: sessions.guide.userId,
-    idempotency_key: `thesis-demo:v1:${paymentSlot.id}:assignment`,
+    idempotency_key: `thesis-demo:v2:${paymentSlot.id}:assignment`,
   };
   const assignment = await mutation(options, state, { gate: "fixed.payment.assign.primary", rpc: "assign_fixed_departure_guide", token: sessions.admin.token, body: assignmentBody });
   const assignmentReplay = await mutation(options, state, { gate: "fixed.payment.assign.replay", rpc: "assign_fixed_departure_guide", token: sessions.admin.token, body: assignmentBody });
@@ -900,7 +976,7 @@ async function runFallback(options, dependencies, sessions, state) {
 
     const fallbackSlot = QA_SLOTS.get("qa-03");
     if (fallbackSlot === undefined) fail("SMOKE_QA_SLOT_UNSAFE");
-    const operationId = fallbackSlot.runId;
+    const operationId = fallbackSlot.recommendOperationId;
     const body = JSON.stringify({ operationId, input: plannerInput() });
     const response = await plannerCall(options, sessions, state, {
       gate: "planner.fallback",
@@ -927,39 +1003,8 @@ async function runFallback(options, dependencies, sessions, state) {
   if (primaryError !== undefined) throw primaryError;
 }
 
-function sameQaAssignment(actual, expected) {
-  return actual?.slotId === expected.slotId
-    && actual?.bookingId === expected.bookingId
-    && actual?.operationId === expected.operationId;
-}
-
-async function preflightLive(dependencies, slots) {
-  if (!(dependencies.inspectQaSlots instanceof Function)) fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
-  const expected = {
-    payment: {
-      slotId: slots.payment.id,
-      bookingId: slots.payment.bookingId,
-      operationId: slots.payment.runId,
-    },
-    cancellation: {
-      slotId: slots.cancellation.id,
-      bookingId: slots.cancellation.bookingId,
-      operationId: slots.cancellation.runId,
-    },
-  };
-  let inspection;
-  try {
-    inspection = await dependencies.inspectQaSlots(expected);
-  } catch {
-    fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
-  }
-  if (
-    inspection?.safe !== true
-    || !sameQaAssignment(inspection.assignments?.payment, expected.payment)
-    || !sameQaAssignment(inspection.assignments?.cancellation, expected.cancellation)
-  ) {
-    fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
-  }
+async function preflightLive(dependencies) {
+  if (!(dependencies.qaSlotInspectionRequest instanceof Function)) fail("SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN");
   if (!(dependencies.quotaAttestationRequest instanceof Function)) fail("SMOKE_QUOTA_REPLAY_UNPROVEN");
   if (!(dependencies.postCommitResponseLoss?.authorizeReplay instanceof Function)) {
     fail("SMOKE_RESPONSE_LOSS_SEAM_UNAVAILABLE");
@@ -969,12 +1014,13 @@ async function preflightLive(dependencies, slots) {
 export async function runThesisDemoSmoke(options, dependencies) {
   const { slots } = validateOptions(options);
   if (dependencies?.request === undefined) fail("SMOKE_HTTP_UNAVAILABLE");
-  if (options.mode === "live-success") await preflightLive(dependencies, slots);
+  if (options.mode === "live-success") await preflightLive(dependencies);
 
   const state = makeState(options, dependencies);
   await verifyTarget(options, state);
   const sessions = await authenticate(options, state);
-  await verifyRoles(options, sessions, state);
+  if (options.mode === "live-success") await verifyQaSlots(options, dependencies, sessions, state, slots);
+  await verifyRoles(options, sessions, state, { qaRoleVerified: options.mode === "live-success" });
 
   let realAi = false;
   if (options.mode === "live-success") realAi = await runLive(options, dependencies, sessions, state, slots);
@@ -1077,15 +1123,35 @@ function optionsFromEnvironment(environment) {
   };
 }
 
-function environmentDependencies(options) {
+export function createThesisDemoSmokeEnvironmentDependencies(options) {
   return {
     request: defaultRequest,
     logger: (line) => process.stdout.write(`${line}\n`),
-    // Dataset v1 cannot prove that begin_fixed_tour_booking will reuse its
-    // predeclared booking ID. The real adapter therefore remains fail-closed.
-    inspectQaSlots: async () => ({ safe: false, code: "SMOKE_QA_SLOT_BOOKING_ID_UNPROVEN" }),
-    // Deliberately no quotaAttestationRequest seam until a protected observable
-    // boundary can prove one receipt/run per same-operation replay.
+    qaSlotInspectionRequest: async () => ({
+      gate: "read.qa-slots",
+      url: `${MANAGEMENT_ORIGIN}/v1/projects/${encodeURIComponent(options.target.projectRef)}/database/query/read-only`,
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${options.credentials.managementToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ query: QA_SLOT_INSPECTION_SQL }),
+    }),
+    quotaAttestationRequest: ({ operation, phase, operationId, requestDigest, actorUserId }) => ({
+      gate: `read.attestation.${phase}.${operation}`,
+      url: `${options.target.supabaseUrl}/rest/v1/rpc/get_runtime_planner_operation`,
+      method: "POST",
+      headers: {
+        apikey: options.credentials.serviceRoleKey,
+        authorization: `Bearer ${options.credentials.serviceRoleKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        p_actor_user_id: actorUserId,
+        p_operation_id: operationId,
+        p_request_digest: requestDigest,
+      }),
+    }),
     postCommitResponseLoss: {
       authorizeReplay: async ({ requestIdentity }) => ({ replay: true, requestIdentity }),
     },
@@ -1101,7 +1167,7 @@ export async function runThesisDemoSmokeMain({
     if (run !== undefined) await run();
     else {
       const options = optionsFromEnvironment(process.env);
-      await runThesisDemoSmoke(options, environmentDependencies(options));
+      await runThesisDemoSmoke(options, createThesisDemoSmokeEnvironmentDependencies(options));
     }
     return 0;
   } catch (error) {
