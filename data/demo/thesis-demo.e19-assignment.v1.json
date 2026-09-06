@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "fixtureVersion": "thesis-demo.v2.e19.assignment.v1",
+  "baseDatasetVersion": "thesis-demo.v2",
+  "baseManifestEnvironment": "thesis-demo",
+  "classification": "synthetic_demo",
+  "purpose": "assignment-only",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "ownerAccountKey": "customer-qa",
+  "ownerEmail": "customer.qa@localens.invalid",
+  "guideAccountKey": "guide-demo",
+  "guideEmail": "guide.demo@localens.invalid",
+  "sourceTourId": "d1700000-0000-4000-8000-000000000401",
+  "sourceTourVersionId": "d1700000-0000-4000-8000-000000000411",
+  "sourceDepartureId": "d1700000-0000-4000-8000-000000000431",
+  "sourceBookingId": "d1700000-0000-4000-8000-000000000502",
+  "sourceHoldId": "d1700000-0000-4000-8000-000000000552",
+  "assignmentActorAccountKey": "admin-demo",
+  "assignmentActorEmail": "admin.demo@localens.invalid",
+  "assignmentIdempotencyKey": "thesis-demo:v2:e19:assignment:booking502",
+  "departure": {
+    "id": "d1700000-0000-4000-8000-000001000451",
+    "tourVersionId": "d1700000-0000-4000-8000-000000000411",
+    "startAt": "2026-10-03T02:00:00.000Z",
+    "endAt": "2026-10-03T05:00:00.000Z",
+    "status": "scheduled",
+    "capacity": 1
+  },
+  "booking": {
+    "id": "d1700000-0000-4000-8000-000001000502",
+    "holdId": "d1700000-0000-4000-8000-000001000552",
+    "partySize": 1,
+    "status": "confirmed",
+    "createdAt": "2026-10-03T00:00:01.000Z",
+    "holdStatus": "consumed"
+  },
+  "preserve": {
+    "teacherDepartureIds": [
+      "d1700000-0000-4000-8000-000000000421",
+      "d1700000-0000-4000-8000-000000000422",
+      "d1700000-0000-4000-8000-000000000423"
+    ],
+    "qaDepartureIds": [
+      "d1700000-0000-4000-8000-000000000431",
+      "d1700000-0000-4000-8000-000000000432"
+    ],
+    "qaBookingIds": [
+      "d1700000-0000-4000-8000-000000000711",
+      "d1700000-0000-4000-8000-000000000712",
+      "d1700000-0000-4000-8000-000000000713",
+      "d1700000-0000-4000-8000-000000000714"
+    ],
+    "qaHoldIds": [
+      "d1700000-0000-4000-8000-000000000781",
+      "d1700000-0000-4000-8000-000000000782",
+      "d1700000-0000-4000-8000-000000000783",
+      "d1700000-0000-4000-8000-000000000784"
+    ],
+    "fixtureBookingIds": [
+      "d1700000-0000-4000-8000-000000000501",
+      "d1700000-0000-4000-8000-000000000502"
+    ],
+    "assignmentIds": [
+      "d1700000-0000-4000-8000-000000000601"
+    ],
+    "qaSlotIds": [
+      "qa-01",
+      "qa-02",
+      "qa-03",
+      "qa-04"
+    ]
+  },
+  "constraints": {
+    "mustReusePublishedTourVersion": true,
+    "mustNotCreateAccountOrRole": true,
+    "mustNotCreateQaSlot": true,
+    "mustNotCreateInitialAssignment": true,
+    "mustNotModifyExistingGraph": true
+  }
+}

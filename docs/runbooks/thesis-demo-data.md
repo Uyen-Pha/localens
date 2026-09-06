@@ -1,9 +1,55 @@
-# LocalLens thesis-demo data v1
+# LocalLens thesis-demo data
 
 This runbook describes the synthetic dataset and the guarded seeder. It is an
 operator procedure for Task 18; Task 17 does not connect to or change any cloud
 database. Its database proof runs only against a disposable local Supabase
 project on reserved nonstandard ports.
+
+## Current cloud inventory: v2 plus assignment-only companion
+
+The accepted cloud marker remains `thesis-demo.v2`. On 2026-09-06, remaining
+E19 acceptance required one new non-overlapping guide assignment. The four v2
+checkout slots remain unchanged; qa-01 is paid and qa-02 cancelled. Their IDs
+must never be reused for new checkout.
+
+The companion manifest is `data/demo/thesis-demo.e19-assignment.v1.json`, version
+`thesis-demo.v2.e19.assignment.v1`. Its scope is exactly one scheduled departure
+`d1700000-0000-4000-8000-000001000451`, one confirmed QA-owned booking
+`d1700000-0000-4000-8000-000001000502`, and its consumed hold
+`d1700000-0000-4000-8000-000001000552`. It reuses published tour version 411,
+capacity/party size 1, on 2026-10-03 02:00–05:00 UTC. The booking fully consumes
+capacity, and is fixture data for assignment acceptance, not payment evidence.
+No account, role, initial assignment, QA checkout slot or schema grant is added.
+
+`scripts/seed-thesis-demo-e19-assignment.mjs` validates exact versioned IDs,
+project marker, source graph, guide non-overlap and preservation of existing
+teacher/QA bookings, holds, assignment and lifecycle facts. It performs three
+inserts in one transaction, checks postconditions, and rolls back on failure.
+`--dry-run` uses a read-only transaction without row locks. A second apply before
+assignment returns already-present without inserts. After the native assignment,
+the pre-assignment seeder deliberately refuses lifecycle drift; do not use it
+as a general database health check or rerun it to reset the assignment.
+
+Operator connection input stays outside Git in process-scoped variables. The
+CLI requires `LOCALENS_THESIS_DEMO_E19_CONFIRM=localens-thesis-demo-e19-assignment`
+and the exact verified project ref, database host/port/name/login and Supabase
+URL. The DB URL must use `sslmode=verify-full`; the official Supabase CA can be
+supplied through process-only `NODE_EXTRA_CA_CERTS`. Never disable certificate
+or hostname verification. See [Supabase SSL documentation](https://supabase.com/docs/guides/platform/ssl-enforcement).
+Never place credentials in a command argument, report or committed env file.
+
+Cloud apply passed on 2026-09-06 after Astra review, 10 focused unit tests and a
+fresh disposable SQL dry-run/apply/replay/forced-rollback run. Cloud readback
+confirmed the three exact rows and zero initial assignments. The native admin
+assignment result remains pending and will be recorded separately in the release acceptance report.
+
+The existing full v1/v2 seed inventory intentionally rejects extra companion
+rows and consumed QA lifecycle state. **Do not run the full cloud seed, reset or
+cleanup against this active database.** Preserve the additive companion in
+future inventory/migration planning; a new demo date requires a new reviewed
+version. Data changes remain forward-only, including during frontend recovery.
+
+The sections below describe the original v1 bootstrap and v2 upgrade history.
 
 ## Dataset boundary
 
