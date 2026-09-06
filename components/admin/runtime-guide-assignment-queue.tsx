@@ -11,6 +11,8 @@ import {
 import type { Locale } from "@/lib/i18n/config";
 import { guideAssignmentRuntimeCopy } from "@/lib/i18n/guide-assignment-runtime";
 
+import styles from "@/components/portals/portal.module.css";
+
 type LoadState = "loading" | "ready" | "error";
 
 function safeErrorMessage(
@@ -123,24 +125,24 @@ export function RuntimeGuideAssignmentQueue({
     }
   }
 
-  if (state === "loading") return <p role="status" aria-live="polite">{text.loading}</p>;
+  if (state === "loading") return <p className={styles.srStatus} role="status" aria-live="polite">{text.loading}</p>;
   if (state === "error") {
-    return <div role="alert"><p>{loadError ?? text.unavailable}</p><button type="button" onClick={() => setRetryKey((value) => value + 1)}>{text.retry}</button></div>;
+    return <div className={styles.error} role="alert"><p>{loadError ?? text.unavailable}</p><button className={styles.button} type="button" onClick={() => setRetryKey((value) => value + 1)}>{text.retry}</button></div>;
   }
 
   return (
-    <section aria-labelledby="runtime-guide-assignment-heading">
+    <section className={styles.card} aria-labelledby="runtime-guide-assignment-heading">
       <h2 id="runtime-guide-assignment-heading">{text.adminHeading}</h2>
-      <p role="note">{text.adminDisclosure}</p>
-      {queue.length === 0 ? <p>{text.emptyAdmin}</p> : (
-        <div>
+      <p className={styles.sectionIntro} role="note">{text.adminDisclosure}</p>
+      {queue.length === 0 ? <p className={styles.empty}>{text.emptyAdmin}</p> : (
+        <div className={styles.list}>
           {queue.map((item) => {
             const title = locale === "vi" ? item.titleVi : item.titleEn;
             const selectedGuide = selected[item.bookingId] ?? "";
             return (
-              <article key={item.bookingId} aria-labelledby={`runtime-assignment-${item.bookingId}`}>
+              <article className={styles.assignmentCard} key={item.bookingId} aria-labelledby={`runtime-assignment-${item.bookingId}`}>
                 <h3 id={`runtime-assignment-${item.bookingId}`}>{title}</h3>
-                <dl>
+                <dl className={styles.facts}>
                   <div><dt>{text.schedule}</dt><dd>{formatSchedule(item.startAt, item.endAt, locale)}</dd></div>
                   <div><dt>{text.meetingPoint}</dt><dd>{item.meetingPoint}</dd></div>
                   <div><dt>{text.partySize}</dt><dd>{item.partySize}</dd></div>
@@ -148,8 +150,8 @@ export function RuntimeGuideAssignmentQueue({
                   <div><dt>{text.currentGuide}</dt><dd>{item.guideDisplayName ?? text.unassigned}</dd></div>
                   {item.assignmentStatus ? <div><dt>{text.status}</dt><dd>{text.assignmentStatus[item.assignmentStatus]}</dd></div> : null}
                 </dl>
-                {guides.length === 0 ? <p>{text.noGuides}</p> : (
-                  <form onSubmit={(event) => {
+                {guides.length === 0 ? <p className={styles.empty}>{text.noGuides}</p> : (
+                  <form className={styles.inlineForm} onSubmit={(event) => {
                     event.preventDefault();
                     const control = event.currentTarget.elements.namedItem("guideUserId");
                     const guideUserId = control instanceof HTMLSelectElement ? control.value : "";
@@ -170,7 +172,7 @@ export function RuntimeGuideAssignmentQueue({
                         ))}
                       </select>
                     </label>
-                    <button type="submit" disabled={!selectedGuide || submitting !== null}>{text.assign}</button>
+                    <button className={styles.button} type="submit" disabled={!selectedGuide || submitting !== null}>{text.assign}</button>
                   </form>
                 )}
               </article>
@@ -179,9 +181,9 @@ export function RuntimeGuideAssignmentQueue({
         </div>
       )}
       {(submitting !== null || message !== null) ? (
-        <p ref={statusRef} role="status" aria-live="polite" tabIndex={-1}>{submitting !== null ? text.saving : message}</p>
+        <p className={styles.success} ref={statusRef} role="status" aria-live="polite" tabIndex={-1}>{submitting !== null ? text.saving : message}</p>
       ) : null}
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? <p className={styles.error} role="alert">{error}</p> : null}
     </section>
   );
 }

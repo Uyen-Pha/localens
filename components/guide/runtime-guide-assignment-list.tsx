@@ -10,6 +10,8 @@ import {
 import type { Locale } from "@/lib/i18n/config";
 import { guideAssignmentRuntimeCopy } from "@/lib/i18n/guide-assignment-runtime";
 
+import styles from "@/components/portals/portal.module.css";
+
 type LoadState = "loading" | "ready" | "error";
 
 function safeErrorMessage(
@@ -60,31 +62,35 @@ export function RuntimeGuideAssignmentList({
 
   useEffect(() => { void load(); }, [load, retryKey]);
 
-  if (state === "loading") return <p role="status" aria-live="polite">{text.loading}</p>;
+  if (state === "loading") return <p className={styles.srStatus} role="status" aria-live="polite">{text.loading}</p>;
   if (state === "error") {
-    return <div role="alert"><p>{loadError ?? text.unavailable}</p><button type="button" onClick={() => setRetryKey((value) => value + 1)}>{text.retry}</button></div>;
+    return <div className={styles.error} role="alert"><p>{loadError ?? text.unavailable}</p><button className={styles.button} type="button" onClick={() => setRetryKey((value) => value + 1)}>{text.retry}</button></div>;
   }
 
   return (
-    <section aria-labelledby="runtime-guide-own-assignments-heading">
+    <section className={styles.card} aria-labelledby="runtime-guide-own-assignments-heading">
       <h2 id="runtime-guide-own-assignments-heading">{text.guideHeading}</h2>
-      <p role="note">{text.guideDisclosure}</p>
-      {items.length === 0 ? <p>{text.emptyGuide}</p> : items.map((item) => {
-        const requirementLabels = [...item.mobilityFlags, ...item.dietaryFlags].map((flag) => text.flags[flag]);
-        return (
-          <article key={item.assignmentId} aria-labelledby={`runtime-guide-own-${item.assignmentId}`}>
-            <h3 id={`runtime-guide-own-${item.assignmentId}`}>{item.title}</h3>
-            <dl>
+      <p className={styles.sectionIntro} role="note">{text.guideDisclosure}</p>
+      {items.length === 0 ? <p className={styles.empty}>{text.emptyGuide}</p> : (
+        <div className={styles.list}>
+          {items.map((item) => {
+            const requirementLabels = [...item.mobilityFlags, ...item.dietaryFlags].map((flag) => text.flags[flag]);
+            return (
+              <article className={styles.assignmentCard} key={item.assignmentId} aria-labelledby={`runtime-guide-own-${item.assignmentId}`}>
+                <h3 id={`runtime-guide-own-${item.assignmentId}`}>{item.title}</h3>
+                <dl className={styles.facts}>
               <div><dt>{text.schedule}</dt><dd>{formatSchedule(item, locale)}</dd></div>
               <div><dt>{text.meetingPoint}</dt><dd>{item.meetingPoint}</dd></div>
               <div><dt>{text.partySize}</dt><dd>{item.partySize}</dd></div>
               <div><dt>{text.tourLanguage}</dt><dd>{text.language[item.language]}</dd></div>
               <div><dt>{text.status}</dt><dd>{text.assignmentStatus[item.assignmentStatus]}</dd></div>
               <div><dt>{text.requirements}</dt><dd>{requirementLabels.length === 0 ? text.noRequirements : requirementLabels.join(", ")}</dd></div>
-            </dl>
-          </article>
-        );
-      })}
+                </dl>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

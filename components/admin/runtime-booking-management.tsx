@@ -11,6 +11,8 @@ import {
 } from "@/lib/i18n/booking-cancellation";
 import type { SupabaseAdminBookingManagementPort } from "@/lib/infrastructure/supabase/booking-cancellation-adapter";
 
+import styles from "@/components/portals/portal.module.css";
+
 function formatDate(value: string, locale: Locale): string {
   return new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", {
     dateStyle: "medium",
@@ -44,23 +46,23 @@ export function RuntimeBookingManagement({
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <section className="runtime-portal-panel" aria-labelledby="runtime-booking-management-heading">
+    <section className={`${styles.card} runtime-portal-panel`} aria-labelledby="runtime-booking-management-heading">
       <h2 id="runtime-booking-management-heading">{copy.bookingManagement}</h2>
-      <p role="note">{copy.bookingManagementIntro}</p>
-      {items === null ? <p role="status">{locale === "vi" ? "Đang tải…" : "Loading…"}</p> : null}
+      <p className={styles.sectionIntro} role="note">{copy.bookingManagementIntro}</p>
+      {items === null ? <p className={styles.srStatus} role="status">{locale === "vi" ? "Đang tải…" : "Loading…"}</p> : null}
       {failed ? (
-        <div role="alert">
+        <div className={styles.error} role="alert">
           <p>{copy.unavailable}</p>
-          <button type="button" onClick={() => void load()}>{locale === "vi" ? "Thử lại" : "Try again"}</button>
+          <button className={styles.button} type="button" onClick={() => void load()}>{locale === "vi" ? "Thử lại" : "Try again"}</button>
         </div>
       ) : null}
-      {!failed && items?.length === 0 ? <p>{copy.emptyBookings}</p> : null}
+      {!failed && items?.length === 0 ? <p className={styles.empty}>{copy.emptyBookings}</p> : null}
       {!failed && items && items.length > 0 ? (
-        <div>
+        <div className={styles.list}>
           {items.map((item) => (
-            <article key={item.bookingId} aria-labelledby={`runtime-booking-management-${item.bookingId}`}>
+            <article className={styles.bookingCard} key={item.bookingId} aria-labelledby={`runtime-booking-management-${item.bookingId}`}>
               <h3 id={`runtime-booking-management-${item.bookingId}`}>{locale === "vi" ? item.titleVi : item.titleEn}</h3>
-              <dl>
+              <dl className={styles.facts}>
                 <div><dt>{copy.bookingId}</dt><dd>{item.bookingId}</dd></div>
                 <div><dt>{copy.customerId}</dt><dd>{item.customerUserId}</dd></div>
                 <div><dt>{copy.source}</dt><dd>{item.sourceKind === "departure" ? copy.sourceDeparture : copy.sourceQuote}</dd></div>
