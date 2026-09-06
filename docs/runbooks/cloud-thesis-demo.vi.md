@@ -2,6 +2,15 @@
 
 ## Mục tiêu hiện tại
 
+**Checkpoint 2026-09-06:** tiếp tục Task 20; không làm lại Task 14. Vercel project
+`local-lens2/localens` đã có deployment `BV7tybWR2pUrDS2sV5KAsoj1BKyh` tại
+`b58f426`, phục vụ `https://localens-ashen.vercel.app`. Đây là quan sát dashboard,
+chưa thay thế nghiệm thu G20/G21/G22. Push CI `34021339001` đã đạt trên SHA đó;
+hai dispatch sau đó lỗi ở protected cloud smoke. Nhánh
+`codex/task7-clean-typecheck` đang tự deploy production: candidate sửa tiếp dùng
+`codex/thesis-release-final` và phải nghiệm thu preview trước khi phát hành.
+Các SHA và trạng thái bên dưới là lịch sử nghiệm thu Task 19.
+
 Runbook này khóa release candidate cloud-smoke
 `ef485673b2f90280d1717cf2a3a1b597ae44157b` trên nhánh công khai
 `codex/task7-clean-typecheck` của
@@ -116,7 +125,7 @@ Không ghi giá trị vào tài liệu hoặc Git.
 | `NEXT_PUBLIC_LOCALLENS_RUNTIME` | Giá trị cố định `supabase`. |
 | `NEXT_PUBLIC_SUPABASE_URL` | API URL HTTPS của project Supabase đã xác minh. |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key của cùng project. |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Site key thật, không rỗng và hợp lệ cho domain. Candidate hiện tại chưa có chế độ tắt đã được code/test chứng minh. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Tùy chọn: có thể bỏ hẳn khi không dùng Turnstile. Parser và admin initialization đã được kiểm thử với key vắng mặt; không dùng key giả. |
 | `NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES` | Chỉ dành cho runner E2E. Bắt buộc **không tồn tại** trên preview/production; không đặt thành `0`. |
 
 Không dùng `sb_publishable_ci_build_only` hoặc `ci-build-only` ngoài CI build.
@@ -303,30 +312,39 @@ không phải cloud acceptance.
 
 ### Task 20 — Vercel preview
 
-1. Link đúng Vercel project với repo/candidate đã xác minh.
+1. Tái sử dụng đúng Vercel project với repo/candidate đã xác minh. Đối chiếu
+   production branch trước push; không đẩy candidate chưa review vào nhánh đó.
 2. Đặt public env thật; build Supabase runtime, không dùng placeholder CI.
-   Turnstile phải có site key hợp lệ; nếu muốn chế độ tắt thì phải triển khai,
-   test và phát hành candidate mới trước.
+   Candidate mới cho phép bỏ biến Turnstile khi ứng dụng không tích hợp
+   Turnstile; giá trị đã cung cấp vẫn phải không rỗng. Không đặt key giả.
 3. Sau khi có preview origin, cập nhật Supabase Auth URL/redirect và
    `ALLOWED_ORIGINS` chính xác, rồi rebuild nếu public env đã bake vào bundle.
 4. Dùng Google Chrome trên preview để kiểm login/logout, recommend/refine,
    reload/deep link, VI/EN, assets, console và request destinations.
+5. CI push kiểm tra đúng SHA độc lập với smoke cloud. Dispatch kiểm tra web để
+   `run_cloud_smoke=false`; chỉ bật khi thay đổi làm mất hiệu lực evidence cloud
+   và đã đọc lại slot chưa dùng. Khi bật phải có confirmation đúng mode. Không
+   lặp `qa-04` hoặc reset registry để chữa lỗi slot đã dùng. Ghi rõ URL HTTP smoke
+   không thay thế browser acceptance có đăng nhập.
 
 ### Task 21 — Product QA cloud
 
 1. Product Design audit phải chụp screenshot cloud trước khi kết luận.
 2. Kiểm 20 kịch bản theo release plan, đủ customer/admin/guide, locale,
    responsive, keyboard/focus và error/retry.
-3. Không gọi AI thật lặp lại chỉ để chụp nhiều viewport; dùng readback cùng
-   revision đã tạo.
+3. Release dùng fallback xác định, `provider=0`; E05 kiểm tra candidate IDs,
+   nhãn nguồn và readback đúng, không yêu cầu Gemini thật. Dùng cùng revision
+   cho ảnh nhiều viewport. Thử provider thật là thí nghiệm riêng ngoài release.
 4. Nếu sửa code, quay lại owner/gate tương ứng, deploy candidate mới và rerun
    các case chịu ảnh hưởng.
 
 ### Task 22 — Production và bàn giao
 
-1. Chọn đúng artifact đã qua G21; nếu rebuild thì nghiệm thu artifact mới.
-2. Promote, khóa origins/redirect, rồi smoke bằng phiên mới trên URL cuối.
-3. Thực hành rollback/stop path và xác minh schema/function compatibility.
+1. Trước promote, thực hành stop/recovery trên preview, ghi version Function
+   tương thích schema và chứng minh phục hồi. Không đụng dữ liệu trình chiếu.
+2. Chọn artifact đã qua G21; kiểm APP_URL và headers phụ thuộc VERCEL_ENV
+   (gồm HSTS). Nếu rebuild thì nghiệm thu artifact mới.
+3. Promote, khóa origins/redirect, rồi smoke bằng phiên mới trên URL cuối.
 4. Bàn giao URL và tài khoản qua kênh riêng; không public admin password.
 5. Chỉ phát hành nhãn `thesis-demo-deployed@<SHA>` khi mọi bằng chứng đủ.
 
@@ -349,9 +367,10 @@ nhãn hoặc screenshot của SHA cũ.
 
 ## Rollback/đường thoát cho lần phát hành đầu
 
-Hiện chưa có deployment trước để rollback. Tám GitHub deployment record
-`staging` cũ đều có trạng thái cuối `failure` và không có environment URL; đó
-không phải Vercel deployment hoặc rollback target.
+Ngày 2026-09-06 đã quan sát deployment Vercel `BV7tybWR2pUrDS2sV5KAsoj1BKyh`
+tại `b58f426`, nhưng chưa nghiệm thu tính tương thích để dùng làm rollback target.
+Tám GitHub deployment record `staging` cũ có trạng thái cuối `failure` và không
+có environment URL vẫn không phải rollback target.
 
 1. Tắt Gemini bằng `LOCALLENS_GEMINI_ENABLED=0`, đọc lại config và kiểm fallback.
 2. Nếu frontend không an toàn, tạm ngừng public access hoặc phục vụ trang bảo

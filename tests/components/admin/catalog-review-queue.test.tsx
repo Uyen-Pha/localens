@@ -1,7 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/env/public", () => ({ parsePublicEnv: vi.fn((value: unknown) => value) }));
+vi.mock("@/lib/env/public", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/env/public")>("@/lib/env/public");
+  return { ...actual, parsePublicEnv: vi.fn(actual.parsePublicEnv) };
+});
 vi.mock("@/lib/supabase/client", () => ({ createBrowserSupabaseClient: vi.fn() }));
 
 import {
@@ -9,8 +12,22 @@ import {
   CatalogReviewQueue,
   type CatalogReviewQueueProps,
 } from "@/components/admin/catalog-review-queue";
+import { parsePublicEnv } from "@/lib/env/public";
 import type { AdminFoodReviewRow } from "@/lib/infrastructure/supabase/catalog-review-adapter";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+
+const requiredPublicEnv = {
+  NEXT_PUBLIC_APP_URL: "https://localens.example.com",
+  NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_demo",
+};
+
+beforeEach(() => {
+  Object.assign(process.env, requiredPublicEnv);
+  delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  vi.mocked(parsePublicEnv).mockClear();
+  vi.mocked(createBrowserSupabaseClient).mockReset();
+});
 
 afterEach(cleanup);
 
@@ -343,6 +360,23 @@ describe("admin catalog review queue", () => {
     }]} viewerRole="admin" />);
 
     await waitFor(() => expect(within(screen.getByRole("article", { name: "Synthetic dish" })).getAllByRole("checkbox")[0]).not.toBeChecked());
+  });
+
+  it("initializes the admin queue when Turnstile is not configured", async () => {
+    const client = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }) },
+      rpc: vi.fn(),
+    };
+    vi.mocked(createBrowserSupabaseClient).mockReturnValue(client as unknown as ReturnType<typeof createBrowserSupabaseClient>);
+
+    render(<CatalogReviewLiveQueue locale="en" />);
+
+    await waitFor(() => expect(createBrowserSupabaseClient).toHaveBeenCalled());
+    expect(parsePublicEnv).toHaveBeenLastCalledWith({
+      ...requiredPublicEnv,
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: undefined,
+    });
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Admin sign-in required"));
   });
 
   it("removes an approved row after the validated live RPC result and safely refreshes the queue", async () => {

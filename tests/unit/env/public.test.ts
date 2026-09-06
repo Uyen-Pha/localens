@@ -20,6 +20,13 @@ describe("public environment contract", () => {
     ).toEqual(validSource);
   });
 
+  it("accepts an omitted Turnstile site key when Turnstile is disabled", () => {
+    const source = { ...validSource };
+    Reflect.deleteProperty(source, "NEXT_PUBLIC_TURNSTILE_SITE_KEY");
+
+    expect(parsePublicEnv(source)).toEqual(source);
+  });
+
   it("rejects a missing publishable key", () => {
     expect(() =>
       parsePublicEnv({

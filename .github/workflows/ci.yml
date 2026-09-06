@@ -14,9 +14,14 @@ on:
           - fallback-only
           - live-success
       confirmation:
-        description: Type RUN_FALLBACK_THESIS_DEMO or RUN_LIVE_THESIS_DEMO for the selected mode
-        required: true
+        description: Type RUN_FALLBACK_THESIS_DEMO or RUN_LIVE_THESIS_DEMO when cloud smoke is enabled
+        required: false
         type: string
+      run_cloud_smoke:
+        description: Explicitly opt in to the protected thesis-demo cloud smoke
+        required: false
+        default: false
+        type: boolean
       payment_qa_slot:
         description: Exact finite payment/replay slot for live-success
         required: true
@@ -231,7 +236,7 @@ jobs:
           NODE
 
   thesis-demo-cloud-smoke:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_cloud_smoke == true }}
     needs:
       - quality-demo
       - demo-e2e

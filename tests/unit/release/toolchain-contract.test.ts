@@ -23,8 +23,20 @@ type WorkflowJob = {
   "timeout-minutes"?: number;
 };
 
+type WorkflowDispatchInput = {
+  default?: boolean | string;
+  description?: string;
+  required?: boolean;
+  type?: string;
+};
+
 type Workflow = {
   jobs?: Record<string, WorkflowJob>;
+  on?: {
+    workflow_dispatch?: {
+      inputs?: Record<string, WorkflowDispatchInput>;
+    };
+  };
 };
 
 const root = process.cwd();
@@ -127,10 +139,31 @@ describe("release toolchain contract", () => {
   });
 
   it("defaults fallback cloud smoke to the unused spare QA slot", () => {
-    const inputs = (parse(readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8")) as {
-      on?: { workflow_dispatch?: { inputs?: Record<string, { default?: string }> } };
-    }).on?.workflow_dispatch?.inputs;
+    const inputs = workflow.on?.workflow_dispatch?.inputs;
 
     expect(inputs?.fallback_qa_slot?.default).toBe("qa-04");
+  });
+
+  it("defaults protected cloud smoke to an explicit false boolean opt-in", () => {
+    const input = workflow.on?.workflow_dispatch?.inputs?.run_cloud_smoke;
+
+    expect(input).toMatchObject({
+      default: false,
+      required: false,
+      type: "boolean",
+    });
+    expect(workflow.on?.workflow_dispatch?.inputs?.confirmation?.required).toBe(false);
+  });
+
+  it("runs protected cloud smoke only for an explicit manual opt-in", () => {
+    const jobs = workflow.jobs ?? {};
+
+    expect(jobs["staging-smoke"]?.if).toBe(
+      "${{ github.event_name == 'workflow_dispatch' && vars.LOCALLENS_STAGING_URL != '' }}",
+    );
+    expect(jobs["staging-smoke"]?.if).not.toContain("run_cloud_smoke");
+    expect(jobs["thesis-demo-cloud-smoke"]?.if).toBe(
+      "${{ github.event_name == 'workflow_dispatch' && inputs.run_cloud_smoke == true }}",
+    );
   });
 });

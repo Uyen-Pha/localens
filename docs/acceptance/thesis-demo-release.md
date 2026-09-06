@@ -2,6 +2,43 @@
 
 ## Decision
 
+### Task 20 resume observation — 2026-09-06
+
+The active execution branch is now `codex/thesis-release-final`, based on
+`b58f4260b9b034e91fe1b16ab45ec14b46ef5e7d`. The earlier manifest below records
+Task 19 acceptance, not acceptance of subsequent changes.
+
+Live GitHub readback found push CI
+[34021339001](https://github.com/Uyen-Pha/localens/actions/runs/34021339001)
+successful at `b58f426`. The manual runs `34021350285` and `34022301409` failed
+only the protected cloud job; quality, Chrome demo E2E and isolated runtime
+jobs passed. The latter reported `SMOKE_QUOTA_REPLAY_UNPROVEN` after the
+before-fallback attestation and restored/read back the kill switch. No cloud
+rerun was dispatched during this resume inspection.
+
+The signed-in Vercel dashboard confirms project `local-lens2/localens`
+(`prj_ylyIAmAJi902Gytbc20QDpruhoh7`, team `team_fPPAvdJrHQJHtFDHPFMZZVai`),
+production deployment `BV7tybWR2pUrDS2sV5KAsoj1BKyh`, source `b58f426`, and
+public URL <https://localens-ashen.vercel.app>. Home and password sign-in render
+in Google Chrome. These observations do not establish authenticated browser
+acceptance, G21 scenarios, or rollback readiness. Supabase Auth Site URL is
+that same production origin; the currently observed redirect entry is
+`https://localens-ashen.vercel.app/**` and must be reconciled with exact accepted
+callback paths before final acceptance.
+
+The current production branch is `codex/task7-clean-typecheck`; pushing there
+would update production automatically. New changes are being prepared on the
+separate preview branch, preserving unrelated dirty files. The existing
+publishable-key variable was extended to Preview without changing its value
+or Production scope. A separate Preview APP_URL temporarily uses the observed
+production origin for bootstrap; it must be replaced with the observed preview
+origin and rebuilt before G20 acceptance.
+
+Overall acceptance remains **19/22**. Tasks 20–22 are not complete merely
+because an older deployment exists.
+
+### Historical Task 19 acceptance manifest
+
 Task 18 accepted the dedicated Supabase Cloud backend at historical baseline
 `d5b8ea8`. Task 19 is accepted for the thesis-demo scope at the fallback-only
 AI boundary: migration 32, the `thesis-demo.v2` registry/seed, bounded Edge
@@ -49,7 +86,7 @@ Overall project progress: **19/22 — 86%**. Task 20 remains the active gate.
 | AI demo cloud smoke | **PASS — Task 19** | Protected fallback-only smoke passed with `provider=0`; no billed/live Gemini request is claimed or required. |
 | Vercel preview | **PENDING — Task 20** | No project link, deployment ID, preview URL, or browser-origin acceptance is recorded. |
 | Product acceptance on cloud | **PENDING — Task 21** | The 20 cloud scenarios and cloud screenshots have not run. |
-| Final production URL | **PENDING — Task 22** | No production deployment, rollback rehearsal, or owner sign-off is recorded. |
+| Final production URL | **PENDING acceptance — Task 22** | A deployment at `b58f426` is now observed; final browser acceptance, rollback rehearsal and owner sign-off remain pending. |
 
 Payment remains strictly simulated in every layer. No card details are
 collected and no real payment processor is contacted.
@@ -197,7 +234,7 @@ the deployment platform and must not be committed.
 | `NEXT_PUBLIC_LOCALLENS_RUNTIME` | Literal `supabase`; parsed fail-closed by `lib/env/runtime.ts` and `next.config.ts`. | **PENDING** |
 | `NEXT_PUBLIC_SUPABASE_URL` | HTTPS API URL from the independently verified Supabase project. | **SOURCE VERIFIED; VERCEL PENDING** |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser-safe publishable key from that same project. | **SOURCE VERIFIED; VERCEL PENDING** |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | A non-empty real site key valid for the accepted domain. The current candidate has no verified disabled mode. | **PENDING** |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Optional when no Turnstile integration is used; supplied values remain non-empty. The Task 20 candidate adds environment and real-admin-parser regression coverage for omission. No CAPTCHA protection is removed. | **CANDIDATE CHANGE; DEPLOYMENT PENDING** |
 | `NEXT_PUBLIC_LOCALLENS_E2E_FIXTURES` | **Must be absent** from preview and production. This browser-visible switch is reserved for the owned E2E fixture runner. | **ABSENT REQUIRED** |
 
 The strings `sb_publishable_ci_build_only` and `ci-build-only` used by CI prove
@@ -236,11 +273,12 @@ No secret value, digest, database password, or connection URL is recorded here.
 
 ## Rollback and stop path
 
-This is the first recorded cloud-backend candidate. There is no prior Vercel
-deployment or production URL to restore. The selected Supabase project now has
-Function version 3 and the exact v2 synthetic seed. Function version 1 is
-historical, but compatibility with the current schema and deployment boundary
-has not been accepted; neither version is a web rollback target.
+At the historical Task 19 checkpoint, no Vercel deployment was recorded and
+the Functions were version 3 with the v2 synthetic seed. On 2026-09-06,
+Vercel deployment `BV7tybWR2pUrDS2sV5KAsoj1BKyh` at `b58f426` was observed;
+both Functions were version 23 with the same package hashes recorded above.
+That deployment has not yet passed compatibility and recovery acceptance.
+Function version 1 remains historical and is not an accepted rollback target.
 
 GitHub contains eight older `staging` deployment records, all with latest state
 `failure` and no environment URL. They are failed workflow records, not a
