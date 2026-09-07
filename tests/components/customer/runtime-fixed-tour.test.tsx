@@ -142,6 +142,9 @@ describe("runtime fixed-tour catalog", () => {
     expect(screen.getByText(tours[locale].summary)).toBeInTheDocument();
     expect(screen.getByText(tours[locale].meetingPoint)).toBeInTheDocument();
     expect(screen.getByText(tours[locale].cancellationPolicy)).toBeInTheDocument();
+    expect(screen.getByRole("img")).toHaveAccessibleName();
+    expect(decodeURIComponent(screen.getByRole("img").getAttribute("src") ?? "")).toContain("/images/");
+    expect(screen.getByText(locale === "vi" ? "Ảnh minh họa" : "Illustrative image")).toBeInTheDocument();
     expect(screen.getByText(locale === "vi" ? "Còn 8 chỗ" : "8 seats remaining")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: new RegExp(tours[locale].title) })).toHaveAttribute(
       "href",
