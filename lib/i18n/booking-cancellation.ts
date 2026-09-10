@@ -18,7 +18,7 @@ const COPY = {
   en: {
     title: "Cancel tour booking?",
     description: "The booking will be cancelled immediately and cannot be undone.",
-    pendingStatus: "Awaiting confirmation",
+    pendingStatus: "Awaiting payment",
     statusPrefix: "Status",
     reasonLabel: "Cancellation reason (optional)",
     reasonPlaceholder: "Choose a reason",
@@ -53,7 +53,7 @@ const COPY = {
   vi: {
     title: "Hủy đơn đặt tour?",
     description: "Đơn sẽ được hủy ngay và không thể hoàn tác.",
-    pendingStatus: "Chờ xác nhận",
+    pendingStatus: "Chờ thanh toán",
     statusPrefix: "Trạng thái",
     reasonLabel: "Lý do hủy (không bắt buộc)",
     reasonPlaceholder: "Chọn lý do",

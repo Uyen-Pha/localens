@@ -1,4 +1,5 @@
 "use client";
+import { paymentStatusLabel } from "@/lib/i18n/booking-status";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -467,7 +468,7 @@ export function AdminPortal({
                         </div>
                         <dl className={styles.facts}>
                           <div><dt>{copy.bookingStatus}</dt><dd>{copy.statusLabels[booking.status]}</dd></div>
-                          <div><dt>{copy.paymentStatus}</dt><dd>{booking.paymentStatus === null ? copy.paymentNotAvailable : copy.paymentStatusLabels[booking.paymentStatus]}</dd></div>
+                          <div><dt>{copy.paymentStatus}</dt><dd>{paymentStatusLabel(locale, booking.status, booking.paymentStatus)}</dd></div>
                           <div><dt>{copy.partySize}</dt><dd>{booking.partySize}</dd></div>
                           <div><dt>{copy.role}</dt><dd>{booking.assignedGuideUserId ?? copy.noneRecorded}</dd></div>
                         </dl>

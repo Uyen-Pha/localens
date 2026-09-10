@@ -1,3 +1,4 @@
+import { bookingStatusLabels } from '@/lib/i18n/booking-status';
 import type { Locale } from "@/lib/i18n/config";
 
 export const PORTAL_COPY = {
@@ -178,16 +179,7 @@ export const PORTAL_COPY = {
     reportDisclosure: "Demo-only reporting; no live analytics or production persistence is connected.",
     catalogLink: "Open catalog review",
     catalogIntro: "Catalog review remains on its existing admin route.",
-    statusLabels: {
-      pending_payment: "Awaiting confirmation",
-      payment_processing: "Payment processing",
-      payment_review: "Payment review",
-      payment_failed: "Payment failed",
-      expired: "Expired",
-      confirmed: "Confirmed",
-      cancelled: "Cancelled",
-      completed: "Completed",
-    },
+    statusLabels: bookingStatusLabels.en,
     placeStatusLabels: {
       draft: "Draft",
       published: "Published",
@@ -298,7 +290,7 @@ export const PORTAL_COPY = {
     bookingsHeading: "Booking của bạn",
     bookingsIntro: "Theo dõi trạng thái booking và thanh toán riêng biệt.",
     noBookings: "Tài khoản demo này chưa có booking.",
-    bookingStatus: "Trạng thái booking",
+    bookingStatus: "Trạng thái đơn",
     paymentStatus: "Trạng thái thanh toán",
     partySize: "Số khách",
     meetingPoint: "Điểm hẹn",
@@ -400,16 +392,7 @@ export const PORTAL_COPY = {
     reportDisclosure: "Báo cáo chỉ dành cho demo; không kết nối phân tích trực tiếp hay lưu trữ production.",
     catalogLink: "Mở duyệt danh mục",
     catalogIntro: "Duyệt danh mục vẫn dùng route admin hiện có.",
-    statusLabels: {
-      pending_payment: "Chờ xác nhận",
-      payment_processing: "Đang xử lý thanh toán",
-      payment_review: "Đang rà soát thanh toán",
-      payment_failed: "Thanh toán thất bại",
-      expired: "Hết hạn",
-      confirmed: "Đã xác nhận",
-      cancelled: "Đã hủy",
-      completed: "Đã hoàn thành",
-    },
+    statusLabels: bookingStatusLabels.vi,
     placeStatusLabels: {
       draft: "Bản nháp",
       published: "Đã xuất bản",

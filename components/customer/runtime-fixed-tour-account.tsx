@@ -1,4 +1,5 @@
 "use client";
+import { paymentStatusLabel } from "@/lib/i18n/booking-status";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -223,11 +224,7 @@ export function RuntimeFixedTourAccount({
             const cancellation = cancellationByBooking.get(booking.id);
             const canPay = booking.status === "pending_payment" && payment === undefined;
             const canCancel = booking.status === "pending_payment" && cancellation === undefined;
-            const paymentLabel = payment?.paymentStatus === "paid"
-              ? copy.paymentPaid
-              : payment === undefined && booking.status === "pending_payment"
-                ? copy.paymentPending
-                : copy.noSimulatedPayment;
+            const paymentLabel = paymentStatusLabel(locale, booking.status, payment?.paymentStatus);
             return (
               <article key={booking.id} aria-labelledby={titleId}>
                 <h3 id={titleId}>{title}</h3>

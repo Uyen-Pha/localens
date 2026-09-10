@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { BookingStatusGuide } from '@/components/customer/booking-status-guide';
 import { getCountries, getCountryCallingCode, parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -147,6 +148,7 @@ export function CustomerAccount({ locale, section = 'personal' }: { locale: Loca
         <p className={styles.intro}>{vi ? 'Xem các tour đã đặt, theo dõi thanh toán và quản lý chuyến đi của bạn.' : 'View your booked tours, track payments and manage your trips.'}</p>
         {demo && <CustomerPortal locale={locale} composition={demo.shell} session={demo.identity} onSignOut={() => router.replace(`/${locale}/sign-in/`)} bookingsOnly />}
         {bookingServices && <RuntimeFixedTourAccount locale={locale} fixedTour={bookingServices.fixedTour} bookingCancellations={bookingServices.bookingCancellations} />}
+      <BookingStatusGuide locale={locale}/>
       </div> : <section className={styles.content} aria-labelledby="account-section">
         <h2 id="account-section">{vi ? 'Thông tin cá nhân & bảo mật' : 'Personal information & security'}</h2>
         <p className={styles.intro}>{vi ? 'Quản lý thông tin cá nhân và mật khẩu của bạn tại đây.' : 'Manage your personal details and password in one place.'}</p>

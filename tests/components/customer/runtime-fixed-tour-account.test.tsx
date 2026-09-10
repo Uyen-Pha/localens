@@ -118,7 +118,7 @@ describe("runtime fixed-tour account", () => {
     const cancel = vi.fn(async () => cancelled);
     render(<RuntimeFixedTourAccount locale="vi" fixedTour={port()} bookingCancellations={cancellationPort({ cancel })} />);
 
-    expect(await screen.findByText("Chờ xác nhận", { exact: true })).toBeInTheDocument();
+    expect((await screen.findAllByText("Chờ thanh toán", { exact: true })).length).toBeGreaterThanOrEqual(2);
     fireEvent.click(screen.getByRole("button", { name: "Hủy đơn" }));
     expect(screen.getByRole("dialog", { name: "Hủy đơn đặt tour?" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Quay lại" })).toHaveFocus();
@@ -354,7 +354,7 @@ describe("runtime fixed-tour account", () => {
       locale: "en" as const,
       title: booking.titleEn,
       paymentHeading: "Payment",
-      pending: "Pending payment",
+      pending: "Awaiting payment",
       action: "Complete simulated payment",
       disclosure: "Simulated payment — no card details are entered and no real charge occurs.",
     },
@@ -459,7 +459,7 @@ describe("runtime fixed-tour account", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Complete simulated payment" }));
     expect(await screen.findByText("Expired", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("No simulated payment", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("No payment recorded", { exact: true })).toBeInTheDocument();
     expect(screen.queryByText("Paid", { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Complete simulated payment" })).not.toBeInTheDocument();
   });
@@ -489,7 +489,7 @@ describe("runtime fixed-tour account", () => {
       "Giữ chỗ đã hết hạn; không có thanh toán mô phỏng nào được ghi nhận.",
     ));
     expect(screen.getByText("Đã hết hạn", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("Không có thanh toán mô phỏng", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Chưa có thanh toán", { exact: true })).toBeInTheDocument();
     expect(screen.queryByText("Đã thanh toán", { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Hoàn tất thanh toán mô phỏng" })).not.toBeInTheDocument();
   });
