@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { ReviewedBookingsList } from '@/components/customer/reviewed-bookings';
 import { getCountries, getCountryCallingCode, parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -26,6 +27,7 @@ export function CustomerAccount({ locale, section = 'personal' }: { locale: Loca
   const router = useRouter();
   const [account, setAccount] = useState<AccountAdapter | null>(null);
   const [bookingServices, setBookingServices] = useState<SupabasePortalShell | null>(null);
+  const [reviewedCount, setReviewedCount] = useState(0);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [demo, setDemo] = useState<{ shell: DemoPortalComposition; identity: DemoPortalIdentity } | null>(null);
   const [editing, setEditing] = useState<Field | null>(null);
@@ -146,7 +148,8 @@ export function CustomerAccount({ locale, section = 'personal' }: { locale: Loca
         <h2>{vi ? 'Đơn đặt tour' : 'Bookings'}</h2>
         <p className={styles.intro}>{vi ? 'Xem các tour đã đặt, theo dõi thanh toán và quản lý chuyến đi của bạn.' : 'View your booked tours, track payments and manage your trips.'}</p>
         {demo && <CustomerPortal locale={locale} composition={demo.shell} session={demo.identity} onSignOut={() => router.replace(`/${locale}/sign-in/`)} bookingsOnly />}
-        {bookingServices && <RuntimeFixedTourAccount locale={locale} fixedTour={bookingServices.fixedTour} bookingCancellations={bookingServices.bookingCancellations} />}
+        {bookingServices?.reviewedBookings && <ReviewedBookingsList locale={locale} service={bookingServices.reviewedBookings} onLoaded={setReviewedCount}/>}
+        {bookingServices && <RuntimeFixedTourAccount hideEmpty={reviewedCount > 0} locale={locale} fixedTour={bookingServices.fixedTour} bookingCancellations={bookingServices.bookingCancellations} />}
       </div> : <section className={styles.content} aria-labelledby="account-section">
         <h2 id="account-section">{vi ? 'Thông tin cá nhân & bảo mật' : 'Personal information & security'}</h2>
         <p className={styles.intro}>{vi ? 'Quản lý thông tin cá nhân và mật khẩu của bạn tại đây.' : 'Manage your personal details and password in one place.'}</p>

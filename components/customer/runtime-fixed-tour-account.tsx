@@ -75,7 +75,9 @@ export function RuntimeFixedTourAccount({
   locale,
   fixedTour,
   bookingCancellations,
+  hideEmpty = false,
 }: {
+  hideEmpty?: boolean;
   locale: Locale;
   fixedTour: FixedTourRuntimePort;
   bookingCancellations: SupabaseBookingCancellationPort;
@@ -207,6 +209,7 @@ export function RuntimeFixedTourAccount({
     );
   }
 
+  if (hideEmpty && bookings.length === 0) return null;
   const paymentByBooking = new Map(payments.map((payment) => [payment.bookingId, payment]));
   const cancellationByBooking = new Map(cancellations.map((request) => [request.bookingId, request]));
   const mutationPending = submittingBookingId !== null || cancellingBookingId !== null;

@@ -47,9 +47,29 @@ export function BookingLocalPreview({ locale, catalog = false }: { locale: Local
     };
     const fixedTour: FixedTourRuntimePort = {
       listPublishedTours: async (requestedLocale) => { if (scenario === "error") throw new Error("Preview error"); return getTours(requestedLocale); },
-      listAvailability: async () => departures,
-      // In-memory UI feedback only. No adapter, fetch, database or account navigation.
-      beginBooking: async (input) => { sessionStorage.setItem(`localens-hold:${input.departureId}:${input.partySize}`, String(Date.now() + 900000)); checkoutPath.current = `/${locale}/payment-preview/?departure=${encodeURIComponent(input.departureId)}&partySize=${input.partySize}`; return { bookingId: "local-ui-preview", holdExpiresAt: "", state: "created" }; },
+      listAvailability: async () => {
+        const shell = await loadPortalSurfaceComposition(); await shell.initialized;
+        if(shell.mode !== 'supabase' || !shell.reviewedBookings) return departures;
+        const availability = await shell.reviewedBookings.availability();
+        const remaining = new Map(availability.map(row=>[row.departure_id,row.remaining]));
+        return departures.map(d=>({...d,remainingCapacity:remaining.get(d.id) ?? 0}));
+      },
+      beginBooking: async (input) => {
+        const shell = await loadPortalSurfaceComposition(); await shell.initialized;
+        if(shell.mode !== 'supabase' || !shell.reviewedBookings) throw new Error('Please sign in with a registered account.');
+        const storageKey = 'reviewed-attempt:'+input.departureId+':'+input.partySize;
+        let key = sessionStorage.getItem(storageKey) || crypto.randomUUID();
+        sessionStorage.setItem(storageKey,key);
+        let booking;
+        try { booking=await shell.reviewedBookings.begin(input.departureId,input.partySize,key); }
+        catch(error) {
+          if(!(error instanceof Error) || !error.message.includes('EXPIRED')) throw error;
+          key=crypto.randomUUID(); sessionStorage.setItem(storageKey,key);
+          booking=await shell.reviewedBookings.begin(input.departureId,input.partySize,key);
+        }
+        checkoutPath.current = '/'+locale+'/payment-preview/?booking='+booking.id+'&departure='+encodeURIComponent(input.departureId)+'&partySize='+input.partySize;
+        return {bookingId:booking.id,holdExpiresAt:booking.expires_at,state:'created'};
+      },
       listOwnBookings: async () => [], listOwnPaymentStatuses: async () => [],
       completeSimulatedPayment: async () => { throw new Error("Local UI preview only"); },
     };

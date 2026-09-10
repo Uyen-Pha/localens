@@ -1,34 +1,33 @@
-import { afterEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { PaymentPreview } from "@/components/dev/payment-preview";
-afterEach(() => { cleanup(); sessionStorage.clear(); vi.useRealTimers(); });
-it("counts down, preserves the deadline on remount and blocks payment at expiry", () => {
-  vi.useFakeTimers();
-  window.history.replaceState({}, "", "/vi/payment-preview/?departure=d1700000-0000-4000-8000-000000000423&partySize=1");
-  const first = render(<PaymentPreview locale="vi" />);
-  expect(screen.getByRole("timer")).toHaveTextContent("15:00");
-  act(() => vi.advanceTimersByTime(60000));
-  expect(screen.getByRole("timer")).toHaveTextContent("14:00");
-  first.unmount();
-  render(<PaymentPreview locale="vi" />);
-  expect(screen.getByRole("timer")).toHaveTextContent("14:00");
-  act(() => vi.advanceTimersByTime(840000));
-  expect(screen.getByRole("timer")).toHaveTextContent("00:00");
-  expect(screen.getByRole("button", { name: /Thanh toán mô phỏng/ })).toBeDisabled();
-  expect(screen.getByRole("alert")).toHaveTextContent("đã hủy");
+import { afterEach,beforeEach,expect,it,vi } from 'vitest';
+import { cleanup,fireEvent,render,screen,waitFor } from '@testing-library/react';
+import { PaymentPreview } from '@/components/dev/payment-preview';
+const mocks=vi.hoisted(()=>({get:vi.fn(),pay:vi.fn(),replace:vi.fn()}));
+vi.mock('next/navigation',()=>{const router={replace:mocks.replace};return {useRouter:()=>router};});
+vi.mock('@/components/portals/portal-session',()=>({loadPortalSurfaceComposition:async()=>({mode:'supabase',initialized:Promise.resolve(),session:{getSession:async()=>({userId:'customer'})},reviewedBookings:mocks})}));
+const row={id:'saved-order',departure_id:'d1700000-0000-4000-8000-000000000423',party_size:2,total_vnd:3180000,status:'pending_payment',expires_at:new Date(Date.now()+900000).toISOString(),paid_at:null};
+afterEach(cleanup);
+beforeEach(()=>{vi.clearAllMocks();window.history.replaceState({},'', '/vi/payment-preview/?booking=saved-order');mocks.get.mockResolvedValue(row);});
+it('shows success only after the payment has been saved and links to bookings',async()=>{
+ mocks.pay.mockResolvedValue({...row,status:'confirmed',paid_at:new Date().toISOString()});
+ render(<PaymentPreview locale="vi"/>);
+ const button=await screen.findByRole('button',{name:/Thanh toán mô phỏng/});await waitFor(()=>expect(button).toBeEnabled());
+ fireEvent.click(button);
+ await screen.findByRole('heading',{name:'Thanh toán mô phỏng thành công'});
+ expect(mocks.pay).toHaveBeenCalledWith('saved-order');
+ expect(screen.getByRole('link',{name:'Xem đơn đặt tour'})).toHaveAttribute('href','/vi/bookings');
 });
-it("uses selected travelers to calculate the total and completes a simulated payment", async () => {
-  window.history.replaceState({}, "", "/vi/payment-preview/?departure=d1700000-0000-4000-8000-000000000423&partySize=2");
-  render(<PaymentPreview locale="vi" />);
-  const pay = await screen.findByRole("button", { name: /Thanh toán mô phỏng/ });
-  expect(pay.textContent).toContain("3.180.000");
-  fireEvent.click(pay);
-  expect(screen.getByRole("heading", { name: "Thanh toán mô phỏng thành công" })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /Thanh toán mô phỏng/ })).not.toBeInTheDocument();
+it('restores a paid order after a reload without a second payment',async()=>{
+ mocks.get.mockResolvedValue({...row,status:'confirmed',paid_at:new Date().toISOString()});
+ render(<PaymentPreview locale="vi"/>);
+ await screen.findByRole('heading',{name:'Thanh toán mô phỏng thành công'});expect(mocks.pay).not.toHaveBeenCalled();
 });
-it("blocks invalid departure and party size", async () => {
-  window.history.replaceState({}, "", "/vi/payment-preview/?departure=invalid&partySize=-1");
-  render(<PaymentPreview locale="vi" />);
-  expect(await screen.findByRole("heading", { name: "Thông tin chuyến đi không hợp lệ" })).toBeInTheDocument();
-  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+it('does not claim success on save failure',async()=>{
+ mocks.pay.mockRejectedValue(new Error('network'));
+ render(<PaymentPreview locale="vi"/>);
+ const button=await screen.findByRole('button',{name:/Thanh toán mô phỏng/});await waitFor(()=>expect(button).toBeEnabled());fireEvent.click(button);
+ await screen.findByRole('alert');expect(screen.queryByRole('heading',{name:'Thanh toán mô phỏng thành công'})).toBeNull();
+});
+it('blocks payment on an expired order',async()=>{
+ mocks.get.mockResolvedValue({...row,expires_at:new Date(Date.now()-1000).toISOString()});render(<PaymentPreview locale="vi"/>);
+ await screen.findByText('Đã hết hạn giữ chỗ');expect(screen.getByRole('button',{name:/Thanh toán mô phỏng/})).toBeDisabled();
 });
