@@ -10,6 +10,8 @@ it('shows the saved paid order and refreshes when the window regains focus',asyn
  render(<ReviewedBookingsList locale="vi" service={service} onLoaded={onLoaded}/>);
  await screen.findByText('Đã thanh toán');expect(screen.getByText('Đã thanh toán')).toBeInTheDocument();
  expect(screen.getByText('3.180.000 ₫',{exact:false})).toBeInTheDocument();expect(onLoaded).toHaveBeenCalledWith(1);
- fireEvent.change(screen.getByRole('textbox',{name:'Tìm đơn đặt tour'}),{target:{value:'khong-co-tour'}});expect(screen.getByText('Không có đơn phù hợp')).toBeInTheDocument();fireEvent.click(screen.getByRole('button',{name:'Xóa bộ lọc'}));fireEvent.click(screen.getByRole('button',{name:'Đã hết hạn (0)'}));expect(screen.getByText('Không có đơn phù hợp')).toBeInTheDocument();fireEvent.click(screen.getByRole('button',{name:'Tất cả (1)'}));fireEvent.click(screen.getByRole('button',{name:'Xem chi tiết'}));expect(screen.getByText('Thông tin đơn đặt tour')).toBeInTheDocument();window.dispatchEvent(new Event('focus'));await waitFor(()=>expect(list).toHaveBeenCalledTimes(2));
+ fireEvent.change(screen.getByRole('textbox',{name:'Tìm đơn đặt tour'}),{target:{value:'khong-co-tour'}});expect(screen.getByText('Không có đơn phù hợp')).toBeInTheDocument();fireEvent.click(screen.getByRole('button',{name:'Xóa bộ lọc'}));fireEvent.click(screen.getByRole('button',{name:'Đã hết hạn (0)'}));expect(screen.getByText('Không có đơn phù hợp')).toBeInTheDocument();fireEvent.click(screen.getByRole('button',{name:'Tất cả (1)'}));expect(screen.getByRole('link',{name:'Xem chi tiết'})).toHaveAttribute('href','/vi/booking-details?booking=saved-order');window.dispatchEvent(new Event('focus'));await waitFor(()=>expect(list.mock.calls.length).toBeGreaterThanOrEqual(2));
 });
+
+
 

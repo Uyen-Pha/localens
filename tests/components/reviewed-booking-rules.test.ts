@@ -1,0 +1,7 @@
+import {it,expect} from 'vitest';
+import {canCancelBooking,canReviewBooking,effectiveBookingStatus,bookingDepartures} from '@/components/customer/reviewed-booking-rules';
+import type {ReviewedBooking} from '@/lib/infrastructure/supabase/reviewed-bookings';
+const row:ReviewedBooking={id:'test',departure_id:'d1700000-0000-4000-8000-000000000423',party_size:1,total_vnd:1590000,status:'confirmed',created_at:'2026-09-01T00:00:00Z',expires_at:'2026-09-01T00:15:00Z',paid_at:'2026-09-01T00:02:00Z'};
+it('allows cancellation exactly 48h before departure but not one millisecond later',()=>{const start=Date.parse(bookingDepartures.find(x=>x.departure.id===row.departure_id)!.departure.startAt);expect(canCancelBooking(row,start-48*3600000)).toBe(true);expect(canCancelBooking(row,start-48*3600000+1)).toBe(false);expect(canCancelBooking({...row,status:'cancelled'},start-49*3600000)).toBe(false);});
+it('requires completion and no prior review',()=>{expect(canReviewBooking(row)).toBe(false);expect(canReviewBooking({...row,status:'completed'})).toBe(true);expect(canReviewBooking({...row,status:'completed',reviewed_at:'2026-09-29'})).toBe(false);});
+it('expires only unpaid pending bookings at their deadline',()=>{const deadline=Date.parse(row.expires_at);expect(effectiveBookingStatus({...row,status:'pending_payment',paid_at:null},deadline)).toBe('expired');expect(effectiveBookingStatus(row,deadline)).toBe('confirmed');});
