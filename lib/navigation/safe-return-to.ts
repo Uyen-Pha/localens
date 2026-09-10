@@ -30,14 +30,16 @@ export function parseSafeReturnTo(locale: Locale, candidate: string | null): str
   const bookingPrefix = `/${locale}/booking/`;
   const plannerPath = `/${locale}/planner`;
   const customRequestPath = `/${locale}/custom-request`;
+  const accountPaths = [`/${locale}/account/`, `/${locale}/bookings/`];
+  const isAccountPath = accountPaths.includes(candidate);
   const isPlannerPath = candidate === plannerPath || candidate === `${plannerPath}/`;
   const isCustomRequestPath = candidate === customRequestPath || candidate === `${customRequestPath}/`;
-  if (!candidate.startsWith(bookingPrefix) && !isPlannerPath && !isCustomRequestPath) return null;
+  if (!candidate.startsWith(bookingPrefix) && !isPlannerPath && !isCustomRequestPath && !isAccountPath) return null;
 
   try {
     const parsed = new URL(candidate, RETURN_TO_BASE);
     const isBookingPath = parsed.pathname.startsWith(bookingPrefix);
-    const isAllowedExactPath = parsed.pathname === plannerPath || parsed.pathname === `${plannerPath}/`
+    const isAllowedExactPath = accountPaths.includes(parsed.pathname) || parsed.pathname === plannerPath || parsed.pathname === `${plannerPath}/`
       || parsed.pathname === customRequestPath || parsed.pathname === `${customRequestPath}/`;
     if (parsed.origin !== RETURN_TO_BASE || (!isBookingPath && !isAllowedExactPath) || parsed.hash) {
       return null;

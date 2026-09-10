@@ -8,7 +8,10 @@ import type { Locale } from '@/lib/i18n/config';
 import type { AccountAdapter } from '@/lib/infrastructure/supabase/account-adapter';
 import { validatePasswordChange } from '@/lib/application/portal/account';
 import { loadPortalSurfaceComposition } from './portal-session';
-import { PortalSurface } from './portal-surface';
+import { CustomerPortal } from './customer-portal';
+import type { DemoPortalComposition } from '@/lib/application/portal/composition';
+import type { DemoPortalIdentity } from '@/lib/application/portal/contracts';
+import { validateProfile } from '@/lib/application/portal/account';
 import { RuntimeFixedTourAccount } from '@/components/customer/runtime-fixed-tour-account';
 import type { SupabasePortalShell } from '@/lib/application/portal/supabase-shell';
 import styles from './customer-account.module.css';
@@ -18,14 +21,13 @@ type Profile = Awaited<ReturnType<AccountAdapter['load']>>;
 type Field = 'displayName' | 'nationality' | 'phone' | 'email' | 'password';
 const countries = 'AF AL DZ AS AD AO AI AQ AG AR AM AW AU AT AZ BS BH BD BB BY BE BZ BJ BM BT BO BQ BA BW BV BR IO BN BG BF BI CV KH CM CA KY CF TD CL CN CX CC CO KM CG CD CK CR CI HR CU CW CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FK FO FJ FI FR GF PF TF GA GM GE DE GH GI GR GL GD GP GU GT GG GN GW GY HT HM VA HN HK HU IS IN ID IR IQ IE IM IL IT JM JP JE JO KZ KE KI KP KR KW KG LA LV LB LS LR LY LI LT LU MO MG MW MY MV ML MT MH MQ MR MU YT MX FM MD MC MN ME MS MA MZ MM NA NR NP NL NC NZ NI NE NG NU NF MK MP NO OM PK PW PS PA PG PY PE PH PN PL PT PR QA RE RO RU RW BL SH KN LC MF PM VC WS SM ST SA SN RS SC SL SG SX SK SI SB SO ZA GS SS ES LK SD SR SJ SE CH SY TW TJ TZ TH TL TG TK TO TT TN TR TM TC TV UG UA AE GB US UM UY UZ VU VE VN VG VI WF EH YE ZM ZW'.split(' ');
 
-export function CustomerAccount({ locale }: { locale: Locale }) {
+export function CustomerAccount({ locale, section = 'personal' }: { locale: Locale; section?: 'personal' | 'bookings' }) {
   const vi = locale === 'vi';
   const router = useRouter();
   const [account, setAccount] = useState<AccountAdapter | null>(null);
   const [bookingServices, setBookingServices] = useState<SupabasePortalShell | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [demo, setDemo] = useState(false);
-  const [section, setSection] = useState<'personal' | 'bookings'>('personal');
+  const [demo, setDemo] = useState<{ shell: DemoPortalComposition; identity: DemoPortalIdentity } | null>(null);
   const [editing, setEditing] = useState<Field | null>(null);
   const [value, setValue] = useState('');
   const [phoneCountry, setPhoneCountry] = useState<CountryCode>('VN');
@@ -44,24 +46,39 @@ export function CustomerAccount({ locale }: { locale: Locale }) {
   const labels = { displayName: vi ? 'Họ và tên' : 'Full name', nationality: vi ? 'Quốc tịch' : 'Nationality', email: 'Email', phone: vi ? 'Số điện thoại' : 'Phone number', password: vi ? 'Mật khẩu' : 'Password' };
   const displayNames = new Intl.DisplayNames([locale], { type: 'region' });
   useEffect(() => {
-    const sync = () => { setSection(window.location.hash === '#bookings' ? 'bookings' : 'personal'); setEditing(null); };
-    sync(); window.addEventListener('hashchange', sync);
-    return () => window.removeEventListener('hashchange', sync);
-  }, []);
+    if (window.location.hash === '#bookings') router.replace(`/${locale}/bookings/`);
+  }, [locale, router]);
   useEffect(() => {
     let alive = true;
     void loadPortalSurfaceComposition().then(async shell => {
       await shell.initialized;
-      if (shell.mode !== 'supabase') { if (alive) setDemo(true); return; }
       const identity = await shell.session.getSession();
-      if (!identity) { router.replace(`/${locale}/sign-in/?returnTo=/${locale}/account/`); return; }
+      if (!identity) { router.replace(`/${locale}/sign-in/?returnTo=/${locale}/${section === 'bookings' ? 'bookings' : 'account'}/`); return; }
       if (identity.role !== 'customer') { router.replace(`/${locale}/${identity.role}/`); return; }
+      if (shell.mode === 'demo') {
+        const adapter: AccountAdapter = {
+          async load() {
+            const p = await shell.customer.account.getAccount();
+            const nationality = countries.includes(p.nationality) ? p.nationality : p.nationality === 'Vietnamese' ? 'VN' : '';
+            return { ...p, nationality, phone: p.phone ?? '', pendingEmail: '' };
+          },
+          async save(p) {
+            const invalid = validateProfile(p);
+            if (invalid) throw new Error(invalid);
+            await shell.customer.account.updateAccount({displayName:p.displayName.trim(), nationality:p.nationality, phone:p.phone});
+          },
+          async changePassword() { throw new Error('demoPassword'); },
+        };
+        const data = await adapter.load();
+        if (alive) { setDemo({shell, identity: identity as DemoPortalIdentity}); setAccount(adapter); setProfile(data); setError(''); }
+        return;
+      }
       if (!shell.account) throw new Error('Account service unavailable');
       const data = await shell.account.load();
       if (alive) { setAccount(shell.account); setBookingServices(shell); setProfile(data); setError(''); }
     }).catch(() => { if (alive) setError(vi ? 'Không thể tải tài khoản. Vui lòng thử lại.' : 'Unable to load your account. Please try again.'); });
     return () => { alive = false; };
-  }, [locale, router, vi, reload]);
+  }, [locale, router, vi, reload, section]);
   function close() { setEditing(null); setValue(''); setCurrent(''); setConfirmation(''); setError(''); }
   function edit(field: Field) {
     close(); setNotice(''); setEditing(field);
@@ -85,6 +102,7 @@ export function CustomerAccount({ locale }: { locale: Locale }) {
         router.replace(`/${locale}/sign-in/?passwordChanged=1`); return;
       }
       if (editing === 'email') return;
+      if (!value.trim()) throw new Error(editing === 'displayName' ? 'name' : editing);
       let savedValue = value;
       if (editing === 'phone' && value.trim()) {
         const parsed = parsePhoneNumberFromString(value, {defaultCountry: phoneCountry, extract: false});
@@ -98,6 +116,8 @@ export function CustomerAccount({ locale }: { locale: Locale }) {
     } catch (e) {
       const code = e instanceof Error ? e.message : 'failed';
       const messages: Record<string, string> = {
+        nationality: vi ? 'Vui lòng chọn quốc tịch.' : 'Please select your nationality.',
+        demoPassword: vi ? 'Tài khoản trải nghiệm không có mật khẩu. Vui lòng đăng nhập bằng tài khoản đã đăng ký để sử dụng chức năng này.' : 'This sample account has no password. Sign in with a registered account to use this feature.',
         name: vi ? 'Nhập họ tên từ 1 đến 80 ký tự.' : 'Enter your full name (1–80 characters).',
         phone: vi ? 'Vui lòng kiểm tra số điện thoại và mã quốc gia đã chọn.' : 'Please check your phone number and selected country code.',
         email: vi ? 'Địa chỉ email chưa hợp lệ.' : 'Enter a valid email address.',
@@ -108,10 +128,9 @@ export function CustomerAccount({ locale }: { locale: Locale }) {
         same: vi ? 'Mật khẩu mới phải khác mật khẩu hiện tại.' : 'Choose a password different from your current password.',
         signout: vi ? 'Mật khẩu đã đổi. Vui lòng đăng xuất và đăng nhập lại.' : 'Password changed. Please sign out and sign in again.',
       };
-      setError(messages[code] ?? (vi ? 'Chưa thể lưu thay đổi. Vui lòng thử lại.' : 'Unable to save your changes. Please try again.'));
+      setError(messages[code] ?? (vi ? 'Lưu thay đổi thất bại. Vui lòng thử lại sau' : 'Unable to save your changes. Please try again.'));
     } finally { lock.current = false; setBusy(false); }
   }
-  if (demo) return <PortalSurface locale={locale} expectedRole="customer" />;
   if (!profile) return <div className={styles.page}><p role={error ? 'alert' : 'status'}>{error || (vi ? 'Đang tải tài khoản…' : 'Loading your account…')}</p>{error && <button onClick={() => setReload(n => n + 1)}>{vi ? 'Thử lại' : 'Retry'}</button>}</div>;
   const fields: Field[] = ['displayName', 'nationality', 'email', 'phone', 'password'];
   return <div className={styles.page}>
@@ -119,12 +138,14 @@ export function CustomerAccount({ locale }: { locale: Locale }) {
     <div className={styles.greeting}><span className={styles.avatar} aria-hidden="true">{initials(profile.displayName)}</span><div><p>{vi ? 'TÀI KHOẢN CỦA BẠN' : 'YOUR ACCOUNT'}</p><h1>{vi ? 'Xin chào' : 'Hello'}, {profile.displayName}!</h1></div></div>
     <div className={styles.layout}>
       <nav className={styles.sidebar} aria-label={vi ? 'Cài đặt tài khoản' : 'Account settings'}>
-        <button aria-current={section === 'personal' ? 'page' : undefined} disabled={busy} onClick={() => { close(); setNotice(''); setSection('personal'); }}><UserRound size={22}/>{vi ? 'Thông tin cá nhân' : 'Personal information'}</button>
-        <button aria-current={section === 'bookings' ? 'page' : undefined} disabled={busy} onClick={() => { close(); setNotice(''); setSection('bookings'); }}><Tickets size={22}/>{vi ? 'Đơn đặt tour' : 'Bookings'}</button>
+        <Link aria-current={section === 'personal' ? 'page' : undefined} href={`/${locale}/account/`}><UserRound size={22}/>{vi ? 'Quản lý tài khoản' : 'My account'}</Link>
+        <Link aria-current={section === 'bookings' ? 'page' : undefined} href={`/${locale}/bookings/`}><Tickets size={22}/>{vi ? 'Đơn đặt tour' : 'Bookings'}</Link>
         <p><LockKeyhole size={18}/>{vi ? 'Thông tin của bạn được sử dụng để quản lý tài khoản và hỗ trợ chuyến đi.' : 'Your information helps us manage your account and support your trips.'}</p>
       </nav>
       {section === 'bookings' ? <div className={styles.content}>
+        <h2>{vi ? 'Đơn đặt tour' : 'Bookings'}</h2>
         <p className={styles.intro}>{vi ? 'Xem các tour đã đặt, theo dõi thanh toán và quản lý chuyến đi của bạn.' : 'View your booked tours, track payments and manage your trips.'}</p>
+        {demo && <CustomerPortal locale={locale} composition={demo.shell} session={demo.identity} onSignOut={() => router.replace(`/${locale}/sign-in/`)} bookingsOnly />}
         {bookingServices && <RuntimeFixedTourAccount locale={locale} fixedTour={bookingServices.fixedTour} bookingCancellations={bookingServices.bookingCancellations} />}
       </div> : <section className={styles.content} aria-labelledby="account-section">
         <h2 id="account-section">{vi ? 'Thông tin cá nhân & bảo mật' : 'Personal information & security'}</h2>

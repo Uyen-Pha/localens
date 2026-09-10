@@ -83,11 +83,13 @@ export function CustomerPortal({
   composition,
   session,
   onSignOut,
+  bookingsOnly = false,
 }: {
   locale: "en" | "vi";
   composition: DemoPortalComposition;
   session: DemoPortalIdentity;
   onSignOut: () => void;
+  bookingsOnly?: boolean;
 }) {
   const copy = portalCopy(locale);
   const cancellationCopy = bookingCancellationCopy(locale);
@@ -243,9 +245,9 @@ export function CustomerPortal({
   }
 
   return (
-    <div className={styles.page} data-portal-role="customer">
+    <div className={styles.page} style={bookingsOnly ? {padding:0, margin:0, minHeight:0} : undefined} data-portal-role="customer">
       <div className={styles.surface}>
-        <PortalNav locale={locale} session={session} onSignOut={onSignOut} />
+        {!bookingsOnly && <><PortalNav locale={locale} session={session} onSignOut={onSignOut} />
         <PortalNotice locale={locale} />
         <header className={styles.hero}>
           <div>
@@ -258,7 +260,7 @@ export function CustomerPortal({
             <span>{session.displayName}</span>
             <span className={styles.hint}>{session.email}</span>
           </div>
-        </header>
+        </header></>}
 
         {loading && data === null ? (
           <p className={styles.srStatus} role="status" aria-live="polite">{copy.loadingData}</p>
@@ -272,7 +274,7 @@ export function CustomerPortal({
 
         {data ? (
           <div className={styles.grid}>
-            <section className={`${styles.card} ${styles.span4}`} aria-labelledby="customer-profile-heading">
+            {!bookingsOnly && <section className={`${styles.card} ${styles.span4}`} aria-labelledby="customer-profile-heading">
               <div className={styles.sectionHeader}>
                 <h2 id="customer-profile-heading">{copy.profileHeading}</h2>
                 <span className={styles.status}>{copy.demoOnly}</span>
@@ -334,9 +336,9 @@ export function CustomerPortal({
                   </button>
                 </div>
               </form>
-            </section>
+            </section>}
 
-            <section className={`${styles.card} ${styles.span8}`} aria-labelledby="customer-bookings-heading">
+            <section style={bookingsOnly ? {gridColumn: "1 / -1"} : undefined} className={`${styles.card} ${styles.span8}`} aria-labelledby="customer-bookings-heading">
               <div className={styles.sectionHeader}>
                 <h2 id="customer-bookings-heading">{copy.bookingsHeading}</h2>
                 <span className={styles.eyebrow}>{data.bookings.length}</span>
@@ -459,7 +461,7 @@ export function CustomerPortal({
               )}
             </section>
 
-            <section className={`${styles.card} ${styles.span6}`} aria-labelledby="customer-requests-heading">
+            {!bookingsOnly && <section className={`${styles.card} ${styles.span6}`} aria-labelledby="customer-requests-heading">
               <div className={styles.sectionHeader}>
                 <h2 id="customer-requests-heading">{copy.requestsHeading}</h2>
                 <span className={styles.eyebrow}>{data.requests.length}</span>
@@ -484,7 +486,7 @@ export function CustomerPortal({
                   ))}
                 </ul>
               )}
-            </section>
+            </section>}
           </div>
         ) : null}
       </div>

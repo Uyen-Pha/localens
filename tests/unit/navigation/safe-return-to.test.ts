@@ -23,7 +23,7 @@ describe("safe return-to navigation", () => {
     "/en/booking/\u0000?departure=departure-1",
     "#booking",
     "/vi/booking/?departure=departure-1",
-    "/en/account/",
+    "/vi/account/",
     "/en/booking/../admin/",
     "/en/booking/%2e%2e/admin/",
     "/en/booking/a/../?departure=departure-1",
@@ -73,4 +73,10 @@ describe("safe return-to navigation", () => {
     expect(destinationAfterSignIn({ locale: "en", role: "guide", returnTo })).toBe("/en/guide/");
     expect(destinationAfterSignIn({ locale: "en", role: "admin", returnTo })).toBe("/en/admin/");
   });
+});
+
+it('preserves account and bookings destinations after customer sign-in', () => {
+  expect(parseSafeReturnTo('en', '/en/account/')).toBe('/en/account/');
+  expect(parseSafeReturnTo('vi', '/vi/bookings/')).toBe('/vi/bookings/');
+  expect(parseSafeReturnTo('vi', '/vi/bookings/other')).toBeNull();
 });

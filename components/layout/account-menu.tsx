@@ -41,7 +41,7 @@ export function AccountMenu({ locale, signIn }: { locale: Locale; signIn: string
     <button ref={trigger} className={styles.avatar} aria-label={vi ? 'Mở menu tài khoản' : 'Open account menu'} aria-expanded={open} aria-controls="account-menu" onClick={() => setOpen(v => !v)}>{initials || <UserRound size={22}/>}</button>
     {open && <div id="account-menu" className={styles.dropdown}>
       <p className={styles.name}>{identity.displayName}</p><p className={styles.email}>{identity.email}</p>
-      <nav aria-label={vi ? 'Tài khoản' : 'Account'}>{identity.role === 'customer' && <Link href={`${destination}#bookings`} onClick={() => setOpen(false)}><Tickets size={20}/>{vi ? 'Đơn đặt tour' : 'Bookings'}</Link>}<Link href={destination} onClick={() => setOpen(false)}><UserRound size={20}/>{vi ? 'Quản lý tài khoản' : 'My profile'}</Link></nav>
+      <nav aria-label={vi ? 'Tài khoản' : 'Account'}>{identity.role === 'customer' && <Link href={`/${locale}/bookings/`} onClick={() => setOpen(false)}><Tickets size={20}/>{vi ? 'Đơn đặt tour' : 'Bookings'}</Link>}<Link href={destination} onClick={() => setOpen(false)}><UserRound size={20}/>{vi ? 'Quản lý tài khoản' : 'My profile'}</Link></nav>
       <button className={styles.logout} disabled={busy} onClick={async () => { setBusy(true); setError(false); try { const shell = await loadPortalSurfaceComposition(); await shell.session.signOut(); setIdentity(null); setOpen(false); router.replace(`/${locale}/sign-in/`); } catch { setError(true); } finally { setBusy(false); } }}><LogOut size={19}/>{vi ? 'Đăng xuất' : 'Log out'}</button>
       {error && <p role="alert">{vi ? 'Chưa thể đăng xuất. Vui lòng thử lại.' : 'Unable to log out. Please try again.'}</p>}
     </div>}
