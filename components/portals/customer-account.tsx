@@ -133,11 +133,11 @@ export function CustomerAccount({ locale, section = 'personal' }: { locale: Loca
       setError(messages[code] ?? (vi ? 'Lưu thay đổi thất bại. Vui lòng thử lại sau' : 'Unable to save your changes. Please try again.'));
     } finally { lock.current = false; setBusy(false); }
   }
-  if (!profile) return <div className={styles.page}><p role={error ? 'alert' : 'status'}>{error || (vi ? 'Đang tải tài khoản…' : 'Loading your account…')}</p>{error && <button onClick={() => setReload(n => n + 1)}>{vi ? 'Thử lại' : 'Retry'}</button>}</div>;
+  if (!profile) return <div className={`${styles.page} ${section === 'bookings' ? styles.bookingsPage : ''}`}><p role={error ? 'alert' : 'status'}>{error || (vi ? 'Đang tải tài khoản…' : 'Loading your account…')}</p>{error && <button onClick={() => setReload(n => n + 1)}>{vi ? 'Thử lại' : 'Retry'}</button>}</div>;
   const fields: Field[] = ['displayName', 'nationality', 'email', 'phone', 'password'];
-  return <div className={styles.page}>
+  return <div className={`${styles.page} ${section === 'bookings' ? styles.bookingsPage : ''}`}>
     <Link className={styles.back} href={`/${locale}/tours/`}><ArrowLeft size={17}/>{vi ? 'Khám phá tour' : 'Explore tours'}</Link>
-    <div className={styles.greeting}><span className={styles.avatar} aria-hidden="true">{initials(profile.displayName)}</span><div><p>{vi ? 'TÀI KHOẢN CỦA BẠN' : 'YOUR ACCOUNT'}</p><h1>{vi ? 'Xin chào' : 'Hello'}, {profile.displayName}!</h1></div></div>
+    <div className={styles.greeting}><span className={styles.avatar} aria-hidden="true">{initials(profile.displayName)}</span><div><p>{vi ? 'TÀI KHOẢN CỦA BẠN' : 'YOUR ACCOUNT'}</p><h1>{section === 'bookings' ? (vi ? 'Đơn đặt tour' : 'Your bookings') : <>{vi ? 'Xin chào' : 'Hello'}, {profile.displayName}!</>}</h1></div></div>
     <div className={styles.layout}>
       <nav className={styles.sidebar} aria-label={vi ? 'Cài đặt tài khoản' : 'Account settings'}>
         <Link aria-current={section === 'personal' ? 'page' : undefined} href={`/${locale}/account/`}><UserRound size={22}/>{vi ? 'Quản lý tài khoản' : 'My account'}</Link>
@@ -145,7 +145,7 @@ export function CustomerAccount({ locale, section = 'personal' }: { locale: Loca
         <p><LockKeyhole size={18}/>{vi ? 'Thông tin của bạn được sử dụng để quản lý tài khoản và hỗ trợ chuyến đi.' : 'Your information helps us manage your account and support your trips.'}</p>
       </nav>
       {section === 'bookings' ? <div className={styles.content}>
-        <h2>{vi ? 'Đơn đặt tour' : 'Bookings'}</h2>
+        <h2 className={styles.bookingTitle}>{vi ? 'Đơn đặt tour' : 'Bookings'}</h2>
         <p className={styles.intro}>{vi ? 'Xem các tour đã đặt, theo dõi thanh toán và quản lý chuyến đi của bạn.' : 'View your booked tours, track payments and manage your trips.'}</p>
         {demo && <CustomerPortal locale={locale} composition={demo.shell} session={demo.identity} onSignOut={() => router.replace(`/${locale}/sign-in/`)} bookingsOnly />}
         {bookingServices?.reviewedBookings && <ReviewedBookingsList locale={locale} service={bookingServices.reviewedBookings} onLoaded={setReviewedCount}/>}
@@ -177,3 +177,4 @@ export function CustomerAccount({ locale, section = 'personal' }: { locale: Loca
     </div>
   </div>;
 }
+

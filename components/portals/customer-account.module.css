@@ -4,3 +4,4 @@
 .phoneFields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px}.phoneFields label{min-width:0}@media(max-width:520px){.phoneFields{grid-template-columns:1fr}}
 
 .sidebar a{text-decoration:none}
+.bookingsPage{max-width:1480px;padding:38px 40px 80px;background:#f5faf8}.bookingsPage .greeting{margin:24px 0 12px}.bookingsPage .greeting .avatar{display:none}.bookingsPage .greeting h1{font-size:44px;letter-spacing:-1.5px}.bookingsPage .greeting p{display:none}.bookingsPage .layout{display:block}.bookingsPage .sidebar{display:none}.bookingsPage .bookingTitle{display:none}.bookingsPage .intro{font-size:16px;margin-bottom:0}.bookingsPage .content{width:100%}@media(max-width:650px){.bookingsPage{padding:25px 16px 60px}.bookingsPage .greeting h1{font-size:34px}.bookingsPage .intro{font-size:14px}}
