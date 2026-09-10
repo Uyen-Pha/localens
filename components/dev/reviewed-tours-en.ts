@@ -1,0 +1,62 @@
+export const reviewedToursEnglish = [
+  {
+    meetingPoint: "Outside the main entrance of Saigon Central Post Office, 2 Công xã Paris, Ho Chi Minh City.",
+    summary: "Walk through Saigon's heritage, from the architecture of the Central Post Office to the stories of Independence Palace and everyday life at Ben Thanh Market. Round off your morning with a broken rice lunch, a familiar taste of the city.",
+    note: "The walking route needs a site visit. Wet-weather arrangements are subject to confirmation.",
+    stops: [
+      "08:30–08:40 · Meet at Saigon Central Post Office — 2 Công xã Paris",
+      "08:40–09:10 · Explore the Post Office and write a postcard",
+      "09:10–09:30 · Walk to Independence Palace",
+      "09:30–11:00 · Selected highlights of Independence Palace and the exhibition building — 135 Nam Kỳ Khởi Nghĩa",
+      "11:00–11:15 · Restroom and rest break",
+      "11:15–11:40 · Walk to Ben Thanh Market",
+      "11:40–12:05 · Explore Ben Thanh Market — Lê Lợi Street side",
+      "12:05–12:15 · Walk to the lunch stop near Ben Thanh Market",
+      "12:15–13:00 · Lunch with one serving of Saigon broken rice and one basic drink; conversation and tour conclusion",
+    ],
+    inclusions: ["Tour guide", "Admission to Independence Palace and the exhibition building", "One serving of Saigon broken rice and one basic drink", "One postcard; international postage excluded", "Insurance under the confirmed package"],
+  },
+  {
+    meetingPoint: "A central Ho Chi Minh City vehicle pickup point — exact location to be confirmed before sales open.",
+    summary: "Discover Chinese Vietnamese culture at Tue Thanh Assembly Hall, then explore Phu Binh's traditional lantern craft and decorate a lantern of your own. Continue your journey among the colourful flowers and street food of Ho Thi Ky.",
+    note: "Workshop venue, capacity and quotation are not yet confirmed. Taking the finished lantern home the same day depends on material and packaging trials.",
+    stops: [
+      "09:00–09:15 · Meet at the central pickup point — to be confirmed",
+      "09:15–10:00 · Transfer to Tue Thanh Assembly Hall",
+      "10:00–10:45 · Tue Thanh Assembly Hall / Thien Hau Temple — 710 Nguyễn Trãi",
+      "10:45–11:00 · Transfer to the restaurant",
+      "11:00–11:45 · Lunch in Cholon — restaurant to be confirmed",
+      "11:45–12:30 · Transfer to the Phu Binh lantern workshop",
+      "12:30–13:00 · Hear craft stories and watch a traditional Phu Binh lantern-making demonstration",
+      "13:00–14:30 · Apply paper, choose colours and decorate a prepared lantern frame",
+      "14:30–15:00 · Finish, pack and take a break",
+      "15:00–15:45 · Transfer to Ho Thi Ky",
+      "15:45–16:05 · Explore the flower market — Hồ Thị Kỷ Street",
+      "16:05–16:55 · Enjoy local street food at Ho Thi Ky",
+      "16:55–17:40 · Return transfer to the central meeting point",
+      "17:40–18:00 · Traffic buffer and drop-off",
+    ],
+    inclusions: ["Vehicle transport and tour guide as scheduled", "Proposed workshop, materials and lantern", "One lunch and three food tastings", "Drinking water", "Insurance under the confirmed package"],
+  },
+  {
+    meetingPoint: "Outside Ho Chi Minh City Fine Arts Museum, 97 Phó Đức Chính.",
+    summary: "Spend an afternoon exploring art and architecture at the Fine Arts Museum before seeing Saigon from the river on a cruise departing from Bach Dang Wharf. As the city lights come on, stroll along Nguyen Hue Walking Street and finish with dinner and a cup of coffee or tea.",
+    note: "Cruise departure and restaurant must be confirmed for each date. Cruise tickets follow the operator's conditions; street performances are not guaranteed.",
+    stops: [
+      "15:00–15:15 · Meet at the Fine Arts Museum — 97 Phó Đức Chính",
+      "15:15–16:30 · Explore selected artworks and architectural highlights",
+      "16:30–17:00 · Transfer to Bach Dang Wharf — 10B Tôn Đức Thắng",
+      "17:00–17:20 · Restroom break, riverside views / buffer time",
+      "17:20–18:00 · Ticket checks, group gathering and boarding",
+      "18:00–18:45 · River cruise — River Seat, returning to Bach Dang Wharf",
+      "18:45–19:05 · Disembark and walk to Nguyen Hue",
+      "19:05–19:25 · Stroll and take photos on Nguyen Hue Walking Street",
+      "19:25–20:15 · Dinner and coffee or tea at the same restaurant — to be confirmed",
+      "20:15–20:30 · Conversation, buffer time and tour conclusion",
+    ],
+    inclusions: ["Tour guide and Fine Arts Museum admission", "One vehicle transfer to Bach Dang Wharf", "Proposed River Seat cruise ticket for the 18:00 departure", "One dinner ashore and one coffee or tea", "Drinking water and insurance under the confirmed package"],
+  },
+];
+
+export const reviewedEnglishExclusions = ["Hotel transfers outside the itinerary", "Shopping, additional food orders and personal expenses"];
+export const reviewedEnglishCancellation = "Localhost preview. Sales open only after suppliers, the six-guest minimum and cancellation terms are confirmed. No real booking or payment is created.";

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { BookingLocalPreview } from "@/components/dev/booking-local-preview";
 
-import { FixedTourRouteSurface } from "@/components/customer/fixed-tour-route-surface";
+
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
@@ -33,13 +34,5 @@ export default async function BookingPage({
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
 
-  return (
-    <div className="booking-page">
-      <FixedTourRouteSurface
-        locale={locale}
-        route="booking"
-        demoBookingCopy={getDictionary(locale).booking}
-      />
-    </div>
-  );
+  return <BookingLocalPreview locale={locale} />;
 }

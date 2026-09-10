@@ -1,4 +1,5 @@
 import type { PublicEnv } from "@/lib/env/public";
+import { createAccountAdapter, type AccountAdapter } from '@/lib/infrastructure/supabase/account-adapter';
 import type { BrowserRuntimeConfig } from "@/lib/env/runtime";
 import {
   createFixedTourRuntimeComposition,
@@ -27,6 +28,7 @@ import { createSupabasePersonalizationAreaAdapter } from "@/lib/infrastructure/s
 type SupabaseRuntimeConfig = Extract<BrowserRuntimeConfig, { mode: "supabase" }>;
 
 export interface SupabasePortalShell extends FixedTourRuntimeComposition {
+  readonly account?: AccountAdapter;
   readonly mode: "supabase";
   readonly session: RuntimeSessionPort;
   readonly planner: RuntimePlannerPort;
@@ -48,6 +50,7 @@ export function createSupabasePortalShell(
 
     return {
       mode: "supabase",
+      account: createAccountAdapter(client, config.supabaseUrl, config.supabasePublishableKey),
       session: createSupabasePortalSessionAdapter(client),
       planner: createSupabasePlannerRuntimeAdapter(client),
       personalizationAreas: createSupabasePersonalizationAreaAdapter(client),

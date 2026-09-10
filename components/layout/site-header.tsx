@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccountMenu } from './account-menu';
 import type { ReactNode } from "react";
 
 import {
@@ -67,9 +68,7 @@ export function SiteHeader({ locale, labels, pathname, search, hash, demoBadge }
             hash={hash}
           />
           {usesProductionAlignedNavigation ? (
-            <Link className="site-header__cta" href={`/${locale}/sign-in/`}>
-              {labels.navigation.signIn}
-            </Link>
+            <AccountMenu locale={locale} signIn={labels.navigation.signIn} />
           ) : (
             <span
               className="site-header__cta site-header__cta--disabled"

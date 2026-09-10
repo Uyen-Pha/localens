@@ -11,6 +11,8 @@
     "dev": "next dev",
     "dev:demo": "node scripts/run-next-mode.mjs dev demo",
     "dev:supabase": "node scripts/run-next-mode.mjs dev supabase",
+    "dev:registration": "node scripts/dev-registration-local.mjs",
+    "test:registration:local": "node scripts/verify-registration-local.mjs",
     "preview:static": "node scripts/static-preview-server.mjs",
     "build": "next build",
     "build:demo": "node scripts/run-next-mode.mjs build demo",
@@ -45,6 +47,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.3",
+    "libphonenumber-js": "^1.13.12",
     "lucide-react": "^1.40.0",
     "next": "16.3.2",
     "react": "19.2.8",

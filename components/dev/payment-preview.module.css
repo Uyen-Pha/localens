@@ -1,0 +1,17 @@
+.page { max-width: 1120px; margin: auto; padding: 48px 24px 80px; color: #0a4036; }
+.page h1 { font-size: clamp(28px, 4vw, 40px); margin: 12px 0 32px; }
+.eyebrow { margin-top: 32px; font-size: 12px; letter-spacing: .12em; }
+.grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: start; }
+.card { padding: 30px; border: 1px solid #dce7e1; border-radius: 20px; background: white; }
+.card h2 { font-size: 23px; margin: 16px 0; }
+.card h3 { font-size: 20px; line-height: 1.5; }
+.card p { line-height: 1.7; color: #5c726a; }
+.note { background: #f0f6f2; padding: 18px; border-radius: 12px; line-height: 1.7; margin: 24px 0; }
+.button { display: block; width: 100%; border: 0; border-radius: 10px; padding: 16px; text-align: center; background: #0a4036; color: white; font-weight: 600; cursor: pointer; margin-top: 24px; }
+.button:focus-visible { outline: 3px solid #20a68e; outline-offset: 3px; }
+.button:disabled { opacity: .45; cursor: not-allowed; }
+.card dt { color: #5c726a; margin-top: 16px; }
+.card dd { margin: 6px 0 0; }
+.total { border-top: 1px solid #dce7e1; margin-top: 24px; padding-top: 24px; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+.total strong { font-size: 24px; }
+@media(max-width: 720px) { .grid { grid-template-columns: 1fr; } .card { padding: 22px; } }

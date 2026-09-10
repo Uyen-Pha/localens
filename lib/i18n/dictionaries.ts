@@ -1260,7 +1260,7 @@ const plannerCopy: Record<Locale, PlannerCopy> = {
     backHomeLabel: "Back to LocalLens home",
   },
   vi: {
-    heading: "Đề xuất lịch trình cá nhân hóa",
+    heading: "Đề xuất tour cá nhân hóa",
     intro: "Xem trình tự, hoạt động, thời gian và chi phí nhóm dự kiến trước khi yêu cầu điều chỉnh.",
     simulatedDisclosure: "Chỉ là đề xuất mô phỏng — nhu cầu chỉ nằm trong tab trình duyệt này; chưa có quyền backend, dịch vụ AI, đặt tour hay thanh toán nào được kết nối.",
     runtimeDisclosure: "Planner demo đồ án có xác thực — chỉ tạo và lưu lịch trình sau khi bạn chủ động chọn thao tác.",
@@ -1543,7 +1543,7 @@ const dictionaries = {
     navigation: {
       primary: vietnamese.navigation.primary,
       tours: "Tour",
-      personalizedTrip: "Hành trình cá nhân hóa",
+      personalizedTrip: "Tour cá nhân hóa",
       howItWorks: "Cách hoạt động",
       experiences: "Trải nghiệm",
       privateJourneys: "Hành trình riêng",

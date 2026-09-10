@@ -1,0 +1,21 @@
+.page { max-width: 1100px; margin: 36px auto 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; color: #103f34; }
+.intro { padding: 42px 0; }
+.intro > p:first-child { letter-spacing: .16em; font-size: 12px; color: #a3583c; }
+.intro h1 { font-size: clamp(32px, 4vw, 52px); line-height: 1.15; letter-spacing: -.04em; margin: 18px 0 24px; }
+.intro p { line-height: 1.8; color: #60736a; }
+.form { padding: 32px; border: 1px solid #dce6df; border-radius: 18px; box-shadow: 0 8px 32px #153b3408; }
+.form h2 { font-size: 24px; font-weight: 650; margin-bottom: 10px; }
+.form > p { font-size: 14px; color: #60736a; margin-bottom: 24px; }
+.form a { color: #106751; text-decoration: underline; }
+.field { margin-bottom: 18px; }
+.field label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600; }
+.field input { width: 100%; min-height: 48px; padding: 12px; border: 1px solid #aabfb1; border-radius: 8px; font-size: 16px; }
+.field input:focus-visible, .form button:focus-visible { outline: 2px solid #16866c; outline-offset: 2px; }
+.field input[aria-invalid=true] { border-color: #ae3429; }
+.field small { display: block; color: #617369; font-size: 12px; line-height: 1.6; margin-top: 8px; }
+.error { color: #a62c24; font-size: 13px; line-height: 1.6; margin-top: 6px; }
+.submit, .cancel { width: 100%; min-height: 48px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+.submit { background: #0b4a3b; color: white; }
+.cancel { margin-top: 8px; background: transparent; color: #60736a; }
+.form button:disabled { opacity: .6; cursor: wait; }
+@media (max-width: 760px) { .page { grid-template-columns: 1fr; gap: 24px; margin-top: 16px; } .intro { padding: 0; } .form { padding: 24px; } }

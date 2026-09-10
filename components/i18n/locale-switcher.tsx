@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LocaleFlag } from "./locale-flag";
 import { usePathname } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -76,10 +77,7 @@ function LocaleSwitcherLink({
   return (
     <>
       <span className="locale-switcher__current" aria-current="page">
-        {labels.options[locale]}
-      </span>
-      <span className="locale-switcher__separator" aria-hidden="true">
-        /
+        <LocaleFlag locale={locale} label={labels.options[locale]} />
       </span>
       <Link
         className="locale-switcher__link"
@@ -90,7 +88,7 @@ function LocaleSwitcherLink({
           hash,
         )}
       >
-        {labels.options[targetLocale]}
+        <LocaleFlag locale={targetLocale} label={labels.options[targetLocale]} />
       </Link>
     </>
   );
@@ -110,10 +108,7 @@ function LocaleSwitcherFallback({
   return (
     <>
       <span className="locale-switcher__current" aria-current="page">
-        {labels.options[locale]}
-      </span>
-      <span className="locale-switcher__separator" aria-hidden="true">
-        /
+        <LocaleFlag locale={locale} label={labels.options[locale]} />
       </span>
       <Link
         className="locale-switcher__link"
@@ -124,7 +119,7 @@ function LocaleSwitcherFallback({
           fallbackHash,
         )}
       >
-        {labels.options[targetLocale]}
+        <LocaleFlag locale={targetLocale} label={labels.options[targetLocale]} />
       </Link>
     </>
   );

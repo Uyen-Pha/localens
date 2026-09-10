@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { BookingLocalPreview } from "@/components/dev/booking-local-preview";
 
-import { FixedTourRouteSurface } from "@/components/customer/fixed-tour-route-surface";
+
 import { isLocale } from "@/lib/i18n/config";
 import {
   getLocalizedToursMetadata,
@@ -31,5 +32,5 @@ export default async function ToursPage({
 }) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
-  return <FixedTourRouteSurface locale={locale} route="tours" />;
+  return <BookingLocalPreview locale={locale} catalog />;
 }

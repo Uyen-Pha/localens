@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { PortalSurface } from "@/components/portals/portal-surface";
+import { CustomerAccount } from "@/components/portals/customer-account";
 import { isLocale } from "@/lib/i18n/config";
 
 export const dynamicParams = false;
@@ -19,7 +19,7 @@ export async function generateMetadata({
   if (!isLocale(locale)) notFound();
 
   return {
-    title: locale === "vi" ? "Cổng khách hàng | LocalLens" : "Customer portal | LocalLens",
+    title: locale === "vi" ? "Quản lý tài khoản | LocalLens" : "My account | LocalLens",
     robots: { index: false, follow: false },
   };
 }
@@ -32,5 +32,5 @@ export default async function AccountPage({
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
 
-  return <PortalSurface locale={locale} expectedRole="customer" />;
+  return <CustomerAccount locale={locale} />;
 }

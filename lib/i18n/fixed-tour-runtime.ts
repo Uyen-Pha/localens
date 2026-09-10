@@ -57,10 +57,10 @@ export interface FixedTourRuntimeCopy {
 
 const copy: Record<Locale, FixedTourRuntimeCopy> = {
   en: {
-    catalogEyebrow: "Thesis demo",
+    catalogEyebrow: "Explore with LocalLens",
     catalogHeading: "Fixed tours in Ho Chi Minh City",
     catalogIntro: "Browse published bilingual tours and current departure capacity.",
-    runtimeDisclosure: "Thesis demo data. Creating a hold does not complete payment.",
+    runtimeDisclosure: "Experience mode: bookings and payments are for preview only. No real charge is made.",
     loading: "Loading fixed-tour data…",
     emptyCatalog: "No published fixed tours are available.",
     serviceUnavailable: "The fixed-tour service is unavailable. Try again.",
@@ -119,10 +119,10 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     paymentUnavailable: "The simulated payment could not be completed. Try again.",
   },
   vi: {
-    catalogEyebrow: "Bản demo đồ án",
+    catalogEyebrow: "Khám phá cùng LocalLens",
     catalogHeading: "Tour cố định tại Thành phố Hồ Chí Minh",
     catalogIntro: "Xem các tour song ngữ đã xuất bản và số chỗ hiện tại của từng chuyến.",
-    runtimeDisclosure: "Dữ liệu bản demo đồ án. Giữ chỗ không đồng nghĩa đã thanh toán.",
+    runtimeDisclosure: "Chế độ trải nghiệm: bạn có thể thử đặt chỗ và thanh toán. Không phát sinh đặt chỗ hoặc thu tiền thật.",
     loading: "Đang tải dữ liệu tour cố định…",
     emptyCatalog: "Hiện chưa có tour cố định đã xuất bản.",
     serviceUnavailable: "Dịch vụ tour cố định không khả dụng. Hãy thử lại.",
