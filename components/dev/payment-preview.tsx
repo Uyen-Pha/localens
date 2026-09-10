@@ -37,7 +37,7 @@ export function PaymentPreview({ locale }: { locale: Locale }) {
       if(!alive)return;
       setService(shell.reviewedBookings);setBooking(row);setError('');
       setSelection({departure:row.departure_id,size:row.party_size});
-      setPaid(row.status==='confirmed'&&!!row.paid_at);
+      setPaid((row.status==='confirmed'||row.status==='completed')&&!!row.paid_at);
       setExpiresAt(Date.parse(row.expires_at));
       setRemaining(row.status==='expired'||row.status==='cancelled'?0:Math.max(0,Math.ceil((Date.parse(row.expires_at)-Date.now())/1000)));
     })().catch(()=>{if(alive)setError(vi?'Không thể tải đơn đặt tour. Vui lòng thử lại.':'Unable to load your booking. Please try again.');});
@@ -48,7 +48,7 @@ export function PaymentPreview({ locale }: { locale: Locale }) {
     setBusy(true);setError('');
     try {
       const row=await service.pay(booking.id);
-      setBooking(row);setPaid(row.status==='confirmed'&&!!row.paid_at);
+      setBooking(row);setPaid((row.status==='confirmed'||row.status==='completed')&&!!row.paid_at);
       if(row.status==='expired'||row.status==='cancelled')setRemaining(0);
       sessionStorage.removeItem('reviewed-attempt:'+row.departure_id+':'+row.party_size);
       window.dispatchEvent(new Event('localens-bookings-changed'));
@@ -97,3 +97,4 @@ export function PaymentPreview({ locale }: { locale: Locale }) {
     </div>
   </main>;
 }
+
