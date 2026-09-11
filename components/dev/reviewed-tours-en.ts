@@ -46,17 +46,18 @@ export const reviewedToursEnglish = [
       "15:00–15:15 · Meet at the Fine Arts Museum — 97 Phó Đức Chính",
       "15:15–16:30 · Explore selected artworks and architectural highlights",
       "16:30–17:00 · Transfer to Bach Dang Wharf — 10B Tôn Đức Thắng",
-      "17:00–17:20 · Restroom break, riverside views / buffer time",
+      "17:00–17:20 · Take a break and enjoy the riverside",
       "17:20–18:00 · Ticket checks, group gathering and boarding",
       "18:00–18:45 · River cruise — River Seat, returning to Bach Dang Wharf",
       "18:45–19:05 · Disembark and walk to Nguyen Hue",
       "19:05–19:25 · Stroll and take photos on Nguyen Hue Walking Street",
-      "19:25–20:15 · Dinner and coffee or tea at the same restaurant — to be confirmed",
-      "20:15–20:30 · Conversation, buffer time and tour conclusion",
+      "19:25–20:15 · Enjoy dinner with coffee or tea",
+      "20:15–20:30 · Share your impressions and finish the tour",
     ],
     inclusions: ["Tour guide and Fine Arts Museum admission", "One vehicle transfer to Bach Dang Wharf", "Proposed River Seat cruise ticket for the 18:00 departure", "One dinner ashore and one coffee or tea", "Drinking water and insurance under the confirmed package"],
   },
 ];
 
 export const reviewedEnglishExclusions = ["Hotel transfers outside the itinerary", "Shopping, additional food orders and personal expenses"];
-export const reviewedEnglishCancellation = "Localhost preview. Sales open only after suppliers, the six-guest minimum and cancellation terms are confirmed. No real booking or payment is created.";
+export const reviewedEnglishCancellation = "Cancellation and date-change terms for each service must be confirmed before sales open. Payments on this website are currently simulated; no real charge or supplier reservation is made.";
+

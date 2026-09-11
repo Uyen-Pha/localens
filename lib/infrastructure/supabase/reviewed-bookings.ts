@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { FixedTourRuntimeError } from '@/lib/application/fixed-tour/contracts';
-export interface ReviewedBooking {id:string; departure_id:string; party_size:number; total_vnd:number; status:'pending_payment'|'confirmed'|'completed'|'expired'|'cancelled'; created_at:string; expires_at:string; paid_at:string|null;rating?:number|null;review_text?:string|null;reviewed_at?:string|null}
+export type ReviewedPaymentStatus = 'pending'|'processing'|'paid'|'failed'|'reviewing'|'cancelled'|'refunding'|'refunded';
+export interface ReviewedBooking {payment_status?:ReviewedPaymentStatus;refund_due_at?:string|null;refunded_at?:string|null;id:string; departure_id:string; party_size:number; total_vnd:number; status:'pending_payment'|'confirmed'|'completed'|'expired'|'cancelled'; created_at:string; expires_at:string; paid_at:string|null;rating?:number|null;review_text?:string|null;reviewed_at?:string|null}
 export function createReviewedBookings(client:SupabaseClient) {
  return {
   async begin(departure:string,size:number,key:string):Promise<ReviewedBooking> {
@@ -17,6 +18,7 @@ export function createReviewedBookings(client:SupabaseClient) {
  };
 }
 export type ReviewedBookings = ReturnType<typeof createReviewedBookings>;
+
 
 
 

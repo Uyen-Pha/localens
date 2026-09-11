@@ -10,6 +10,7 @@ import type { Locale } from "@/lib/i18n/config";
 import { reviewedDataset } from "./reviewed-tours";
 import { reviewedDepartures } from "./reviewed-departures";
 import styles from "./payment-preview.module.css";
+import {paymentLabels,paymentStatus} from "../customer/reviewed-payment-status";
 
 export function PaymentPreview({ locale }: { locale: Locale }) {
   const vi = locale === "vi";
@@ -62,6 +63,7 @@ export function PaymentPreview({ locale }: { locale: Locale }) {
     window.addEventListener("focus", tick);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", tick); };
   }, [expiresAt, paid]);
+  useEffect(()=>{if(booking?.status!=='cancelled')return;const timer=setInterval(()=>setReload(n=>n+1),15000);return ()=>clearInterval(timer);},[booking?.status]);
   const expired = remaining === 0;
   const match = reviewedDataset.tours.flatMap((tour, index) => tour.departures.flatMap(d => reviewedDepartures(d, index)).map(departure => ({ tour, departure }))).find(item => item.departure.id === selection?.departure);
   if (!selection) return <main className={styles.page} role={error ? "alert" : "status"}>{error || (vi ? "Đang tải…" : "Loading…")}{error && <button onClick={()=>setReload(n=>n+1)}>{vi?"Thử lại":"Retry"}</button>}</main>;
@@ -69,6 +71,7 @@ export function PaymentPreview({ locale }: { locale: Locale }) {
   const { tour, departure } = match;
   const money = (value: number) => new Intl.NumberFormat(vi ? "vi-VN" : "en-US", { style: "currency", currency: vi ? "VND" : "USD" }).format(vi ? value : value / 26000);
   const back = `/${locale}/booking/?departure=${encodeURIComponent(departure.id)}&partySize=${selection.size}`;
+  if(booking?.status==='cancelled')return <main className={styles.page}><h1>{vi?'Đơn đã hủy':'Booking cancelled'}</h1><p role="status">{paymentLabels[locale][paymentStatus(booking)]}</p><p>{vi?'Hoàn tiền mô phỏng, không phát sinh giao dịch tiền thật.':'Simulated refund; no real money is transferred.'}</p><Link href={`/${locale}/bookings/`}>{vi?'Xem đơn đặt tour':'View bookings'}</Link></main>;
   return <main className={styles.page}>
     <Link href={back}>← {vi ? "Quay lại tour" : "Back to tour"}</Link>
     <p className={styles.eyebrow}>LOCALLENS · {vi ? "THANH TOÁN MÔ PHỎNG" : "SIMULATED CHECKOUT"}</p>
@@ -97,4 +100,5 @@ export function PaymentPreview({ locale }: { locale: Locale }) {
     </div>
   </main>;
 }
+
 

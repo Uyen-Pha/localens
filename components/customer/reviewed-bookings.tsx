@@ -1,4 +1,5 @@
 'use client';
+import {paymentLabels,paymentStatus} from './reviewed-payment-status';
 import { useEffect,useState } from 'react';
 import {CancelBookingDialog} from './cancel-booking-dialog';
 import {canCancelBooking,canReviewBooking} from './reviewed-booking-rules';
@@ -39,11 +40,12 @@ export function ReviewedBookingsList({locale,service,onLoaded}:{locale:Locale;se
  return <article key={row.id} className={styles.card}>
  <div className={styles.photo}><Image src={picture.src} alt={picture[locale]} width={600} height={420}/><span><MapPin size={15}/>{vi?'TP. Hồ Chí Minh':'Ho Chi Minh City'}</span></div>
  <div className={styles.body}><div className={styles.cardHeader}><div><h3>{title}</h3><div className={styles.code}>{vi?'Mã đơn: ':'Booking ID: '}<span>{row.id}</span><button aria-label={vi?'Sao chép mã đơn':'Copy booking ID'} onClick={()=>{void navigator.clipboard.writeText(row.id).then(()=>setCopied(row.id)).catch(()=>setCopied(null));}}>{copied===row.id?<Check size={16}/>:<Copy size={16}/>}</button></div></div><div className={styles.created}><span className={`${styles.badge} ${styles[status]}`}>{bookingStatusLabels[locale][status]}</span><small><CalendarDays size={15}/>{vi?'Đặt ngày ':'Booked '}{date(row.created_at)}</small></div></div>
- <div className={styles.details}><dl><div><dt><CreditCard size={19}/>{vi?'Thanh toán':'Payment'}</dt><dd><span className={`${styles.badge} ${row.paid_at?styles.confirmed:styles.pending_payment}`}>{row.paid_at?(vi?'Đã thanh toán':'Paid'):(vi?'Chờ thanh toán':'Awaiting payment')}</span></dd></div><div><dt><UsersRound size={19}/>{vi?'Số khách':'Travelers'}</dt><dd>{row.party_size}</dd></div><div><dt><CalendarDays size={19}/>{vi?'Khởi hành':'Departure'}</dt><dd>{match?date(match.departure.startAt,true):'—'}</dd></div></dl><div className={styles.total}><span>{vi?'Tổng tiền':'Total'}</span><strong>{money(row.total_vnd)}</strong></div></div>
+ <div className={styles.details}><dl><div><dt><CreditCard size={19}/>{vi?'Thanh toán':'Payment'}</dt><dd><span className={`${styles.badge} ${row.paid_at?styles.confirmed:styles.pending_payment}`}>{paymentLabels[locale][paymentStatus(row,now)]}</span></dd></div><div><dt><UsersRound size={19}/>{vi?'Số khách':'Travelers'}</dt><dd>{row.party_size}</dd></div><div><dt><CalendarDays size={19}/>{vi?'Khởi hành':'Departure'}</dt><dd>{match?date(match.departure.startAt,true):'—'}</dd></div></dl><div className={styles.total}><span>{vi?'Tổng tiền':'Total'}</span><strong>{money(row.total_vnd)}</strong></div></div>
  <footer className={styles.footer}><p><Info size={17}/>{vi?'Thanh toán mô phỏng — không phát sinh thu tiền thật.':'Simulated payment — no real charge.'}</p><div>{status==='pending_payment'&&<Link className={styles.primary} href={'/'+locale+'/payment-preview/?booking='+row.id+'&departure='+row.departure_id+'&partySize='+row.party_size}>{vi?'Tiếp tục thanh toán':'Continue payment'}<ArrowRight size={18}/></Link>}<Link className={styles.primary} href={`/${locale}/booking-details/?booking=${row.id}`}>{vi?'Xem chi tiết':'View details'}<ArrowRight size={18}/></Link>{canCancelBooking(row,now)&&<button className={styles.secondary} onClick={()=>setCancelling(row)}>{vi?'Hủy đơn':'Cancel booking'}</button>}{canReviewBooking(row)&&<Link className={styles.secondary} href={`/${locale}/booking-details/?booking=${row.id}&action=review`}>{vi?'Đánh giá tour':'Review tour'}</Link>}</div></footer>
  
  </div></article>;
  })}{cancelling&&<CancelBookingDialog locale={locale} booking={cancelling} service={service} onClose={()=>setCancelling(null)} onCancelled={saved=>setRows(current=>current.map(item=>item.id===saved.id?saved:item))}/>}</section>;
 }
+
 
 

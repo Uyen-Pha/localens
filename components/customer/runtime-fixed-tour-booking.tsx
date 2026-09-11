@@ -4,7 +4,7 @@ import { TourReviews } from './tour-reviews';
 import Link from "next/link";
 import { BookingSelectors } from "./booking-selectors";
 import { previewMoney } from "./departure-calendar";
-import Image from "next/image";
+import { TourGallery, TourFAQs } from "./tour-detail-extras";
 import { ArrowLeft, ArrowRight, CalendarDays, Clock3, MapPin, ShieldCheck, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -208,7 +208,7 @@ export function RuntimeFixedTourBooking({
   const invalidParty = state === "INVALID_INPUT";
   if ((state !== "ready" && !invalidParty) || !departure || !tour) {
     return (
-      <section className="tour-booking" aria-labelledby="runtime-booking-heading">
+      <section className="tour-booking tour-detail" aria-labelledby="runtime-booking-heading">
         {backLink}
         <div className="tour-booking__state">
           <ShieldCheck size={32} aria-hidden="true" />
@@ -233,14 +233,14 @@ export function RuntimeFixedTourBooking({
   const timeFormat = new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Ho_Chi_Minh" });
 
   return (
-    <section className="tour-booking" aria-labelledby="runtime-booking-heading">
+    <section className="tour-booking tour-detail" aria-labelledby="runtime-booking-heading">
       {backLink}
       <ol className="tour-booking__steps" aria-label={copy.bookingHeading}>
         {ui.steps.map((step, index) => <li key={step} aria-current={index === 1 ? "step" : undefined}><span>{index + 1}</span>{step}</li>)}
       </ol>
       <div className="tour-booking__layout">
         <div className="tour-booking__story">
-          <p className="tour-booking__eyebrow">{ui.eyebrow}</p>
+          <TourGallery locale={locale} slug={tour.slug} src={picture.src} alt={picture[locale]}/><p className="tour-booking__eyebrow">{ui.eyebrow}</p>
           <h1 id="runtime-booking-heading">{tour.title}</h1>
           <p className="tour-booking__intro">{tour.summary}</p>
           {overview && <dl className="tour-booking__overview">
@@ -248,23 +248,20 @@ export function RuntimeFixedTourBooking({
             <div><dt><Users size={16} aria-hidden="true" />{locale === "vi" ? "Nhóm nhỏ" : "Small group"}</dt><dd>{locale === "vi" ? "Tối đa 15 khách" : "Up to 15 guests"}</dd></div>
             <div><dt><MapPin size={16} aria-hidden="true" />{locale === "vi" ? "Di chuyển" : "Getting around"}</dt><dd>{overview.transport}</dd></div>
           </dl>}
-          <figure className="tour-booking__hero">
-            <Image src={picture.src} alt={picture[locale]} width={960} height={600} loading="eager" />
-          </figure>
           <div className="tour-booking__facts">
-            <div><Clock3 size={20} aria-hidden="true" /><p><span>{copy.duration}</span><strong>{tour.durationMinutes} {ui.minutes}</strong></p></div>
+            <div><Clock3 size={20} aria-hidden="true" /><p><span>{copy.duration}</span><strong>{Math.floor(tour.durationMinutes / 60)} {locale === "vi" ? "giờ" : "hr"}{tour.durationMinutes % 60 > 0 ? ` ${tour.durationMinutes % 60} ${ui.minutes}` : ""}</strong></p></div>
             <div><MapPin size={20} aria-hidden="true" /><p><span>{copy.meetingPoint}</span><strong>{tour.meetingPoint}</strong></p></div>
           </div>
-          <section className="tour-booking__itinerary" aria-labelledby="booking-itinerary">
+          <nav className="tour-detail-nav" aria-label={locale === "vi" ? "Thông tin tour" : "Tour information"}><a href="#booking-itinerary">{locale === "vi" ? "Lịch trình" : "Itinerary"}</a><a href="#booking-inclusions">{locale === "vi" ? "Giá bao gồm" : "Inclusions"}</a><a href="#booking-notes">{locale === "vi" ? "Lưu ý" : "Before you go"}</a><a href="#tour-reviews-heading">{locale === "vi" ? "Đánh giá" : "Reviews"}</a></nav><section className="tour-booking__itinerary" aria-labelledby="booking-itinerary">
             <h2 id="booking-itinerary">{ui.itinerary}</h2>
-            <ol>{tour.stops.map((stop, index) => <li key={`${stop.position}:${stop.placeId}`}><span>{String(index + 1).padStart(2, "0")}</span><h3>{stop.title}</h3></li>)}</ol>
+            <ol>{tour.stops.map((stop, index) => <li key={`${stop.position}:${stop.placeId}`}><span>{String(index + 1).padStart(2, "0")}</span><div><h3>{stop.title.includes(" · ") ? stop.title.split(" · ").slice(1).join(" · ") : stop.title}</h3>{stop.title.includes(" · ") && <p className="tour-detail-stop-time">{stop.title.split(" · ")[0]}</p>}</div></li>)}</ol>
           </section>
-          <div className="tour-booking__inclusions">
+          <div className="tour-booking__inclusions" id="booking-inclusions">
             {tour.inclusions.length > 0 && <section><h2>{ui.included}</h2><ul>{tour.inclusions.map((item, index) => <li key={index}>{item}</li>)}</ul></section>}
             {tour.exclusions.length > 0 && <section><h2>{ui.excluded}</h2><ul>{tour.exclusions.map((item, index) => <li key={index}>{item}</li>)}</ul></section>}
           </div>
-          <details className="tour-booking__policy"><summary>{copy.cancellationPolicy}</summary><p>{tour.cancellationPolicy}</p></details>
-          <TourReviews locale={locale}/>
+          <details className="tour-booking__policy" id="booking-notes"><summary>{copy.cancellationPolicy}</summary><p>{tour.cancellationPolicy}</p></details>
+          
           {overview && <details className="tour-booking__policy"><summary>{locale === "vi" ? "Thông tin cần biết trước chuyến đi" : "Before you go"}</summary><p>{overview.note}</p></details>}
         </div>
         <aside className="tour-booking__checkout" aria-labelledby="booking-checkout">
@@ -289,8 +286,11 @@ export function RuntimeFixedTourBooking({
           </form>
           <div className="tour-booking__assurance"><ShieldCheck size={22} aria-hidden="true" /><div><strong>{ui.secure}</strong><p>{ui.explanation}</p></div></div>
           <p className="tour-booking__disclosure" role="note">{copy.runtimeDisclosure}</p>
-        </aside>
-      </div>
+        </aside></div><TourReviews locale={locale}/><TourFAQs locale={locale}/>
     </section>
   );
 }
+
+
+
+
