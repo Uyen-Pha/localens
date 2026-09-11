@@ -183,6 +183,22 @@ describe("Supabase portal session adapter", () => {
     expect(signOut).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [{code:'user_banned'},'ACCOUNT_LOCKED'],
+    [{code:'email_not_confirmed'},'EMAIL_UNCONFIRMED'],
+    [{status:429},'AUTH_RATE_LIMITED'],
+    [{status:503},'AUTH_UNAVAILABLE'],
+    [{status:0,name:'AuthRetryableFetchError'},'AUTH_UNAVAILABLE'],
+  ] as const)('maps provider failure %j to a safe code',async(error,code)=>{
+    const {adapter,rpc}=adapterFor({signInError:error});
+    await expectPortalFailure(adapter.signInWithPassword({email:authUser.email,password:'never-log-this'}),code);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it('separates connection failure from invalid credentials',async()=>{
+    const {adapter}=adapterFor({signInReject:new Error('private connection detail')});
+    await expectPortalFailure(adapter.signInWithPassword({email:authUser.email,password:'never-log-this'}),'AUTH_UNAVAILABLE');
+  });
+
   it("clears the Auth session when post-sign-in identity resolution fails", async () => {
     const password = "identity-password-do-not-leak";
     const rpcSecret = "identity-rpc-secret-do-not-leak";

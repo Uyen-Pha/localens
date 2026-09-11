@@ -23,6 +23,14 @@ function unauthenticated(): PortalError {
   return new PortalError("UNAUTHENTICATED", AUTHENTICATION_FAILURE);
 }
 
+function signInFailure(error: {code?:string;status?:number;name?:string}): PortalError {
+  if(error.code==='user_banned')return new PortalError('ACCOUNT_LOCKED',AUTHENTICATION_FAILURE);
+  if(error.code==='email_not_confirmed')return new PortalError('EMAIL_UNCONFIRMED',AUTHENTICATION_FAILURE);
+  if(error.status===429||error.code==='over_request_rate_limit')return new PortalError('AUTH_RATE_LIMITED',AUTHENTICATION_FAILURE);
+  if(error.status===0||error.name==='AuthRetryableFetchError'||(error.status??0)>=500||error.code==='unexpected_failure')return new PortalError('AUTH_UNAVAILABLE',AUTHENTICATION_FAILURE);
+  return unauthenticated();
+}
+
 function forbidden(): PortalError {
   return new PortalError("FORBIDDEN", IDENTITY_FAILURE);
 }
@@ -106,14 +114,15 @@ export function createSupabasePortalSessionAdapter(
       let response: Awaited<ReturnType<PortalSupabaseClient["auth"]["signInWithPassword"]>>;
       try {
         response = await client.auth.signInWithPassword({
-          email: input.email,
+          email: input.email.trim(),
           password: input.password,
         });
       } catch {
-        throw unauthenticated();
+        throw new PortalError('AUTH_UNAVAILABLE',AUTHENTICATION_FAILURE);
       }
 
-      if (response.error !== null || response.data.user === null) throw unauthenticated();
+      if (response.error !== null) throw signInFailure(response.error);
+      if (response.data.user === null) throw unauthenticated();
       try {
         return await resolveIdentity(response.data.user);
       } catch (error) {

@@ -71,6 +71,10 @@ export interface CancelBookingResult {
 export type PortalErrorCode =
   | "INVALID_INPUT"
   | "UNAUTHENTICATED"
+  | "ACCOUNT_LOCKED"
+  | "AUTH_RATE_LIMITED"
+  | "AUTH_UNAVAILABLE"
+  | "EMAIL_UNCONFIRMED"
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "CONFLICT"

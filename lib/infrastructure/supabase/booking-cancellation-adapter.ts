@@ -64,6 +64,10 @@ function portalFailure(code: PortalErrorCode): PortalError {
   const messages: Record<PortalErrorCode, string> = {
     INVALID_INPUT: "The cancellation details are invalid.",
     UNAUTHENTICATED: "A signed-in session is required.",
+    ACCOUNT_LOCKED: "The account is locked.",
+    AUTH_RATE_LIMITED: "Authentication is temporarily limited.",
+    AUTH_UNAVAILABLE: "Authentication is unavailable.",
+    EMAIL_UNCONFIRMED: "Email confirmation is required.",
     FORBIDDEN: "The cancellation operation is not permitted.",
     NOT_FOUND: "The booking is unavailable.",
     CONFLICT: "The booking can no longer be cancelled.",

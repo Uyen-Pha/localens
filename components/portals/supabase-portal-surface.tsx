@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import {RuntimeSignIn} from "./runtime-sign-in";
 import { lazy, Suspense, useEffect, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { PortalError, type PortalIdentity } from "@/lib/application/portal/contracts";
 import type { SupabasePortalShell } from "@/lib/application/portal/supabase-shell";
@@ -116,83 +117,6 @@ function RuntimeUnavailable({
           <button className={styles.button} type="button" onClick={onRetry}>{copy.retry}</button>
         </div>
       </div>
-    </RuntimeFrame>
-  );
-}
-
-function RuntimeSignIn({
-  locale,
-  session,
-  returnTo,
-  navigate,
-  onSession,
-}: {
-  locale: Locale;
-  session: SupabasePortalShell["session"];
-  returnTo?: string | null;
-  navigate: PortalNavigate;
-  onSession: (identity: PortalIdentity) => void;
-}) {
-  const copy = portalCopy(locale);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (submitting) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const identity = await session.signInWithPassword({ email, password });
-      onSession(identity);
-      navigate(destinationAfterSignIn({ locale, role: identity.role, returnTo }));
-    } catch {
-      setError(copy.runtimeAuthError);
-    } finally {
-      setPassword("");
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <RuntimeFrame locale={locale} session={null} onSignOut={() => undefined}>
-      <section className={styles.signInHero} aria-labelledby="runtime-sign-in-heading">
-        <p className={styles.eyebrow}>{copy.runtimeSignInEyebrow}</p>
-        <h1 id="runtime-sign-in-heading">{copy.runtimeSignInHeading}</h1>
-        <p>{copy.runtimeSignInIntro}</p>
-      </section>
-      <form className={styles.signInForm} onSubmit={(event) => void submit(event)}>
-        <label className={styles.field}>
-          {copy.email}
-          <input
-            type="email"
-            autoComplete="username"
-            value={email}
-            disabled={submitting}
-            required
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </label>
-        <label className={styles.field}>
-          {copy.password}
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            disabled={submitting}
-            required
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </label>
-        {error ? <p className={styles.error} role="alert">{error}</p> : null}
-        <div className={styles.actions}>
-          <button className={styles.button} type="submit" disabled={submitting}>
-            {submitting ? copy.signingIn : copy.signIn}
-          </button>
-        </div>
-      </form>
     </RuntimeFrame>
   );
 }
