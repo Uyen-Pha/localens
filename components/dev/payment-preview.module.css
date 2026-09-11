@@ -14,4 +14,13 @@
 .card dd { margin: 6px 0 0; }
 .total { border-top: 1px solid #dce7e1; margin-top: 24px; padding-top: 24px; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
 .total strong { font-size: 24px; }
+.fields { border: 0; padding: 0; margin: 0; display: grid; gap: 22px; min-width: 0; }
+.fields label { display: grid; gap: 8px; margin: 16px 0; font-size: 14px; font-weight: 600; }
+.fields input,.fields select { width: 100%; min-width: 0; box-sizing: border-box; padding: 13px; border: 1px solid #b9cdc5; border-radius: 8px; background: #fff; color: #173e35; font: inherit; }
+.fields input:read-only { background: #f3f7f5; }
+.fields :disabled { cursor: not-allowed; opacity: .65; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.back { display: block; border: 0; background: none; color: #0a4036; margin: 18px auto 0; cursor: pointer; }
+.card .error { color: #bd203a; }
+.timer { font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; }
 @media(max-width: 720px) { .grid { grid-template-columns: 1fr; } .card { padding: 22px; } }
