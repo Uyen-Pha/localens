@@ -9,10 +9,12 @@ export type ResearchRanker = (input:RankInput)=>Promise<unknown>;
 export type ResearchStop = {id:string;name:string;address:string;arrival:string;departure:string;durationMinutes:number;waitMinutes:number;perPersonVnd:number};
 export type ResearchLeg = {from:string;to:string;departure:string;arrival:string;minutes:number;costVnd:number};
 export type ResearchPlan = {stops:ResearchStop[];legs:ResearchLeg[];totalVnd:number;visitAndFoodVnd:number;guideVnd:number;transportVnd:number;durationMinutes:number;returnTime:string};
-export type ResearchResponse = {status:'ready';plan:ResearchPlan;dataMode:'internal_simulation';ranking:'ai';exchangeRateVndPerUsd:number|null} | {status:'no_match'|'invalid'|'ai_error';reasons:string[]};
+export type PreferenceNotice = {preference:keyof ResearchInput['priorityWeights'];reason:'closed'|'constraints'};
+export type ResearchResponse = {status:'ready';plan:ResearchPlan;dataMode:'internal_simulation';ranking:'ai';preferenceNotices?:PreferenceNotice[];exchangeRateVndPerUsd:number|null} | {status:'no_match'|'invalid'|'ai_error';reasons:string[]};
 const mins=(s:string)=>Number(s.slice(0,2))*60+Number(s.slice(3,5));
 const clock=(n:number)=>`${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`;
 const disabled=new Set(['LL-R27','LL-R28','LL-R29','LL-R30']);
+const preferenceTags:Record<keyof ResearchInput['priorityWeights'],string>={street_food:'local_food',history:'history_culture',traditional_craft:'traditional_craft',traditional_market:'market_local_life'};
 const getBudget=(r:ResearchInput)=>r.budget.currency==='VND'?r.budget.amountMinor:r.budget.amountMinor*260;
 
 export function evaluateResearchRoute(r:ResearchInput, ids:string[]):{plan:ResearchPlan}|{reason:string} {
@@ -58,8 +60,11 @@ export async function researchPlan(input:unknown,rank:ResearchRanker):Promise<Re
  if(!isPersonalizationRequest(input)||input.areas.some(a=>!researchAreas.some(v=>v.value===a))||input.lockedStopIds.length||input.mobilityRequirements.length)return {status:'invalid',reasons:['input']};
  const r=input;
  const failures=new Set<string>();
- const candidates=dataset.places.filter(p=>p.simulationEligible&&!disabled.has(p.placeId)&&p.areaMembership.some(a=>a.role==='core'&&r.areas.includes(a.areaId))).filter(p=>{
-  const result=evaluateResearchRoute(r,[p.placeId]);if('reason'in result){failures.add(result.reason);return false;}return true;
+ const eligible=dataset.places.filter(p=>p.simulationEligible&&!disabled.has(p.placeId)&&p.areaMembership.some(a=>a.role==='core'&&r.areas.includes(a.areaId)));
+ const excluded=new Map<string,string>();
+ // Experience weights never remove candidates. Only operational constraints do.
+ const candidates=eligible.filter(p=>{
+  const result=evaluateResearchRoute(r,[p.placeId]);if('reason'in result){failures.add(result.reason);excluded.set(p.placeId,result.reason);return false;}return true;
  });
  if(!candidates.length)return {status:'no_match',reasons:failures.size?[...failures]:['area']};
  let output:unknown;
@@ -67,11 +72,30 @@ export async function researchPlan(input:unknown,rank:ResearchRanker):Promise<Re
  if(!output||typeof output!=='object'||Object.keys(output).length!==1||!('orderedIds'in output)||!Array.isArray(output.orderedIds))return {status:'ai_error',reasons:['ai_invalid']};
  const ordered=output.orderedIds as unknown[];
  if(ordered.length!==candidates.length||new Set(ordered).size!==ordered.length||ordered.some(id=>typeof id!=='string'||!candidates.some(p=>p.placeId===id)))return {status:'ai_error',reasons:['ai_invalid']};
- let selected:string[]=[],best:ResearchPlan|undefined;
- // Preserve AI preference order. Only add a stop if the complete route, including return, passes again.
- for(const id of ordered as string[]){const next=[...selected,id];const result=evaluateResearchRoute(r,next);if('plan'in result){selected=next;best=result.plan;}}
+ let selected:string[]=[],best:ResearchPlan|undefined,bestScore=-Infinity;
+ const ids=ordered as string[];
+ const consider=(route:string[])=>{
+  const result=evaluateResearchRoute(r,route);
+  if(!('plan'in result))return;
+  const utility=route.reduce((total,id)=>total+ids.length-ids.indexOf(id),0);
+  if(!best||route.length>selected.length||(route.length===selected.length&&(utility>bestScore||(utility===bestScore&&result.plan.durationMinutes<best.durationMinutes)))){
+   selected=route;best=result.plan;bestScore=utility;
+  }
+ };
+ // Explore every 1–3 stop ordering: a long first AI choice must not block a
+ // feasible multi-stop alternative. Three is not a required count or limit.
+ for(const a of ids){consider([a]);for(const b of ids){if(b===a)continue;consider([a,b]);for(const c of ids)if(c!==a&&c!==b)consider([a,b,c]);}}
+ for(const id of ids)if(!selected.includes(id))consider([...selected,id]);
  if(!best)return {status:'no_match',reasons:['duration','budget']};
  const validated=evaluateResearchRoute(r,selected);
  if(!('plan'in validated))return {status:'no_match',reasons:[validated.reason]};
- return {status:'ready',plan:validated.plan,dataMode:'internal_simulation',ranking:'ai',exchangeRateVndPerUsd:r.budget.currency==='USD'?26000:null};
+ const preferenceNotices:PreferenceNotice[]=[];
+ for(const preference of Object.keys(preferenceTags) as (keyof typeof preferenceTags)[]){
+  if(r.priorityWeights[preference]<=0)continue;
+  const tag=preferenceTags[preference];
+  if(selected.some(id=>eligible.find(p=>p.placeId===id)?.experienceTags.includes(tag)))continue;
+  const matching=eligible.filter(p=>p.experienceTags.includes(tag));
+  preferenceNotices.push({preference,reason:matching.length>0&&matching.every(p=>excluded.get(p.placeId)==='closed')?'closed':'constraints'});
+ }
+ return {status:'ready',preferenceNotices,plan:validated.plan,dataMode:'internal_simulation',ranking:'ai',exchangeRateVndPerUsd:r.budget.currency==='USD'?26000:null};
 }

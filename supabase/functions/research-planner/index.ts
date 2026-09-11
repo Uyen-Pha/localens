@@ -24,7 +24,7 @@ Deno.serve(async request=>{
    if(!key||Deno.env.get('LOCALLENS_RESEARCH_GEMINI_ENABLED')!=='1')throw Error('AI unavailable');
    const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',{
     method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},signal:AbortSignal.timeout(20000),
-    body:JSON.stringify({systemInstruction:{parts:[{text:'Order every supplied candidate ID exactly once, using experience priorities and efficient geographic order. Tag mapping: street_food=local_food, history=history_culture, traditional_market=market_local_life. Return only JSON {"orderedIds":[...]}. Never invent IDs, facts, costs or schedules.'}]},contents:[{role:'user',parts:[{text:JSON.stringify(input)}]}],generationConfig:{temperature:0,responseMimeType:'application/json'}}),
+    body:JSON.stringify({systemInstruction:{parts:[{text:'Order every supplied candidate ID exactly once, using experience priorities as soft preferences and efficient geographic order. Keep every candidate even if its type has zero priority. Never filter by preference. Tag mapping: street_food=local_food, history=history_culture, traditional_market=market_local_life. Return only JSON {"orderedIds":[...]}. Never invent IDs, facts, costs or schedules.'}]},contents:[{role:'user',parts:[{text:JSON.stringify(input)}]}],generationConfig:{temperature:0,responseMimeType:'application/json'}}),
    });
    if(!response.ok)throw Error('AI request failed');
    const raw=await response.text();if(raw.length>65536)throw Error('AI response too large');

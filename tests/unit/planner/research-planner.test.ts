@@ -3,6 +3,23 @@ import { researchPlan, researchAreas, type ResearchInput } from '@/lib/applicati
 const base: ResearchInput = { startAt:'2026-09-15T09:00:00+07:00', durationMinutes:720, areas:['saigon-center'], budget:{currency:'VND',amountMinor:10000000}, partySize:2, guideLanguage:'vi', priorityWeights:{street_food:1,history:3,traditional_craft:1,traditional_market:2},pace:'active',dietaryRequirements:[],mobilityRequirements:[],lockedStopIds:[],specialNeeds:'' };
 const rank = async (input: { candidates: {id:string}[] }) => ({orderedIds:input.candidates.map(p=>p.id)});
 describe('research planner',()=>{
+ for(const [duration,count] of [[180,2],[210,3]]) it(`finds ${count} stops despite a long first AI choice`,async()=>{
+  const r=await researchPlan({...base,durationMinutes:duration},rank);
+  expect(r.status).toBe('ready');
+  if(r.status==='ready')expect(r.plan.stops.length).toBeGreaterThanOrEqual(count);
+ });
+ it('keeps nonpreferred evening candidates and explains closed preferences',async()=>{
+  const r=await researchPlan({...base,startAt:'2026-09-15T18:00:00+07:00',durationMinutes:180,priorityWeights:{street_food:0,history:0,traditional_craft:0,traditional_market:3}},async i=>{
+   expect(i.candidates.map(p=>p.id)).toContain('LL-R26');return rank(i);
+  });
+  expect(r.status).toBe('ready');
+  if(r.status==='ready')expect(r.preferenceNotices).toContainEqual({preference:'traditional_market',reason:'closed'});
+ });
+ for(const area of researchAreas) it('respects evening hours for '+area.value,async()=>{
+  const r=await researchPlan({...base,areas:[area.value],startAt:'2026-09-15T18:00:00+07:00',durationMinutes:240},rank);
+  if(area.value==='saigon-center')expect(r.status).toBe('ready');
+  else {expect(r.status).toBe('no_match');if(r.status==='no_match')expect(r.reasons).toContain('closed');}
+ });
  for(const area of researchAreas) it('creates valid route for '+area.value,async()=>{
   const r=await researchPlan({...base,areas:[area.value]},rank);
   expect(r.status).toBe('ready');

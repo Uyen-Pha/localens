@@ -35,8 +35,12 @@ export function ResearchPlannerFlow({locale,planner}:{locale:'vi'|'en';planner:R
   <button type="button" className="button button--secondary" onClick={()=>setRetry(n=>n+1)}>{vi?'Thử lại':'Try again'}</button></>}
  </section>;
  const {plan}=result;
+ const preferenceNames:Record<string,string>=vi?{street_food:'ẩm thực',history:'lịch sử và văn hóa',traditional_craft:'làng nghề',traditional_market:'chợ và đời sống địa phương'}:{street_food:'food',history:'history and culture',traditional_craft:'crafts',traditional_market:'markets and local life'};
  return <section className={styles.layout} aria-label={vi?'Lịch trình gợi ý':'Suggested itinerary'}>
   <div><h2>{vi?'Tour cá nhân hóa dành cho bạn':'Your personalized itinerary'}</h2><p>{vi?'Khởi hành và trở về điểm hẹn dự kiến tại khu Nguyễn Huệ.':'Depart from and return to the proposed meeting point near Nguyen Hue.'}</p>
+   {result.preferenceNotices?.map(notice=><p key={notice.preference} role="note">{vi
+    ?`Các điểm ${preferenceNames[notice.preference]} bạn ưu tiên ${notice.reason==='closed'?'không còn đủ thời gian tham quan trong giờ hoạt động':'chưa phù hợp với các điều kiện của chuyến đi'}. Chúng tôi đã chọn trải nghiệm khác trong khu vực bạn chọn. Bạn có thể đổi giờ bắt đầu hoặc điều chỉnh nhu cầu để có thêm lựa chọn.`
+    :`Your preferred ${preferenceNames[notice.preference]} stops ${notice.reason==='closed'?'cannot fit within opening hours':'do not fit this trip’s constraints'}. We selected other experiences within your chosen area. Try an earlier start or adjust your preferences.`}</p>)}
    <ol className={styles.timeline}>{plan.stops.map((stop,index)=>{const leg=plan.legs[index];return <li key={stop.id}>
     <p className={styles.transfer}>{leg.departure} → {leg.arrival} · {vi?'Di chuyển':'Travel'} {leg.minutes} {vi?'phút':'min'} · {money(leg.costVnd)}</p>
     <article><p>{stop.arrival} – {stop.departure}</p><h3>{stop.name}</h3><p>{stop.address}</p><p>{stop.durationMinutes} {vi?'phút tham quan':'min visit'} · {money(stop.perPersonVnd)} / {vi?'khách':'guest'}</p>{stop.waitMinutes>0&&<p>{vi?'Chờ đến giờ mở cửa':'Wait until opening'}: {stop.waitMinutes} {vi?'phút':'min'}</p>}</article>
