@@ -1,0 +1,9 @@
+{
+ "imports":{
+  "@supabase/supabase-js":"npm:@supabase/supabase-js@2.112.3",
+  "@/lib/application/planner/research-planner":"../../../lib/application/planner/research-planner.ts",
+  "@/lib/application/planner/research-areas":"../../../lib/application/planner/research-areas.ts",
+  "@/lib/application/planner/personalization-session":"../../../lib/application/planner/personalization-session.ts",
+  "@/data/planner/research-v2/planner-simulation-v1.json":"../../../data/planner/research-v2/planner-simulation-v1.json"
+ }
+}

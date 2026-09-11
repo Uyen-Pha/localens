@@ -1,0 +1,60 @@
+{
+  "observedOn": "2026-09-11",
+  "publicationStatus": "research_only",
+  "observations": [
+    {
+      "placeId": "LL-R03",
+      "sourceId": "city-museum-contact-2026",
+      "url": "https://hcmc-museum.edu.vn/luu-tru/4677",
+      "authority": "operator",
+      "method": "search_extract",
+      "facts": {"address": "65 Lý Tự Trọng, phường Sài Gòn, TP. Hồ Chí Minh", "phone": "028 3829 9741, nhánh 109", "email": "baotangtphcm@gmail.com"},
+      "limits": "Chỉ lấy thông tin liên hệ. Ưu đãi tháng 3/2024 đã hết hạn, không dùng làm giá vé hiện tại."
+    },
+    {
+      "placeId": "LL-R07",
+      "sourceId": "women-museum-2026",
+      "url": "https://baotangphunu.com/",
+      "authority": "operator",
+      "method": "page_read",
+      "facts": {"address": "200–202 Võ Thị Sáu, phường Xuân Hòa, TP. Hồ Chí Minh", "email": "bt.pnnb.svhtt@tphcm.gov.vn", "dailyTimeSegments": [{"opens":"07:30","closes":"11:30"},{"opens":"13:30","closes":"17:00"}]},
+      "limits": "Trang nêu giờ sáng/chiều nhưng chưa xác nhận ngày hoạt động trong tuần; không tự gán mở cả 7 ngày. Chưa xác nhận miễn phí."
+    },
+    {
+      "placeId": "LL-R10",
+      "sourceId": "cuchi-fee-2026",
+      "url": "https://diadaocuchi.com.vn/thong-bao-tang-gia-ve-phuc-vu-huong-dan-399.html",
+      "authority": "operator",
+      "method": "search_full_extract_direct_timeout",
+      "facts": {"effectiveFrom":"2026-02-01", "currency":"VND", "audience":"Khách ngoại quốc", "admissionFeePerPerson":35000, "visitorServiceAndGuidancePerPerson":100000, "combinedAmountPerPerson":135000},
+      "limits": "Tổng 135.000 là phép cộng hai khoản công bố; không gồm xe, bữa ăn, hoạt động tùy chọn. Không dùng phí hướng dẫn tại di tích thay cho hướng dẫn viên toàn chuyến."
+    },
+    {
+      "placeId": "LL-R18",
+      "sourceId": "fito-source-rejected-2026",
+      "url": "https://fitomuseum.com.vn/",
+      "authority": "rejected",
+      "method": "page_read_unrelated_content",
+      "facts": {},
+      "limits": "Trang hiển thị nội dung cờ bạc không liên quan bảo tàng. Không dùng để xác nhận giá, lịch hoạt động hay liên hệ."
+    },
+    {
+      "placeId": "LL-R18",
+      "sourceId": "fito-government-2022",
+      "url": "https://svhtt.hochiminhcity.gov.vn/documents/10184/354475/to%2Bgap%2B10%2Bbao%2Btang%2Bhoan%2Bthien%2B%28ng%C3%A0y%2B21.11.2022%29.pdf/cd343255-8c41-4250-bd9a-92c203837de8",
+      "authority": "government_historical",
+      "method": "search_extract",
+      "facts": {"streetAddress":"41 Hoàng Dư Khương", "phone":"028 3864 2430", "email":"museum@fito.vn", "historicalHours":"Thứ Hai–Chủ nhật 08:30–17:00"},
+      "limits": "Tài liệu năm 2022 chỉ là đầu mối đối chiếu, chưa xác nhận giờ mở cửa và số liên hệ còn hiệu lực năm 2026."
+    },
+    {
+      "placeId": "LL-R26",
+      "sourceId": "huynhhoa-2026",
+      "url": "https://banhmihuynhhoa.vn/review-banh-mi-huynh-hoa-gia-bao-nhieu/",
+      "authority": "operator",
+      "method": "search_extract",
+      "facts": {"address":"26–30–32 Lê Thị Riêng, phường Bến Thành, TP. Hồ Chí Minh", "openingWindows":[{"isoWeekdays":[1,2,3,4,5,6,7],"opens":"06:00","closes":"22:00"}], "foodProduct":"Một ổ bánh mì", "foodPriceVnd":73000},
+      "limits": "Giá món, không phải vé vào cửa. Chưa xác nhận chỗ ngồi cho đoàn hoặc thời gian chờ. Không suy ra hỗ trợ Halal, ăn chay hay dị ứng."
+    }
+  ]
+}

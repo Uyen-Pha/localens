@@ -1,0 +1,4419 @@
+{
+  "schemaVersion": "locallens-planner-dataset-v2",
+  "sourceSha256": "e4ee99a1d2ec756654b5d8b447d6f0a3cd677d774bbe49bd59de6fe181b35c2f",
+  "preparedOn": "2026-09-11",
+  "publicationStatus": "research_draft",
+  "sources": [
+    {
+      "id": "verified-dinh-2026",
+      "url": "https://dinhdoclap.gov.vn/gio-tham-quan-va-gia-ve-moi-nhat-ap-dung-tu-01-8-2025-2/",
+      "observedOn": "2026-09-11",
+      "authority": "operator",
+      "method": "page_read",
+      "placeId": "LL-R01"
+    },
+    {
+      "id": "verified-war-2026",
+      "url": "https://ticket.baotangchungtichchientranh.vn/terms-and-conditions.html",
+      "observedOn": "2026-09-11",
+      "authority": "operator",
+      "method": "search_full_extract",
+      "placeId": "LL-R02"
+    },
+    {
+      "id": "verified-history-2026",
+      "url": "https://www.baotanglichsutphcm.com.vn/tham-quan/chinh-sach",
+      "observedOn": "2026-09-11",
+      "authority": "operator",
+      "method": "page_read",
+      "placeId": "LL-R04"
+    },
+    {
+      "id": "research-finearts-2026",
+      "url": "https://www.baotangmythuattphcm.com.vn/tham-quan",
+      "observedOn": "2026-09-11",
+      "authority": "operator",
+      "method": "search_extract_direct_fetch_502",
+      "placeId": "LL-R06"
+    },
+    {
+      "id": "verified-tonducthang-2026",
+      "url": "https://baotangtonducthang.vn/",
+      "observedOn": "2026-09-11",
+      "authority": "operator",
+      "method": "page_read",
+      "placeId": "LL-R08"
+    },
+    {
+      "id": "city-museum-contact-2026",
+      "url": "https://hcmc-museum.edu.vn/luu-tru/4677",
+      "authority": "operator",
+      "method": "search_extract",
+      "placeId": "LL-R03",
+      "observedOn": "2026-09-11"
+    },
+    {
+      "id": "women-museum-2026",
+      "url": "https://baotangphunu.com/",
+      "authority": "operator",
+      "method": "page_read",
+      "placeId": "LL-R07",
+      "observedOn": "2026-09-11"
+    },
+    {
+      "id": "cuchi-fee-2026",
+      "url": "https://diadaocuchi.com.vn/thong-bao-tang-gia-ve-phuc-vu-huong-dan-399.html",
+      "authority": "operator",
+      "method": "search_full_extract_direct_timeout",
+      "placeId": "LL-R10",
+      "observedOn": "2026-09-11"
+    },
+    {
+      "id": "fito-source-rejected-2026",
+      "url": "https://fitomuseum.com.vn/",
+      "authority": "rejected",
+      "method": "page_read_unrelated_content",
+      "placeId": "LL-R18",
+      "observedOn": "2026-09-11"
+    },
+    {
+      "id": "fito-government-2022",
+      "url": "https://svhtt.hochiminhcity.gov.vn/documents/10184/354475/to%2Bgap%2B10%2Bbao%2Btang%2Bhoan%2Bthien%2B%28ng%C3%A0y%2B21.11.2022%29.pdf/cd343255-8c41-4250-bd9a-92c203837de8",
+      "authority": "government_historical",
+      "method": "search_extract",
+      "placeId": "LL-R18",
+      "observedOn": "2026-09-11"
+    },
+    {
+      "id": "huynhhoa-2026",
+      "url": "https://banhmihuynhhoa.vn/review-banh-mi-huynh-hoa-gia-bao-nhieu/",
+      "authority": "operator",
+      "method": "search_extract",
+      "placeId": "LL-R26",
+      "observedOn": "2026-09-11"
+    }
+  ],
+  "areas": [
+    {
+      "id": "saigon-center",
+      "labelVi": "Trung tâm Sài Gòn",
+      "labelEn": "Central Saigon",
+      "descriptionVi": "Bến Thành, Nguyễn Huệ, Dinh Độc Lập, Bưu điện Trung tâm và các điểm lân cận.",
+      "minimumRecommendedDurationMin": 120,
+      "corePlaceIds": [
+        "LL-R01",
+        "LL-R03",
+        "LL-R04",
+        "LL-R05",
+        "LL-R06",
+        "LL-R08",
+        "LL-R11",
+        "LL-R16",
+        "LL-R26"
+      ],
+      "nearbyFallbackPlaceIds": [
+        "LL-R24"
+      ],
+      "adjacentAreaIds": [
+        "tan-dinh-ban-co",
+        "cho-lon-binh-tay"
+      ],
+      "minimumIsNotRouteGuarantee": true
+    },
+    {
+      "id": "tan-dinh-ban-co",
+      "labelVi": "Tân Định – Bàn Cờ",
+      "labelEn": "Tan Dinh – Ban Co",
+      "descriptionVi": "Tân Định, Võ Thị Sáu, Bàn Cờ, Hòa Hưng và các điểm lân cận.",
+      "minimumRecommendedDurationMin": 120,
+      "corePlaceIds": [
+        "LL-R02",
+        "LL-R07",
+        "LL-R12",
+        "LL-R18",
+        "LL-R25"
+      ],
+      "nearbyFallbackPlaceIds": [
+        "LL-R15"
+      ],
+      "adjacentAreaIds": [
+        "saigon-center",
+        "bay-hien-tan-binh"
+      ],
+      "minimumIsNotRouteGuarantee": true
+    },
+    {
+      "id": "cho-lon-binh-tay",
+      "labelVi": "Chợ Lớn – Bình Tây",
+      "labelEn": "Cho Lon – Binh Tay",
+      "descriptionVi": "An Đông, Hải Thượng Lãn Ông, hội quán, Bình Tây và các điểm văn hóa lân cận.",
+      "minimumRecommendedDurationMin": 180,
+      "corePlaceIds": [
+        "LL-R13",
+        "LL-R14",
+        "LL-R17",
+        "LL-R19",
+        "LL-R21",
+        "LL-R27",
+        "LL-R30"
+      ],
+      "nearbyFallbackPlaceIds": [],
+      "adjacentAreaIds": [
+        "saigon-center",
+        "bay-hien-tan-binh"
+      ],
+      "minimumIsNotRouteGuarantee": true
+    },
+    {
+      "id": "bay-hien-tan-binh",
+      "labelVi": "Bảy Hiền – Tân Bình",
+      "labelEn": "Bay Hien – Tan Binh",
+      "descriptionVi": "Bảy Hiền, chùa Giác Lâm, chợ Bà Hoa, chợ Phạm Văn Hai và khu vực lân cận.",
+      "minimumRecommendedDurationMin": 180,
+      "corePlaceIds": [
+        "LL-R09",
+        "LL-R22",
+        "LL-R23"
+      ],
+      "nearbyFallbackPlaceIds": [
+        "LL-R18"
+      ],
+      "adjacentAreaIds": [
+        "tan-dinh-ban-co",
+        "cho-lon-binh-tay"
+      ],
+      "minimumIsNotRouteGuarantee": true
+    },
+    {
+      "id": "cu-chi",
+      "labelVi": "Củ Chi",
+      "labelEn": "Cu Chi",
+      "descriptionVi": "Địa đạo, làng nghề và trải nghiệm văn hóa tại khu vực Củ Chi.",
+      "minimumRecommendedDurationMin": 360,
+      "corePlaceIds": [
+        "LL-R10",
+        "LL-R28",
+        "LL-R29"
+      ],
+      "nearbyFallbackPlaceIds": [],
+      "adjacentAreaIds": [],
+      "minimumIsNotRouteGuarantee": true
+    }
+  ],
+  "experienceTypes": [
+    {
+      "id": "local_food",
+      "labelVi": "Ẩm thực & hương vị đời thường"
+    },
+    {
+      "id": "history_culture",
+      "labelVi": "Lịch sử & văn hóa sống"
+    },
+    {
+      "id": "traditional_craft",
+      "labelVi": "Làng nghề & người làm nghề"
+    },
+    {
+      "id": "market_local_life",
+      "labelVi": "Chợ & đời sống khu phố"
+    }
+  ],
+  "routePolicy": {
+    "areaPreference": "soft",
+    "experiencePreference": "soft",
+    "unknownCost": "reject_not_zero",
+    "unknownSupport": "not_confirmed",
+    "fallback": "requires_explicit_area_expansion_consent",
+    "originAndReturnRequired": true,
+    "travelTimeSource": "approved_place_to_place_edges",
+    "clusterMatrixForScheduling": false,
+    "budgetFormula": "sum(per_person_mandatory_costs) * travelers + sum(per_group_costs)",
+    "optionalShoppingIncluded": false,
+    "unknownAiIds": "reject",
+    "emptyResult": "no_feasible_itinerary"
+  },
+  "unapprovedClusterEstimates": {
+    "kind": "localens_demo_cluster_transfer_estimate_minutes",
+    "note": "Ước tính nội bộ cho prototype, không thay cho dữ liệu bản đồ thực tế. QTV cần duyệt trước khi sử dụng.",
+    "values": {
+      "saigon-center": {
+        "saigon-center": 12,
+        "tan-dinh-ban-co": 15,
+        "cho-lon-binh-tay": 25,
+        "bay-hien-tan-binh": 30,
+        "cu-chi": 90
+      },
+      "tan-dinh-ban-co": {
+        "saigon-center": 15,
+        "tan-dinh-ban-co": 12,
+        "cho-lon-binh-tay": 25,
+        "bay-hien-tan-binh": 20,
+        "cu-chi": 90
+      },
+      "cho-lon-binh-tay": {
+        "saigon-center": 25,
+        "tan-dinh-ban-co": 25,
+        "cho-lon-binh-tay": 12,
+        "bay-hien-tan-binh": 25,
+        "cu-chi": 95
+      },
+      "bay-hien-tan-binh": {
+        "saigon-center": 30,
+        "tan-dinh-ban-co": 20,
+        "cho-lon-binh-tay": 25,
+        "bay-hien-tan-binh": 12,
+        "cu-chi": 85
+      },
+      "cu-chi": {
+        "saigon-center": 90,
+        "tan-dinh-ban-co": 90,
+        "cho-lon-binh-tay": 95,
+        "bay-hien-tan-binh": 85,
+        "cu-chi": 20
+      }
+    }
+  },
+  "places": [
+    {
+      "placeId": "LL-R01",
+      "slug": "independence-palace",
+      "nameVi": "Dinh Độc Lập",
+      "nameEn": "Independence Palace",
+      "areaMembership": [
+        {
+          "areaId": "saigon-center",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "135 Nam Kỳ Khởi Nghĩa, phường Bến Thành, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 90,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": 80000,
+        "product": "Dinh và Nhà Trưng bày",
+        "audience": "18–59 tuổi",
+        "sourceId": "verified-dinh-2026",
+        "currency": "VND",
+        "basis": "per_person",
+        "status": "operator_source_observed",
+        "observedOn": "2026-09-11"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 80000,
+        "max": 80000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "operator_source_observed",
+        "windows": [
+          {
+            "isoWeekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "opens": "07:00",
+            "closes": "18:00"
+          }
+        ],
+        "observedOn": "2026-09-11",
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [
+        "verified-dinh-2026"
+      ],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R01",
+        "slug": "independence-palace",
+        "nameVi": "Dinh Độc Lập",
+        "nameEn": "Independence Palace",
+        "uiAreaMembership": [
+          {
+            "areaId": "saigon-center",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "135 Nam Kỳ Khởi Nghĩa, phường Bến Thành, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 90,
+        "planningCostVndPerPerson": {
+          "min": 80000,
+          "max": 80000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "operator_page_observed",
+          "observations": [
+            {
+              "label": "Hằng ngày 07:00–18:00",
+              "windows": [
+                {
+                  "isoWeekdays": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "07:00",
+                  "closes": "18:00"
+                }
+              ],
+              "sourceIds": [
+                "R01"
+              ],
+              "evidenceStatus": "operator_page_observed",
+              "notes": "Vé cổng 106 Nguyễn Du: 08:00–16:00; phải kiểm tra thông báo đóng cửa đặc biệt.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R01"
+      }
+    },
+    {
+      "placeId": "LL-R02",
+      "slug": "war-remnants-museum",
+      "nameVi": "Bảo tàng Chứng tích Chiến tranh",
+      "nameEn": "War Remnants Museum",
+      "areaMembership": [
+        {
+          "areaId": "tan-dinh-ban-co",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "28 Võ Văn Tần, phường Xuân Hòa, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 90,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": 40000,
+        "product": "Vé tham quan",
+        "audience": "Người lớn quốc tế",
+        "sourceId": "verified-war-2026",
+        "currency": "VND",
+        "basis": "per_person",
+        "status": "operator_source_observed",
+        "observedOn": "2026-09-11"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 0,
+        "max": 80000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "operator_source_observed",
+        "windows": [
+          {
+            "isoWeekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "opens": "07:30",
+            "closes": "17:30",
+            "lastAdmission": "17:00"
+          }
+        ],
+        "observedOn": "2026-09-11",
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [
+        "verified-war-2026"
+      ],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R02",
+        "slug": "war-remnants-museum",
+        "nameVi": "Bảo tàng Chứng tích Chiến tranh",
+        "nameEn": "War Remnants Museum",
+        "uiAreaMembership": [
+          {
+            "areaId": "tan-dinh-ban-co",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "28 Võ Văn Tần, phường Xuân Hòa, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 90,
+        "planningCostVndPerPerson": {
+          "min": 0,
+          "max": 80000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "operator_search_extract",
+          "observations": [
+            {
+              "label": "Hằng ngày 07:30–17:30; ngừng nhận khách/quầy vé 17:00",
+              "windows": [
+                {
+                  "isoWeekdays": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "07:30",
+                  "closes": "17:30",
+                  "lastAdmission": "17:00"
+                }
+              ],
+              "sourceIds": [
+                "R02",
+                "R03"
+              ],
+              "evidenceStatus": "operator_search_extract",
+              "notes": "",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R02"
+      }
+    },
+    {
+      "placeId": "LL-R03",
+      "slug": "ho-chi-minh-city-museum",
+      "nameVi": "Bảo tàng Thành phố Hồ Chí Minh",
+      "nameEn": "Ho Chi Minh City Museum",
+      "areaMembership": [
+        {
+          "areaId": "saigon-center",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "65 Lý Tự Trọng, phường Sài Gòn, TP. Hồ Chí Minh",
+        "sourceStatus": "operator_source_observed",
+        "coordinates": null,
+        "meetingPoint": null,
+        "sourceId": "city-museum-contact-2026"
+      },
+      "visitDuration": {
+        "minutes": 75,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 0,
+        "max": 80000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [
+        "city-museum-contact-2026"
+      ],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R03",
+        "slug": "ho-chi-minh-city-museum",
+        "nameVi": "Bảo tàng Thành phố Hồ Chí Minh",
+        "nameEn": "Ho Chi Minh City Museum",
+        "uiAreaMembership": [
+          {
+            "areaId": "saigon-center",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "65 Lý Tự Trọng, phường Sài Gòn, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 75,
+        "planningCostVndPerPerson": {
+          "min": 0,
+          "max": 80000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "operator_search_extract",
+          "observations": [
+            {
+              "label": "Hằng ngày 08:00–17:00",
+              "windows": [
+                {
+                  "isoWeekdays": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "08:00",
+                  "closes": "17:00"
+                }
+              ],
+              "sourceIds": [
+                "R04"
+              ],
+              "evidenceStatus": "operator_search_extract",
+              "notes": "Ưu tiên website bảo tàng; R13 còn ghi 07:30–17:00.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R03"
+      },
+      "additionalObservations": [
+        {
+          "placeId": "LL-R03",
+          "sourceId": "city-museum-contact-2026",
+          "url": "https://hcmc-museum.edu.vn/luu-tru/4677",
+          "authority": "operator",
+          "method": "search_extract",
+          "facts": {
+            "address": "65 Lý Tự Trọng, phường Sài Gòn, TP. Hồ Chí Minh",
+            "phone": "028 3829 9741, nhánh 109",
+            "email": "baotangtphcm@gmail.com"
+          },
+          "limits": "Chỉ lấy thông tin liên hệ. Ưu đãi tháng 3/2024 đã hết hạn, không dùng làm giá vé hiện tại."
+        }
+      ],
+      "contact": {
+        "phone": "028 3829 9741, nhánh 109",
+        "email": "baotangtphcm@gmail.com",
+        "sourceId": "city-museum-contact-2026",
+        "status": "operator_source_observed"
+      }
+    },
+    {
+      "placeId": "LL-R04",
+      "slug": "history-museum-hcmc",
+      "nameVi": "Bảo tàng Lịch sử Thành phố Hồ Chí Minh",
+      "nameEn": "History Museum of Ho Chi Minh City",
+      "areaMembership": [
+        {
+          "areaId": "saigon-center",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "2 Nguyễn Bỉnh Khiêm, phường Sài Gòn, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 90,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": 30000,
+        "product": "Phí tham quan phổ thông",
+        "audience": "Vé tiêu chuẩn; kiểm tra miễn giảm riêng",
+        "sourceId": "verified-history-2026",
+        "currency": "VND",
+        "basis": "per_person",
+        "status": "operator_source_observed",
+        "observedOn": "2026-09-11"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 0,
+        "max": 80000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "operator_source_observed",
+        "windows": [
+          {
+            "isoWeekdays": [
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "opens": "08:00",
+            "closes": "11:30"
+          },
+          {
+            "isoWeekdays": [
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "opens": "13:00",
+            "closes": "17:00"
+          }
+        ],
+        "observedOn": "2026-09-11",
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [
+        "verified-history-2026"
+      ],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R04",
+        "slug": "history-museum-hcmc",
+        "nameVi": "Bảo tàng Lịch sử Thành phố Hồ Chí Minh",
+        "nameEn": "History Museum of Ho Chi Minh City",
+        "uiAreaMembership": [
+          {
+            "areaId": "saigon-center",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "2 Nguyễn Bỉnh Khiêm, phường Sài Gòn, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 90,
+        "planningCostVndPerPerson": {
+          "min": 0,
+          "max": 80000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "operator_page_observed",
+          "observations": [
+            {
+              "label": "Thứ Ba–Chủ nhật: 08:00–11:30 và 13:00–17:00; nghỉ thứ Hai",
+              "windows": [
+                {
+                  "isoWeekdays": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "08:00",
+                  "closes": "11:30"
+                },
+                {
+                  "isoWeekdays": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "13:00",
+                  "closes": "17:00"
+                }
+              ],
+              "sourceIds": [
+                "R05"
+              ],
+              "evidenceStatus": "operator_page_observed",
+              "notes": "",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R04"
+      }
+    },
+    {
+      "placeId": "LL-R05",
+      "slug": "central-post-office",
+      "nameVi": "Bưu điện Trung tâm Sài Gòn",
+      "nameEn": "Saigon Central Post Office",
+      "areaMembership": [
+        {
+          "areaId": "saigon-center",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "2 Công xã Paris, phường Sài Gòn, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 45,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 0,
+        "max": 0,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R05",
+        "slug": "central-post-office",
+        "nameVi": "Bưu điện Trung tâm Sài Gòn",
+        "nameEn": "Saigon Central Post Office",
+        "uiAreaMembership": [
+          {
+            "areaId": "saigon-center",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "2 Công xã Paris, phường Sài Gòn, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 45,
+        "planningCostVndPerPerson": {
+          "min": 0,
+          "max": 0,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "historical_reference",
+          "observations": [
+            {
+              "label": "Tham khảo cũ: T2–T6 07:00–19:00; T7 07:00–18:00; CN 08:00–18:00",
+              "windows": [
+                {
+                  "isoWeekdays": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5
+                  ],
+                  "opens": "07:00",
+                  "closes": "19:00"
+                },
+                {
+                  "isoWeekdays": [
+                    6
+                  ],
+                  "opens": "07:00",
+                  "closes": "18:00"
+                },
+                {
+                  "isoWeekdays": [
+                    7
+                  ],
+                  "opens": "08:00",
+                  "closes": "18:00"
+                }
+              ],
+              "sourceIds": [
+                "R13"
+              ],
+              "evidenceStatus": "historical_reference",
+              "notes": "Không xác nhận quầy dịch vụ bưu chính hoạt động suốt khung giờ.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R05"
+      }
+    },
+    {
+      "placeId": "LL-R06",
+      "slug": "fine-arts-museum-hcmc",
+      "nameVi": "Bảo tàng Mỹ thuật Thành phố Hồ Chí Minh",
+      "nameEn": "Ho Chi Minh City Museum of Fine Arts",
+      "areaMembership": [
+        {
+          "areaId": "saigon-center",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "97 Phó Đức Chính, phường Bến Thành, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 90,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 0,
+        "max": 80000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [
+        "research-finearts-2026"
+      ],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R06",
+        "slug": "fine-arts-museum-hcmc",
+        "nameVi": "Bảo tàng Mỹ thuật Thành phố Hồ Chí Minh",
+        "nameEn": "Ho Chi Minh City Museum of Fine Arts",
+        "uiAreaMembership": [
+          {
+            "areaId": "saigon-center",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "97 Phó Đức Chính, phường Bến Thành, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 90,
+        "planningCostVndPerPerson": {
+          "min": 0,
+          "max": 80000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "operator_search_extract",
+          "observations": [
+            {
+              "label": "Hằng ngày 08:00–17:00",
+              "windows": [
+                {
+                  "isoWeekdays": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "08:00",
+                  "closes": "17:00"
+                }
+              ],
+              "sourceIds": [
+                "R07"
+              ],
+              "evidenceStatus": "operator_search_extract",
+              "notes": "",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R06"
+      }
+    },
+    {
+      "placeId": "LL-R07",
+      "slug": "southern-womens-museum",
+      "nameVi": "Bảo tàng Phụ nữ Nam Bộ",
+      "nameEn": "Southern Women’s Museum",
+      "areaMembership": [
+        {
+          "areaId": "tan-dinh-ban-co",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "200–202 Võ Thị Sáu, phường Xuân Hòa, TP. Hồ Chí Minh",
+        "sourceStatus": "operator_source_observed",
+        "coordinates": null,
+        "meetingPoint": null,
+        "sourceId": "women-museum-2026"
+      },
+      "visitDuration": {
+        "minutes": 75,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 0,
+        "max": 80000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false,
+        "partialObservation": {
+          "timeSegments": [
+            {
+              "opens": "07:30",
+              "closes": "11:30"
+            },
+            {
+              "opens": "13:30",
+              "closes": "17:00"
+            }
+          ],
+          "isoWeekdays": null,
+          "sourceId": "women-museum-2026"
+        }
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [
+        "women-museum-2026"
+      ],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R07",
+        "slug": "southern-womens-museum",
+        "nameVi": "Bảo tàng Phụ nữ Nam Bộ",
+        "nameEn": "Southern Women’s Museum",
+        "uiAreaMembership": [
+          {
+            "areaId": "tan-dinh-ban-co",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "200–202 Võ Thị Sáu, phường Xuân Hòa, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 75,
+        "planningCostVndPerPerson": {
+          "min": 0,
+          "max": 80000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "unknown",
+          "observations": []
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R07"
+      },
+      "additionalObservations": [
+        {
+          "placeId": "LL-R07",
+          "sourceId": "women-museum-2026",
+          "url": "https://baotangphunu.com/",
+          "authority": "operator",
+          "method": "page_read",
+          "facts": {
+            "address": "200–202 Võ Thị Sáu, phường Xuân Hòa, TP. Hồ Chí Minh",
+            "email": "bt.pnnb.svhtt@tphcm.gov.vn",
+            "dailyTimeSegments": [
+              {
+                "opens": "07:30",
+                "closes": "11:30"
+              },
+              {
+                "opens": "13:30",
+                "closes": "17:00"
+              }
+            ]
+          },
+          "limits": "Trang nêu giờ sáng/chiều nhưng chưa xác nhận ngày hoạt động trong tuần; không tự gán mở cả 7 ngày. Chưa xác nhận miễn phí."
+        }
+      ],
+      "contact": {
+        "phone": null,
+        "email": "bt.pnnb.svhtt@tphcm.gov.vn",
+        "sourceId": "women-museum-2026",
+        "status": "operator_source_observed"
+      }
+    },
+    {
+      "placeId": "LL-R08",
+      "slug": "ton-duc-thang-museum",
+      "nameVi": "Bảo tàng Tôn Đức Thắng",
+      "nameEn": "Ton Duc Thang Museum",
+      "areaMembership": [
+        {
+          "areaId": "saigon-center",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "5 Tôn Đức Thắng, phường Sài Gòn, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 60,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 0,
+        "max": 0,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "operator_source_observed",
+        "windows": [
+          {
+            "isoWeekdays": [
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "opens": "07:30",
+            "closes": "11:30"
+          },
+          {
+            "isoWeekdays": [
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "opens": "13:00",
+            "closes": "17:00"
+          }
+        ],
+        "observedOn": "2026-09-11",
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [
+        "verified-tonducthang-2026"
+      ],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R08",
+        "slug": "ton-duc-thang-museum",
+        "nameVi": "Bảo tàng Tôn Đức Thắng",
+        "nameEn": "Ton Duc Thang Museum",
+        "uiAreaMembership": [
+          {
+            "areaId": "saigon-center",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "5 Tôn Đức Thắng, phường Sài Gòn, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 60,
+        "planningCostVndPerPerson": {
+          "min": 0,
+          "max": 0,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "operator_page_observed",
+          "observations": [
+            {
+              "label": "Thứ Ba–Chủ nhật: 07:30–11:30 và 13:00–17:00; nghỉ thứ Hai",
+              "windows": [
+                {
+                  "isoWeekdays": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "07:30",
+                  "closes": "11:30"
+                },
+                {
+                  "isoWeekdays": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "13:00",
+                  "closes": "17:00"
+                }
+              ],
+              "sourceIds": [
+                "R11"
+              ],
+              "evidenceStatus": "operator_page_observed",
+              "notes": "",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R08"
+      }
+    },
+    {
+      "placeId": "LL-R09",
+      "slug": "giac-lam-pagoda",
+      "nameVi": "Chùa Giác Lâm",
+      "nameEn": "Giac Lam Pagoda",
+      "areaMembership": [
+        {
+          "areaId": "bay-hien-tan-binh",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "565 Lạc Long Quân, phường Bảy Hiền, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 60,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 0,
+        "max": 80000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R09",
+        "slug": "giac-lam-pagoda",
+        "nameVi": "Chùa Giác Lâm",
+        "nameEn": "Giac Lam Pagoda",
+        "uiAreaMembership": [
+          {
+            "areaId": "bay-hien-tan-binh",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "565 Lạc Long Quân, phường Bảy Hiền, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 60,
+        "planningCostVndPerPerson": {
+          "min": 0,
+          "max": 80000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "historical_reference",
+          "observations": [
+            {
+              "label": "Tham khảo: hằng ngày 07:00–12:00 và 13:30–21:00",
+              "windows": [
+                {
+                  "isoWeekdays": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "07:00",
+                  "closes": "12:00"
+                },
+                {
+                  "isoWeekdays": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "13:30",
+                  "closes": "21:00"
+                }
+              ],
+              "sourceIds": [
+                "R14"
+              ],
+              "evidenceStatus": "historical_reference",
+              "notes": "",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R09"
+      }
+    },
+    {
+      "placeId": "LL-R10",
+      "slug": "cu-chi-tunnels",
+      "nameVi": "Địa đạo Củ Chi",
+      "nameEn": "Cu Chi Tunnels",
+      "areaMembership": [
+        {
+          "areaId": "cu-chi",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "deferred_operator_confirmation",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "Khu Bến Dược, ấp Phú Hiệp, xã An Nhơn Tây, TP. Hồ Chí Minh",
+        "sourceStatus": "Cần chốt nhánh/cổng",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 180,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": 135000,
+        "currency": "VND",
+        "basis": "per_person",
+        "audience": "Khách ngoại quốc",
+        "effectiveFrom": "2026-02-01",
+        "status": "operator_search_extract",
+        "sourceId": "cuchi-fee-2026",
+        "components": [
+          {
+            "label": "Phí tham quan",
+            "amountVnd": 35000
+          },
+          {
+            "label": "Phục vụ, hướng dẫn tại di tích",
+            "amountVnd": 100000
+          }
+        ]
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 100000,
+        "max": 180000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [
+        "cuchi-fee-2026"
+      ],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "exact_meeting_point",
+        "named_host_and_bookable_activity"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R10",
+        "slug": "cu-chi-tunnels",
+        "nameVi": "Địa đạo Củ Chi",
+        "nameEn": "Cu Chi Tunnels",
+        "uiAreaMembership": [
+          {
+            "areaId": "cu-chi",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "Khu Bến Dược, ấp Phú Hiệp, xã An Nhơn Tây, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Cần chốt nhánh/cổng",
+        "visitDurationMin": 180,
+        "planningCostVndPerPerson": {
+          "min": 100000,
+          "max": 180000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "unknown",
+          "observations": []
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R10"
+      },
+      "additionalObservations": [
+        {
+          "placeId": "LL-R10",
+          "sourceId": "cuchi-fee-2026",
+          "url": "https://diadaocuchi.com.vn/thong-bao-tang-gia-ve-phuc-vu-huong-dan-399.html",
+          "authority": "operator",
+          "method": "search_full_extract_direct_timeout",
+          "facts": {
+            "effectiveFrom": "2026-02-01",
+            "currency": "VND",
+            "audience": "Khách ngoại quốc",
+            "admissionFeePerPerson": 35000,
+            "visitorServiceAndGuidancePerPerson": 100000,
+            "combinedAmountPerPerson": 135000
+          },
+          "limits": "Tổng 135.000 là phép cộng hai khoản công bố; không gồm xe, bữa ăn, hoạt động tùy chọn. Không dùng phí hướng dẫn tại di tích thay cho hướng dẫn viên toàn chuyến."
+        }
+      ]
+    },
+    {
+      "placeId": "LL-R11",
+      "slug": "ben-thanh-market",
+      "nameVi": "Chợ Bến Thành",
+      "nameEn": "Ben Thanh Market",
+      "areaMembership": [
+        {
+          "areaId": "saigon-center",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "market_local_life",
+        "local_food"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "Chợ Bến Thành, phía Công trường Quách Thị Trang, phường Bến Thành, TP. Hồ Chí Minh",
+        "sourceStatus": "Cần chốt điểm tiếp cận",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 90,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 80000,
+        "max": 180000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation",
+        "exact_meeting_point"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R11",
+        "slug": "ben-thanh-market",
+        "nameVi": "Chợ Bến Thành",
+        "nameEn": "Ben Thanh Market",
+        "uiAreaMembership": [
+          {
+            "areaId": "saigon-center",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "market_local_life",
+          "local_food"
+        ],
+        "addressVi": "Chợ Bến Thành, phía Công trường Quách Thị Trang, phường Bến Thành, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Cần chốt điểm tiếp cận",
+        "visitDurationMin": 90,
+        "planningCostVndPerPerson": {
+          "min": 80000,
+          "max": 180000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "conflict_needs_review",
+          "observations": [
+            {
+              "label": "Chưa thống nhất: 07:00–19:00 (R13) hoặc 07:30–18:00 (R16)",
+              "windows": [],
+              "sourceIds": [
+                "R13",
+                "R16"
+              ],
+              "evidenceStatus": "conflict_needs_review",
+              "notes": "Chợ đêm/quầy ăn không được tự gộp với nhà lồng chợ; chưa chọn giờ chuẩn.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R11"
+      }
+    },
+    {
+      "placeId": "LL-R12",
+      "slug": "tan-dinh-market",
+      "nameVi": "Chợ Tân Định",
+      "nameEn": "Tan Dinh Market",
+      "areaMembership": [
+        {
+          "areaId": "tan-dinh-ban-co",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "market_local_life",
+        "local_food"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "314–336 Hai Bà Trưng, phường Tân Định, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 75,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 70000,
+        "max": 150000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R12",
+        "slug": "tan-dinh-market",
+        "nameVi": "Chợ Tân Định",
+        "nameEn": "Tan Dinh Market",
+        "uiAreaMembership": [
+          {
+            "areaId": "tan-dinh-ban-co",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "market_local_life",
+          "local_food"
+        ],
+        "addressVi": "314–336 Hai Bà Trưng, phường Tân Định, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 75,
+        "planningCostVndPerPerson": {
+          "min": 70000,
+          "max": 150000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "unknown",
+          "observations": []
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R12"
+      }
+    },
+    {
+      "placeId": "LL-R13",
+      "slug": "an-dong-market",
+      "nameVi": "Chợ An Đông",
+      "nameEn": "An Dong Market",
+      "areaMembership": [
+        {
+          "areaId": "cho-lon-binh-tay",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "market_local_life",
+        "local_food"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "34–36 An Dương Vương, phường An Đông, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 90,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 60000,
+        "max": 150000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R13",
+        "slug": "an-dong-market",
+        "nameVi": "Chợ An Đông",
+        "nameEn": "An Dong Market",
+        "uiAreaMembership": [
+          {
+            "areaId": "cho-lon-binh-tay",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "market_local_life",
+          "local_food"
+        ],
+        "addressVi": "34–36 An Dương Vương, phường An Đông, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 90,
+        "planningCostVndPerPerson": {
+          "min": 60000,
+          "max": 150000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "conflict_needs_review",
+          "observations": [
+            {
+              "label": "Chưa thống nhất: 07:00–18:00 (R15/R16) hoặc 08:00–16:00 (R13)",
+              "windows": [],
+              "sourceIds": [
+                "R15",
+                "R16",
+                "R13"
+              ],
+              "evidenceStatus": "conflict_needs_review",
+              "notes": "",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R13"
+      }
+    },
+    {
+      "placeId": "LL-R14",
+      "slug": "binh-tay-market",
+      "nameVi": "Chợ Bình Tây",
+      "nameEn": "Binh Tay Market",
+      "areaMembership": [
+        {
+          "areaId": "cho-lon-binh-tay",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "market_local_life",
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "57A Tháp Mười, phường Bình Tây, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 90,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 60000,
+        "max": 150000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R14",
+        "slug": "binh-tay-market",
+        "nameVi": "Chợ Bình Tây",
+        "nameEn": "Binh Tay Market",
+        "uiAreaMembership": [
+          {
+            "areaId": "cho-lon-binh-tay",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "market_local_life",
+          "history_culture"
+        ],
+        "addressVi": "57A Tháp Mười, phường Bình Tây, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 90,
+        "planningCostVndPerPerson": {
+          "min": 60000,
+          "max": 150000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "historical_reference",
+          "observations": [
+            {
+              "label": "Tham khảo: 05:00–19:30",
+              "windows": [],
+              "sourceIds": [
+                "R16"
+              ],
+              "evidenceStatus": "historical_reference",
+              "notes": "Nguồn không đủ rõ ngày áp dụng từng tuần và giờ của mỗi ngành hàng.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R14"
+      }
+    },
+    {
+      "placeId": "LL-R15",
+      "slug": "ho-thi-ky-food-street",
+      "nameVi": "Phố ẩm thực Hồ Thị Kỷ",
+      "nameEn": "Ho Thi Ky Food Street",
+      "areaMembership": [
+        {
+          "areaId": "tan-dinh-ban-co",
+          "role": "nearby_fallback"
+        }
+      ],
+      "experienceTags": [
+        "local_food"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "Đường Hồ Thị Kỷ, phường Vườn Lài, TP. Hồ Chí Minh",
+        "sourceStatus": "Cần chốt điểm tiếp cận",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 120,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 100000,
+        "max": 200000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation",
+        "exact_meeting_point"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R15",
+        "slug": "ho-thi-ky-food-street",
+        "nameVi": "Phố ẩm thực Hồ Thị Kỷ",
+        "nameEn": "Ho Thi Ky Food Street",
+        "uiAreaMembership": [
+          {
+            "areaId": "tan-dinh-ban-co",
+            "role": "nearby_fallback"
+          }
+        ],
+        "experienceTags": [
+          "local_food"
+        ],
+        "addressVi": "Đường Hồ Thị Kỷ, phường Vườn Lài, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Cần chốt điểm tiếp cận",
+        "visitDurationMin": 120,
+        "planningCostVndPerPerson": {
+          "min": 100000,
+          "max": 200000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "unknown",
+          "observations": []
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R15"
+      }
+    },
+    {
+      "placeId": "LL-R16",
+      "slug": "nguyen-hue-walking-street",
+      "nameVi": "Phố đi bộ Nguyễn Huệ",
+      "nameEn": "Nguyen Hue Walking Street",
+      "areaMembership": [
+        {
+          "areaId": "saigon-center",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "Đường Nguyễn Huệ, đoạn Lê Lợi – Tôn Đức Thắng, phường Sài Gòn, TP. Hồ Chí Minh",
+        "sourceStatus": "Cần chốt điểm tiếp cận",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 60,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 0,
+        "max": 0,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation",
+        "exact_meeting_point"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R16",
+        "slug": "nguyen-hue-walking-street",
+        "nameVi": "Phố đi bộ Nguyễn Huệ",
+        "nameEn": "Nguyen Hue Walking Street",
+        "uiAreaMembership": [
+          {
+            "areaId": "saigon-center",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "Đường Nguyễn Huệ, đoạn Lê Lợi – Tôn Đức Thắng, phường Sài Gòn, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Cần chốt điểm tiếp cận",
+        "visitDurationMin": 60,
+        "planningCostVndPerPerson": {
+          "min": 0,
+          "max": 0,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "historical_reference",
+          "observations": [
+            {
+              "label": "Nguồn cũ ghi tiếp cận không gian công cộng 00:00–24:00",
+              "windows": [
+                {
+                  "isoWeekdays": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "00:00",
+                  "closes": "24:00"
+                }
+              ],
+              "sourceIds": [
+                "R13"
+              ],
+              "evidenceStatus": "historical_reference",
+              "notes": "Không đồng nghĩa 24 giờ không có hạn chế; không dùng cho giờ cấm xe, sự kiện hay hoạt động của quầy hàng.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R16"
+      }
+    },
+    {
+      "placeId": "LL-R17",
+      "slug": "tue-thanh-assembly-hall",
+      "nameVi": "Hội quán Tuệ Thành",
+      "nameEn": "Tue Thanh Assembly Hall",
+      "areaMembership": [
+        {
+          "areaId": "cho-lon-binh-tay",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "710 Nguyễn Trãi, phường Chợ Lớn, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 60,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 0,
+        "max": 80000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R17",
+        "slug": "tue-thanh-assembly-hall",
+        "nameVi": "Hội quán Tuệ Thành",
+        "nameEn": "Tue Thanh Assembly Hall",
+        "uiAreaMembership": [
+          {
+            "areaId": "cho-lon-binh-tay",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "710 Nguyễn Trãi, phường Chợ Lớn, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 60,
+        "planningCostVndPerPerson": {
+          "min": 0,
+          "max": 80000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "unknown",
+          "observations": []
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R17"
+      }
+    },
+    {
+      "placeId": "LL-R18",
+      "slug": "fito-museum",
+      "nameVi": "Bảo tàng Y học Cổ truyền Việt Nam FITO",
+      "nameEn": "FITO Museum of Traditional Vietnamese Medicine",
+      "areaMembership": [
+        {
+          "areaId": "tan-dinh-ban-co",
+          "role": "core"
+        },
+        {
+          "areaId": "bay-hien-tan-binh",
+          "role": "nearby_fallback"
+        }
+      ],
+      "experienceTags": [
+        "history_culture"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "41 Hoàng Dư Khương, phường Hòa Hưng, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 90,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 0,
+        "max": 80000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [
+        "fito-source-rejected-2026",
+        "fito-government-2022"
+      ],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R18",
+        "slug": "fito-museum",
+        "nameVi": "Bảo tàng Y học Cổ truyền Việt Nam FITO",
+        "nameEn": "FITO Museum of Traditional Vietnamese Medicine",
+        "uiAreaMembership": [
+          {
+            "areaId": "tan-dinh-ban-co",
+            "role": "core"
+          },
+          {
+            "areaId": "bay-hien-tan-binh",
+            "role": "nearby_fallback"
+          }
+        ],
+        "experienceTags": [
+          "history_culture"
+        ],
+        "addressVi": "41 Hoàng Dư Khương, phường Hòa Hưng, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 90,
+        "planningCostVndPerPerson": {
+          "min": 0,
+          "max": 80000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "source_integrity_review",
+          "observations": [
+            {
+              "label": "Hằng ngày 08:30–17:00",
+              "windows": [
+                {
+                  "isoWeekdays": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "08:30",
+                  "closes": "17:00"
+                }
+              ],
+              "sourceIds": [
+                "R19"
+              ],
+              "evidenceStatus": "source_integrity_review",
+              "notes": "Dữ liệu đang hiển thị, cần đối chiếu đơn vị do trang chứa nội dung bất thường.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R18"
+      },
+      "additionalObservations": [
+        {
+          "placeId": "LL-R18",
+          "sourceId": "fito-source-rejected-2026",
+          "url": "https://fitomuseum.com.vn/",
+          "authority": "rejected",
+          "method": "page_read_unrelated_content",
+          "facts": {},
+          "limits": "Trang hiển thị nội dung cờ bạc không liên quan bảo tàng. Không dùng để xác nhận giá, lịch hoạt động hay liên hệ."
+        },
+        {
+          "placeId": "LL-R18",
+          "sourceId": "fito-government-2022",
+          "url": "https://svhtt.hochiminhcity.gov.vn/documents/10184/354475/to%2Bgap%2B10%2Bbao%2Btang%2Bhoan%2Bthien%2B%28ng%C3%A0y%2B21.11.2022%29.pdf/cd343255-8c41-4250-bd9a-92c203837de8",
+          "authority": "government_historical",
+          "method": "search_extract",
+          "facts": {
+            "streetAddress": "41 Hoàng Dư Khương",
+            "phone": "028 3864 2430",
+            "email": "museum@fito.vn",
+            "historicalHours": "Thứ Hai–Chủ nhật 08:30–17:00"
+          },
+          "limits": "Tài liệu năm 2022 chỉ là đầu mối đối chiếu, chưa xác nhận giờ mở cửa và số liên hệ còn hiệu lực năm 2026."
+        }
+      ],
+      "rejectedSourceIds": [
+        "fito-source-rejected-2026"
+      ]
+    },
+    {
+      "placeId": "LL-R19",
+      "slug": "district-5-traditional-medicine-street",
+      "nameVi": "Phố Đông y Quận 5",
+      "nameEn": "District 5 Traditional Medicine Street",
+      "areaMembership": [
+        {
+          "areaId": "cho-lon-binh-tay",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "traditional_craft",
+        "market_local_life"
+      ],
+      "rolloutTier": "deferred_operator_confirmation",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "Cụm phố Đông y Hải Thượng Lãn Ông – Lương Nhữ Học – Triệu Quang Phục, phường Chợ Lớn, TP. Hồ Chí Minh",
+        "sourceStatus": "Cần chốt điểm tiếp cận",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 75,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 50000,
+        "max": 220000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation",
+        "exact_meeting_point",
+        "named_host_and_bookable_activity"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R19",
+        "slug": "district-5-traditional-medicine-street",
+        "nameVi": "Phố Đông y Quận 5",
+        "nameEn": "District 5 Traditional Medicine Street",
+        "uiAreaMembership": [
+          {
+            "areaId": "cho-lon-binh-tay",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "traditional_craft",
+          "market_local_life"
+        ],
+        "addressVi": "Cụm phố Đông y Hải Thượng Lãn Ông – Lương Nhữ Học – Triệu Quang Phục, phường Chợ Lớn, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Cần chốt điểm tiếp cận",
+        "visitDurationMin": 75,
+        "planningCostVndPerPerson": {
+          "min": 50000,
+          "max": 220000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "historical_reference",
+          "observations": [
+            {
+              "label": "Tham khảo cũ: 06:00–19:00",
+              "windows": [],
+              "sourceIds": [
+                "R13"
+              ],
+              "evidenceStatus": "historical_reference",
+              "notes": "Khung giờ giới thiệu cả tuyến, không phải lịch của mọi cửa hàng hoặc lịch sự kiện.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R19"
+      }
+    },
+    {
+      "placeId": "LL-R20",
+      "slug": "ao-dai-museum",
+      "nameVi": "Bảo tàng Áo Dài",
+      "nameEn": "Ao Dai Museum",
+      "areaMembership": [],
+      "experienceTags": [
+        "traditional_craft",
+        "history_culture"
+      ],
+      "rolloutTier": "outside_current_areas",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "206/19/30 Long Thuận, phường Long Phước, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 90,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 50000,
+        "max": 220000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation",
+        "supported_area"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R20",
+        "slug": "ao-dai-museum",
+        "nameVi": "Bảo tàng Áo Dài",
+        "nameEn": "Ao Dai Museum",
+        "uiAreaMembership": [],
+        "experienceTags": [
+          "traditional_craft",
+          "history_culture"
+        ],
+        "addressVi": "206/19/30 Long Thuận, phường Long Phước, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 90,
+        "planningCostVndPerPerson": {
+          "min": 50000,
+          "max": 220000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "historical_reference",
+          "observations": [
+            {
+              "label": "Nguồn 2022 ghi 08:30–17:30",
+              "windows": [],
+              "sourceIds": [
+                "R21"
+              ],
+              "evidenceStatus": "historical_reference",
+              "notes": "Không tự chuyển thành lịch mở cửa hiện hành.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": false,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R20"
+      }
+    },
+    {
+      "placeId": "LL-R21",
+      "slug": "thiec-market",
+      "nameVi": "Chợ Thiếc",
+      "nameEn": "Thiec Market",
+      "areaMembership": [
+        {
+          "areaId": "cho-lon-binh-tay",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "market_local_life"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "129 Phó Cơ Điều, phường Minh Phụng, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 60,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 30000,
+        "max": 150000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R21",
+        "slug": "thiec-market",
+        "nameVi": "Chợ Thiếc",
+        "nameEn": "Thiec Market",
+        "uiAreaMembership": [
+          {
+            "areaId": "cho-lon-binh-tay",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "market_local_life"
+        ],
+        "addressVi": "129 Phó Cơ Điều, phường Minh Phụng, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 60,
+        "planningCostVndPerPerson": {
+          "min": 30000,
+          "max": 150000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "unknown",
+          "observations": []
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R21"
+      }
+    },
+    {
+      "placeId": "LL-R22",
+      "slug": "pham-van-hai-market",
+      "nameVi": "Chợ Phạm Văn Hai",
+      "nameEn": "Pham Van Hai Market",
+      "areaMembership": [
+        {
+          "areaId": "bay-hien-tan-binh",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "market_local_life",
+        "local_food"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "128 Phạm Văn Hai, phường Tân Sơn Hòa, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 60,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 70000,
+        "max": 150000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R22",
+        "slug": "pham-van-hai-market",
+        "nameVi": "Chợ Phạm Văn Hai",
+        "nameEn": "Pham Van Hai Market",
+        "uiAreaMembership": [
+          {
+            "areaId": "bay-hien-tan-binh",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "market_local_life",
+          "local_food"
+        ],
+        "addressVi": "128 Phạm Văn Hai, phường Tân Sơn Hòa, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 60,
+        "planningCostVndPerPerson": {
+          "min": 70000,
+          "max": 150000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "historical_reference",
+          "observations": [
+            {
+              "label": "Tham khảo cũ: 02:00–18:00",
+              "windows": [],
+              "sourceIds": [
+                "R13"
+              ],
+              "evidenceStatus": "historical_reference",
+              "notes": "Chưa chốt địa chỉ; chưa dùng giờ này cho bộ lập lịch.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R22"
+      }
+    },
+    {
+      "placeId": "LL-R23",
+      "slug": "ba-hoa-market",
+      "nameVi": "Chợ Bà Hoa",
+      "nameEn": "Ba Hoa Market",
+      "areaMembership": [
+        {
+          "areaId": "bay-hien-tan-binh",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "market_local_life",
+        "local_food"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "99 Trần Mai Ninh, phường Bảy Hiền, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 60,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 70000,
+        "max": 150000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R23",
+        "slug": "ba-hoa-market",
+        "nameVi": "Chợ Bà Hoa",
+        "nameEn": "Ba Hoa Market",
+        "uiAreaMembership": [
+          {
+            "areaId": "bay-hien-tan-binh",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "market_local_life",
+          "local_food"
+        ],
+        "addressVi": "99 Trần Mai Ninh, phường Bảy Hiền, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 60,
+        "planningCostVndPerPerson": {
+          "min": 70000,
+          "max": 150000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "historical_reference",
+          "observations": [
+            {
+              "label": "Tham khảo cũ: hằng ngày 05:00–18:00",
+              "windows": [
+                {
+                  "isoWeekdays": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "05:00",
+                  "closes": "18:00"
+                }
+              ],
+              "sourceIds": [
+                "R13"
+              ],
+              "evidenceStatus": "historical_reference",
+              "notes": "Thông tin riêng về giờ ăn uống cần xác minh theo quầy, không suy ra từ giờ chợ.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R23"
+      }
+    },
+    {
+      "placeId": "LL-R24",
+      "slug": "alley-200-xom-chieu",
+      "nameVi": "Hẻm 200 Xóm Chiếu",
+      "nameEn": "Alley 200 Xom Chieu",
+      "areaMembership": [
+        {
+          "areaId": "saigon-center",
+          "role": "nearby_fallback"
+        }
+      ],
+      "experienceTags": [
+        "local_food"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "Hẻm 200 đường Xóm Chiếu, phường Xóm Chiếu, TP. Hồ Chí Minh",
+        "sourceStatus": "Cần xác nhận địa chỉ",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 90,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 100000,
+        "max": 180000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation",
+        "exact_meeting_point"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R24",
+        "slug": "alley-200-xom-chieu",
+        "nameVi": "Hẻm 200 Xóm Chiếu",
+        "nameEn": "Alley 200 Xom Chieu",
+        "uiAreaMembership": [
+          {
+            "areaId": "saigon-center",
+            "role": "nearby_fallback"
+          }
+        ],
+        "experienceTags": [
+          "local_food"
+        ],
+        "addressVi": "Hẻm 200 đường Xóm Chiếu, phường Xóm Chiếu, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Cần xác nhận địa chỉ",
+        "visitDurationMin": 90,
+        "planningCostVndPerPerson": {
+          "min": 100000,
+          "max": 180000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "unknown",
+          "observations": []
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R24"
+      }
+    },
+    {
+      "placeId": "LL-R25",
+      "slug": "banh-mi-hoa-ma",
+      "nameVi": "Bánh mì Hòa Mã",
+      "nameEn": "Hoa Ma Banh Mi",
+      "areaMembership": [
+        {
+          "areaId": "tan-dinh-ban-co",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "local_food"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "53 Cao Thắng, phường Bàn Cờ, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 45,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 60000,
+        "max": 120000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R25",
+        "slug": "banh-mi-hoa-ma",
+        "nameVi": "Bánh mì Hòa Mã",
+        "nameEn": "Hoa Ma Banh Mi",
+        "uiAreaMembership": [
+          {
+            "areaId": "tan-dinh-ban-co",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "local_food"
+        ],
+        "addressVi": "53 Cao Thắng, phường Bàn Cờ, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 45,
+        "planningCostVndPerPerson": {
+          "min": 60000,
+          "max": 120000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "third_party_reference",
+          "observations": [
+            {
+              "label": "Danh bạ Foody ghi 06:00–11:00",
+              "windows": [],
+              "sourceIds": [
+                "R24"
+              ],
+              "evidenceStatus": "third_party_reference",
+              "notes": "Chưa có nguồn trực tiếp cơ sở xác nhận; chưa dùng làm giờ vận hành.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R25"
+      }
+    },
+    {
+      "placeId": "LL-R26",
+      "slug": "banh-mi-huynh-hoa",
+      "nameVi": "Bánh mì Huỳnh Hoa",
+      "nameEn": "Huynh Hoa Banh Mi",
+      "areaMembership": [
+        {
+          "areaId": "saigon-center",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "local_food"
+      ],
+      "rolloutTier": "inner_city_priority",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "26–30–32 Lê Thị Riêng, phường Bến Thành, TP. Hồ Chí Minh",
+        "sourceStatus": "operator_source_observed",
+        "coordinates": null,
+        "meetingPoint": null,
+        "sourceId": "huynhhoa-2026"
+      },
+      "visitDuration": {
+        "minutes": 45,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 60000,
+        "max": 120000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "operator_search_extract",
+        "windows": [
+          {
+            "isoWeekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "opens": "06:00",
+            "closes": "22:00"
+          }
+        ],
+        "observedOn": "2026-09-11",
+        "exceptions": [],
+        "validForAllFutureDates": false,
+        "sourceId": "huynhhoa-2026"
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [
+        "huynhhoa-2026"
+      ],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "admission_or_explicit_free_confirmation"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R26",
+        "slug": "banh-mi-huynh-hoa",
+        "nameVi": "Bánh mì Huỳnh Hoa",
+        "nameEn": "Huynh Hoa Banh Mi",
+        "uiAreaMembership": [
+          {
+            "areaId": "saigon-center",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "local_food"
+        ],
+        "addressVi": "26, 30 và 32 Lê Thị Riêng, phường Bến Thành, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 45,
+        "planningCostVndPerPerson": {
+          "min": 60000,
+          "max": 120000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "operator_search_extract",
+          "observations": [
+            {
+              "label": "Trích xuất trang liên hệ ghi T2–CN 06:00–22:00",
+              "windows": [
+                {
+                  "isoWeekdays": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                  ],
+                  "opens": "06:00",
+                  "closes": "22:00"
+                }
+              ],
+              "sourceIds": [
+                "R25"
+              ],
+              "evidenceStatus": "operator_search_extract",
+              "notes": "Cần xác nhận riêng chi nhánh Lê Thị Riêng; trang mở trực tiếp trả 403.",
+              "appliesToAllFutureDates": false
+            }
+          ]
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R26"
+      },
+      "additionalObservations": [
+        {
+          "placeId": "LL-R26",
+          "sourceId": "huynhhoa-2026",
+          "url": "https://banhmihuynhhoa.vn/review-banh-mi-huynh-hoa-gia-bao-nhieu/",
+          "authority": "operator",
+          "method": "search_extract",
+          "facts": {
+            "address": "26–30–32 Lê Thị Riêng, phường Bến Thành, TP. Hồ Chí Minh",
+            "openingWindows": [
+              {
+                "isoWeekdays": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "opens": "06:00",
+                "closes": "22:00"
+              }
+            ],
+            "foodProduct": "Một ổ bánh mì",
+            "foodPriceVnd": 73000
+          },
+          "limits": "Giá món, không phải vé vào cửa. Chưa xác nhận chỗ ngồi cho đoàn hoặc thời gian chờ. Không suy ra hỗ trợ Halal, ăn chay hay dị ứng."
+        }
+      ],
+      "observedFoodOffer": {
+        "product": "Một ổ bánh mì",
+        "amountVnd": 73000,
+        "currency": "VND",
+        "sourceId": "huynhhoa-2026",
+        "status": "operator_search_extract",
+        "includedInAdmission": false
+      }
+    },
+    {
+      "placeId": "LL-R27",
+      "slug": "vietnam-silver-house",
+      "nameVi": "Nhà bạc Việt Nam",
+      "nameEn": "Vietnam Silver House",
+      "areaMembership": [
+        {
+          "areaId": "cho-lon-binh-tay",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "traditional_craft"
+      ],
+      "rolloutTier": "deferred_operator_confirmation",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "68 Nghĩa Thục, phường An Đông, TP. Hồ Chí Minh",
+        "sourceStatus": "Đối chiếu được",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 75,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 50000,
+        "max": 220000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation",
+        "named_host_and_bookable_activity"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R27",
+        "slug": "vietnam-silver-house",
+        "nameVi": "Nhà bạc Việt Nam",
+        "nameEn": "Vietnam Silver House",
+        "uiAreaMembership": [
+          {
+            "areaId": "cho-lon-binh-tay",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "traditional_craft"
+        ],
+        "addressVi": "68 Nghĩa Thục, phường An Đông, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Đối chiếu được",
+        "visitDurationMin": 75,
+        "planningCostVndPerPerson": {
+          "min": 50000,
+          "max": 220000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "unknown",
+          "observations": []
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R27"
+      }
+    },
+    {
+      "placeId": "LL-R28",
+      "slug": "mot-thoang-viet-nam-craft-village",
+      "nameVi": "Làng nghề Một Thoáng Việt Nam",
+      "nameEn": "Mot Thoang Viet Nam Craft Village",
+      "areaMembership": [
+        {
+          "areaId": "cu-chi",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "traditional_craft"
+      ],
+      "rolloutTier": "deferred_operator_confirmation",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "109 Nguyễn Thị Sửa, ấp Phú Bình, xã An Nhơn Tây, TP. Hồ Chí Minh",
+        "sourceStatus": "Cần xác nhận địa chỉ",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 120,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 120000,
+        "max": 250000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation",
+        "exact_meeting_point",
+        "named_host_and_bookable_activity"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R28",
+        "slug": "mot-thoang-viet-nam-craft-village",
+        "nameVi": "Làng nghề Một Thoáng Việt Nam",
+        "nameEn": "Mot Thoang Viet Nam Craft Village",
+        "uiAreaMembership": [
+          {
+            "areaId": "cu-chi",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "traditional_craft"
+        ],
+        "addressVi": "109 Nguyễn Thị Sửa, ấp Phú Bình, xã An Nhơn Tây, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Cần xác nhận địa chỉ",
+        "visitDurationMin": 120,
+        "planningCostVndPerPerson": {
+          "min": 120000,
+          "max": 250000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "unknown",
+          "observations": []
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R28"
+      }
+    },
+    {
+      "placeId": "LL-R29",
+      "slug": "rice-paper-phu-hoa-dong",
+      "nameVi": "Làng bánh tráng Phú Hòa Đông",
+      "nameEn": "Phu Hoa Dong Rice Paper Village",
+      "areaMembership": [
+        {
+          "areaId": "cu-chi",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "traditional_craft",
+        "local_food"
+      ],
+      "rolloutTier": "deferred_operator_confirmation",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "Khu vực làng nghề bánh tráng Phú Hòa Đông, xã Phú Hòa Đông, TP. Hồ Chí Minh",
+        "sourceStatus": "Chỉ xác định khu vực",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 90,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 80000,
+        "max": 180000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation",
+        "exact_meeting_point",
+        "named_host_and_bookable_activity"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R29",
+        "slug": "rice-paper-phu-hoa-dong",
+        "nameVi": "Làng bánh tráng Phú Hòa Đông",
+        "nameEn": "Phu Hoa Dong Rice Paper Village",
+        "uiAreaMembership": [
+          {
+            "areaId": "cu-chi",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "traditional_craft",
+          "local_food"
+        ],
+        "addressVi": "Khu vực làng nghề bánh tráng Phú Hòa Đông, xã Phú Hòa Đông, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Chỉ xác định khu vực",
+        "visitDurationMin": 90,
+        "planningCostVndPerPerson": {
+          "min": 80000,
+          "max": 180000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "unknown",
+          "observations": []
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R29"
+      }
+    },
+    {
+      "placeId": "LL-R30",
+      "slug": "hoa-binh-lantern-making",
+      "nameVi": "Nghề làm lồng đèn Hòa Bình",
+      "nameEn": "Hoa Binh Lantern Making",
+      "areaMembership": [
+        {
+          "areaId": "cho-lon-binh-tay",
+          "role": "core"
+        }
+      ],
+      "experienceTags": [
+        "traditional_craft"
+      ],
+      "rolloutTier": "deferred_operator_confirmation",
+      "publicationStatus": "draft",
+      "adminVerified": false,
+      "plannerEligible": false,
+      "address": {
+        "value": "Khu làng lồng đèn Phú Bình, phường Hòa Bình, TP. Hồ Chí Minh",
+        "sourceStatus": "Cần xác nhận định danh",
+        "coordinates": null,
+        "meetingPoint": null
+      },
+      "visitDuration": {
+        "minutes": 75,
+        "status": "planning_estimate_needs_review"
+      },
+      "admission": {
+        "amountVnd": null,
+        "status": "unknown"
+      },
+      "otherCosts": {
+        "mealPerPersonVnd": null,
+        "activityPerPersonVnd": null,
+        "guidePerGroupVnd": null,
+        "transportPerGroupVnd": null,
+        "optionalShoppingVnd": null
+      },
+      "sourceAllowance": {
+        "min": 80000,
+        "max": 180000,
+        "kind": "localens_internal_demo_allowance",
+        "officialPrice": false,
+        "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+      },
+      "operatingHours": {
+        "timezone": "Asia/Ho_Chi_Minh",
+        "status": "needs_review",
+        "windows": [],
+        "observedOn": null,
+        "exceptions": [],
+        "validForAllFutureDates": false
+      },
+      "capacity": {
+        "maximumGroupSize": null,
+        "advanceBookingRequired": null
+      },
+      "supports": {
+        "guideLanguages": [],
+        "vegetarian": "unknown",
+        "halal": "unknown"
+      },
+      "evidenceSourceIds": [],
+      "blockingReasons": [
+        "operator_group_capacity",
+        "approved_transfer_edges",
+        "approved_group_service_cost",
+        "admin_release_review",
+        "current_operating_windows",
+        "admission_or_explicit_free_confirmation",
+        "exact_meeting_point",
+        "named_host_and_bookable_activity"
+      ],
+      "originalResearch": {
+        "placeId": "LL-R30",
+        "slug": "hoa-binh-lantern-making",
+        "nameVi": "Nghề làm lồng đèn Hòa Bình",
+        "nameEn": "Hoa Binh Lantern Making",
+        "uiAreaMembership": [
+          {
+            "areaId": "cho-lon-binh-tay",
+            "role": "core"
+          }
+        ],
+        "experienceTags": [
+          "traditional_craft"
+        ],
+        "addressVi": "Khu làng lồng đèn Phú Bình, phường Hòa Bình, TP. Hồ Chí Minh",
+        "addressReviewStatusVi": "Cần xác nhận định danh",
+        "visitDurationMin": 75,
+        "planningCostVndPerPerson": {
+          "min": 80000,
+          "max": 180000,
+          "kind": "localens_internal_demo_allowance",
+          "officialPrice": false,
+          "note": "Dùng để kiểm tra ngân sách sơ bộ trong prototype; không phải báo giá chính thức."
+        },
+        "openingHoursResearch": {
+          "status": "unknown",
+          "observations": []
+        },
+        "plannerActivation": {
+          "adminVerifiedRequired": true,
+          "plannerEligibleAfterAdminApproval": true,
+          "recommendedForCurrentUi": true,
+          "note": "Chỉ bật planner_eligible khi QTV đã xác nhận địa chỉ, giờ hoạt động, chi phí dự kiến và khả năng phục vụ."
+        },
+        "sourceReviewId": "LL-R30"
+      }
+    }
+  ],
+  "additionalEvidence": {
+    "observedOn": "2026-09-11",
+    "publicationStatus": "research_only",
+    "observations": [
+      {
+        "placeId": "LL-R03",
+        "sourceId": "city-museum-contact-2026",
+        "url": "https://hcmc-museum.edu.vn/luu-tru/4677",
+        "authority": "operator",
+        "method": "search_extract",
+        "facts": {
+          "address": "65 Lý Tự Trọng, phường Sài Gòn, TP. Hồ Chí Minh",
+          "phone": "028 3829 9741, nhánh 109",
+          "email": "baotangtphcm@gmail.com"
+        },
+        "limits": "Chỉ lấy thông tin liên hệ. Ưu đãi tháng 3/2024 đã hết hạn, không dùng làm giá vé hiện tại."
+      },
+      {
+        "placeId": "LL-R07",
+        "sourceId": "women-museum-2026",
+        "url": "https://baotangphunu.com/",
+        "authority": "operator",
+        "method": "page_read",
+        "facts": {
+          "address": "200–202 Võ Thị Sáu, phường Xuân Hòa, TP. Hồ Chí Minh",
+          "email": "bt.pnnb.svhtt@tphcm.gov.vn",
+          "dailyTimeSegments": [
+            {
+              "opens": "07:30",
+              "closes": "11:30"
+            },
+            {
+              "opens": "13:30",
+              "closes": "17:00"
+            }
+          ]
+        },
+        "limits": "Trang nêu giờ sáng/chiều nhưng chưa xác nhận ngày hoạt động trong tuần; không tự gán mở cả 7 ngày. Chưa xác nhận miễn phí."
+      },
+      {
+        "placeId": "LL-R10",
+        "sourceId": "cuchi-fee-2026",
+        "url": "https://diadaocuchi.com.vn/thong-bao-tang-gia-ve-phuc-vu-huong-dan-399.html",
+        "authority": "operator",
+        "method": "search_full_extract_direct_timeout",
+        "facts": {
+          "effectiveFrom": "2026-02-01",
+          "currency": "VND",
+          "audience": "Khách ngoại quốc",
+          "admissionFeePerPerson": 35000,
+          "visitorServiceAndGuidancePerPerson": 100000,
+          "combinedAmountPerPerson": 135000
+        },
+        "limits": "Tổng 135.000 là phép cộng hai khoản công bố; không gồm xe, bữa ăn, hoạt động tùy chọn. Không dùng phí hướng dẫn tại di tích thay cho hướng dẫn viên toàn chuyến."
+      },
+      {
+        "placeId": "LL-R18",
+        "sourceId": "fito-source-rejected-2026",
+        "url": "https://fitomuseum.com.vn/",
+        "authority": "rejected",
+        "method": "page_read_unrelated_content",
+        "facts": {},
+        "limits": "Trang hiển thị nội dung cờ bạc không liên quan bảo tàng. Không dùng để xác nhận giá, lịch hoạt động hay liên hệ."
+      },
+      {
+        "placeId": "LL-R18",
+        "sourceId": "fito-government-2022",
+        "url": "https://svhtt.hochiminhcity.gov.vn/documents/10184/354475/to%2Bgap%2B10%2Bbao%2Btang%2Bhoan%2Bthien%2B%28ng%C3%A0y%2B21.11.2022%29.pdf/cd343255-8c41-4250-bd9a-92c203837de8",
+        "authority": "government_historical",
+        "method": "search_extract",
+        "facts": {
+          "streetAddress": "41 Hoàng Dư Khương",
+          "phone": "028 3864 2430",
+          "email": "museum@fito.vn",
+          "historicalHours": "Thứ Hai–Chủ nhật 08:30–17:00"
+        },
+        "limits": "Tài liệu năm 2022 chỉ là đầu mối đối chiếu, chưa xác nhận giờ mở cửa và số liên hệ còn hiệu lực năm 2026."
+      },
+      {
+        "placeId": "LL-R26",
+        "sourceId": "huynhhoa-2026",
+        "url": "https://banhmihuynhhoa.vn/review-banh-mi-huynh-hoa-gia-bao-nhieu/",
+        "authority": "operator",
+        "method": "search_extract",
+        "facts": {
+          "address": "26–30–32 Lê Thị Riêng, phường Bến Thành, TP. Hồ Chí Minh",
+          "openingWindows": [
+            {
+              "isoWeekdays": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ],
+              "opens": "06:00",
+              "closes": "22:00"
+            }
+          ],
+          "foodProduct": "Một ổ bánh mì",
+          "foodPriceVnd": 73000
+        },
+        "limits": "Giá món, không phải vé vào cửa. Chưa xác nhận chỗ ngồi cho đoàn hoặc thời gian chờ. Không suy ra hỗ trợ Halal, ăn chay hay dị ứng."
+      }
+    ]
+  },
+  "completionDecision": {
+    "status": "user_approved_internal_simulation",
+    "appliesTo": [
+      "group_service_cost",
+      "group_size_limit",
+      "travel_time",
+      "unpublished_operating_hours"
+    ],
+    "estimatesApproved": true,
+    "scope": "Chỉ kiểm tra tính khả thi và tạo lịch trình mẫu; không phải giá hoặc thông tin chính thức."
+  }
+}

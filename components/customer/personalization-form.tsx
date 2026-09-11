@@ -135,7 +135,7 @@ function isInitializedComposition(
   );
 }
 
-async function resolveRuntimeSelection(isRetry: boolean, locale: Locale): Promise<RuntimeSelection> {
+async function resolveRuntimeSelection(isRetry: boolean, locale: Locale, overrides?:readonly {value:string;label:string}[]): Promise<RuntimeSelection> {
   const composition = await loadPortalSurfaceComposition();
   if (!isInitializedComposition(composition)) {
     throw new Error("Invalid portal surface composition");
@@ -143,6 +143,7 @@ async function resolveRuntimeSelection(isRetry: boolean, locale: Locale): Promis
 
   if (composition.mode === "supabase") {
     await composition.initialized;
+    if(overrides)return {mode:'supabase',areaOptions:overrides.map(a=>({...a,slug:a.value,areaId:a.value,snapshotId:'research-v2'}))};
     if (composition.personalizationAreas === undefined) {
       throw new Error("Supabase personalization area port is unavailable");
     }
@@ -197,10 +198,12 @@ export function PersonalizationForm({
   copy,
   locale = "en",
   onPrepared,
+  areaOptionsOverride,
 }: {
   copy: PersonalizationFormCopy;
   locale?: Locale;
   onPrepared?: () => void;
+  areaOptionsOverride?: readonly {value:string;label:string}[];
 }) {
   const vi = locale === "vi";
   const formRef = useRef<HTMLFormElement>(null);
@@ -230,6 +233,8 @@ export function PersonalizationForm({
   const [pace, setPace] = useState<"relaxed" | "active">("relaxed");
   const runtimeLoadRef = useRef<Promise<RuntimeSelection> | null>(null);
   const runtimeLoadLocaleRef = useRef<Locale | null>(null);
+  const overridesKey=JSON.stringify(areaOptionsOverride??null);
+  const loadedOverridesKey=useRef('');
 
   useEffect(() => {
     const now = Date.now();
@@ -243,9 +248,10 @@ export function PersonalizationForm({
     let disposed = false;
     setRuntimeSelection(null);
     setRuntimeLoadFailed(false);
-    if (runtimeLoadRef.current === null || runtimeLoadLocaleRef.current !== locale) {
+    if (runtimeLoadRef.current === null || runtimeLoadLocaleRef.current !== locale || loadedOverridesKey.current!==overridesKey) {
+      loadedOverridesKey.current=overridesKey;
       runtimeLoadLocaleRef.current = locale;
-      runtimeLoadRef.current = resolveRuntimeSelection(runtimeRetryKey > 0, locale);
+      runtimeLoadRef.current = resolveRuntimeSelection(runtimeRetryKey > 0, locale, JSON.parse(overridesKey)??undefined);
     }
     void runtimeLoadRef.current
       .then((selection) => {
@@ -258,13 +264,13 @@ export function PersonalizationForm({
     return () => {
       disposed = true;
     };
-  }, [runtimeRetryKey, locale]);
+  }, [runtimeRetryKey, locale, overridesKey]);
 
-  const areaOptions = runtimeSelection?.mode === "supabase"
+  const areaOptions = areaOptionsOverride ?? (runtimeSelection?.mode === "supabase"
     ? runtimeSelection.areaOptions
     : runtimeLoadFailed
       ? []
-      : copy.areaOptions;
+      : copy.areaOptions);
 
   const selectedAreas = (summary.areas ?? "").split("|").filter(Boolean);
   const travelers = Number(summary.partySize ?? 2);

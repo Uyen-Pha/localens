@@ -1,0 +1,239 @@
+[
+  {
+    "name": "Trung tâm: Dinh Độc Lập – Bưu điện",
+    "input": {
+      "date": "2026-09-15",
+      "startTime": "09:00",
+      "durationMinutes": 360,
+      "travelers": 2,
+      "budgetVnd": 3000000,
+      "placeIds": [
+        "LL-R01",
+        "LL-R05"
+      ]
+    },
+    "result": {
+      "feasible": true,
+      "dataMode": "internal_simulation",
+      "date": "2026-09-15",
+      "stops": [
+        {
+          "placeId": "LL-R01",
+          "nameVi": "Dinh Độc Lập",
+          "arrival": "09:25",
+          "departure": "10:55",
+          "waitMinutes": 0
+        },
+        {
+          "placeId": "LL-R05",
+          "nameVi": "Bưu điện Trung tâm Sài Gòn",
+          "arrival": "11:20",
+          "departure": "11:50",
+          "waitMinutes": 0
+        }
+      ],
+      "legs": [
+        {
+          "from": "ORIGIN-CENTER",
+          "to": "LL-R01",
+          "departure": "09:00",
+          "minutes": 25,
+          "costVnd": 80000,
+          "status": "internal_simulation_estimate"
+        },
+        {
+          "from": "LL-R01",
+          "to": "LL-R05",
+          "departure": "10:55",
+          "minutes": 25,
+          "costVnd": 80000,
+          "status": "internal_simulation_estimate"
+        },
+        {
+          "from": "LL-R05",
+          "to": "ORIGIN-CENTER",
+          "departure": "11:50",
+          "minutes": 25,
+          "costVnd": 80000,
+          "status": "internal_simulation_estimate"
+        }
+      ],
+      "returnTime": "12:15",
+      "durationMinutes": 195,
+      "cost": {
+        "perPersonVnd": 80000,
+        "travelers": 2,
+        "transportVnd": 240000,
+        "guideVnd": 800000,
+        "totalVnd": 1200000
+      },
+      "realBookingEnabled": false
+    }
+  },
+  {
+    "name": "Chợ Lớn: Hội quán – Chợ Bình Tây",
+    "input": {
+      "date": "2026-09-15",
+      "startTime": "09:00",
+      "durationMinutes": 360,
+      "travelers": 2,
+      "budgetVnd": 3000000,
+      "placeIds": [
+        "LL-R17",
+        "LL-R14"
+      ]
+    },
+    "result": {
+      "feasible": true,
+      "dataMode": "internal_simulation",
+      "date": "2026-09-15",
+      "stops": [
+        {
+          "placeId": "LL-R17",
+          "nameVi": "Hội quán Tuệ Thành",
+          "arrival": "09:45",
+          "departure": "10:30",
+          "waitMinutes": 0
+        },
+        {
+          "placeId": "LL-R14",
+          "nameVi": "Chợ Bình Tây",
+          "arrival": "10:55",
+          "departure": "12:10",
+          "waitMinutes": 0
+        }
+      ],
+      "legs": [
+        {
+          "from": "ORIGIN-CENTER",
+          "to": "LL-R17",
+          "departure": "09:00",
+          "minutes": 45,
+          "costVnd": 120000,
+          "status": "internal_simulation_estimate"
+        },
+        {
+          "from": "LL-R17",
+          "to": "LL-R14",
+          "departure": "10:30",
+          "minutes": 25,
+          "costVnd": 80000,
+          "status": "internal_simulation_estimate"
+        },
+        {
+          "from": "LL-R14",
+          "to": "ORIGIN-CENTER",
+          "departure": "12:10",
+          "minutes": 45,
+          "costVnd": 120000,
+          "status": "internal_simulation_estimate"
+        }
+      ],
+      "returnTime": "12:55",
+      "durationMinutes": 235,
+      "cost": {
+        "perPersonVnd": 0,
+        "travelers": 2,
+        "transportVnd": 320000,
+        "guideVnd": 800000,
+        "totalVnd": 1120000
+      },
+      "realBookingEnabled": false
+    }
+  },
+  {
+    "name": "Củ Chi: một điểm, có chặng về",
+    "input": {
+      "date": "2026-09-15",
+      "startTime": "09:00",
+      "durationMinutes": 600,
+      "travelers": 2,
+      "budgetVnd": 5000000,
+      "placeIds": [
+        "LL-R10"
+      ]
+    },
+    "result": {
+      "feasible": true,
+      "dataMode": "internal_simulation",
+      "date": "2026-09-15",
+      "stops": [
+        {
+          "placeId": "LL-R10",
+          "nameVi": "Địa đạo Củ Chi",
+          "arrival": "11:05",
+          "departure": "14:05",
+          "waitMinutes": 0
+        }
+      ],
+      "legs": [
+        {
+          "from": "ORIGIN-CENTER",
+          "to": "LL-R10",
+          "departure": "09:00",
+          "minutes": 125,
+          "costVnd": 280000,
+          "status": "internal_simulation_estimate"
+        },
+        {
+          "from": "LL-R10",
+          "to": "ORIGIN-CENTER",
+          "departure": "14:05",
+          "minutes": 125,
+          "costVnd": 280000,
+          "status": "internal_simulation_estimate"
+        }
+      ],
+      "returnTime": "16:10",
+      "durationMinutes": 430,
+      "cost": {
+        "perPersonVnd": 135000,
+        "travelers": 2,
+        "transportVnd": 560000,
+        "guideVnd": 1600000,
+        "totalVnd": 2430000
+      },
+      "realBookingEnabled": false
+    }
+  },
+  {
+    "name": "Từ chối Củ Chi trong một giờ",
+    "input": {
+      "date": "2026-09-15",
+      "startTime": "09:00",
+      "durationMinutes": 60,
+      "travelers": 2,
+      "budgetVnd": 3000000,
+      "placeIds": [
+        "LL-R10"
+      ]
+    },
+    "result": {
+      "feasible": false,
+      "reason": "insufficient_duration_including_return",
+      "requiredMinutes": 430,
+      "availableMinutes": 60,
+      "dataMode": "internal_simulation"
+    }
+  },
+  {
+    "name": "Từ chối ngân sách quá thấp",
+    "input": {
+      "date": "2026-09-15",
+      "startTime": "09:00",
+      "durationMinutes": 360,
+      "travelers": 2,
+      "budgetVnd": 100000,
+      "placeIds": [
+        "LL-R01"
+      ]
+    },
+    "result": {
+      "feasible": false,
+      "reason": "insufficient_budget",
+      "requiredVnd": 920000,
+      "budgetVnd": 100000,
+      "dataMode": "internal_simulation"
+    }
+  }
+]

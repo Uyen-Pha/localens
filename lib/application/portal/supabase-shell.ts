@@ -1,3 +1,4 @@
+import { createResearchPlannerAdapter, type ResearchPlannerPort } from '@/lib/infrastructure/supabase/research-planner-adapter';
 import { createReviewedBookings, type ReviewedBookings } from '@/lib/infrastructure/supabase/reviewed-bookings';
 import type { PublicEnv } from "@/lib/env/public";
 import { createAccountAdapter, type AccountAdapter } from '@/lib/infrastructure/supabase/account-adapter';
@@ -29,6 +30,7 @@ import { createSupabasePersonalizationAreaAdapter } from "@/lib/infrastructure/s
 type SupabaseRuntimeConfig = Extract<BrowserRuntimeConfig, { mode: "supabase" }>;
 
 export interface SupabasePortalShell extends FixedTourRuntimeComposition {
+  readonly researchPlanner?: ResearchPlannerPort;
   readonly account?: AccountAdapter;
   readonly reviewedBookings?: ReviewedBookings;
   readonly mode: "supabase";
@@ -52,6 +54,7 @@ export function createSupabasePortalShell(
 
     return {
       mode: "supabase",
+      researchPlanner: createResearchPlannerAdapter(client),
       reviewedBookings: createReviewedBookings(client),
       account: createAccountAdapter(client, config.supabaseUrl, config.supabasePublishableKey),
       session: createSupabasePortalSessionAdapter(client),

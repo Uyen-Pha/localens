@@ -12,6 +12,8 @@ import type { Locale } from "@/lib/i18n/config";
 import type { PlannerCopy } from "@/lib/i18n/dictionaries";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { PersonalizationForm } from "./personalization-form";
+import { ResearchPlannerFlow } from './research-planner-flow';
+import { researchAreas } from '@/lib/application/planner/research-areas';
 import { readPersonalizationState } from "@/lib/application/planner/personalization-session";
 
 type PlannerComposition = DemoPortalComposition | SupabasePortalShell;
@@ -107,7 +109,7 @@ export function PlannerSurface({ locale, copy }: PlannerSurfaceProps) {
   if (showForm) return <section className="customer-section planner-flow planner-flow--editorial planner-form-page" aria-labelledby="personalization-heading">
     <div className="section-heading section-heading--compact"><p className="eyebrow">LocalLens</p><h1 id="personalization-heading">{copy.heading}</h1><p>{locale === "vi" ? "Cho chúng tôi biết thời gian, ngân sách và sở thích của bạn để đề xuất tour phù hợp." : "Tell us your schedule, budget and interests to find a tour that suits you."}</p></div>
     {hasSavedRequest && <button className="button button--secondary" type="button" onClick={() => setShowForm(false)}>{locale === "vi" ? "Tiếp tục yêu cầu đã lưu" : "Continue saved request"}</button>}
-    <PersonalizationForm locale={locale} copy={getDictionary(locale).home.personalizationForm} onPrepared={() => { setHasSavedRequest(true); setShowForm(false); }} />
+    <PersonalizationForm locale={locale} copy={getDictionary(locale).home.personalizationForm} areaOptionsOverride={selection?.composition.mode==='supabase'&&selection.composition.researchPlanner?researchAreas.map(a=>({value:a.value,label:locale==='vi'?a.label:a.labelEn})):undefined} onPrepared={() => { setHasSavedRequest(true); setShowForm(false); }} />
   </section>;
   if (failed) {
     return <PlannerSurfaceStatus locale={locale} failed onRetry={() => setRetryKey((value) => value + 1)} />;
@@ -124,5 +126,6 @@ export function PlannerSurface({ locale, copy }: PlannerSurfaceProps) {
   }
 
   const { Flow } = selection.planner;
+  if(selection.composition.researchPlanner)return <><button className="button button--secondary" type="button" onClick={()=>setShowForm(true)}>{locale==='vi'?'Điều chỉnh nhu cầu':'Edit preferences'}</button><ResearchPlannerFlow locale={locale} planner={selection.composition.researchPlanner}/></>;
   return <><button className="button button--secondary" type="button" onClick={() => setShowForm(true)}>{locale === "vi" ? "Nhập lại nhu cầu cá nhân hóa" : "Edit your preferences"}</button><Flow locale={locale} copy={copy} planner={selection.composition.planner} /></>;
 }
