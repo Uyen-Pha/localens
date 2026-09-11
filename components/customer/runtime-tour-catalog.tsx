@@ -120,7 +120,7 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
                     </div>
                     <h2>{detailHref ? <Link href={detailHref}>{tour.title}</Link> : tour.title}</h2>
                     <p className="runtime-tour__summary">{tour.summary}</p>
-                    <TourRating locale={locale}/>
+                    <TourRating locale={locale} departure={departure?.id}/>
                     <p className="runtime-tour__price">{formatVnd(tour.priceVndMinor, locale)} <span>{visual.perPerson}</span></p>
                   </div>
                 </article>

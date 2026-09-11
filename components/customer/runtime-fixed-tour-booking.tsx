@@ -286,7 +286,7 @@ export function RuntimeFixedTourBooking({
           </form>
           <div className="tour-booking__assurance"><ShieldCheck size={22} aria-hidden="true" /><div><strong>{ui.secure}</strong><p>{ui.explanation}</p></div></div>
           <p className="tour-booking__disclosure" role="note">{copy.runtimeDisclosure}</p>
-        </aside></div><TourReviews locale={locale}/><TourFAQs locale={locale}/>
+        </aside></div><TourReviews locale={locale} departure={departure.id}/><TourFAQs locale={locale}/>
     </section>
   );
 }
