@@ -530,9 +530,9 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
     });
 
     expect(await screen.findByRole("heading", {
-      name: locale === "vi" ? "Tour được phân công" : "Your assigned tours",
+      name: locale === "vi" ? "Lịch phân công" : "Assignment schedule",
     })).toBeInTheDocument();
-    expect(screen.getByText("Chợ đêm runtime")).toBeInTheDocument();
+    expect((await screen.findAllByText("Chợ đêm runtime")).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /accept|complete|tiếp nhận|hoàn thành/i })).not.toBeInTheDocument();
     expect(listOwnAssignments).toHaveBeenCalledTimes(1);
   });

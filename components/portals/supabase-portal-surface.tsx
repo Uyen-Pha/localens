@@ -40,8 +40,8 @@ const RuntimeGuideAssignmentQueue = lazy(async () => {
 });
 
 const RuntimeGuideAssignmentList = lazy(async () => {
-  const module = await import("@/components/guide/runtime-guide-assignment-list");
-  return { default: module.RuntimeGuideAssignmentList };
+  const module = await import("@/components/guide/runtime-guide-portal");
+  return { default: module.RuntimeGuidePortal };
 });
 
 function isStaleRuntimeSession(error: unknown): error is PortalError {
@@ -163,6 +163,9 @@ function RuntimeRoleShell({
   actionError: string | null;
 }) {
   const copy = portalCopy(locale);
+  if (session.role === 'guide') return <Suspense fallback={<p role="status">{copy.loading}</p>}>
+    <RuntimeGuideAssignmentList locale={locale} session={session} profilePort={composition.guideProfile} assignments={composition.guideAssignments} onSignOut={onSignOut}/>
+  </Suspense>;
   return (
     <RuntimeFrame locale={locale} session={session} onSignOut={onSignOut}>
       <section className={styles.runtimeShell} aria-labelledby="runtime-shell-heading">
@@ -193,11 +196,6 @@ function RuntimeRoleShell({
               <RuntimeGuideAssignmentQueue locale={locale} assignments={composition.guideAssignments} />
             </Suspense>
           </>
-        ) : null}
-        {session.role === "guide" ? (
-          <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
-            <RuntimeGuideAssignmentList locale={locale} assignments={composition.guideAssignments} />
-          </Suspense>
         ) : null}
       </section>
     </RuntimeFrame>

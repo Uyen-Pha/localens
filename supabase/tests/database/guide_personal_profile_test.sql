@@ -1,0 +1,33 @@
+BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+SET search_path=public,private,extensions,pg_catalog;
+SELECT plan(10);
+INSERT INTO auth.users(id,email,raw_app_meta_data,raw_user_meta_data)
+VALUES ('00000000-0000-4000-8000-000000009801','guide-profile-one@example.invalid','{}','{}'),
+('00000000-0000-4000-8000-000000009802','guide-profile-two@example.invalid','{}','{}');
+DELETE FROM private.user_roles WHERE user_id IN ('00000000-0000-4000-8000-000000009801','00000000-0000-4000-8000-000000009802');
+INSERT INTO private.user_roles(user_id,role) VALUES ('00000000-0000-4000-8000-000000009801','guide'),('00000000-0000-4000-8000-000000009802','customer');
+INSERT INTO public.guide_profiles(user_id,display_name,bio) VALUES ('00000000-0000-4000-8000-000000009801','Guide One',repeat('a',100));
+UPDATE public.profiles SET phone='+84999999802' WHERE id='00000000-0000-4000-8000-000000009802';
+SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000009801',true);
+SET LOCAL ROLE authenticated;
+SELECT is(public.get_own_guide_profile()->>'email','guide-profile-one@example.invalid','reads only authenticated guide');
+SELECT is(public.update_own_guide_profile('contactAddress','TP. Hồ Chí Minh')->>'contactAddress','TP. Hồ Chí Minh','saves one field');
+SELECT is(public.update_own_guide_profile('bio',repeat('b',100))->>'bio',repeat('b',100),'accepts biography minimum');
+SELECT throws_ok($$SELECT public.update_own_guide_profile('bio','short')$$,'22023','INVALID_BIO','rejects short biography');
+SELECT throws_ok($$SELECT public.update_own_guide_profile('phone','0912345678')$$,'22023','INVALID_PHONE','rejects local phone');
+SELECT throws_ok($$SELECT public.update_own_guide_profile('phone','+84999999802')$$,'23505',NULL,'rejects another account phone');
+SELECT throws_ok($$SELECT public.update_own_guide_profile('displayName','Changed')$$,'22023','INVALID_FIELD','rejects company field');
+SELECT throws_ok($$UPDATE public.profiles SET display_name='Changed' WHERE id='00000000-0000-4000-8000-000000009801'$$,'42501','COMPANY_MANAGED_FIELD','direct profile update cannot bypass name restriction');
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000009802',true);
+SET LOCAL ROLE authenticated;
+SELECT throws_ok($$SELECT public.get_own_guide_profile()$$,'42501','FORBIDDEN','customer cannot read guide profile');
+RESET ROLE;
+UPDATE auth.users SET banned_until=now()+interval '1 day' WHERE id='00000000-0000-4000-8000-000000009801';
+SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000009801',true);
+SET LOCAL ROLE authenticated;
+SELECT throws_ok($$SELECT public.update_own_guide_profile('contactAddress','New address')$$,'42501','FORBIDDEN','banned guide cannot update');
+RESET ROLE;
+SELECT * FROM finish();
+ROLLBACK;
