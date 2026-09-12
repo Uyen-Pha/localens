@@ -118,7 +118,7 @@ export function RuntimeGuidePortal({ locale, session, profilePort, assignments, 
       <nav className={styles.tabs} aria-label={t('Khu vực hướng dẫn viên','Guide navigation')}>
         <button type="button" aria-current={tab === 'profile' ? 'page' : undefined} onClick={() => leave(() => { setTab('profile'); setEditing(null); })}><UserRound/><span><strong>{t('Thông tin cá nhân','Personal information')}</strong><small>{t('Xem và cập nhật thông tin liên hệ','View and update your contact information')}</small></span></button>
         <button type="button" aria-current={tab === 'schedule' ? 'page' : undefined} onClick={() => leave(() => { setTab('schedule'); setEditing(null); })}><CalendarDays/><span><strong>{t('Phân công tour','Tour assignments')}</strong><small>{t('Xem lịch tour được phân công','View your assigned tours')}</small></span></button>
-        {onSignOut && <button type="button" onClick={() => leave(onSignOut)}>{t('Đăng xuất','Sign out')}</button>}
+        {onSignOut && <button className={styles.signOut} type="button" onClick={() => leave(onSignOut)}>{t('Đăng xuất','Sign out')}</button>}
       </nav>
       {notice && <p role="status" className={styles.success}>{notice}</p>}
       <div className={styles.grid}>
