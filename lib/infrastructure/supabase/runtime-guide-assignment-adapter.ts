@@ -4,7 +4,7 @@ import {
   parseEligibleGuideCandidate,
   parseGuideAssignmentInput,
   parseGuideAssignmentResult,
-  parseGuideOwnAssignment,
+  parseGuideScheduleAssignment,
   type RuntimeGuideAssignmentErrorCode,
   type RuntimeGuideAssignmentPort,
 } from "@/lib/application/guide-assignment/contracts";
@@ -14,7 +14,7 @@ type RpcName =
   | "get_admin_guide_assignment_queue"
   | "get_admin_eligible_guides"
   | "assign_fixed_departure_guide"
-  | "get_guide_assigned_bookings";
+  | "get_guide_schedule";
 type RpcArgs = Record<string, string>;
 type RpcResponse = { data: unknown; error: unknown };
 
@@ -143,10 +143,20 @@ export function createSupabaseRuntimeGuideAssignmentAdapter(
       return result.value;
     },
 
+    async getOwnAssignmentDetail(assignmentId) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(assignmentId)) fail("INVALID_INPUT");
+      await requireSession(client);
+      const data = await responseData(client.rpc("get_guide_schedule", { p_assignment_id: assignmentId }));
+      const result = mappedRows(data, parseGuideScheduleAssignment);
+      if (result.length === 0) fail("NOT_FOUND");
+      if (result.length !== 1 || result[0].assignmentId !== assignmentId) fail("INVALID_RESPONSE");
+      return result[0];
+    },
+
     async listOwnAssignments() {
       await requireSession(client);
-      const data = await responseData(client.rpc("get_guide_assigned_bookings"));
-      return mappedRows(data, parseGuideOwnAssignment);
+      const data = await responseData(client.rpc("get_guide_schedule"));
+      return mappedRows(data, parseGuideScheduleAssignment);
     },
   };
 }

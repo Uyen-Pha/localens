@@ -47,6 +47,9 @@ function guideRow(overrides: Record<string, unknown> = {}) {
     meeting_point: "LocalLens meeting point",
     party_size: 2,
     language: "vi",
+    is_demo: false,
+    tour_status: "upcoming",
+    itinerary: [{ title: "Official stop" }],
     mobility_flags: ["step-free"],
     dietary_flags: ["halal"],
     assignment_status: "assigned",
@@ -143,7 +146,7 @@ describe("Supabase runtime guide-assignment adapter", () => {
         dietaryFlags: ["halal"],
       }),
     ]);
-    expect(client.rpc).toHaveBeenCalledWith("get_guide_assigned_bookings");
+    expect(client.rpc).toHaveBeenCalledWith("get_guide_schedule");
   });
 
   it.each([
@@ -226,3 +229,20 @@ describe("Supabase runtime guide-assignment adapter", () => {
       .resolves.toHaveProperty("createSupabaseRuntimeGuideAssignmentAdapter");
   });
 });
+
+it("scopes detail ID and returns NOT_FOUND for invisible rows", async () => {
+ const client=createClient();
+ await expect(createSupabaseRuntimeGuideAssignmentAdapter(client).getOwnAssignmentDetail!(ids.assignment)).rejects.toMatchObject({code:"NOT_FOUND"});
+ expect(client.rpc).toHaveBeenCalledWith("get_guide_schedule",{p_assignment_id:ids.assignment});
+});
+it("supports completed official assignment history", async () => {
+ const client=createClient();client.rpc.mockResolvedValueOnce({data:[guideRow({assignment_status:"completed",tour_status:"completed"})],error:null});
+ await expect(createSupabaseRuntimeGuideAssignmentAdapter(client).listOwnAssignments()).resolves.toEqual([expect.objectContaining({tourStatus:"completed",assignmentStatus:"completed"})]);
+});
+it.each([{tour_status:"closed"},{itinerary:[{title:"Stop",customer_email:"private"}]},{assignment_status:"closed",tour_status:"cancelled"}])("fails closed on invalid schedule %j",async overrides=>{
+ const client=createClient();client.rpc.mockResolvedValueOnce({data:[guideRow(overrides)],error:null});
+ await expect(createSupabaseRuntimeGuideAssignmentAdapter(client).listOwnAssignments()).rejects.toMatchObject({code:"INVALID_RESPONSE"});
+});
+
+it("maps synthetic rows without inventing booking identities",async()=>{const client=createClient();client.rpc.mockResolvedValueOnce({data:[guideRow({is_demo:true,booking_id:null,departure_id:null})],error:null});await expect(createSupabaseRuntimeGuideAssignmentAdapter(client).listOwnAssignments()).resolves.toEqual([expect.objectContaining({isDemo:true,bookingId:null,departureId:null})]);});
+it("rejects nullable real booking identities",async()=>{const client=createClient();client.rpc.mockResolvedValueOnce({data:[guideRow({booking_id:null})],error:null});await expect(createSupabaseRuntimeGuideAssignmentAdapter(client).listOwnAssignments()).rejects.toMatchObject({code:"INVALID_RESPONSE"});});

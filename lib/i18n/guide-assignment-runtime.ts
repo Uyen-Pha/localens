@@ -30,7 +30,7 @@ const copy = {
     scheduleConflict: "This guide already has an overlapping tour. Choose another guide or schedule.",
     denied: "This account is not permitted to perform that guide-assignment action.",
     language: { en: "English", vi: "Vietnamese" },
-    assignmentStatus: { assigned: "Assigned", accepted: "Accepted" },
+    assignmentStatus: { assigned: "Assigned", accepted: "Accepted", completed: "Completed" },
     flags: { "step-free": "Step-free access", halal: "Halal", vegetarian: "Vegetarian" },
   },
   vi: {
@@ -62,7 +62,7 @@ const copy = {
     scheduleConflict: "Hướng dẫn viên đã có tour trùng giờ. Hãy chọn người khác hoặc đổi lịch.",
     denied: "Tài khoản này không được phép thực hiện thao tác phân công.",
     language: { en: "Tiếng Anh", vi: "Tiếng Việt" },
-    assignmentStatus: { assigned: "Đã phân công", accepted: "Đã tiếp nhận" },
+    assignmentStatus: { assigned: "Đã phân công", accepted: "Đã tiếp nhận", completed: "Đã hoàn thành" },
     flags: { "step-free": "Không bậc", halal: "Halal", vegetarian: "Ăn chay" },
   },
 } as const;

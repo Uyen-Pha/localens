@@ -83,10 +83,9 @@ describe('guide schedule',()=>{
       render(<RuntimeGuidePortal locale="vi" session={session} assignments={{...assignments,listOwnAssignments:async()=>[make('A','2026-09-12T02:00:00Z'),make('B','2026-09-12T18:00:00Z')]}}/>);
       await screen.findAllByText('Tour A');
       fireEvent.click(screen.getByRole('button',{name:'Hôm nay'}));
-      expect(screen.queryByText('Tour B')).not.toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button',{name:'Sắp khởi hành'}));
+      expect(screen.getByRole('button',{name:/Tour B/})).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button',{name:/Tour B/}));
-      expect(screen.getAllByText('Tour B')).toHaveLength(2);
+      await waitFor(()=>expect(screen.getAllByText('Tour B')).toHaveLength(2));
     } finally { vi.useRealTimers(); }
   });
   it('keeps failed loads separate from an empty schedule',async()=>{

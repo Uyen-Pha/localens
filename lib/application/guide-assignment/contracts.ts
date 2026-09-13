@@ -46,9 +46,9 @@ export interface GuideAssignmentResult {
 
 export interface GuideOwnAssignment {
   assignmentId: string;
-  bookingId: string;
+  bookingId: string | null;
   tourVersionId: string;
-  departureId: string;
+  departureId: string | null;
   title: string;
   startAt: string;
   endAt: string | null;
@@ -57,7 +57,11 @@ export interface GuideOwnAssignment {
   language: Locale;
   mobilityFlags: Array<"step-free">;
   dietaryFlags: Array<"halal" | "vegetarian">;
-  assignmentStatus: ActiveGuideAssignmentStatus;
+  assignmentStatus: ActiveGuideAssignmentStatus | "completed";
+  tourStatus?: "upcoming" | "completed" | "cancelled";
+  itinerary?: Array<{ title: string; time?: string }>;
+  imageUrl?: string;
+  isDemo?: boolean;
 }
 
 export interface RuntimeGuideAssignmentPort {
@@ -65,6 +69,7 @@ export interface RuntimeGuideAssignmentPort {
   listEligibleGuides(): Promise<EligibleGuideCandidate[]>;
   assignGuide(input: GuideAssignmentInput): Promise<GuideAssignmentResult>;
   listOwnAssignments(): Promise<GuideOwnAssignment[]>;
+  getOwnAssignmentDetail?(assignmentId: string): Promise<GuideOwnAssignment>;
 }
 
 export type RuntimeGuideAssignmentErrorCode =
@@ -433,4 +438,28 @@ export function parseGuideOwnAssignment(value: unknown): ContractResult<GuideOwn
       assignmentStatus: fields.value.assignment_status as ActiveGuideAssignmentStatus,
     },
   };
+}
+
+/** Versioned schedule projection: unknown fields and incomplete rows fail closed. */
+export function parseGuideScheduleAssignment(value: unknown): ContractResult<GuideOwnAssignment> {
+  const fields = exactFields(value, [...GUIDE_OWN_ASSIGNMENT_FIELDS, "tour_status", "itinerary", "is_demo"], "row");
+  if (!fields.ok) return fields;
+  const { tour_status, itinerary, is_demo, ...legacy } = fields.value;
+  if (typeof is_demo !== "boolean" || (is_demo && (legacy.booking_id !== null || legacy.departure_id !== null))) return invalid("INVALID_SHAPE", "guideAssignment.contract.invalid_shape", "row.is_demo");
+  const completed = legacy.assignment_status === "completed";
+  const parsed = parseGuideOwnAssignment({ ...legacy, ...(is_demo ? { booking_id: legacy.assignment_id, departure_id: legacy.assignment_id } : {}), assignment_status: completed ? "accepted" : legacy.assignment_status });
+  if (!parsed.ok) return parsed;
+  if (tour_status !== "upcoming" && tour_status !== "completed" && tour_status !== "cancelled") {
+    return invalid("INVALID_SHAPE", "guideAssignment.contract.invalid_shape", "row.tour_status");
+  }
+  if (completed && tour_status === "upcoming") return invalid("INVALID_SHAPE", "guideAssignment.contract.invalid_shape", "row.tour_status");
+  if (!Array.isArray(itinerary) || itinerary.length > 100) return invalid("INVALID_SHAPE", "guideAssignment.contract.invalid_shape", "row.itinerary");
+  const stops: Array<{ title: string }> = [];
+  for (const stop of itinerary) {
+    const checked = exactFields(stop, ["title"], "row.itinerary");
+    if (!checked.ok) return checked;
+    if (!isSafeText(checked.value.title)) return invalid("INVALID_SHAPE", "guideAssignment.contract.invalid_shape", "row.itinerary.title");
+    stops.push({ title: checked.value.title });
+  }
+  return { ok: true, value: { ...parsed.value, ...(is_demo ? { bookingId: null, departureId: null } : {}), isDemo: is_demo, assignmentStatus: completed ? "completed" : parsed.value.assignmentStatus, tourStatus: tour_status, itinerary: stops } };
 }

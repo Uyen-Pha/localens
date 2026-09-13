@@ -4163,6 +4163,27 @@ export type Database = {
           tour_version_id: string
         }[]
       }
+      get_guide_schedule: {
+        Args: { p_assignment_id?: string }
+        Returns: {
+          is_demo: boolean
+          tour_status: string
+          itinerary: Json
+          assignment_id: string
+          assignment_status: Database["public"]["Enums"]["assignment_status"]
+          booking_id: string
+          departure_id: string
+          dietary_flags: string[]
+          end_at: string
+          language: Database["public"]["Enums"]["locale"]
+          meeting_point: string
+          mobility_flags: string[]
+          party_size: number
+          start_at: string
+          title: string
+          tour_version_id: string
+        }[]
+      }
       get_live_departure_availability: {
         Args: never
         Returns: {
