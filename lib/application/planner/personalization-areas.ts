@@ -7,8 +7,8 @@ export const PERSONALIZATION_AREA_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SYNTHETIC_AREA_LABELS: Readonly<Record<Locale, string>> = {
-  en: "Synthetic Central HCMC Demo Area",
-  vi: "Khu trung tâm TP.HCM trình diễn tổng hợp",
+  en: "Central HCMC (illustrative data)",
+  vi: "Khu vực trung tâm TP.HCM (dữ liệu minh họa)",
 };
 
 /**

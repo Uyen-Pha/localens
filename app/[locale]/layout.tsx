@@ -3,7 +3,6 @@ import localFont from "next/font/local";
 
 import "../globals.css";
 
-import { ThesisDemoBadge } from "@/components/customer/thesis-demo-badge";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { isLocale } from "@/lib/i18n/config";
@@ -70,7 +69,6 @@ export default async function LocaleLayout({
         </a>
         <SiteHeader
           locale={locale}
-          demoBadge={<ThesisDemoBadge locale={locale} />}
           labels={{
             brand: dictionary.brand,
             navigation: dictionary.navigation,

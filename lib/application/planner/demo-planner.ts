@@ -95,18 +95,18 @@ export type PlannerAdapter = Readonly<{
 const PLAN_ID = "demo-plan-hcmc-cultural-day";
 const LOCALE_COPY: Record<Locale, Readonly<{ warning: string; revisionWarning: string }>> = {
   en: {
-    warning: "Demo proposal only: operating hours and availability still require company confirmation.",
+    warning: "Illustrative proposal only: operating hours and availability still require company confirmation.",
     revisionWarning: "This simulated revision has not been validated by the backend yet.",
   },
   vi: {
-    warning: "Chỉ là đề xuất demo: giờ hoạt động và tình trạng nhận khách vẫn cần công ty xác nhận.",
+    warning: "Đề xuất mang tính minh họa; giờ hoạt động và tình trạng nhận khách vẫn cần công ty xác nhận.",
     revisionWarning: "Phiên bản mô phỏng này chưa được backend kiểm tra.",
   },
 };
 
 const PLANNER_COPY: Record<Locale, Readonly<{ noProposal: string }>> = {
-  en: { noProposal: "No demo proposal was created because the submitted constraints have no feasible route." },
-  vi: { noProposal: "Chưa tạo được đề xuất demo vì không có lịch trình khả thi với các điều kiện đã nhập." },
+  en: { noProposal: "No proposal was created because the submitted constraints have no feasible route." },
+  vi: { noProposal: "Chưa tạo được đề xuất vì không có lịch trình khả thi với các điều kiện đã nhập." },
 };
 
 const defaultReadOnlyApi = createReadOnlyApi();
@@ -173,8 +173,8 @@ const INITIAL_ITEM_FACTS = [
       vi: "Ẩm thực đường phố Quận 1",
     },
     activity: {
-      en: "Explore the area; no vendor or menu item has been selected for this demo stop.",
-      vi: "Khám phá khu vực; điểm dừng demo này chưa chọn nhà bán hàng hay món cụ thể.",
+      en: "Explore the area; no vendor or menu item has been selected for this stop.",
+      vi: "Khám phá khu vực; điểm dừng này chưa chọn nhà bán hàng hay món cụ thể.",
     },
     visitDurationMinutes: 65,
     travelMinutesBefore: 10,
@@ -348,8 +348,8 @@ function adjustedActivity(feedback: string, locale: Locale): string {
   const normalized = feedback.toLocaleLowerCase("en-US");
   if (normalized.includes("food") || normalized.includes("ẩm thực")) {
     return locale === "vi"
-      ? "Giữ lựa chọn món ăn ở trạng thái tuỳ chọn; demo này chưa chọn nhà bán hàng hay món cụ thể."
-      : "Keep food optional; this demo has no selected vendor or menu item.";
+      ? "Giữ lựa chọn món ăn ở trạng thái tuỳ chọn; hiện chưa chọn nhà bán hàng hay món cụ thể."
+      : "Keep food optional; no vendor or menu item has been selected.";
   }
   if (normalized.includes("history") || normalized.includes("lịch sử")) {
     return locale === "vi"
