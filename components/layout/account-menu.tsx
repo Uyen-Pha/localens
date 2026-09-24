@@ -35,8 +35,23 @@ export function AccountMenu({ locale, signIn }: { locale: Locale; signIn: string
     return () => { document.removeEventListener('pointerdown', pointer); document.removeEventListener('keydown', key); };
   }, [open]);
   if (!identity) {
-    const onSignIn=pathname?.replace(/\/$/,'')===`/${locale}/sign-in`;
-    return <Link className="site-header__cta" href={`/${locale}/${onSignIn?'register':'sign-in'}/`}>{onSignIn?(vi?'Đăng ký':'Register'):signIn}</Link>;
+    return (
+      <div
+        className="site-header__account-links"
+        role="group"
+        aria-label={vi ? "Tài khoản" : "Account actions"}
+      >
+        <Link
+          className="site-header__cta site-header__cta--secondary"
+          href={`/${locale}/register/`}
+        >
+          {vi ? "Đăng ký" : "Register"}
+        </Link>
+        <Link className="site-header__cta" href={`/${locale}/sign-in/`}>
+          {signIn}
+        </Link>
+      </div>
+    );
   }
   const initials = identity.displayName.trim().split(/\s+/).map(s => Array.from(s)[0]).slice(-2).join('').toUpperCase();
   const destination = `/${locale}/${identity.role === 'customer' ? 'account' : identity.role}/`;
