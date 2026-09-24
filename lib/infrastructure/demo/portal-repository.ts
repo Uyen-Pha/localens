@@ -183,7 +183,7 @@ const DEMO_PERSONALIZED_QUOTE_FIXTURE = Object.freeze({
   quoteId: "demo-quote-personalized",
   titleEn: "A Personal Saigon Day",
   titleVi: "Một ngày Sài Gòn theo sở thích",
-  cancellationPolicy: "Demo quote: request changes through the administrator.",
+  cancellationPolicy: "Please contact the administrator to request changes.",
   catalogSnapshotId: DEMO_CATALOG_SNAPSHOT_ID,
   travelSnapshotId: DEMO_TRAVEL_SNAPSHOT_ID,
   fxSnapshotId: DEMO_FX_SNAPSHOT_ID,
@@ -230,7 +230,7 @@ const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
     catalogSlug: "demo-markets-and-street-food",
     titleEn: "Markets and Street Food",
     titleVi: "Chợ địa phương và ẩm thực đường phố",
-    cancellationPolicy: "Demo booking: changes are free before confirmation.",
+    cancellationPolicy: "Illustrative policy: changes are free before confirmation.",
   }),
   "demo-history-and-memory": Object.freeze({
     id: "demo-tour-history",
@@ -239,7 +239,7 @@ const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
     catalogSlug: "demo-history-and-memory",
     titleEn: "History and Memory",
     titleVi: "Lịch sử và ký ức",
-    cancellationPolicy: "Demo booking: changes are free before confirmation.",
+    cancellationPolicy: "Illustrative policy: changes are free before confirmation.",
   }),
   "demo-cho-lon-craft": Object.freeze({
     id: "demo-tour-cho-lon-craft",
@@ -248,7 +248,7 @@ const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
     catalogSlug: "demo-cho-lon-craft",
     titleEn: "Cho Lon Craft Traditions",
     titleVi: "Nghề thủ công Chợ Lớn",
-    cancellationPolicy: "Demo booking: changes are free before confirmation.",
+    cancellationPolicy: "Illustrative policy: changes are free before confirmation.",
   }),
   "demo-city-life-mix": Object.freeze({
     id: "demo-tour-city-life-mix",
@@ -257,7 +257,7 @@ const DEMO_HANDOFF_TOURS: Readonly<Record<string, Readonly<{
     catalogSlug: "demo-city-life-mix",
     titleEn: "City Life, From Market to Craft",
     titleVi: "Nhịp sống thành phố: từ chợ đến nghề thủ công",
-    cancellationPolicy: "Demo booking: changes are free before confirmation.",
+    cancellationPolicy: "Illustrative policy: changes are free before confirmation.",
   }),
 });
 
@@ -1150,7 +1150,7 @@ function createFixtureBody(): DemoEnvelopeBody {
     {
       userId: "demo-user-customer",
       role: "customer",
-      displayName: "Demo Traveler",
+      displayName: "LocalLens Customer",
       nationality: "Vietnamese",
       email: "traveler@example.invalid",
       phone: null,
@@ -1161,7 +1161,7 @@ function createFixtureBody(): DemoEnvelopeBody {
     {
       userId: "demo-user-guide",
       role: "guide",
-      displayName: "Demo Guide",
+      displayName: "LocalLens Guide",
       nationality: "Vietnamese",
       email: "guide@example.invalid",
       phone: "+84000000001",
@@ -1172,7 +1172,7 @@ function createFixtureBody(): DemoEnvelopeBody {
     {
       userId: "demo-user-guide-secondary",
       role: "guide",
-      displayName: "Second Demo Guide",
+      displayName: "LocalLens Guide 2",
       nationality: "Vietnamese",
       email: "guide-secondary@example.invalid",
       phone: "+84000000002",
@@ -1183,7 +1183,7 @@ function createFixtureBody(): DemoEnvelopeBody {
     {
       userId: "demo-user-admin",
       role: "admin",
-      displayName: "Demo Administrator",
+      displayName: "LocalLens Administrator",
       nationality: "Vietnamese",
       email: "admin@example.invalid",
       phone: null,
@@ -1194,7 +1194,7 @@ function createFixtureBody(): DemoEnvelopeBody {
     {
       userId: "demo-user-secondary-customer",
       role: "customer",
-      displayName: "Second Demo Traveler",
+      displayName: "LocalLens Customer 2",
       nationality: "Vietnamese",
       email: "traveler-secondary@example.invalid",
       phone: null,
@@ -1241,7 +1241,7 @@ function createFixtureBody(): DemoEnvelopeBody {
       quoteId: null,
       titleEn: "Markets and Street Food",
       titleVi: "Chợ địa phương và ẩm thực đường phố",
-      cancellationPolicy: "Demo booking: changes are free before confirmation.",
+      cancellationPolicy: "Illustrative policy: changes are free before confirmation.",
       catalogSnapshotId: DEMO_CATALOG_SNAPSHOT_ID,
       travelSnapshotId: DEMO_TRAVEL_SNAPSHOT_ID,
       fxSnapshotId: DEMO_FX_SNAPSHOT_ID,
@@ -1271,7 +1271,7 @@ function createFixtureBody(): DemoEnvelopeBody {
       quoteId: null,
       titleEn: "History and Memory",
       titleVi: "Lịch sử và ký ức",
-      cancellationPolicy: "Demo booking: changes are free before confirmation.",
+      cancellationPolicy: "Illustrative policy: changes are free before confirmation.",
       catalogSnapshotId: DEMO_CATALOG_SNAPSHOT_ID,
       travelSnapshotId: DEMO_TRAVEL_SNAPSHOT_ID,
       fxSnapshotId: DEMO_FX_SNAPSHOT_ID,
@@ -1301,7 +1301,7 @@ function createFixtureBody(): DemoEnvelopeBody {
       quoteId: null,
       titleEn: "Markets and Street Food",
       titleVi: "Chợ địa phương và ẩm thực đường phố",
-      cancellationPolicy: "Demo booking: changes are free before confirmation.",
+      cancellationPolicy: "Illustrative policy: changes are free before confirmation.",
       catalogSnapshotId: DEMO_CATALOG_SNAPSHOT_ID,
       travelSnapshotId: DEMO_TRAVEL_SNAPSHOT_ID,
       fxSnapshotId: DEMO_FX_SNAPSHOT_ID,
@@ -2383,7 +2383,7 @@ export function createDemoPortalRepository(options: DemoPortalRepositoryOptions)
       }
       user.role = roleInput.role;
       if (user.role !== "guide") user.bio = null;
-      if (user.role === "guide" && user.bio === null) user.bio = "A demo local guide.";
+      if (user.role === "guide" && user.bio === null) user.bio = "A local tour guide.";
       writeEnvelope(makeEnvelope(bodyForIntegrity(envelope)));
       return clone(toAdminUser(user));
     },

@@ -34,10 +34,10 @@ const DEMO_IDENTITIES: ReadonlyArray<{
   displayName: string;
   email: string;
 }> = [
-  { userId: "demo-user-customer", role: "customer", displayName: "Demo Traveler", email: "traveler@example.invalid" },
-  { userId: "demo-user-guide", role: "guide", displayName: "Demo Guide", email: "guide@example.invalid" },
-  { userId: "demo-user-admin", role: "admin", displayName: "Demo Administrator", email: "admin@example.invalid" },
-  { userId: "demo-user-secondary-customer", role: "customer", displayName: "Second Demo Traveler", email: "traveler-secondary@example.invalid" },
+  { userId: "demo-user-customer", role: "customer", displayName: "LocalLens Customer", email: "traveler@example.invalid" },
+  { userId: "demo-user-guide", role: "guide", displayName: "LocalLens Guide", email: "guide@example.invalid" },
+  { userId: "demo-user-admin", role: "admin", displayName: "LocalLens Administrator", email: "admin@example.invalid" },
+  { userId: "demo-user-secondary-customer", role: "customer", displayName: "LocalLens Customer 2", email: "traveler-secondary@example.invalid" },
 ];
 
 function PortalFrame({
