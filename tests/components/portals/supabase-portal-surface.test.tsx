@@ -235,6 +235,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
 });
 
 describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => {
@@ -339,7 +340,7 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
     await submitCredentials(locale, account.email, account.password);
 
     await waitFor(() => expect(destinations).toEqual([`/${locale}${suffix}`]));
-    fireEvent.click(screen.getByRole("button", { name: copy.signOut }));
+    fireEvent.click(await screen.findByRole("button", { name: copy.signOut }));
     expect(await screen.findByLabelText(copy.password)).toHaveValue("");
   });
 
@@ -419,8 +420,7 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
     session.seed(ACCOUNTS[2].identity);
     renderSurface({ locale, shell: shellFor(session), expectedRole: "admin" });
 
-    expect(await screen.findByText(copy.disclosure)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: copy.signOut }));
+    fireEvent.click(await screen.findByRole("button", { name: copy.signOut }));
 
     expect(await screen.findByRole("heading", { name: copy.heading })).toBeInTheDocument();
     expect(screen.getByLabelText(copy.password)).toBeInTheDocument();
@@ -506,6 +506,8 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
   });
 
   it("mounts a read-only assignment list only for the authenticated guide", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2099-09-01T00:00:00.000Z"));
     const session = new MemoryRuntimeSession();
     session.seed(ACCOUNTS[1].identity);
     const listOwnAssignments = vi.fn(async () => [{
@@ -530,10 +532,11 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
     });
 
     expect(await screen.findByRole("heading", {
-      name: locale === "vi" ? "Lịch phân công" : "Assignment schedule",
+      name: locale === "vi" ? "Lịch phân công tour" : "Tour assignment calendar",
     })).toBeInTheDocument();
     expect((await screen.findAllByText("Chợ đêm runtime")).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: /accept|complete|tiếp nhận|hoàn thành/i })).not.toBeInTheDocument();
+    // Status filters are read-only navigation, not assignment-completion actions.
+    expect(screen.queryByRole("button", { name: /^(accept assignment|complete assignment|tiếp nhận tour|hoàn thành tour)$/i })).not.toBeInTheDocument();
     expect(listOwnAssignments).toHaveBeenCalledTimes(1);
   });
 

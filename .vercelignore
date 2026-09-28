@@ -1,0 +1,16 @@
+.git
+.vercel
+.worktrees
+.superpowers
+.codex
+node_modules
+.next
+out
+coverage
+playwright-report
+test-results
+*.log
+.env
+.env.*
+!.env.example
+supabase/.temp
