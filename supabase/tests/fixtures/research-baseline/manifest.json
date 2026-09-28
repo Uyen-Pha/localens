@@ -1,0 +1,139 @@
+{
+  "sourceRoot": "C:/Users/Admin/Documents/Project/localens-guide-release/supabase/migrations",
+  "cutoff": "20260924180000",
+  "schemas": [
+    "auth",
+    "public",
+    "private"
+  ],
+  "files": [
+    {
+      "source": "20260823090000_extensions_enums.sql",
+      "file": "001-schema-role.sql",
+      "ranges": [
+        {
+          "start": 7,
+          "end": 15
+        },
+        {
+          "start": 17,
+          "end": 21
+        }
+      ],
+      "sourceSha256": "7bd682238153efc422e14eefe4273a2411149a9b0f2c596bd918cccec27cb599",
+      "sha256": "e5aebd6b95426057718862286f19e396f1fdccfd8590c6d958fc6e972ead495f"
+    },
+    {
+      "source": "20260823091000_identity_roles.sql",
+      "file": "002-user-roles.sql",
+      "ranges": [
+        {
+          "start": 60,
+          "end": 66
+        },
+        {
+          "start": 109,
+          "end": 110
+        }
+      ],
+      "sourceSha256": "a9879e0a6bd4752b0bde6665a33d85dd2cd55e5866ec6bb29a9f4a0f5ac5ad34",
+      "sha256": "463dee03235028850c76a07200708b87f4aa4b82464e33e151abd598cd0fd8b7"
+    },
+    {
+      "source": "20260905140000_thesis_demo_manifest.sql",
+      "file": "003-manifest.sql",
+      "ranges": [
+        {
+          "start": 48,
+          "end": 83
+        }
+      ],
+      "sourceSha256": "5641d4186cbb0f43c935b52a7f86f8e9a07dbc6f8deeea4d57eb6a035ff772fa",
+      "sha256": "e8026a6e53d7dbb037e012044c58f84c7ea4b72e0b296240abf242f81a0dca18"
+    },
+    {
+      "source": "20260916073000_research_demo_catalog.sql",
+      "file": "20260916073000_research_demo_catalog.sql",
+      "ranges": [
+        {
+          "start": 1,
+          "end": 49
+        }
+      ],
+      "sourceSha256": "b2ad29cec8e9446aed7e08a2a96bb2e371df981b4d28c80297d11d053b739150",
+      "sha256": "b2ad29cec8e9446aed7e08a2a96bb2e371df981b4d28c80297d11d053b739150"
+    },
+    {
+      "source": "20260916100000_research_demo_workflow.sql",
+      "file": "20260916100000_research_demo_workflow.sql",
+      "ranges": [
+        {
+          "start": 1,
+          "end": 132
+        }
+      ],
+      "sourceSha256": "6c008eaeb65138ffbead7dc6a99fbe2b0c779c3f3864ebce8eea6e8c935b4958",
+      "sha256": "efa93dd898c00f3910e94efc7366cb2de47d31f3af60432850d2dfb5cb779edc"
+    },
+    {
+      "source": "20260916101000_research_demo_revision_locks.sql",
+      "file": "20260916101000_research_demo_revision_locks.sql",
+      "ranges": [
+        {
+          "start": 1,
+          "end": 13
+        }
+      ],
+      "sourceSha256": "ea4b8966e3bc20c34b2ab91a04e70027d6e26dcc77c268e514ee79965f3d1528",
+      "sha256": "e89ee8af1e9781d48820032acb1be8aa39b53d23f513f36bf737b686611981f4"
+    },
+    {
+      "source": "20260917030000_research_direct_edit.sql",
+      "file": "20260917030000_research_direct_edit.sql",
+      "ranges": [
+        {
+          "start": 1,
+          "end": 52
+        }
+      ],
+      "sourceSha256": "b3b3b013c5588d05fd0e77a43d03d7667954c6e24e87034cc49ece6fe483b9ce",
+      "sha256": "bd8132b9064e365f2ac1691deced08a49b08c7deb57a320f5968b6bdc2f022f8"
+    },
+    {
+      "source": "20260919100000_research_guided_refinement.sql",
+      "file": "20260919100000_research_guided_refinement.sql",
+      "ranges": [
+        {
+          "start": 1,
+          "end": 47
+        }
+      ],
+      "sourceSha256": "2919ec76dcc95316fe5c7ef6c1f3e8d254097c4bc30584055f526a05bf1fc178",
+      "sha256": "9ef2818f198d7a35a8037cb68f43e20ddb4b413a15e32046f7355d6f1386bbdd"
+    },
+    {
+      "source": "20260921090000_research_resubmit.sql",
+      "file": "20260921090000_research_resubmit.sql",
+      "ranges": [
+        {
+          "start": 1,
+          "end": 40
+        }
+      ],
+      "sourceSha256": "4224df393108c419a0eb0c06a525c0d2a8637b12f09aa537360c337b866dd25f",
+      "sha256": "4224df393108c419a0eb0c06a525c0d2a8637b12f09aa537360c337b866dd25f"
+    },
+    {
+      "source": "20260924180000_research_quote_checkout.sql",
+      "file": "20260924180000_research_quote_checkout.sql",
+      "ranges": [
+        {
+          "start": 1,
+          "end": 53
+        }
+      ],
+      "sourceSha256": "fdb3dad29f7f0b972c8ff17853effb8d7fc771eaea7872e181797657b467db89",
+      "sha256": "0af32249b18f8738d62f0cacef519a50dd082c33ad69c9ccd970bbd039f1ed1b"
+    }
+  ]
+}
