@@ -6,7 +6,7 @@ SET LOCAL ROLE localens_tour_guard_owner;
 GRANT EXECUTE ON FUNCTION private.valid_tour_copy_array(text[]) TO postgres;
 RESET ROLE;
 
-SELECT plan(41);
+SELECT plan(46);
 
 SELECT has_function('public', 'get_admin_guide_assignment_queue', ARRAY[]::text[]);
 SELECT has_function('public', 'get_admin_eligible_guides', ARRAY[]::text[]);
@@ -127,7 +127,7 @@ WHERE id = '00000000-0000-0000-0000-000000002714';
 
 INSERT INTO public.departures (id, tour_version_id, start_at, end_at, status, capacity)
 VALUES
-  ('00000000-0000-0000-0000-000000002716', '00000000-0000-0000-0000-000000002715', '2026-09-20 09:00:00+07', '2026-09-20 12:00:00+07', 'scheduled', 10),
+  ('00000000-0000-0000-0000-000000002716', '00000000-0000-0000-0000-000000002715', '2026-09-20 09:00:00+07', '2026-09-20 12:00:00+07', 'sold_out', 10),
   ('00000000-0000-0000-0000-000000002717', '00000000-0000-0000-0000-000000002715', '2026-09-20 10:00:00+07', '2026-09-20 11:00:00+07', 'scheduled', 10),
   ('00000000-0000-0000-0000-000000002718', '00000000-0000-0000-0000-000000002715', '2026-09-21 09:00:00+07', '2026-09-21 12:00:00+07', 'scheduled', 10);
 UPDATE public.departures SET status = 'cancelled'
@@ -143,6 +143,68 @@ INSERT INTO public.bookings (
   ('00000000-0000-0000-0000-000000002722', '00000000-0000-0000-0000-000000002706', 'departure', '00000000-0000-0000-0000-000000002717', '00000000-0000-0000-0000-000000002717', NULL, 'confirmed', '00000000-0000-0000-0000-000000002715', 'B2.4 overlap', 'B2.4 trung lich', 'Fixture', '00000000-0000-0000-0000-000000002710', '00000000-0000-0000-0000-000000002713', NULL, NULL, 100000, 100000, 'vnd', 100000, 1, 'en', 'B2.4 gate', '2026-09-02 09:40:00+07', '2026-09-02 09:05:00+07'),
   ('00000000-0000-0000-0000-000000002723', '00000000-0000-0000-0000-000000002706', 'departure', '00000000-0000-0000-0000-000000002718', '00000000-0000-0000-0000-000000002718', NULL, 'confirmed', '00000000-0000-0000-0000-000000002715', 'B2.4 cancelled', 'B2.4 da huy', 'Fixture', '00000000-0000-0000-0000-000000002710', '00000000-0000-0000-0000-000000002713', NULL, NULL, 100000, 100000, 'vnd', 100000, 1, 'vi', 'B2.4 gate', '2026-09-02 09:45:00+07', '2026-09-02 09:10:00+07');
 
+INSERT INTO public.trip_plans (id, owner_user_id, latest_revision_no)
+VALUES ('00000000-0000-0000-0000-000000002724', '00000000-0000-0000-0000-000000002706', 1);
+INSERT INTO public.trip_plan_revisions (
+  id, plan_id, revision_no, base_revision_no, request_json, result_json,
+  fingerprint, ranking_source, catalog_snapshot_id, travel_snapshot_id,
+  currency, budget_vnd, total_cost_vnd, total_duration_minutes,
+  locked_place_ids, actor_user_id
+) VALUES (
+  '00000000-0000-0000-0000-000000002725',
+  '00000000-0000-0000-0000-000000002724', 1, 0,
+  '{"mobilityRequirements":["step-free"],"dietaryRequirements":["halal"]}'::jsonb,
+  '{}'::jsonb, repeat('d', 64), 'deterministic',
+  '00000000-0000-0000-0000-000000002710',
+  '00000000-0000-0000-0000-000000002713', 'VND', 500000, 100000, 120,
+  '{}'::uuid[], '00000000-0000-0000-0000-000000002706'
+);
+INSERT INTO public.trip_plan_items (
+  revision_id, position, catalog_snapshot_id, place_id, start_at, end_at,
+  visit_duration_minutes, travel_minutes_before, transition_buffer_minutes_before,
+  travel_cost_vnd_before, place_cost_vnd, score
+) VALUES (
+  '00000000-0000-0000-0000-000000002725', 1,
+  '00000000-0000-0000-0000-000000002710',
+  '00000000-0000-0000-0000-000000002712',
+  '2026-09-22 09:00:00+07', '2026-09-22 11:00:00+07',
+  120, 0, 0, 0, 100000, 1
+);
+INSERT INTO public.custom_requests (
+  id, plan_id, revision_id, revision_no, owner_user_id, status
+) VALUES (
+  '00000000-0000-0000-0000-000000002726',
+  '00000000-0000-0000-0000-000000002724',
+  '00000000-0000-0000-0000-000000002725', 1,
+  '00000000-0000-0000-0000-000000002706', 'approved'
+);
+INSERT INTO public.custom_quotes (
+  id, request_id, status, amount_vnd_minor, checkout_currency,
+  checkout_amount_minor, catalog_snapshot_id, travel_snapshot_id,
+  title_en, title_vi, policy
+) VALUES (
+  '00000000-0000-0000-0000-000000002727',
+  '00000000-0000-0000-0000-000000002726', 'accepted', 100000, 'vnd', 100000,
+  '00000000-0000-0000-0000-000000002710',
+  '00000000-0000-0000-0000-000000002713',
+  'B2.4 personalized', 'B2.4 ca nhan hoa', 'Fixture'
+);
+INSERT INTO public.bookings (
+  id, owner_user_id, source_kind, source_id, departure_id, quote_id, status, tour_version_id,
+  title_en, title_vi, cancellation_policy, catalog_snapshot_id, travel_snapshot_id,
+  fx_snapshot_id, fx_vnd_per_usd, per_person_vnd_minor, total_vnd_minor, checkout_currency,
+  checkout_amount_minor, party_size, language, meeting_point, hold_expires_at, created_at
+) VALUES (
+  '00000000-0000-0000-0000-000000002728',
+  '00000000-0000-0000-0000-000000002706', 'quote',
+  '00000000-0000-0000-0000-000000002727', NULL,
+  '00000000-0000-0000-0000-000000002727', 'confirmed', NULL,
+  'B2.4 personalized', 'B2.4 ca nhan hoa', 'Fixture',
+  '00000000-0000-0000-0000-000000002710',
+  '00000000-0000-0000-0000-000000002713', NULL, NULL, NULL, 100000, 'vnd', 100000, 2,
+  'vi', 'B2.4 gate', '2026-09-02 09:50:00+07', '2026-09-02 09:15:00+07'
+);
+
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002702', true);
 SELECT throws_ok(
@@ -152,7 +214,7 @@ SELECT throws_ok(
 );
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002701', true);
-SELECT is((SELECT count(*)::integer FROM public.get_admin_guide_assignment_queue()), 2, 'admin queue contains only confirmed scheduled fixed departures');
+SELECT is((SELECT count(*)::integer FROM public.get_admin_guide_assignment_queue()), 3, 'admin queue contains confirmed scheduled or sold-out fixed and accepted personalized tours');
 SELECT is((SELECT count(*)::integer FROM public.get_admin_eligible_guides()), 2, 'eligible guide projection contains only pure guides with profiles');
 SELECT ok(
   (SELECT outcome = 'assigned' AND status = 'assigned'
@@ -160,7 +222,21 @@ SELECT ok(
      '00000000-0000-0000-0000-000000002721',
      '00000000-0000-0000-0000-000000002703',
      'b24-assign-one')),
-  'admin assigns a pure guide to a confirmed scheduled booking'
+  'admin assigns a pure guide to a confirmed sold-out booking'
+);
+SELECT ok(
+  (SELECT outcome = 'assigned' AND status = 'assigned'
+   FROM public.assign_fixed_departure_guide(
+     '00000000-0000-0000-0000-000000002728',
+     '00000000-0000-0000-0000-000000002703',
+     'b24-assign-personalized')),
+  'admin assigns a pure guide to a confirmed paid personalized booking with a valid itinerary'
+);
+SELECT is(
+  (SELECT count(*)::integer FROM public.get_admin_guide_assignment_queue()
+   WHERE booking_id = '00000000-0000-0000-0000-000000002728'),
+  1,
+  'admin queue includes the personalized booking with its derived itinerary window'
 );
 SELECT ok(
   (SELECT first_replay.outcome = 'replayed'
@@ -222,6 +298,13 @@ SELECT ok(
    FROM public.get_guide_assigned_bookings()),
   'assigned guide reads its sanitized assignment identity'
 );
+SELECT results_eq(
+  $$SELECT booking_id, tour_version_id, departure_id, tour_status, jsonb_array_length(itinerary)
+    FROM public.get_guide_schedule()
+    WHERE booking_id = '00000000-0000-0000-0000-000000002728'$$,
+  $$VALUES ('00000000-0000-0000-0000-000000002728'::uuid, NULL::uuid, NULL::uuid, 'upcoming'::text, 1)$$,
+  'guide schedule projects the personalized booking and its itinerary summary'
+);
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002704', true);
 SELECT is((SELECT count(*)::integer FROM public.get_guide_assigned_bookings()), 0, 'other guide cannot see the assignment');
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002705', true);
@@ -259,7 +342,6 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002703
 SELECT is((SELECT count(*)::integer FROM public.get_guide_assigned_bookings()), 0, 'former guide loses projection visibility after reassignment');
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002704', true);
 SELECT is((SELECT count(*)::integer FROM public.get_guide_assigned_bookings()), 1, 'new guide gains projection visibility after reassignment');
-
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002701', true);
 SELECT throws_ok(
   $$SELECT * FROM public.assign_fixed_departure_guide('00000000-0000-0000-0000-000000002723', '00000000-0000-0000-0000-000000002704', 'b24-cancelled-departure')$$,
@@ -272,6 +354,42 @@ SELECT ok(
    WHERE booking_id = '00000000-0000-0000-0000-000000002721'),
   'admin queue reloads the authoritative current guide'
 );
+
+RESET ROLE;
+SELECT set_config('localens.checkout_transition', 'on', true);
+UPDATE public.bookings
+SET status = 'cancelled'::public.booking_status
+WHERE id = '00000000-0000-0000-0000-000000002721';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002704', true);
+SELECT results_eq(
+  $$SELECT booking_id, tour_status
+    FROM public.get_guide_schedule()
+    WHERE booking_id = '00000000-0000-0000-0000-000000002721'$$,
+  $$VALUES ('00000000-0000-0000-0000-000000002721'::uuid, 'cancelled'::text)$$,
+  'guide schedule retains a cancelled assigned tour as history'
+);
+RESET ROLE;
+
+SELECT set_config('localens.checkout_transition', 'on', true);
+SELECT set_config('localens.quote_transition', 'on', true);
+UPDATE public.custom_quotes
+SET status = 'revoked'::public.quote_status
+WHERE id = '00000000-0000-0000-0000-000000002727';
+UPDATE public.bookings
+SET status = 'cancelled'::public.booking_status
+WHERE id = '00000000-0000-0000-0000-000000002728';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002703', true);
+SELECT results_eq(
+  $$SELECT booking_id, tour_status
+    FROM public.get_guide_schedule()
+    WHERE booking_id = '00000000-0000-0000-0000-000000002728'$$,
+  $$VALUES ('00000000-0000-0000-0000-000000002728'::uuid, 'cancelled'::text)$$,
+  'guide schedule retains a cancelled personalized tour after quote revocation'
+);
+RESET ROLE;
+
 RESET ROLE;
 SELECT is((SELECT count(*)::integer FROM private.guide_assignment_idempotency), 3, 'ledger stores assigned unchanged and reassigned snapshots only');
 

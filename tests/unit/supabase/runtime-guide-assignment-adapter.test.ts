@@ -239,6 +239,13 @@ it("supports completed official assignment history", async () => {
  const client=createClient();client.rpc.mockResolvedValueOnce({data:[guideRow({assignment_status:"completed",tour_status:"completed"})],error:null});
  await expect(createSupabaseRuntimeGuideAssignmentAdapter(client).listOwnAssignments()).resolves.toEqual([expect.objectContaining({tourStatus:"completed",assignmentStatus:"completed"})]);
 });
+it("maps a personalized real assignment without inventing fixed-tour identities", async () => {
+ const client=createClient();
+ client.rpc.mockResolvedValueOnce({data:[guideRow({tour_version_id:null,departure_id:null,itinerary:[{title:"Personalized stop"}]})],error:null});
+ await expect(createSupabaseRuntimeGuideAssignmentAdapter(client).listOwnAssignments()).resolves.toEqual([
+  expect.objectContaining({tourVersionId:null,departureId:null,tourStatus:"upcoming",itinerary:[{title:"Personalized stop"}]}),
+ ]);
+});
 it.each([{tour_status:"closed"},{itinerary:[{title:"Stop",customer_email:"private"}]},{assignment_status:"closed",tour_status:"cancelled"}])("fails closed on invalid schedule %j",async overrides=>{
  const client=createClient();client.rpc.mockResolvedValueOnce({data:[guideRow(overrides)],error:null});
  await expect(createSupabaseRuntimeGuideAssignmentAdapter(client).listOwnAssignments()).rejects.toMatchObject({code:"INVALID_RESPONSE"});
