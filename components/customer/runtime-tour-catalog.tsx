@@ -119,7 +119,9 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
             {results.map((tour, index) => {
               const departures = availability.filter((item) => item.tourVersionId === tour.versionId);
               const departure = departures.filter(item => item.status === 'scheduled' && item.remainingCapacity > 0 && Date.parse(item.startAt) > Date.now()).sort((a,b)=>Date.parse(a.startAt)-Date.parse(b.startAt))[0];
-              const detailHref = `/${tour.locale}/tours/detail/?tour=${encodeURIComponent(tour.slug)}`;
+              const detailHref = departure
+                ? `/${tour.locale}/booking/?departure=${encodeURIComponent(departure.id)}&partySize=1`
+                : `/${tour.locale}/tours/detail/?tour=${encodeURIComponent(tour.slug)}`;
               const picture = tourIllustration(tour.slug);
               return (
                 <article className="runtime-tour" key={`${tour.id}:${tour.versionId}`}>
@@ -146,7 +148,7 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
                         <div><dt>{vi ? 'Điều kiện hủy' : 'Cancellation policy'}</dt><dd>{tour.cancellationPolicy}</dd></div>
                       </dl>
                     </details>
-                    <div className="runtime-tour__departures"><Link className="runtime-tour__book" href={departure ? `${detailHref}#departures` : detailHref}>{departure ? visual.departures : (vi?'Xem chi tiết':'View details')}</Link></div>
+                    <div className="runtime-tour__departures"><Link className="runtime-tour__book" href={detailHref}>{departure ? visual.departures : (vi?'Xem chi tiết':'View details')}</Link></div>
                   </div>
                 </article>
               );
