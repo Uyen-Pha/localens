@@ -40,3 +40,13 @@ Browser testing must not create/pay/cancel real records. Visual QA is pending au
 - tests/components/customer/personalized-request-page.test.tsx
 
 Existing fixed-booking, admin, guide, planner, database and payment business logic are preserved. No production deployment or main merge.
+
+## Preview handoff
+
+- Product commit: `6c76964303489a7f7723997bfcf592ee1fc16014`.
+- READY Preview: https://localens-4h9tp1k2g-local-lens2.vercel.app/vi/bookings/
+- Deployment: `dpl_DmpnmTio5WuQgY65ABouYtbmQHpr`; remote build passed.
+- Verified recovery bundle: `C:/Users/Admin/Documents/Project/output/recovery-audit-20260928/recovery-personalized-checkout.bundle`.
+- User approved this exact Preview origin. It was appended while preserving all nine existing origins and other secret hashes. No database records or schema changed.
+- OPTIONS verification: new Preview and production origins return 204 with their exact Allow-Origin; an unapproved origin returns 403 without Allow-Origin.
+- Browser verification reaches the sign-in page with returnTo=/vi/bookings/. This new origin requires the user to sign in. Authenticated visual comparison and live read-only navigation remain pending; automated component tests do not replace that check.
