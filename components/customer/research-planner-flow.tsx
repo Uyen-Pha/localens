@@ -91,6 +91,10 @@ export function ResearchPlannerFlow({
     }
     const key = `${actorId}:${saved.handoffId}:${retry}`;
     if (!pending.current || pending.current.key !== key || pending.current.planner !== planner) {
+      if (!(cachedRevision && planner.resume) && !hasPersonalizedLeadTime(saved.request.startAt)) {
+        setError("DEPARTURE_TOO_SOON");
+        return () => { disposed = true; };
+      }
       pending.current = {key, planner, promise: cachedRevision && planner.resume ? planner.resume(cachedRevision) : planner(saved.request)};
     }
 
@@ -193,7 +197,7 @@ export function ResearchPlannerFlow({
           <p>{vi ? "Vui lòng đăng nhập để tạo tour cá nhân hóa. Thông tin đã điền vẫn được giữ lại." : "Please sign in. Your preferences have been kept."}</p>
           <Link className="button" href={`/${locale}/sign-in/?returnTo=/${locale}/planner/`}>{vi ? "Đăng nhập" : "Sign in"}</Link>
         </> : error === "CUSTOMER_REQUIRED" ? <p>{vi ? "Chỉ tài khoản khách hàng mới có thể gửi yêu cầu tour cá nhân hóa." : "Only customer accounts can submit personalized tour requests."}</p> : <>
-          {result?.status === "no_match" ? <ul>{result.reasons.map((reason) => <li key={reason}>{reasonText[reason] ?? reasonText.area}</li>)}</ul> : <p>{vi ? "Dịch vụ tạo lịch trình chưa sẵn sàng hoặc yêu cầu cần kiểm tra lại. Bạn có thể thử lại hoặc chỉnh thông tin phía trên." : "The planner is unavailable or your request needs checking. Retry or edit your preferences above."}</p>}
+          {error === "DEPARTURE_TOO_SOON" ? <p>{personalizedLeadTimeMessage(locale)}</p> : result?.status === "no_match" ? <ul>{result.reasons.map((reason) => <li key={reason}>{reasonText[reason] ?? reasonText.area}</li>)}</ul> : <p>{vi ? "Dịch vụ tạo lịch trình chưa sẵn sàng hoặc yêu cầu cần kiểm tra lại. Bạn có thể thử lại hoặc chỉnh thông tin phía trên." : "The planner is unavailable or your request needs checking. Retry or edit your preferences above."}</p>}
           <button type="button" className="button button--secondary" onClick={() => setRetry((value) => value + 1)}>{vi ? "Thử lại" : "Try again"}</button>
         </>}
       </section>

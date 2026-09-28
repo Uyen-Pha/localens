@@ -142,7 +142,7 @@ function parseDuration(value: string): number | undefined {
   const hours = Number(raw.replace(",", "."));
   if (!Number.isFinite(hours)) return undefined;
   const minutes = Math.round(hours * 60);
-  return minutes >= 120 && minutes <= 600 ? minutes : undefined;
+  return minutes >= 60 && minutes <= 720 ? minutes : undefined;
 }
 
 function parsePartySize(value: string): number | undefined {

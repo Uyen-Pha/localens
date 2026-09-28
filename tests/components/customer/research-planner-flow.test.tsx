@@ -1,8 +1,10 @@
 import {cleanup,render,screen,waitFor} from '@testing-library/react';
-import {afterEach,it,expect,vi} from 'vitest';
+import {afterEach,beforeEach,it,expect,vi} from 'vitest';
 import {ResearchPlannerFlow} from '@/components/customer/research-planner-flow';
-vi.mock('@/lib/application/planner/personalization-session',()=>({readPersonalizationState:()=>({status:'ok',request:{}})}));
-afterEach(cleanup);
+import {savePersonalizationRequest} from '@/lib/application/planner/personalization-session';
+import {researchInput} from '../../fixtures/research-recovery';
+beforeEach(()=>{window.sessionStorage.clear();savePersonalizationRequest(researchInput);});
+afterEach(()=>{cleanup();window.sessionStorage.clear();});
 it('shows processing and actionable no-match message',async()=>{
  let finish:(v:unknown)=>void=()=>{};
  const port=vi.fn(()=>new Promise(resolve=>{finish=resolve;}));

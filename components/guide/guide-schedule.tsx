@@ -37,6 +37,34 @@ export function GuideSchedule({locale,items,loading,error,onRetry,getDetail}: {
   const [selected,setSelected]=useState<string|null>(null);
   const [detail,setDetail]=useState<GuideOwnAssignment|null>(null);
   const [detailState,setDetailState]=useState<'idle'|'loading'|'ready'|'error'>('idle');
+  const [,refreshClock]=useState(0);
+  useEffect(()=>{
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    function scheduleNext() {
+      clearTimeout(timer);
+      const now=Date.now();
+      const next=items.reduce((earliest,item)=>{
+        const start=Date.parse(item.startAt);
+        return statusOf(item)==='upcoming'&&start>now?Math.min(earliest,start):earliest;
+      },Infinity);
+      // Long delays must stay within the browser's signed 32-bit timer limit.
+      if(Number.isFinite(next))timer=setTimeout(refresh,Math.min(next-now,2_147_483_647));
+    }
+    function refresh() {
+      refreshClock(value=>value+1);
+      scheduleNext();
+    }
+    function onVisible() {if(document.visibilityState==='visible')refresh();}
+    // Departure may have passed between rendering and this passive effect.
+    refresh();
+    window.addEventListener('focus',refresh);
+    document.addEventListener('visibilitychange',onVisible);
+    return ()=>{
+      clearTimeout(timer);
+      window.removeEventListener('focus',refresh);
+      document.removeEventListener('visibilitychange',onVisible);
+    };
+  },[items]);
   const request=useRef(0);
   const pickerButton=useRef<HTMLButtonElement>(null);
   const alive=useRef(true);

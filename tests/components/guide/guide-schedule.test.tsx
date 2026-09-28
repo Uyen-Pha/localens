@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useLayoutEffect } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GuideSchedule } from '@/components/guide/guide-schedule';
 import type { GuideOwnAssignment } from '@/lib/application/guide-assignment/contracts';
@@ -10,6 +11,59 @@ function setup(items:GuideOwnAssignment[], detail?: (id:string)=>Promise<GuideOw
   return render(<GuideSchedule locale="vi" items={items} loading={false} error={false} onRetry={()=>{}} getDetail={detail}/>);
 }
 describe('UC-GUI02 month calendar',()=>{
+  it('reconciles a departure crossed between render and the initial passive effect',()=>{
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-12T01:00:00.999Z'));
+    const items=[item('A','2026-09-12T01:00:01Z')];
+    function Parent() {
+      useLayoutEffect(()=>{
+        expect(screen.getByRole('button',{name:'Sắp tới 1'})).toBeInTheDocument();
+        vi.setSystemTime(new Date('2026-09-12T01:00:01.001Z'));
+      },[]);
+      return <GuideSchedule locale="vi" items={items} loading={false} error={false} onRetry={()=>{}}/>;
+    }
+    render(<Parent/>);
+    expect(screen.getByRole('button',{name:'Sắp tới 0'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Đã khởi hành 1'})).toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:/Tour A/})).not.toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Đã hoàn thành 0'})).toBeInTheDocument();
+    expect(items[0].assignmentStatus).toBe('assigned');
+  });
+  it('updates at each departure boundary without interaction or completing assignments',()=>{
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-12T01:00:00Z'));
+    const items=[item('A','2026-09-12T01:00:01Z'),item('B','2026-09-12T01:00:02Z'),item('C','2026-09-12T01:00:01Z','cancelled'),item('D','2026-09-12T01:00:01Z','completed')];
+    const onRetry=vi.fn();
+    const {unmount}=render(<GuideSchedule locale="vi" items={items} loading={false} error={false} onRetry={onRetry}/>);
+    act(()=>vi.advanceTimersByTime(999));
+    expect(screen.getByRole('button',{name:'Sắp tới 2'})).toBeInTheDocument();
+    act(()=>vi.advanceTimersByTime(1));
+    expect(screen.getByRole('button',{name:'Sắp tới 1'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Đã khởi hành 1'})).toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:/Tour A/})).not.toBeInTheDocument();
+    act(()=>vi.advanceTimersByTime(1000));
+    expect(screen.getByRole('button',{name:'Đã khởi hành 2'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Đã hoàn thành 1'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Đã hủy 1'})).toBeInTheDocument();
+    expect(items[0].assignmentStatus).toBe('assigned');
+    expect(items[0].tourStatus).toBe('upcoming');
+    expect(onRetry).not.toHaveBeenCalled();
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it.each(['focus','visibilitychange'])('refreshes on %s after a suspended clock and rearms the next departure',(event)=>{
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-12T01:00:00Z'));
+    const {unmount}=render(<GuideSchedule locale="vi" items={[item('A','2026-09-12T01:00:01Z'),item('B','2026-09-12T01:00:03Z')]} loading={false} error={false} onRetry={()=>{}}/>);
+    vi.setSystemTime(new Date('2026-09-12T01:00:02Z'));
+    fireEvent(event==='focus'?window:document,new Event(event));
+    expect(screen.getByRole('button',{name:'Đã khởi hành 1'})).toBeInTheDocument();
+    act(()=>vi.advanceTimersByTime(1000));
+    expect(screen.getByRole('button',{name:'Đã khởi hành 2'})).toBeInTheDocument();
+    unmount();
+    fireEvent(event==='focus'?window:document,new Event(event));
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it('separates already-started assignments from upcoming without asserting completion',()=>{
     setup([item('past','2026-09-11T01:00:00Z'),item('future','2026-09-13T01:00:00Z')]);
     expect(screen.getByRole('button',{name:/Sắp tới 1/})).toBeInTheDocument();

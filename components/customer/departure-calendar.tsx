@@ -47,9 +47,9 @@ export function DepartureCalendar({ locale, departures, selected, price, disable
       {Array.from({ length: offset }, (_, i) => <span key={`blank-${i}`} />)}
       {Array.from({ length: days }, (_, i) => {
         const date = `${currentMonth}-${String(i + 1).padStart(2, "0")}`;
-        const trip = departures.find(d => departureDay(d.startAt) === date && d.status === "scheduled" && d.remainingCapacity > 0 && d.startAt > new Date().toISOString());
+        const trip = departures.find(d => departureDay(d.startAt) === date && d.status === "scheduled" && d.remainingCapacity > 0 && Date.parse(d.startAt) > Date.now());
         const available = !!trip && date >= today;
-        return <button type="button" key={date} disabled={disabled || !available} aria-pressed={date === selectedDay} aria-label={`${date}${available ? `, ${price}` : locale === "vi" ? ", Không có chuyến còn chỗ" : ", Unavailable"}`} onClick={() => { if (trip) onSelect(trip); }}><span>{i + 1}</span>{available && <small>{price}</small>}</button>;
+        return <button type="button" key={date} disabled={disabled || !available} aria-pressed={date === selectedDay} aria-label={`${date}${available ? `, ${price}` : locale === "vi" ? ", Không có chuyến còn chỗ" : ", Unavailable"}`} onClick={() => { if (!disabled && trip && Date.parse(trip.startAt) > Date.now()) onSelect(trip); }}><span>{i + 1}</span>{available && <small>{price}</small>}</button>;
       })}
     </div>
     </div>; })}</div>

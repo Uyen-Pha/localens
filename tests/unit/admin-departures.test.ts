@@ -10,3 +10,12 @@ it('creates a future empty scheduled departure',()=>expect(createDeparture(row,D
 it('rejects past dates, reversed hours and fractional capacity',()=>{expect(()=>createDeparture(row,Date.parse('2026-11-01'))).toThrow();expect(()=>createDeparture({...row,end:'07:00'},0)).toThrow();expect(()=>createDeparture({...row,capacity:1.5},0)).toThrow();});
 it('cancels a full departure while preserving history',()=>{expect(cancelDeparture(row,Date.parse('2026-09-29T00:00:00Z'))).toMatchObject({id:'a',booked:18,held:0,status:'cancelled'});expect(row.status).toBe('sold_out');});
 it('cannot cancel a terminal departure',()=>{for(const status of ['cancelled','completed'] as const)expect(()=>cancelDeparture({...row,status})).toThrow();});
+it.each(['24:00','25:00','13:60'])('rejects an invalid end time %s instead of storing an unusable schedule',end=>{
+ expect(()=>createDeparture({...row,end},0)).toThrow();
+});
+it('rejects a nonexistent calendar day rather than silently rolling it into March',()=>{
+ expect(()=>createDeparture({...row,date:'2027-02-29'},0)).toThrow();
+});
+it('accepts leap day with valid same-day hours',()=>{
+ expect(createDeparture({...row,date:'2028-02-29',start:'00:00',end:'23:59'},0)).toMatchObject({date:'2028-02-29',start:'00:00',end:'23:59'});
+});
