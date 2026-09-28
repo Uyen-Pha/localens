@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURES = path.join(ROOT, 'supabase/tests/fixtures/research-baseline');
@@ -29,7 +30,7 @@ export function parseArgs(args) {
   let mode = 'inventory';
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--workdir' && workdir === undefined) workdir = args[++i];
-    else if (['--prepare', '--apply', '--verify'].includes(args[i]) && mode === 'inventory') mode = args[i].slice(2);
+    else if (['--prepare', '--apply', '--verify', '--test', '--upgrade'].includes(args[i]) && mode === 'inventory') mode = args[i].slice(2);
     else fail('ARGUMENT_REJECTED');
   }
   if (!workdir || !path.isAbsolute(workdir) || /^[\\/]{2}|^[a-z]+:\/\//i.test(workdir) || /[\r\n\0]/.test(workdir)) fail('LOCAL_DIRECTORY_REQUIRED');
@@ -94,7 +95,7 @@ export function assertLocalDockerEndpoint(endpoint) {
   if (typeof endpoint !== 'string' || !(/^(?:unix:\/\/\/[^\r\n]+|npipe:\/\/\/\/\.\/pipe\/[a-zA-Z0-9_.-]+)$/.test(endpoint))) fail('REMOTE_DOCKER_REJECTED');
 }
 
-async function checkRpcs(client) {
+export async function checkRpcs(client) {
   const { rows } = await client.query('SELECT signature FROM unnest($1::text[]) AS signature WHERE to_regprocedure(signature) IS NOT NULL', [REQUIRED_RPCS]);
   assertRequiredRpcs(rows.map((row) => row.signature));
 }
@@ -110,7 +111,7 @@ export async function assertOriginalOwnerCapability(client) {
   if (owner?.owner !== 'postgres' || !(owner.rolsuper === true || owner.rolbypassrls === true)) fail('MISSING_SOURCE_DEPENDENCY: postgres requires original FORCE RLS bypass capability');
 }
 
-async function claims(client, user, role) {
+export async function claims(client, user, role) {
   await client.query('RESET ROLE');
   await client.query("SELECT set_config('request.jwt.claim.sub',$1,true), set_config('request.jwt.claim.role',$2,true), set_config('request.jwt.claims',$3,true)", [user, role, JSON.stringify({ sub: user, role })]);
   await client.query(role === 'service_role' ? 'SET LOCAL ROLE service_role' : 'SET LOCAL ROLE authenticated');
@@ -155,7 +156,87 @@ async function seedAndExercise(client) {
   return { results, snapshot };
 }
 
-async function execute(target, mode, inventory) {
+export function assertTapResults(results) {
+  const lines = (Array.isArray(results) ? results : [results]).flatMap((result) => result.rows.flatMap((row) =>
+    Object.values(row).filter((value) => typeof value === 'string').flatMap((value) => value.split('\n'))));
+  const tap = lines.filter((line) => /^(?:ok |not ok |1\.\.|#|Bail out!)/.test(line));
+  const plans = tap.filter((line) => /^1\.\.[1-9]\d*$/.test(line));
+  const assertions = tap.filter((line) => /^ok \d+\b/.test(line));
+  if (plans.length !== 1 || assertions.length !== Number(plans[0].slice(3)) ||
+      assertions.some((line, i) => Number(line.match(/^ok (\d+)/)[1]) !== i + 1) ||
+      tap.some((line) => /^(?:not ok |Bail out!|# Looks like)/.test(line))) fail('RESEARCH_TAP_FAILED');
+  return tap;
+}
+
+export function assertSnapshotEqual(before, after) {
+  if (!isDeepStrictEqual(before, after)) fail('UPGRADE_DATA_CHANGED');
+}
+
+const BUSINESS_TABLES = ['research_demo_bookings', 'research_demo_requests', 'research_demo_revisions', 'research_demo_quotes', 'research_demo_request_events', 'research_demo_stops'];
+
+async function snapshot(client) {
+  const result = {};
+  for (const table of [...BUSINESS_TABLES, 'research_demo_booking_cancellations']) {
+    const exists = (await client.query('SELECT to_regclass($1) IS NOT NULL AS present', [`private.${table}`])).rows[0].present;
+    result[table] = exists ? (await client.query(`SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb) AS data FROM private.${table} t`)).rows[0].data : [];
+  }
+  return result;
+}
+
+export async function runResearchTap(client) {
+  await client.query('BEGIN');
+  try {
+    await client.query(readFileSync(path.join(ROOT, 'supabase/tests/research/fixtures.sql'), 'utf8'));
+    const results = await client.query(readFileSync(path.join(ROOT, 'supabase/tests/research/research_booking_cancellation_test.sql'), 'utf8'));
+    // Print failed TAP too, so Main can distinguish assertion RED from setup failure.
+    for (const result of Array.isArray(results) ? results : [results]) {
+      for (const row of result.rows) for (const value of Object.values(row)) {
+        if (typeof value === 'string' && /^(?:ok |not ok |1\.\.|#|Bail out!)/m.test(value)) console.log(value);
+      }
+    }
+    const lines = assertTapResults(results);
+    return { status: 'research pgTAP passed; test transaction rolled back', plan: lines.find((line) => /^1\.\./.test(line)) };
+  } finally {
+    await client.query('ROLLBACK');
+  }
+}
+
+async function upgrade(client, target) {
+  const evidence = JSON.parse(readFileSync(path.join(target.workdir, 'baseline-evidence.json'), 'utf8'));
+  if (evidence.target.projectId !== target.projectId || evidence.target.workdir !== target.workdir || evidence.results.length !== 3) fail('BASELINE_EVIDENCE_MISMATCH');
+  await checkRpcs(client);
+  await client.query('BEGIN');
+  try {
+    await client.query("SET LOCAL lock_timeout='5s'");
+    const before = await snapshot(client);
+    for (const table of BUSINESS_TABLES) {
+      // Later concurrency fixtures may exist; every recorded legacy row must still match in full.
+      for (const row of evidence.snapshot[table]) {
+        if (!before[table].some((current) => isDeepStrictEqual(current, row))) fail('LEGACY_BASELINE_CHANGED');
+      }
+    }
+    const protectedSignatures = REQUIRED_RPCS.filter((name) => !/research_demo_(booking|checkout)\(/.test(name));
+    const definitions = async () => (await client.query('SELECT signature,pg_get_functiondef(to_regprocedure(signature)) AS definition FROM unnest($1::text[]) signature ORDER BY signature', [protectedSignatures])).rows;
+    const originalDefinitions = await definitions();
+    const sql = readFileSync(path.join(ROOT, 'supabase/migrations/20260928230000_research_booking_cancellation.sql'), 'utf8');
+    for (let pass = 1; pass <= 2; pass++) {
+      await client.query(sql);
+      assertSnapshotEqual(before, await snapshot(client));
+      if (!isDeepStrictEqual(originalDefinitions, await definitions())) fail('UNRELATED_RPC_CHANGED');
+      console.log(`Upgrade pass ${pass}: all business rows and unrelated RPC definitions unchanged`);
+    }
+    await client.query('COMMIT');
+    return { status: 'upgrade and rerun committed; legacy rows unchanged', migrationSha256: sha(sql), legacyBookings: evidence.results.length };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  }
+}
+
+// Shared by the opt-in upgrade/TAP and two-session harness; no alternate safety path.
+export async function openLocalClient(workdir) {
+  const target = readTarget(workdir);
+  loadInventory();
   // Inspect only. No start, stop, reset, rm, volume removal, or CLI passthrough.
   if (process.env.DOCKER_HOST) assertLocalDockerEndpoint(process.env.DOCKER_HOST);
   if (process.env.CONTAINER_HOST) assertLocalDockerEndpoint(process.env.CONTAINER_HOST);
@@ -172,6 +253,21 @@ async function execute(target, mode, inventory) {
   try {
     await client.connect();
     await assertOriginalOwnerCapability(client);
+    return client;
+  } catch (error) {
+    await client.end().catch(() => {});
+    throw error;
+  }
+}
+
+async function execute(target, mode, inventory) {
+  const client = await openLocalClient(target.workdir);
+  try {
+    if (mode === 'upgrade') return await upgrade(client, target);
+    if (mode === 'test') {
+      await checkRpcs(client);
+      return await runResearchTap(client);
+    }
     if (mode === 'verify') {
       await checkRpcs(client);
       return { status: 'required RPC signatures present; no data modified' };
@@ -214,7 +310,7 @@ async function main() {
   } catch (error) {
     // Never echo connection strings, Docker output, arguments, SQL details or keys.
     const safe = /^(?:[A-Z_]+)(?:: [a-zA-Z0-9_.,() -]+)?$/.test(error.message ?? '') ? error.message : 'BASELINE_FAILED';
-    console.error(safe);
+    console.error(safe, error.code ? `SQLSTATE ${error.code}` : '');
     process.exitCode = 2;
   }
 }
