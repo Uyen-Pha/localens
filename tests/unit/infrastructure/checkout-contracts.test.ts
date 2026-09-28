@@ -60,7 +60,10 @@ const bookingRow = {
   party_size: 2,
   language: "en",
   meeting_point: "Ben Thanh Market gate",
-  hold_expires_at: "2026-08-25T10:35:00+00:00",
+  payment_status: null,
+  payment_deadline_at: "2026-08-25T10:15:00+00:00",
+  trip_start_at: "2026-08-27T10:00:00+00:00",
+  hold_expires_at: "2026-08-25T10:15:00+00:00",
   created_at: "2026-08-25T10:00:00+00:00",
 };
 
@@ -208,6 +211,9 @@ describe("Task 9 checkout contracts", () => {
         partySize: 2,
         language: "en",
         meetingPoint: bookingRow.meeting_point,
+        paymentStatus: null,
+        paymentDeadlineAt: bookingRow.payment_deadline_at,
+        tripStartAt: bookingRow.trip_start_at,
         holdExpiresAt: bookingRow.hold_expires_at,
         createdAt: bookingRow.created_at,
       },

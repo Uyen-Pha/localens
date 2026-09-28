@@ -70,7 +70,10 @@ function bookingRow(overrides: Record<string, unknown> = {}) {
     party_size: 2,
     language: "en",
     meeting_point: "LocalLens meeting point",
-    hold_expires_at: "2099-09-05T01:35:00.000Z",
+    payment_status: null,
+    payment_deadline_at: "2099-09-05T01:15:00.000Z",
+    trip_start_at: "2099-09-05T02:00:00.000Z",
+    hold_expires_at: "2099-09-05T01:15:00.000Z",
     created_at: "2099-09-05T01:00:00.000Z",
     ...overrides,
   };
@@ -307,7 +310,7 @@ describe("Supabase fixed-tour runtime adapter", () => {
     ]);
     expect(client.from).toHaveBeenCalledWith("customer_bookings_v");
     expect(bookingQuery.select).toHaveBeenCalledWith(
-      "id,status,source_kind,source_id,tour_version_id,quote_id,title_en,title_vi,cancellation_policy,catalog_snapshot_id,travel_snapshot_id,fx_snapshot_id,fx_vnd_per_usd,per_person_vnd_minor,total_vnd_minor,checkout_currency,checkout_amount_minor,party_size,language,meeting_point,hold_expires_at,created_at",
+      "id,status,source_kind,source_id,tour_version_id,quote_id,title_en,title_vi,cancellation_policy,catalog_snapshot_id,travel_snapshot_id,fx_snapshot_id,fx_vnd_per_usd,per_person_vnd_minor,total_vnd_minor,checkout_currency,checkout_amount_minor,party_size,language,meeting_point,payment_status,payment_deadline_at,trip_start_at,hold_expires_at,created_at",
     );
     expect(bookingQuery.eq).not.toHaveBeenCalled();
     expect(bookingQuery.order).toHaveBeenNthCalledWith(1, "created_at", { ascending: false });

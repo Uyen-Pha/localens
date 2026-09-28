@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(79);
+SELECT plan(81);
 
 DELETE FROM auth.users
 WHERE id BETWEEN '00000000-0000-0000-0000-000000002601'::uuid
@@ -165,6 +165,7 @@ VALUES
   ('dep-cross', '00000000-0000-0000-0000-000000002704', '00000000-0000-0000-0000-000000002804', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
   ('dep-paid', '00000000-0000-0000-0000-000000002705', '00000000-0000-0000-0000-000000002805', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
   ('dep-terminal', '00000000-0000-0000-0000-000000002706', '00000000-0000-0000-0000-000000002806', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'confirmed', 'created', NULL, 'active'),
+  ('dep-confirmed-paid', '00000000-0000-0000-0000-000000002718', '00000000-0000-0000-0000-000000002818', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'confirmed', 'session_recorded', 'cs_confirmed_paid', 'consumed'),
   ('dep-provider', '00000000-0000-0000-0000-000000002707', '00000000-0000-0000-0000-000000002807', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'session_recorded', 'cs_provider_authority', 'active'),
   ('dep-real-payment', '00000000-0000-0000-0000-000000002708', '00000000-0000-0000-0000-000000002808', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
   ('dep-owner-b', '00000000-0000-0000-0000-000000002709', '00000000-0000-0000-0000-000000002809', '00000000-0000-0000-0000-000000002602', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
@@ -194,7 +195,7 @@ SELECT
   CASE WHEN source_kind = 'departure' THEN 125000 END,
   CASE WHEN source_kind = 'departure' THEN 125000 ELSE 100000 END,
   'vnd', CASE WHEN source_kind = 'departure' THEN 125000 ELSE 100000 END,
-  1, 'en', 'Runtime gate', statement_timestamp(), statement_timestamp() + interval '35 minutes'
+  1, 'en', 'Runtime gate', statement_timestamp(), statement_timestamp() + interval '15 minutes'
 FROM cancellation_fixtures;
 
 INSERT INTO private.checkout_attempts (
@@ -226,12 +227,13 @@ SELECT
 FROM cancellation_fixtures;
 
 INSERT INTO private.capacity_holds (
-  id, booking_id, departure_id, party_size, status, created_at, expires_at, released_at
+  id, booking_id, departure_id, party_size, status, created_at, expires_at, consumed_at, released_at
 )
 SELECT
   ('20000000-0000-0000-0000-' || right(booking_id::text, 12))::uuid,
   booking_id, source_id, 1, hold_status, statement_timestamp(),
-  statement_timestamp() + interval '35 minutes',
+  statement_timestamp() + interval '15 minutes',
+  CASE WHEN hold_status = 'consumed' THEN statement_timestamp() END,
   CASE WHEN hold_status = 'released' THEN statement_timestamp() END
 FROM cancellation_fixtures
 WHERE source_kind = 'departure';
@@ -244,6 +246,15 @@ INSERT INTO public.payments (
 SELECT booking_id, attempt_id, owner_user_id, 'cs_real_authority', 'pi_real_authority',
   'acct_localens_test', 'we_localens_test', 'payment', 125000, 'vnd', 'pending'
 FROM cancellation_fixtures WHERE label = 'dep-real-payment';
+
+INSERT INTO public.payments (
+  booking_id, attempt_id, owner_user_id, provider_session_id,
+  provider_payment_intent_id, provider_account_id, provider_endpoint_id,
+  mode, amount_minor, currency, status
+)
+SELECT booking_id, attempt_id, owner_user_id, provider_session_id, 'pi_confirmed_paid',
+  'acct_localens_test', 'we_localens_test', 'payment', 125000, 'vnd', 'paid'
+FROM cancellation_fixtures WHERE label = 'dep-confirmed-paid';
 
 INSERT INTO private.thesis_demo_qa_slots (
   slot_id, dataset_version, terminal_flow, owner_user_id, departure_id,
@@ -552,6 +563,11 @@ SELECT throws_ok(
   $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002713', NULL, NULL, 'cancel-quote-expired')$$,
   'P0001', 'cancellation unavailable', 'expired quote cannot be cancelled'
 );
+SELECT ok(
+  (SELECT booking_status = 'cancelled' AND state = 'created' AND source_kind = 'departure'
+   FROM public.cancel_booking('00000000-0000-0000-0000-000000002718', NULL, NULL, 'cancel-confirmed-paid')),
+  'customer cancels a paid confirmed fixed-tour booking while more than 48 hours remain'
+);
 SELECT throws_ok(
   $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002706', NULL, NULL, 'cancel-terminal')$$,
   'P0001', 'cancellation unavailable', 'non-pending terminal booking cannot be cancelled'
@@ -631,6 +647,15 @@ SELECT results_eq(
     WHERE bookings.id = '00000000-0000-0000-0000-000000002712'$$,
   $$VALUES ('cancelled'::text, 'revoked'::text, 'compensated'::text)$$,
   'quote cancellation atomically revokes quote and compensates attempt'
+);
+SELECT results_eq(
+  $$SELECT bookings.status::text, holds.status::text, attempts.status
+    FROM public.bookings AS bookings
+    JOIN private.capacity_holds AS holds ON holds.booking_id = bookings.id
+    JOIN private.checkout_attempts AS attempts ON attempts.booking_id = bookings.id
+    WHERE bookings.id = '00000000-0000-0000-0000-000000002718'$$,
+  $$VALUES ('cancelled'::text, 'consumed'::text, 'session_recorded'::text)$$,
+  'confirmed fixed-tour cancellation removes booking capacity exactly once while retaining the consumed hold fact'
 );
 
 SELECT throws_ok(

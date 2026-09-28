@@ -410,6 +410,12 @@ export interface CustomerBooking {
   partySize: number;
   language: Locale;
   meetingPoint: string;
+  /** Latest payment authority status when one exists; null means no transaction authority exists yet. */
+  paymentStatus?: PaymentStatus | null;
+  /** Fixed hold deadline or personalized quote-derived payment deadline. */
+  paymentDeadlineAt?: string | null;
+  /** Fixed departure start or personalized itinerary start. */
+  tripStartAt?: string | null;
   holdExpiresAt: string;
   createdAt: string;
 }

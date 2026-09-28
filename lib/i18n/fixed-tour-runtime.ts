@@ -38,6 +38,7 @@ export interface FixedTourRuntimeCopy {
   total: string;
   createdAt: string;
   holdExpiresAt: string;
+  paymentDeadlineAt: string;
   bookingStatus: string;
   bookingStatusLabels: Record<BookingStatus, string>;
   paymentHeading: string;
@@ -75,7 +76,7 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     soldOut: "Sold out",
     bookTour: (title) => `Book ${title}`,
     bookingHeading: "Hold a fixed-tour departure",
-    bookingIntro: "Confirm your group size to create a 35-minute hold. Payment remains pending.",
+    bookingIntro: "Confirm your group size to create a 15-minute hold. Payment remains pending.",
     partySize: "Party size",
     partySizeHint: "Enter a whole number between 1 and 100.",
     hold: "Create pending-payment hold",
@@ -93,6 +94,7 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     total: "Total",
     createdAt: "Created",
     holdExpiresAt: "Hold expires",
+    paymentDeadlineAt: "Payment deadline",
     bookingStatus: "Booking status",
     bookingStatusLabels: bookingStatusLabels.en,
     paymentHeading: "Payment",
@@ -128,7 +130,7 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     soldOut: "Hết chỗ",
     bookTour: (title) => `Đặt ${title}`,
     bookingHeading: "Giữ chỗ cho tour cố định",
-    bookingIntro: "Xác nhận số người để tạo giữ chỗ 35 phút. Thanh toán vẫn đang chờ.",
+    bookingIntro: "Xác nhận số người để tạo giữ chỗ 15 phút. Thanh toán vẫn đang chờ.",
     partySize: "Số người",
     partySizeHint: "Nhập số nguyên từ 1 đến 100.",
     hold: "Tạo giữ chỗ chờ thanh toán",
@@ -146,6 +148,7 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
     total: "Tổng tiền",
     createdAt: "Ngày tạo",
     holdExpiresAt: "Giữ chỗ đến",
+    paymentDeadlineAt: "Hạn thanh toán",
     bookingStatus: "Trạng thái đơn",
     bookingStatusLabels: bookingStatusLabels.vi,
     paymentHeading: "Thanh toán",

@@ -3490,6 +3490,8 @@ export type Database = {
           id: string | null
           language: Database["public"]["Enums"]["locale"] | null
           meeting_point: string | null
+          payment_deadline_at: string | null
+          payment_status: Database["public"]["Enums"]["payment_status"] | null
           party_size: number | null
           per_person_vnd_minor: string | null
           quote_id: string | null
@@ -3501,6 +3503,7 @@ export type Database = {
           total_vnd_minor: string | null
           tour_version_id: string | null
           travel_snapshot_id: string | null
+          trip_start_at: string | null
         }
         Insert: {
           cancellation_policy?: string | null

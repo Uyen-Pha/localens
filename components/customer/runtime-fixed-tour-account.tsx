@@ -8,6 +8,7 @@ import {
   type FixedTourPaymentStatus,
   type FixedTourRuntimePort,
 } from "@/lib/application/fixed-tour/contracts";
+import { evaluateCancellationEligibility } from "@/lib/application/portal/cancellation-policy";
 import {
   PortalError,
   type BookingCancellation,
@@ -96,6 +97,7 @@ export function RuntimeFixedTourAccount({
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [cancellationMessage, setCancellationMessage] = useState<string | null>(null);
   const [cancellationError, setCancellationError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const cancellationTriggerRef = useRef<HTMLElement | null>(null);
   const cancellationStatusRef = useRef<HTMLParagraphElement>(null);
 
@@ -127,6 +129,10 @@ export function RuntimeFixedTourAccount({
   useEffect(() => {
     if (cancellationMessage !== null) cancellationStatusRef.current?.focus();
   }, [cancellationMessage]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   function paymentErrorText(error: unknown): string {
     if (!(error instanceof FixedTourRuntimeError)) return copy.paymentUnavailable;
@@ -225,9 +231,18 @@ export function RuntimeFixedTourAccount({
             const paymentHeadingId = `runtime-payment-${booking.id}`;
             const payment = paymentByBooking.get(booking.id);
             const cancellation = cancellationByBooking.get(booking.id);
-            const canPay = booking.status === "pending_payment" && payment === undefined;
-            const canCancel = booking.status === "pending_payment" && cancellation === undefined;
-            const paymentLabel = paymentStatusLabel(locale, booking.status, payment?.paymentStatus);
+            const canPay = booking.sourceKind === "departure" && booking.status === "pending_payment" && payment === undefined;
+            const authoritativePaymentStatus = booking.paymentStatus ?? payment?.paymentStatus ?? null;
+            const cancellationEligibility = evaluateCancellationEligibility({
+              status: booking.status,
+              sourceKind: booking.sourceKind,
+              paymentStatus: authoritativePaymentStatus,
+              paymentDeadlineAt: booking.paymentDeadlineAt
+                ?? (booking.sourceKind === "departure" ? booking.holdExpiresAt : null),
+              tripStartAt: booking.tripStartAt ?? null,
+            }, now);
+            const canCancel = cancellation === undefined && cancellationEligibility.eligible;
+            const paymentLabel = paymentStatusLabel(locale, booking.status, authoritativePaymentStatus);
             return (
               <article key={booking.id} aria-labelledby={titleId}>
                 <h3 id={titleId}>{title}</h3>
@@ -238,7 +253,10 @@ export function RuntimeFixedTourAccount({
                   <div><dt>{copy.meetingPoint}</dt><dd>{booking.meetingPoint}</dd></div>
                   <div><dt>{copy.total}</dt><dd>{formatMoney(booking.checkoutAmountMinor, booking.checkoutCurrency, locale)}</dd></div>
                   <div><dt>{copy.createdAt}</dt><dd>{formatDate(booking.createdAt, locale)}</dd></div>
-                  <div><dt>{copy.holdExpiresAt}</dt><dd>{formatDate(booking.holdExpiresAt, locale)}</dd></div>
+                  <div>
+                    <dt>{booking.sourceKind === "departure" ? copy.holdExpiresAt : copy.paymentDeadlineAt}</dt>
+                    <dd>{formatDate(booking.paymentDeadlineAt ?? booking.holdExpiresAt, locale)}</dd>
+                  </div>
                   {payment ? <div><dt>{copy.simulatedAt}</dt><dd>{formatDate(payment.simulatedAt, locale)}</dd></div> : null}
                 </dl>
                 {(canPay || payment !== undefined) ? (
@@ -282,6 +300,7 @@ export function RuntimeFixedTourAccount({
                   <BookingCancellationDialog
                     locale={locale}
                     bookingTitle={title}
+                    bookingStatusLabel={copy.bookingStatusLabels[booking.status]}
                     submitting={cancellingBookingId === booking.id}
                     error={cancellationError}
                     returnFocus={cancellationTriggerRef.current}

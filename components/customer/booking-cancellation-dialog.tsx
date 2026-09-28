@@ -24,6 +24,7 @@ export interface BookingCancellationReasonValue {
 export function BookingCancellationDialog({
   locale,
   bookingTitle,
+  bookingStatusLabel,
   submitting,
   error,
   returnFocus,
@@ -32,6 +33,7 @@ export function BookingCancellationDialog({
 }: {
   locale: Locale;
   bookingTitle: string;
+  bookingStatusLabel?: string;
   submitting: boolean;
   error: string | null;
   returnFocus: HTMLElement | null;
@@ -117,7 +119,7 @@ export function BookingCancellationDialog({
         <p className={styles.description} id={descriptionId}>{copy.description}</p>
         <div className={styles.booking}>
           <strong>{bookingTitle}</strong>
-          <span>{copy.statusPrefix}: <em>{copy.pendingStatus}</em></span>
+          <span>{copy.statusPrefix}: <em>{bookingStatusLabel ?? copy.pendingStatus}</em></span>
         </div>
         <label className={styles.field}>
           <span>{copy.reasonLabel}</span>

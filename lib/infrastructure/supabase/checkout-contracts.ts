@@ -7,6 +7,7 @@ import type {
   DepartureStatus,
   LiveDepartureAvailability,
   Locale,
+  PaymentStatus,
   RecordCheckoutSessionInput,
   Result,
   StartCheckoutInput,
@@ -27,6 +28,7 @@ const BOOKING_STATUSES = new Set<BookingStatus>([
   "pending_payment", "payment_processing", "confirmed", "payment_failed",
   "payment_review", "expired", "cancelled", "completed",
 ]);
+const PAYMENT_STATUSES = new Set<PaymentStatus>(["pending", "paid", "failed", "review"]);
 const DEPARTURE_STATUSES = new Set<DepartureStatus>([
   "scheduled", "sold_out", "cancelled", "completed",
 ]);
@@ -169,6 +171,10 @@ function safeTimestamp(value: unknown, path: string): Result<string, DataAdapter
     return invalid("INVALID_TIMESTAMP", "data.timestamp.invalid", path);
   }
   return { ok: true, value };
+}
+
+function safeNullableTimestamp(value: unknown, path: string): Result<string | null, DataAdapterError> {
+  return value === null ? { ok: true, value: null } : safeTimestamp(value, path);
 }
 
 function safePartySize(value: unknown, path: string): Result<number, DataAdapterError> {
@@ -346,7 +352,7 @@ const BOOKING_FIELDS = [
   "id", "status", "source_kind", "source_id", "tour_version_id", "quote_id", "title_en", "title_vi",
   "cancellation_policy", "catalog_snapshot_id", "travel_snapshot_id", "fx_snapshot_id", "fx_vnd_per_usd",
   "per_person_vnd_minor", "total_vnd_minor", "checkout_currency", "checkout_amount_minor", "party_size",
-  "language", "meeting_point", "hold_expires_at", "created_at",
+  "language", "meeting_point", "payment_status", "payment_deadline_at", "trip_start_at", "hold_expires_at", "created_at",
 ] as const;
 
 export function mapCustomerBooking(row: unknown): Result<CustomerBooking, DataAdapterError> {
@@ -362,6 +368,8 @@ export function mapCustomerBooking(row: unknown): Result<CustomerBooking, DataAd
   const meetingPoint = safeText(fields.value.meeting_point, "row.meeting_point", 1, 500);
   const totalVndMinor = safeUnsignedMoney(fields.value.total_vnd_minor, "row.total_vnd_minor");
   const checkoutAmountMinor = safeUnsignedMoney(fields.value.checkout_amount_minor, "row.checkout_amount_minor");
+  const paymentDeadlineAt = safeNullableTimestamp(fields.value.payment_deadline_at, "row.payment_deadline_at");
+  const tripStartAt = safeNullableTimestamp(fields.value.trip_start_at, "row.trip_start_at");
   const holdExpiresAt = safeTimestamp(fields.value.hold_expires_at, "row.hold_expires_at");
   const createdAt = safeTimestamp(fields.value.created_at, "row.created_at");
   if (!id.ok) return id;
@@ -374,6 +382,8 @@ export function mapCustomerBooking(row: unknown): Result<CustomerBooking, DataAd
   if (!meetingPoint.ok) return meetingPoint;
   if (!totalVndMinor.ok) return totalVndMinor;
   if (!checkoutAmountMinor.ok) return checkoutAmountMinor;
+  if (!paymentDeadlineAt.ok) return paymentDeadlineAt;
+  if (!tripStartAt.ok) return tripStartAt;
   if (!holdExpiresAt.ok) return holdExpiresAt;
   if (!createdAt.ok) return createdAt;
   if (typeof fields.value.status !== "string" || !BOOKING_STATUSES.has(fields.value.status as BookingStatus)) {
@@ -381,6 +391,13 @@ export function mapCustomerBooking(row: unknown): Result<CustomerBooking, DataAd
   }
   if (fields.value.source_kind !== "departure" && fields.value.source_kind !== "quote") {
     return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "row.source_kind");
+  }
+  let paymentStatus: PaymentStatus | null = null;
+  if (fields.value.payment_status !== null) {
+    if (typeof fields.value.payment_status !== "string" || !PAYMENT_STATUSES.has(fields.value.payment_status as PaymentStatus)) {
+      return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "row.payment_status");
+    }
+    paymentStatus = fields.value.payment_status as PaymentStatus;
   }
   if (!CURRENCIES.has(fields.value.checkout_currency as CheckoutCurrency)) {
     return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "row.checkout_currency");
@@ -454,6 +471,9 @@ export function mapCustomerBooking(row: unknown): Result<CustomerBooking, DataAd
       partySize: partySize.value,
       language: fields.value.language as Locale,
       meetingPoint: meetingPoint.value,
+      paymentStatus,
+      paymentDeadlineAt: paymentDeadlineAt.value,
+      tripStartAt: tripStartAt.value,
       holdExpiresAt: holdExpiresAt.value,
       createdAt: createdAt.value,
     },

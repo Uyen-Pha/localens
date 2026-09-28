@@ -644,6 +644,13 @@
       "objectName": "private",
       "privilege": "usage",
       "columns": [],
+      "grantee": "localens_booking_projection_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
       "grantee": "localens_cancellation_admin_projection_owner"
     },
     {
@@ -1976,6 +1983,16 @@
       "privilege": "select",
       "columns": [],
       "grantee": "localens_simulated_payment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.simulated_payment_receipts",
+      "privilege": "select",
+      "columns": [
+        "booking_id",
+        "result_payment_status"
+      ],
+      "grantee": "localens_booking_projection_owner"
     },
     {
       "objectType": "table",
@@ -3382,6 +3399,16 @@
     {
       "objectType": "table",
       "objectName": "public.custom_quotes",
+      "privilege": "select",
+      "columns": [
+        "id",
+        "valid_until"
+      ],
+      "grantee": "localens_booking_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_quotes",
       "privilege": "update",
       "columns": [
         "id"
@@ -3427,6 +3454,13 @@
       "objectName": "public.custom_requests",
       "privilege": "select",
       "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_requests",
+      "privilege": "select",
+      "columns": [],
       "grantee": "localens_checkout_rpc_owner"
     },
     {
@@ -3454,6 +3488,16 @@
         "revision_no"
       ],
       "grantee": "localens_guide_assignment_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.custom_requests",
+      "privilege": "select",
+      "columns": [
+        "id",
+        "revision_id"
+      ],
+      "grantee": "localens_booking_projection_owner"
     },
     {
       "objectType": "table",
@@ -3630,6 +3674,16 @@
         "status"
       ],
       "grantee": "localens_guide_admin_projection_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.departures",
+      "privilege": "select",
+      "columns": [
+        "id",
+        "start_at"
+      ],
+      "grantee": "localens_booking_projection_owner"
     },
     {
       "objectType": "table",
@@ -4236,6 +4290,16 @@
         "status"
       ],
       "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.payments",
+      "privilege": "select",
+      "columns": [
+        "booking_id",
+        "status"
+      ],
+      "grantee": "localens_booking_projection_owner"
     },
     {
       "objectType": "table",
@@ -5018,6 +5082,13 @@
       "objectName": "public.trip_plan_items",
       "privilege": "select",
       "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_items",
+      "privilege": "select",
+      "columns": [],
       "grantee": "localens_guest_rpc_owner"
     },
     {
@@ -5110,6 +5181,16 @@
     },
     {
       "objectType": "table",
+      "objectName": "public.trip_plan_items",
+      "privilege": "select",
+      "columns": [
+        "revision_id",
+        "start_at"
+      ],
+      "grantee": "localens_booking_projection_owner"
+    },
+    {
+      "objectType": "table",
       "objectName": "public.trip_plan_revisions",
       "privilege": "insert",
       "columns": [],
@@ -5121,6 +5202,13 @@
       "privilege": "insert",
       "columns": [],
       "grantee": "localens_plan_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
     },
     {
       "objectType": "table",
@@ -5190,6 +5278,15 @@
         "travel_snapshot_id"
       ],
       "grantee": "authenticated"
+    },
+    {
+      "objectType": "table",
+      "objectName": "public.trip_plan_revisions",
+      "privilege": "select",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_booking_projection_owner"
     },
     {
       "objectType": "table",

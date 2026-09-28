@@ -22,8 +22,8 @@ SELECT ok((SELECT relforcerowsecurity FROM pg_catalog.pg_class WHERE oid = 'priv
 SELECT ok((SELECT relforcerowsecurity FROM pg_catalog.pg_class WHERE oid = 'private.checkout_idempotency'::regclass), 'idempotency force RLS');
 SELECT ok((SELECT relforcerowsecurity FROM pg_catalog.pg_class WHERE oid = 'private.capacity_holds'::regclass), 'holds force RLS');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.bookings'::regclass AND pg_get_constraintdef(oid) ~* '\(departure_id IS NOT NULL\).*<>.*\(quote_id IS NOT NULL\)'), 'booking source is exactly one departure or quote');
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.bookings'::regclass AND conname = 'bookings_hold_duration_seconds_check' AND pg_get_constraintdef(oid) LIKE '%2100%'), 'booking hold is exactly 35 minutes');
-SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'private.capacity_holds'::regclass AND conname = 'capacity_holds_check' AND pg_get_constraintdef(oid) LIKE '%00:35:00%'), 'capacity hold expiry is exactly 35 minutes');
+SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.bookings'::regclass AND conname = 'bookings_hold_duration_seconds_positive_check' AND pg_get_constraintdef(oid) LIKE '%> 0%'), 'booking hold duration is positive and source-derived');
+SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'private.capacity_holds'::regclass AND conname = 'capacity_holds_expires_after_created_check' AND pg_get_constraintdef(oid) LIKE '%> created_at%'), 'capacity hold expiry is source-derived after creation');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_indexes WHERE indexname = 'capacity_holds_departure_status_expiry_idx'), 'hold-aware availability index exists');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_indexes WHERE indexname = 'checkout_attempts_one_active_quote'), 'one active quote checkout attempt index exists');
 SELECT ok(EXISTS (SELECT 1 FROM pg_catalog.pg_indexes WHERE indexname = 'capacity_holds_one_active_booking'), 'one active hold per booking index exists');
@@ -104,9 +104,9 @@ SELECT ok(
     > strpos(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure), 'SELECT * INTO booking_row FROM public.bookings WHERE id = idempotency_row.booking_id FOR UPDATE'),
   'start checkout documents and enforces source -> booking -> attempt lock order on retry');
 SELECT ok(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure) ~* 'canonical.*hash|checkout_hash_equal', 'SQL independently verifies canonical hash');
-SELECT ok(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure) ~* '35 minutes', 'start checkout creates a 35-minute hold');
+SELECT ok(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure) ~* '15 minutes', 'fixed-tour checkout creates a 15-minute hold');
 SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'p_provider_expires_at.*booking_row.hold_expires_at', 'session recording bounds provider expiry inside the hold');
-SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'p_provider_expires_at.*booking_row.hold_expires_at', 'provider expiry is strictly inside the 35-minute hold despite RPC latency');
+SELECT ok(pg_get_functiondef('private.record_checkout_session(uuid,uuid,text,timestamptz)'::regprocedure) ~* 'p_provider_expires_at.*booking_row.hold_expires_at', 'provider expiry is strictly inside the source-derived hold');
 SELECT ok(pg_get_functiondef('private.compensate_checkout_failure(uuid)'::regprocedure) ~* 'checkout_pending.*active|valid_until', 'compensation only reactivates an unexpired quote');
 SELECT ok(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure) ~* 'partySize.*request_json|request_json.*partySize', 'custom quote party size derives from immutable revision');
 SELECT ok(pg_get_functiondef('private.start_checkout_tx(text,uuid,integer,public.locale,text,text)'::regprocedure) !~* 'amount_vnd_minor[^;]*\*[^;]*party', 'custom quote amount is not multiplied by party size');

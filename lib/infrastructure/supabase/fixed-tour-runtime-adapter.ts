@@ -69,6 +69,9 @@ const CUSTOMER_BOOKING_COLUMNS = [
   "party_size",
   "language",
   "meeting_point",
+  "payment_status",
+  "payment_deadline_at",
+  "trip_start_at",
   "hold_expires_at",
   "created_at",
 ].join(",");

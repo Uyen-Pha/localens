@@ -39,6 +39,9 @@ const booking: CustomerBooking = {
   partySize: 2,
   language: "vi",
   meetingPoint: "Cổng Bến Thành",
+  paymentStatus: null,
+  paymentDeadlineAt: "2099-09-05T02:15:00.000Z",
+  tripStartAt: "2099-09-07T02:00:00.000Z",
   holdExpiresAt: "2099-09-05T02:35:00.000Z",
   createdAt: "2099-09-05T02:00:00.000Z",
 };
@@ -222,7 +225,11 @@ describe("runtime fixed-tour account", () => {
     const bookings = vi.fn()
       .mockResolvedValueOnce([booking])
       .mockRejectedValueOnce(new Error("temporary stale reload failure"))
-      .mockResolvedValueOnce([{ ...booking, status: "confirmed" as const }]);
+      .mockResolvedValueOnce([{
+        ...booking,
+        status: "confirmed" as const,
+        tripStartAt: "2000-01-01T00:00:00.000Z",
+      }]);
     const cancel = vi.fn<(input: CancelBookingInput) => Promise<CancelBookingResult>>(async () => {
       throw new PortalError("CONFLICT", "stale cancellation detail");
     });
@@ -303,7 +310,11 @@ describe("runtime fixed-tour account", () => {
     const cancel = vi.fn(async () => { throw new PortalError(code, "secret P0001"); });
     const bookings = vi.fn()
       .mockResolvedValueOnce([booking])
-      .mockResolvedValueOnce(code === "CONFLICT" ? [{ ...booking, status: "confirmed" as const }] : [booking]);
+      .mockResolvedValueOnce(code === "CONFLICT" ? [{
+        ...booking,
+        status: "confirmed" as const,
+        tripStartAt: "2000-01-01T00:00:00.000Z",
+      }] : [booking]);
     render(<RuntimeFixedTourAccount
       locale="en"
       fixedTour={port({ bookings })}
@@ -320,9 +331,40 @@ describe("runtime fixed-tour account", () => {
     }
   });
 
+  it("offers confirmed cancellation with the confirmed status when the trip starts at least 48 hours later", async () => {
+    const confirmedBooking: CustomerBooking = {
+      ...booking,
+      status: "confirmed",
+      paymentStatus: "paid",
+      tripStartAt: "2099-09-07T02:00:00.000Z",
+    };
+    render(<RuntimeFixedTourAccount locale="vi" fixedTour={port({
+      bookings: vi.fn(async () => [confirmedBooking]),
+      payments: vi.fn(async () => []),
+    })} bookingCancellations={cancellationPort()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Hủy đơn" }));
+    expect(screen.getByRole("dialog", { name: "Hủy đơn đặt tour?" })).toHaveTextContent("Đã xác nhận");
+  });
+
+  it("hides confirmed cancellation when the trip starts in less than 48 hours", async () => {
+    const confirmedBooking: CustomerBooking = {
+      ...booking,
+      status: "confirmed",
+      paymentStatus: "paid",
+      tripStartAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    };
+    render(<RuntimeFixedTourAccount locale="en" fixedTour={port({
+      bookings: vi.fn(async () => [confirmedBooking]),
+      payments: vi.fn(async () => []),
+    })} bookingCancellations={cancellationPort()} />);
+
+    await screen.findByRole("heading", { name: booking.titleEn });
+    expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
+  });
+
   it.each([
     "payment_processing",
-    "confirmed",
     "payment_failed",
     "payment_review",
     "expired",
