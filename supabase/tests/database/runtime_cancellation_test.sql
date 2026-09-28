@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(81);
+SELECT plan(94);
 
 DELETE FROM auth.users
 WHERE id BETWEEN '00000000-0000-0000-0000-000000002601'::uuid
@@ -145,6 +145,56 @@ VALUES
   ('00000000-0000-0000-0000-000000002651', '00000000-0000-0000-0000-000000002641', 'checkout_pending', 100000, 'vnd', 100000, '00000000-0000-0000-0000-000000002611', '00000000-0000-0000-0000-000000002614', 'Active quote', 'Bao gia con han', 'Cancellation fixture', clock_timestamp()),
   ('00000000-0000-0000-0000-000000002652', '00000000-0000-0000-0000-000000002642', 'checkout_pending', 100000, 'vnd', 100000, '00000000-0000-0000-0000-000000002611', '00000000-0000-0000-0000-000000002614', 'Expired quote', 'Bao gia het han', 'Cancellation fixture', clock_timestamp() - interval '3 days');
 
+
+-- Confirmed personalized bookings on either side of the 48-hour boundary.
+INSERT INTO public.trip_plans (id, owner_user_id, latest_revision_no)
+SELECT ('00000000-0000-0000-0000-00000000262' || n)::uuid,
+  '00000000-0000-0000-0000-000000002601'::uuid, 1
+FROM generate_series(3, 4) AS n;
+INSERT INTO public.trip_plan_revisions (
+  id, plan_id, revision_no, base_revision_no, request_json, result_json,
+  fingerprint, ranking_source, catalog_snapshot_id, travel_snapshot_id,
+  currency, budget_vnd, total_cost_vnd, total_duration_minutes, actor_user_id
+)
+SELECT ('00000000-0000-0000-0000-00000000263' || n)::uuid,
+  ('00000000-0000-0000-0000-00000000262' || n)::uuid, 1, 0, '{"partySize":1}', '{}',
+  repeat(n::text, 64), 'deterministic',
+  '00000000-0000-0000-0000-000000002611'::uuid, '00000000-0000-0000-0000-000000002614'::uuid,
+  'VND', 100000, 100000, 60, '00000000-0000-0000-0000-000000002601'::uuid
+FROM generate_series(3, 4) AS n;
+INSERT INTO public.trip_plan_items (
+  revision_id, position, catalog_snapshot_id, place_id, start_at, end_at,
+  visit_duration_minutes, travel_minutes_before, transition_buffer_minutes_before,
+  travel_cost_vnd_before, place_cost_vnd, score
+)
+SELECT ('00000000-0000-0000-0000-00000000263' || n)::uuid, 1,
+  '00000000-0000-0000-0000-000000002611'::uuid, '00000000-0000-0000-0000-000000002613'::uuid,
+  statement_timestamp() + CASE WHEN n = 3 THEN interval '49 hours' ELSE interval '47 hours' END,
+  statement_timestamp() + CASE WHEN n = 3 THEN interval '50 hours' ELSE interval '48 hours' END,
+  60, 0, 0, 0, 0, 1
+FROM generate_series(3, 4) AS n;
+INSERT INTO public.custom_requests (id, plan_id, revision_id, revision_no, owner_user_id, status)
+SELECT ('00000000-0000-0000-0000-00000000264' || n)::uuid,
+  ('00000000-0000-0000-0000-00000000262' || n)::uuid,
+  ('00000000-0000-0000-0000-00000000263' || n)::uuid, 1,
+  '00000000-0000-0000-0000-000000002601'::uuid, 'draft'
+FROM generate_series(3, 4) AS n;
+SELECT set_config('localens.request_transition', 'on', true);
+UPDATE public.custom_requests SET status = 'pending_review'
+WHERE id IN ('00000000-0000-0000-0000-000000002643', '00000000-0000-0000-0000-000000002644');
+UPDATE public.custom_requests SET status = 'approved'
+WHERE id IN ('00000000-0000-0000-0000-000000002643', '00000000-0000-0000-0000-000000002644');
+SELECT set_config('localens.request_transition', 'off', true);
+INSERT INTO public.custom_quotes (
+  id, request_id, status, amount_vnd_minor, checkout_currency, checkout_amount_minor,
+  catalog_snapshot_id, travel_snapshot_id, title_en, title_vi, policy, created_at
+)
+SELECT ('00000000-0000-0000-0000-00000000265' || n)::uuid,
+  ('00000000-0000-0000-0000-00000000264' || n)::uuid, 'accepted', 100000, 'vnd', 100000,
+  '00000000-0000-0000-0000-000000002611'::uuid, '00000000-0000-0000-0000-000000002614'::uuid,
+  'Paid quote', 'Bao gia da thanh toan', 'Cancellation fixture', statement_timestamp()
+FROM generate_series(3, 4) AS n;
+
 CREATE TEMP TABLE cancellation_fixtures (
   label text PRIMARY KEY,
   booking_id uuid NOT NULL,
@@ -178,6 +228,21 @@ VALUES
   ('legacy-rejected', '00000000-0000-0000-0000-000000002716', '00000000-0000-0000-0000-000000002816', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002617', 'pending_payment', 'created', NULL, 'active'),
   ('qa-unregistered', '00000000-0000-0000-0000-000000002717', '00000000-0000-0000-0000-000000002817', '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002618', 'pending_payment', 'created', NULL, 'active');
 
+INSERT INTO cancellation_fixtures (label, booking_id, attempt_id, owner_user_id, source_kind, source_id, booking_status, attempt_status, provider_session_id)
+VALUES
+  ('quote-confirmed-paid', '00000000-0000-0000-0000-000000002719', '00000000-0000-0000-0000-000000002819', '00000000-0000-0000-0000-000000002601', 'quote', '00000000-0000-0000-0000-000000002653', 'confirmed', 'session_recorded', 'cs_quote_paid'),
+  ('quote-confirmed-near', '00000000-0000-0000-0000-000000002720', '00000000-0000-0000-0000-000000002820', '00000000-0000-0000-0000-000000002601', 'quote', '00000000-0000-0000-0000-000000002654', 'confirmed', 'session_recorded', 'cs_quote_near');
+
+SET LOCAL ROLE localens_tour_rpc_owner;
+INSERT INTO public.departures (id, tour_version_id, start_at, end_at, status, capacity)
+VALUES ('00000000-0000-0000-0000-000000002619', '00000000-0000-0000-0000-000000002616',
+  statement_timestamp() + interval '47 hours', statement_timestamp() + interval '49 hours', 'scheduled', 10);
+RESET ROLE;
+INSERT INTO cancellation_fixtures (label, booking_id, attempt_id, owner_user_id, source_kind, source_id, booking_status, attempt_status, provider_session_id, hold_status)
+VALUES ('dep-confirmed-near', '00000000-0000-0000-0000-000000002721', '00000000-0000-0000-0000-000000002821',
+  '00000000-0000-0000-0000-000000002601', 'departure', '00000000-0000-0000-0000-000000002619',
+  'confirmed', 'session_recorded', 'cs_dep_near', 'consumed');
+
 INSERT INTO public.bookings (
   id, owner_user_id, source_kind, source_id, departure_id, quote_id, status,
   tour_version_id, title_en, title_vi, cancellation_policy, catalog_snapshot_id,
@@ -195,7 +260,9 @@ SELECT
   CASE WHEN source_kind = 'departure' THEN 125000 END,
   CASE WHEN source_kind = 'departure' THEN 125000 ELSE 100000 END,
   'vnd', CASE WHEN source_kind = 'departure' THEN 125000 ELSE 100000 END,
-  1, 'en', 'Runtime gate', statement_timestamp(), statement_timestamp() + interval '15 minutes'
+  1, 'en', 'Runtime gate',
+  CASE WHEN label = 'quote-expired' THEN statement_timestamp() - interval '3 days' ELSE statement_timestamp() END,
+  statement_timestamp() + interval '15 minutes'
 FROM cancellation_fixtures;
 
 INSERT INTO private.checkout_attempts (
@@ -252,9 +319,10 @@ INSERT INTO public.payments (
   provider_payment_intent_id, provider_account_id, provider_endpoint_id,
   mode, amount_minor, currency, status
 )
-SELECT booking_id, attempt_id, owner_user_id, provider_session_id, 'pi_confirmed_paid',
-  'acct_localens_test', 'we_localens_test', 'payment', 125000, 'vnd', 'paid'
-FROM cancellation_fixtures WHERE label = 'dep-confirmed-paid';
+SELECT booking_id, attempt_id, owner_user_id, provider_session_id, 'pi_' || label,
+  'acct_localens_test', 'we_localens_test', 'payment',
+  CASE WHEN source_kind = 'departure' THEN 125000 ELSE 100000 END, 'vnd', 'paid'
+FROM cancellation_fixtures WHERE label IN ('dep-confirmed-paid', 'quote-confirmed-paid', 'quote-confirmed-near', 'dep-confirmed-near');
 
 INSERT INTO private.thesis_demo_qa_slots (
   slot_id, dataset_version, terminal_flow, owner_user_id, departure_id,
@@ -425,11 +493,81 @@ SELECT ok(
   'legacy table is an inaccessible private archive'
 );
 
+-- Reproduce an existing 35-minute quote booking without rewriting its facts.
+-- Only this transaction's fixture insert bypasses the new INSERT normalizer.
+ALTER TABLE public.bookings DISABLE TRIGGER booking_payment_deadline_normalizer;
+INSERT INTO public.bookings
+SELECT (jsonb_populate_record(NULL::public.bookings, to_jsonb(b) || jsonb_build_object(
+  'id', '00000000-0000-0000-0000-000000002799',
+  'created_at', statement_timestamp() - interval '40 minutes',
+  'hold_expires_at', statement_timestamp() - interval '5 minutes',
+  'hold_duration_seconds', 2100
+))).*
+FROM public.bookings b WHERE b.id = '00000000-0000-0000-0000-000000002712';
+INSERT INTO public.bookings
+SELECT (jsonb_populate_record(NULL::public.bookings, to_jsonb(b) || jsonb_build_object(
+  'id', '00000000-0000-0000-0000-000000002798',
+  'created_at', statement_timestamp() - interval '30 minutes',
+  'hold_expires_at', statement_timestamp() + interval '5 minutes',
+  'hold_duration_seconds', 2100
+))).*
+FROM public.bookings b WHERE b.id = '00000000-0000-0000-0000-000000002713';
+ALTER TABLE public.bookings ENABLE TRIGGER booking_payment_deadline_normalizer;
+-- Include the real checkout routing facts so rejection reaches deadline checks.
+UPDATE private.checkout_attempts SET status = 'compensated'
+WHERE booking_id IN ('00000000-0000-0000-0000-000000002712', '00000000-0000-0000-0000-000000002713');
+INSERT INTO private.checkout_attempts
+SELECT (jsonb_populate_record(NULL::private.checkout_attempts, to_jsonb(a) || jsonb_build_object(
+  'id', f.attempt_id, 'booking_id', f.booking_id, 'status', 'created',
+  'provider_idempotency_key', 'localens:stripe-checkout:v1:' || f.attempt_id::text
+))).*
+FROM (VALUES
+  ('00000000-0000-0000-0000-000000002799'::uuid, '00000000-0000-0000-0000-000000002899'::uuid, '00000000-0000-0000-0000-000000002712'::uuid),
+  ('00000000-0000-0000-0000-000000002798'::uuid, '00000000-0000-0000-0000-000000002898'::uuid, '00000000-0000-0000-0000-000000002713'::uuid)
+) f(booking_id, attempt_id, original_id)
+JOIN private.checkout_attempts a ON a.booking_id = f.original_id;
+INSERT INTO private.checkout_idempotency
+SELECT (jsonb_populate_record(NULL::private.checkout_idempotency, to_jsonb(i) || jsonb_build_object(
+  'id', f.booking_id, 'booking_id', f.booking_id, 'checkout_attempt_id', f.attempt_id,
+  'idempotency_key', 'legacy-test-' || f.booking_id::text,
+  'provider_idempotency_key', 'localens:stripe-checkout:v1:' || f.attempt_id::text
+))).*
+FROM (VALUES
+  ('00000000-0000-0000-0000-000000002799'::uuid, '00000000-0000-0000-0000-000000002899'::uuid, '00000000-0000-0000-0000-000000002712'::uuid),
+  ('00000000-0000-0000-0000-000000002798'::uuid, '00000000-0000-0000-0000-000000002898'::uuid, '00000000-0000-0000-0000-000000002713'::uuid)
+) f(booking_id, attempt_id, original_id)
+JOIN private.checkout_idempotency i ON i.booking_id = f.original_id;
+
 SELECT set_config('localens.expected_admin_booking_count', (SELECT count(*)::text FROM public.bookings), true);
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '', true);
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002601', 'role', 'authenticated')::text, true);
+SELECT ok((SELECT payment_deadline_at = hold_expires_at AND payment_deadline_at < statement_timestamp()
+  FROM public.customer_bookings_v WHERE id = '00000000-0000-0000-0000-000000002799'),
+  'legacy quote projection uses the earlier stored booking deadline');
+SELECT ok((SELECT payment_deadline_at < hold_expires_at AND payment_deadline_at < statement_timestamp()
+  FROM public.customer_bookings_v WHERE id = '00000000-0000-0000-0000-000000002798'),
+  'legacy quote projection uses quote validity when it expires before the hold');
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002799', NULL, NULL, 'cancel-legacy-hold-expired')$$,
+  'P0001', 'cancellation unavailable', 'legacy expired hold is rejected by the RPC');
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002798', NULL, NULL, 'cancel-legacy-quote-expired')$$,
+  'P0001', 'cancellation unavailable', 'legacy expired quote is rejected even with a future hold');
+SELECT is((SELECT count(*)::integer FROM public.customer_booking_cancellations_v
+  WHERE booking_id IN ('00000000-0000-0000-0000-000000002799', '00000000-0000-0000-0000-000000002798')),
+  0, 'rejected legacy cancellations create no cancellation history');
+RESET ROLE;
+UPDATE private.checkout_attempts SET status = 'compensated'
+WHERE booking_id IN ('00000000-0000-0000-0000-000000002799', '00000000-0000-0000-0000-000000002798');
+-- Restore shared test fixtures only after the real RPC checks above. Production
+-- never reverses this terminal transition; the enclosing test rolls back.
+ALTER TABLE private.checkout_attempts DISABLE TRIGGER checkout_attempt_mutation_guard;
+UPDATE private.checkout_attempts SET status = 'created'
+WHERE booking_id IN ('00000000-0000-0000-0000-000000002712', '00000000-0000-0000-0000-000000002713');
+ALTER TABLE private.checkout_attempts ENABLE TRIGGER checkout_attempt_mutation_guard;
+SET LOCAL ROLE authenticated;
 SELECT is((SELECT count(*)::integer FROM public.admin_booking_management_v), 0, 'customer sees no administrator booking rows');
 
 SELECT throws_ok(
@@ -563,6 +701,43 @@ SELECT throws_ok(
   $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002713', NULL, NULL, 'cancel-quote-expired')$$,
   'P0001', 'cancellation unavailable', 'expired quote cannot be cancelled'
 );
+
+SELECT ok(
+  (SELECT booking_status = 'cancelled' AND state = 'created'
+   FROM public.cancel_booking('00000000-0000-0000-0000-000000002719', NULL, NULL, 'cancel-paid-quote')),
+  'paid confirmed personalized booking uses its approved itinerary start');
+SELECT is(
+  (SELECT state FROM public.cancel_booking('00000000-0000-0000-0000-000000002719', NULL, NULL, 'cancel-paid-quote')),
+  'replayed', 'confirmed cancellation retry returns the existing receipt');
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002720', NULL, NULL, 'cancel-near-quote')$$,
+  'P0001', 'cancellation unavailable', 'paid personalized booking inside 48 hours is rejected');
+SELECT throws_ok(
+  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002721', NULL, NULL, 'cancel-near-fixed')$$,
+  'P0001', 'cancellation unavailable', 'paid fixed booking inside 48 hours is rejected');
+RESET ROLE;
+SELECT ok(
+  (SELECT status = 'confirmed' FROM public.bookings WHERE id='00000000-0000-0000-0000-000000002721')
+  AND NOT EXISTS (SELECT 1 FROM private.booking_cancellations WHERE booking_id='00000000-0000-0000-0000-000000002721'),
+  'rejected fixed cancellation preserves the booking and creates no receipt');
+SELECT results_eq(
+  $$SELECT b.status::text, p.status::text, a.status, q.status::text
+    FROM public.bookings b JOIN public.payments p ON p.booking_id=b.id
+    JOIN private.checkout_attempts a ON a.booking_id=b.id JOIN public.custom_quotes q ON q.id=b.quote_id
+    WHERE b.id='00000000-0000-0000-0000-000000002719'$$,
+  $$VALUES ('cancelled'::text, 'paid'::text, 'session_recorded'::text, 'accepted'::text)$$,
+  'confirmed quote cancellation preserves payment, attempt and accepted quote history');
+SELECT ok(
+  (SELECT b.status='confirmed' AND p.status='paid' FROM public.bookings b
+    JOIN public.payments p ON p.booking_id=b.id WHERE b.id='00000000-0000-0000-0000-000000002720')
+  AND NOT EXISTS (SELECT 1 FROM private.booking_cancellations WHERE booking_id='00000000-0000-0000-0000-000000002720'),
+  'rejected near-departure cancellation leaves booking/payment unchanged and creates no receipt');
+SELECT ok(
+  (SELECT hold_duration_seconds=900 AND hold_expires_at=created_at+interval '15 minutes'
+   FROM public.bookings WHERE id='00000000-0000-0000-0000-000000002702'),
+  'future fixed-booking inserts receive exactly a 15-minute deadline');
+SET LOCAL ROLE authenticated;
+
 SELECT ok(
   (SELECT booking_status = 'cancelled' AND state = 'created' AND source_kind = 'departure'
    FROM public.cancel_booking('00000000-0000-0000-0000-000000002718', NULL, NULL, 'cancel-confirmed-paid')),
@@ -584,9 +759,10 @@ SELECT ok(
   (SELECT payment_status = 'paid' FROM public.complete_simulated_fixed_tour_payment('00000000-0000-0000-0000-000000002705', 'payment-before-cancel')),
   'simulated payment fixture terminalizes before cancellation'
 );
-SELECT throws_ok(
-  $$SELECT * FROM public.cancel_booking('00000000-0000-0000-0000-000000002705', NULL, NULL, 'cancel-after-simulation')$$,
-  'P0001', 'cancellation unavailable', 'simulated receipt blocks cancellation'
+SELECT ok(
+  (SELECT booking_status = 'cancelled' AND state = 'created'
+   FROM public.cancel_booking('00000000-0000-0000-0000-000000002705', NULL, NULL, 'cancel-after-simulation')),
+  'confirmed simulated-paid booking can be cancelled with at least 48 hours remaining'
 );
 SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-000000002602', 'role', 'authenticated')::text, true);
 SELECT throws_ok(

@@ -195,7 +195,7 @@ async function quotaReservationIdempotency({ sessions }) {
   invariant(row.rows[0]?.reservations === 1 && row.rows[0]?.min_used === 1 && row.rows[0]?.max_used === 1, "quota idempotency persisted duplicate usage");
 }
 
-async function createPublishedDepartureFixture(session) {
+async function createPublishedDepartureFixture(session, leadDays = 7) {
   const ids = Object.fromEntries(["catalog", "area", "place", "travel", "tour", "version", "departure"].map((key) => [key, randomUUID()]));
   const slug = `concurrency-${ids.tour.replaceAll("-", "").slice(0, 16)}`;
   await session.query("BEGIN");
@@ -226,7 +226,7 @@ async function createPublishedDepartureFixture(session) {
     await session.query("UPDATE public.tour_versions SET status = 'published', published_at = pg_catalog.clock_timestamp() WHERE id = $1::uuid", [ids.version]);
     await session.query("UPDATE public.tours SET status = 'published' WHERE id = $1::uuid", [ids.tour]);
     await session.query(`INSERT INTO public.departures (id, tour_version_id, start_at, end_at, status, capacity)
-      VALUES ($1::uuid, $2::uuid, pg_catalog.clock_timestamp() + interval '7 days', pg_catalog.clock_timestamp() + interval '7 days 2 hours', 'scheduled', 1)`, [ids.departure, ids.version]);
+      VALUES ($1::uuid, $2::uuid, pg_catalog.clock_timestamp() + $3 * interval '1 day', pg_catalog.clock_timestamp() + $3 * interval '1 day' + interval '2 hours', 'scheduled', 1)`, [ids.departure, ids.version, leadDays]);
     await session.query("RESET ROLE");
     await session.query("COMMIT");
     return ids;
@@ -495,7 +495,9 @@ async function simulatedPaymentTerminalization({ sessions }) {
 
 async function createAutomaticCancellationFixture(session, { sourceKind, customerId, context, label }) {
   const departure = sourceKind === "departure"
-    ? await createPublishedDepartureFixture(session)
+    // Payment-first rejection applies only inside the confirmed 48-hour window.
+    // With seven days remaining, subsequent cancellation is valid under Word.
+    ? await createPublishedDepartureFixture(session, label === "payment-wins" ? 1 : 7)
     : null;
   const snapshots = sourceKind === "quote" && !(context.catalog && context.travel)
     ? await createPublishedDepartureFixture(session)

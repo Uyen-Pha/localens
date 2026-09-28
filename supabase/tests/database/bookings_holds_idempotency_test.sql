@@ -2,7 +2,27 @@
 -- suite is intentionally executable pgTAP and keeps all provider calls local.
 BEGIN;
 
-SELECT plan(109);
+SELECT plan(114);
+
+SELECT ok(NOT EXISTS (
+  SELECT 1 FROM pg_catalog.pg_constraint
+  WHERE conrelid IN ('public.bookings'::regclass, 'private.capacity_holds'::regclass)
+    AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%00:35:00%'
+), 'legacy 35-minute CHECKs are removed by their actual catalog identities');
+SELECT results_eq(
+  $$SELECT attname::text COLLATE "C" FROM pg_catalog.pg_attribute
+    WHERE attrelid = 'public.customer_bookings_v'::regclass AND attnum >= 21 AND NOT attisdropped
+    ORDER BY attnum$$,
+  $$VALUES ('hold_expires_at'::text COLLATE "C"), ('created_at'::text COLLATE "C"), ('payment_status'::text COLLATE "C"), ('payment_deadline_at'::text COLLATE "C"), ('trip_start_at'::text COLLATE "C")$$,
+  'original view column positions survive and cancellation columns are appended');
+SELECT ok(
+  has_column_privilege('localens_booking_projection_owner', 'public.bookings', 'departure_id', 'SELECT')
+  AND has_column_privilege('localens_booking_projection_owner', 'public.custom_quotes', 'request_id', 'SELECT'),
+  'projection owner can read the two required join keys');
+SELECT ok(NOT has_table_privilege('localens_booking_projection_owner', 'public.custom_quotes', 'SELECT'),
+  'projection quote grant remains column-scoped');
+SELECT lives_ok($$SET LOCAL ROLE localens_booking_projection_owner; SELECT * FROM public.customer_bookings_v LIMIT 0; RESET ROLE;$$,
+  'replacement view is executable by its restricted owner');
 
 RESET ROLE;
 

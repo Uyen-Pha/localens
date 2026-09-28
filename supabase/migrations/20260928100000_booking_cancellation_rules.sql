@@ -5,63 +5,48 @@ BEGIN;
 -- it consumes the quote's already persisted valid_until as the payment
 -- deadline for a personalized booking.
 
--- Existing rows are retained.  Only active checkout rows are normalized to
--- the new source-derived deadlines; terminal historical rows keep their
--- original policy snapshots while the exact 35-minute constraints are
--- removed.
+-- Preserve every existing booking and hold snapshot: no data backfill.
+-- The original expiry CHECKs were unnamed table constraints. Resolve their
+-- actual names from the catalog, matching only the old 35-minute equality.
+DO $constraints$
+DECLARE
+  legacy_check record;
+BEGIN
+  FOR legacy_check IN
+    SELECT constraints.conrelid, constraints.conname
+    FROM pg_catalog.pg_constraint AS constraints
+    WHERE constraints.contype = 'c'
+      AND (
+        (constraints.conrelid = 'public.bookings'::regclass
+          AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(constraints.oid), '[[:space:]()]', '', 'g')
+            = 'CHECKhold_expires_at=created_at+''00:35:00''::interval')
+        OR
+        (constraints.conrelid = 'private.capacity_holds'::regclass
+          AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(constraints.oid), '[[:space:]()]', '', 'g')
+            = 'CHECKexpires_at=created_at+''00:35:00''::interval')
+      )
+  LOOP
+    EXECUTE pg_catalog.format('ALTER TABLE %s DROP CONSTRAINT %I',
+      legacy_check.conrelid::regclass, legacy_check.conname);
+  END LOOP;
+END;
+$constraints$;
+
 ALTER TABLE public.bookings
   DROP CONSTRAINT IF EXISTS bookings_hold_duration_seconds_check,
-  DROP CONSTRAINT IF EXISTS bookings_hold_expires_at_check;
-ALTER TABLE private.capacity_holds
-  DROP CONSTRAINT IF EXISTS capacity_holds_expires_at_check;
-
-UPDATE public.bookings
-SET hold_duration_seconds = 900,
-    hold_expires_at = created_at + interval '15 minutes'
-WHERE source_kind = 'departure'
-  AND status IN (
-    'pending_payment'::public.booking_status,
-    'payment_processing'::public.booking_status,
-    'payment_review'::public.booking_status
-  );
-
-UPDATE public.bookings AS bookings
-SET hold_expires_at = quotes.valid_until,
-    hold_duration_seconds = GREATEST(
-      1,
-      pg_catalog.floor(pg_catalog.extract(epoch FROM quotes.valid_until - bookings.created_at))
-    )::integer
-FROM public.custom_quotes AS quotes
-WHERE bookings.source_kind = 'quote'
-  AND bookings.status IN (
-    'pending_payment'::public.booking_status,
-    'payment_processing'::public.booking_status,
-    'payment_review'::public.booking_status
-  )
-  AND bookings.quote_id = quotes.id
-  AND quotes.valid_until > bookings.created_at;
-
-UPDATE private.capacity_holds AS holds
-SET expires_at = bookings.created_at + interval '15 minutes'
-FROM public.bookings AS bookings
-WHERE holds.booking_id = bookings.id
-  AND bookings.source_kind = 'departure'
-  AND holds.status = 'active'::public.hold_status
-  AND bookings.status IN (
-    'pending_payment'::public.booking_status,
-    'payment_processing'::public.booking_status,
-    'payment_review'::public.booking_status
-  );
-
-ALTER TABLE public.bookings
+  DROP CONSTRAINT IF EXISTS bookings_hold_duration_seconds_positive_check,
+  DROP CONSTRAINT IF EXISTS bookings_hold_expires_after_created_check,
   ADD CONSTRAINT bookings_hold_duration_seconds_positive_check
     CHECK (hold_duration_seconds > 0),
   ADD CONSTRAINT bookings_hold_expires_after_created_check
     CHECK (hold_expires_at > created_at);
 ALTER TABLE private.capacity_holds
+  DROP CONSTRAINT IF EXISTS capacity_holds_expires_after_created_check,
   ADD CONSTRAINT capacity_holds_expires_after_created_check
     CHECK (expires_at > created_at);
 
+GRANT CREATE ON SCHEMA private TO localens_checkout_rpc_owner;
+SET LOCAL ROLE localens_checkout_rpc_owner;
 CREATE OR REPLACE FUNCTION private.normalize_booking_payment_deadline()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -86,7 +71,7 @@ BEGIN
     NEW.hold_expires_at := quote_deadline;
     NEW.hold_duration_seconds := GREATEST(
       1,
-      pg_catalog.floor(pg_catalog.extract(epoch FROM quote_deadline - NEW.created_at))
+      pg_catalog.floor(pg_catalog.date_part('epoch', quote_deadline - NEW.created_at))
     )::integer;
   END IF;
   RETURN NEW;
@@ -96,11 +81,19 @@ ALTER FUNCTION private.normalize_booking_payment_deadline()
   OWNER TO localens_checkout_rpc_owner;
 REVOKE ALL ON FUNCTION private.normalize_booking_payment_deadline()
   FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.normalize_booking_payment_deadline() TO postgres;
+SET LOCAL ROLE postgres;
+REVOKE CREATE ON SCHEMA private FROM localens_checkout_rpc_owner;
 DROP TRIGGER IF EXISTS booking_payment_deadline_normalizer ON public.bookings;
 CREATE TRIGGER booking_payment_deadline_normalizer
   BEFORE INSERT ON public.bookings
   FOR EACH ROW EXECUTE FUNCTION private.normalize_booking_payment_deadline();
+SET LOCAL ROLE localens_checkout_rpc_owner;
+REVOKE EXECUTE ON FUNCTION private.normalize_booking_payment_deadline() FROM postgres;
+SET LOCAL ROLE postgres;
 
+GRANT CREATE ON SCHEMA private TO localens_checkout_rpc_owner;
+SET LOCAL ROLE localens_checkout_rpc_owner;
 CREATE OR REPLACE FUNCTION private.normalize_capacity_hold_deadline()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -130,16 +123,24 @@ ALTER FUNCTION private.normalize_capacity_hold_deadline()
   OWNER TO localens_checkout_rpc_owner;
 REVOKE ALL ON FUNCTION private.normalize_capacity_hold_deadline()
   FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.normalize_capacity_hold_deadline() TO postgres;
+SET LOCAL ROLE postgres;
+REVOKE CREATE ON SCHEMA private FROM localens_checkout_rpc_owner;
 DROP TRIGGER IF EXISTS capacity_hold_deadline_normalizer ON private.capacity_holds;
 CREATE TRIGGER capacity_hold_deadline_normalizer
   BEFORE INSERT ON private.capacity_holds
   FOR EACH ROW EXECUTE FUNCTION private.normalize_capacity_hold_deadline();
+SET LOCAL ROLE localens_checkout_rpc_owner;
+REVOKE EXECUTE ON FUNCTION private.normalize_capacity_hold_deadline() FROM postgres;
+SET LOCAL ROLE postgres;
 
 -- The checkout function is kept on the existing runtime and only changes the
 -- source-derived deadline: fixed departures get 15 minutes, while a quote
 -- booking inherits custom_quotes.valid_until.  The returned value is read
 -- from the inserted booking so the browser cannot receive a stale deadline
 -- from an older checkout implementation.
+GRANT CREATE ON SCHEMA private TO localens_checkout_rpc_owner;
+SET LOCAL ROLE localens_checkout_rpc_owner;
 CREATE OR REPLACE FUNCTION private.start_checkout_tx(
   p_source_kind text,
   p_source_id uuid,
@@ -167,6 +168,7 @@ DECLARE
   idempotency_id uuid := gen_random_uuid();
   new_booking_id uuid := gen_random_uuid();
   new_attempt_id uuid := gen_random_uuid();
+  new_hold_id uuid := pg_catalog.gen_random_uuid();
   idempotency_row private.checkout_idempotency%ROWTYPE;
   booking_row public.bookings%ROWTYPE;
   retry_attempt_row private.checkout_attempts%ROWTYPE;
@@ -201,6 +203,8 @@ DECLARE
   source_fx_id uuid;
   source_fx numeric(20,8);
   checkout_currency_value public.checkout_currency;
+  qa_slot private.thesis_demo_qa_slots%ROWTYPE;
+  qa_departure boolean := false;
 BEGIN
   IF actor_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM private.user_roles WHERE user_id = actor_user_id AND role = 'customer'::public.app_role
@@ -219,6 +223,32 @@ BEGIN
   ), 'sha256'), 'hex');
   IF NOT private.checkout_hash_equal(canonical_hash, p_canonical_request_hash) THEN
     RAISE EXCEPTION 'checkout request hash mismatch' USING ERRCODE = 'P0001';
+  END IF;
+
+  -- A registered thesis-demo departure is a finite test surface. Resolve the
+  -- exact actor/key tuple before the first durable write; unknown tuples fail
+  -- closed instead of consuming a reserved identifier or capacity.
+  IF p_source_kind = 'departure' THEN
+    SELECT EXISTS (
+      SELECT 1
+      FROM private.thesis_demo_qa_slots AS registered
+      WHERE registered.departure_id = p_source_id
+    ) INTO qa_departure;
+    IF qa_departure THEN
+      SELECT *
+      INTO qa_slot
+      FROM private.thesis_demo_qa_slots AS registered
+      WHERE registered.owner_user_id = actor_user_id
+        AND registered.departure_id = p_source_id
+        AND registered.booking_idempotency_key = p_idempotency_key;
+      IF NOT FOUND OR p_party_size > qa_slot.max_party_size THEN
+        RAISE EXCEPTION 'THESIS_DEMO_QA_SLOT_MISMATCH' USING ERRCODE = '22023';
+      END IF;
+      idempotency_id := qa_slot.checkout_idempotency_id;
+      new_booking_id := qa_slot.booking_id;
+      new_attempt_id := qa_slot.checkout_attempt_id;
+      new_hold_id := qa_slot.capacity_hold_id;
+    END IF;
   END IF;
 
   INSERT INTO private.checkout_idempotency (
@@ -382,7 +412,7 @@ BEGIN
   END IF;
   hold_duration := GREATEST(
     1,
-    pg_catalog.floor(pg_catalog.extract(epoch FROM hold_end - created_time))
+    pg_catalog.floor(pg_catalog.date_part('epoch', hold_end - created_time))
   )::integer;
 
   INSERT INTO public.bookings (
@@ -411,8 +441,8 @@ BEGIN
     new_attempt_id, new_booking_id, actor_user_id, p_source_kind, source_departure_id, source_quote_id,
     'localens:stripe-checkout:v1:' || new_attempt_id::text, created_time, created_time
   );
-  INSERT INTO private.capacity_holds (booking_id, departure_id, party_size, status, expires_at, created_at)
-  SELECT new_booking_id, departure_row.id, derived_party_size, 'active'::public.hold_status, hold_end, created_time
+  INSERT INTO private.capacity_holds (id, booking_id, departure_id, party_size, status, expires_at, created_at)
+  SELECT new_hold_id, new_booking_id, departure_row.id, derived_party_size, 'active'::public.hold_status, hold_end, created_time
   WHERE p_source_kind = 'departure';
 
   PERFORM private.record_checkout_audit_event(
@@ -436,38 +466,48 @@ $function$;
 ALTER FUNCTION private.start_checkout_tx(text, uuid, integer, public.locale, text, text)
   OWNER TO localens_checkout_rpc_owner;
 REVOKE ALL ON FUNCTION private.start_checkout_tx(text, uuid, integer, public.locale, text, text)
-  FROM PUBLIC, anon, authenticated;
+  FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION private.start_checkout_tx(text, uuid, integer, public.locale, text, text)
   TO localens_checkout_rpc_owner;
+SET LOCAL ROLE postgres;
+REVOKE CREATE ON SCHEMA private FROM localens_checkout_rpc_owner;
 
 -- The projection owner may read only the immutable source facts needed to
 -- render cancellation eligibility.  The view still filters bookings by the
 -- authenticated customer subject; these policies do not grant browser roles
 -- direct base-table access.
 GRANT USAGE ON SCHEMA private TO localens_booking_projection_owner;
+DROP POLICY IF EXISTS departures_booking_projection_select ON public.departures;
 CREATE POLICY departures_booking_projection_select
   ON public.departures FOR SELECT TO localens_booking_projection_owner
   USING (true);
+DROP POLICY IF EXISTS custom_quotes_booking_projection_select ON public.custom_quotes;
 CREATE POLICY custom_quotes_booking_projection_select
   ON public.custom_quotes FOR SELECT TO localens_booking_projection_owner
   USING (true);
+DROP POLICY IF EXISTS custom_requests_booking_projection_select ON public.custom_requests;
 CREATE POLICY custom_requests_booking_projection_select
   ON public.custom_requests FOR SELECT TO localens_booking_projection_owner
   USING (true);
+DROP POLICY IF EXISTS trip_plan_revisions_booking_projection_select ON public.trip_plan_revisions;
 CREATE POLICY trip_plan_revisions_booking_projection_select
   ON public.trip_plan_revisions FOR SELECT TO localens_booking_projection_owner
   USING (true);
+DROP POLICY IF EXISTS trip_plan_items_booking_projection_select ON public.trip_plan_items;
 CREATE POLICY trip_plan_items_booking_projection_select
   ON public.trip_plan_items FOR SELECT TO localens_booking_projection_owner
   USING (true);
+DROP POLICY IF EXISTS payments_booking_projection_select ON public.payments;
 CREATE POLICY payments_booking_projection_select
   ON public.payments FOR SELECT TO localens_booking_projection_owner
   USING (true);
+DROP POLICY IF EXISTS simulated_receipts_booking_projection_select ON private.simulated_payment_receipts;
 CREATE POLICY simulated_receipts_booking_projection_select
   ON private.simulated_payment_receipts FOR SELECT TO localens_booking_projection_owner
   USING (true);
 GRANT SELECT (id, start_at) ON public.departures TO localens_booking_projection_owner;
-GRANT SELECT (id, valid_until) ON public.custom_quotes TO localens_booking_projection_owner;
+GRANT SELECT (departure_id) ON public.bookings TO localens_booking_projection_owner;
+GRANT SELECT (id, request_id, valid_until) ON public.custom_quotes TO localens_booking_projection_owner;
 GRANT SELECT (id, revision_id) ON public.custom_requests TO localens_booking_projection_owner;
 GRANT SELECT (id) ON public.trip_plan_revisions TO localens_booking_projection_owner;
 GRANT SELECT (revision_id, start_at) ON public.trip_plan_items TO localens_booking_projection_owner;
@@ -478,18 +518,23 @@ GRANT SELECT (booking_id, result_payment_status)
 -- Cancellation authority reads the approved personalized itinerary start
 -- from its first normalized itinerary item.  No planner or admin mutation is
 -- introduced here.
+DROP POLICY IF EXISTS custom_requests_cancellation_customer_select ON public.custom_requests;
 CREATE POLICY custom_requests_cancellation_customer_select
   ON public.custom_requests FOR SELECT TO localens_cancellation_customer_rpc_owner
   USING (current_user = 'localens_cancellation_customer_rpc_owner');
+DROP POLICY IF EXISTS trip_plan_revisions_cancellation_customer_select ON public.trip_plan_revisions;
 CREATE POLICY trip_plan_revisions_cancellation_customer_select
   ON public.trip_plan_revisions FOR SELECT TO localens_cancellation_customer_rpc_owner
   USING (current_user = 'localens_cancellation_customer_rpc_owner');
+DROP POLICY IF EXISTS trip_plan_items_cancellation_customer_select ON public.trip_plan_items;
 CREATE POLICY trip_plan_items_cancellation_customer_select
   ON public.trip_plan_items FOR SELECT TO localens_cancellation_customer_rpc_owner
   USING (current_user = 'localens_cancellation_customer_rpc_owner');
 GRANT SELECT ON public.custom_requests, public.trip_plan_revisions, public.trip_plan_items
   TO localens_cancellation_customer_rpc_owner;
 
+GRANT CREATE ON SCHEMA public TO localens_booking_projection_owner;
+SET LOCAL ROLE localens_booking_projection_owner;
 CREATE OR REPLACE VIEW public.customer_bookings_v
 WITH (security_invoker = false, security_barrier = true)
 AS
@@ -514,17 +559,19 @@ SELECT
   bookings.party_size,
   bookings.language,
   bookings.meeting_point,
+  bookings.hold_expires_at,
+  bookings.created_at,
   COALESCE(payments.status, receipts.result_payment_status) AS payment_status,
   CASE
     WHEN bookings.source_kind = 'departure' THEN bookings.hold_expires_at
-    ELSE quotes.valid_until
+    -- Existing quote bookings keep their stored hold deadline; the RPC
+    -- requires both that deadline and quote validity to remain open.
+    ELSE LEAST(bookings.hold_expires_at, quotes.valid_until)
   END AS payment_deadline_at,
   CASE
     WHEN bookings.source_kind = 'departure' THEN departures.start_at
     ELSE itinerary.start_at
-  END AS trip_start_at,
-  bookings.hold_expires_at,
-  bookings.created_at
+  END AS trip_start_at
 FROM public.bookings AS bookings
 LEFT JOIN public.departures AS departures
   ON departures.id = bookings.departure_id
@@ -544,11 +591,15 @@ LEFT JOIN private.simulated_payment_receipts AS receipts
 ALTER VIEW public.customer_bookings_v OWNER TO localens_booking_projection_owner;
 REVOKE ALL ON public.customer_bookings_v FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT ON public.customer_bookings_v TO authenticated;
+SET LOCAL ROLE postgres;
+REVOKE CREATE ON SCHEMA public FROM localens_booking_projection_owner;
 
 -- The existing manual cancellation request/decision functions remain an
 -- unreachable immutable archive: this runtime continues to expose only the
 -- direct cancel_booking RPC below.
 
+GRANT CREATE ON SCHEMA public TO localens_cancellation_customer_rpc_owner;
+SET LOCAL ROLE localens_cancellation_customer_rpc_owner;
 CREATE OR REPLACE FUNCTION public.cancel_booking(
   booking_id uuid,
   reason_code text DEFAULT NULL,
@@ -585,6 +636,8 @@ DECLARE
   source_found boolean := false;
   trip_start_at timestamptz;
   authority_time timestamptz;
+  qa_slot private.thesis_demo_qa_slots%ROWTYPE;
+  new_cancellation_id uuid := pg_catalog.gen_random_uuid();
 BEGIN
   actor_user_id := COALESCE(
     NULLIF(pg_catalog.current_setting('request.jwt.claim.sub', true), ''),
@@ -632,6 +685,38 @@ BEGIN
        )
      ), false) THEN
     RAISE EXCEPTION 'cancellation input rejected' USING ERRCODE = '22023';
+  END IF;
+
+  -- Resolve the booking before touching cancellation authorities. Once a
+  -- departure is registered for thesis QA, unknown bookings on that departure
+  -- cannot fall through to the ordinary random-ID path.
+  SELECT *
+  INTO booking_row
+  FROM public.bookings AS bookings
+  WHERE bookings.id = requested_booking_id;
+  SELECT *
+  INTO qa_slot
+  FROM private.thesis_demo_qa_slots AS registered
+  WHERE registered.booking_id = requested_booking_id;
+  IF qa_slot.slot_id IS NOT NULL
+     OR (
+       booking_row.id IS NOT NULL
+       AND EXISTS (
+         SELECT 1
+         FROM private.thesis_demo_qa_slots AS registered
+         WHERE registered.departure_id = booking_row.departure_id
+       )
+     ) THEN
+    IF qa_slot.slot_id IS NULL
+       OR booking_row.id IS NULL
+       OR qa_slot.departure_id IS DISTINCT FROM booking_row.departure_id
+       OR qa_slot.owner_user_id IS DISTINCT FROM actor_user_id
+       OR booking_row.owner_user_id IS DISTINCT FROM actor_user_id
+       OR qa_slot.terminal_flow IS DISTINCT FROM 'cancellation'
+       OR qa_slot.cancellation_idempotency_key IS DISTINCT FROM requested_idempotency_key THEN
+      RAISE EXCEPTION 'THESIS_DEMO_QA_SLOT_MISMATCH' USING ERRCODE = '22023';
+    END IF;
+    new_cancellation_id := qa_slot.cancellation_id;
   END IF;
 
   -- Keep the established idempotency/ownership lock order.  Every
@@ -847,6 +932,7 @@ BEGIN
   END IF;
 
   INSERT INTO private.booking_cancellations (
+    id,
     booking_id,
     customer_user_id,
     source_kind,
@@ -855,6 +941,7 @@ BEGIN
     request_idempotency_key,
     cancelled_at
   ) VALUES (
+    new_cancellation_id,
     booking_row.id,
     actor_user_id,
     booking_row.source_kind,
@@ -885,5 +972,7 @@ REVOKE ALL ON FUNCTION public.cancel_booking(uuid, text, text, text)
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.cancel_booking(uuid, text, text, text)
   TO authenticated;
+SET LOCAL ROLE postgres;
+REVOKE CREATE ON SCHEMA public FROM localens_cancellation_customer_rpc_owner;
 
 COMMIT;
