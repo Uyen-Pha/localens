@@ -1,6 +1,7 @@
 -- Requires the research baseline through 20260924180000. That baseline is
 -- currently fixture-only on this branch: this is NOT a fresh-release-ready migration.
 -- Apply in one transaction. No legacy rows, quote rules or approval rules are rewritten.
+BEGIN;
 DO $$ BEGIN
  IF to_regclass('private.research_demo_bookings') IS NULL
     OR to_regprocedure('public.research_demo_checkout(uuid,jsonb)') IS NULL THEN
@@ -67,7 +68,7 @@ REVOKE ALL ON FUNCTION private.research_demo_cancellation_allowed(text,text,time
  private.research_demo_booking_payload(private.research_demo_bookings) FROM PUBLIC,anon,authenticated,service_role;
 
 CREATE OR REPLACE FUNCTION public.research_demo_cancel_booking(p_booking uuid,p_idempotency_key text)
- RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' SET lock_timeout='5s' SET statement_timeout='10s' AS $$
+ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' SET lock_timeout='5s' SET statement_timeout='5s' AS $$
 DECLARE actor uuid:=private.research_demo_actor(false); b private.research_demo_bookings;
  request_id uuid; prior_booking uuid; instant timestamptz;
 BEGIN
@@ -100,9 +101,9 @@ END $$;
 REVOKE ALL ON FUNCTION public.research_demo_cancel_booking(uuid,text) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.research_demo_cancel_booking(uuid,text) TO authenticated;
 
--- Original baseline definitions, with only four RETURN projections replaced.
+-- Original baseline definitions, with four RETURN projections and explicit timeouts.
 -- Request/booking locking and all payment validation/expiry behavior stay intact.
-CREATE OR REPLACE FUNCTION public.research_demo_booking(p_quote uuid,p_create boolean DEFAULT false) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+CREATE OR REPLACE FUNCTION public.research_demo_booking(p_quote uuid,p_create boolean DEFAULT false) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' SET lock_timeout='5s' SET statement_timeout='5s' AS $$
 DECLARE actor uuid:=private.research_demo_actor(false);q private.research_demo_quotes;r private.research_demo_requests;v private.research_demo_revisions;b private.research_demo_bookings;
 BEGIN
  SELECT * INTO q FROM private.research_demo_quotes WHERE id=p_quote;
@@ -121,7 +122,7 @@ BEGIN
  INSERT INTO private.research_demo_request_events(request_id,actor_id,status,note) VALUES(r.id,actor,'booking_pending',b.id::text);
  RETURN private.research_demo_booking_payload(b);
 END $$;
-CREATE OR REPLACE FUNCTION public.research_demo_checkout(p_quote uuid,p_details jsonb) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+CREATE OR REPLACE FUNCTION public.research_demo_checkout(p_quote uuid,p_details jsonb) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' SET lock_timeout='5s' SET statement_timeout='5s' AS $$
 DECLARE actor uuid:=private.research_demo_actor(false);b private.research_demo_bookings;r private.research_demo_requests;v private.research_demo_revisions;
 BEGIN
  PERFORM public.research_demo_booking(p_quote,false);
@@ -143,3 +144,4 @@ END $$;
 REVOKE ALL ON FUNCTION public.research_demo_booking(uuid,boolean),public.research_demo_checkout(uuid,jsonb) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.research_demo_booking(uuid,boolean),public.research_demo_checkout(uuid,jsonb) TO authenticated;
 NOTIFY pgrst,'reload schema';
+COMMIT;

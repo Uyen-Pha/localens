@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+import { lexSql, splitStatements } from './check-supabase-artifacts.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURES = path.join(ROOT, 'supabase/tests/fixtures/research-baseline');
@@ -30,11 +31,42 @@ export function parseArgs(args) {
   let mode = 'inventory';
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--workdir' && workdir === undefined) workdir = args[++i];
-    else if (['--prepare', '--apply', '--verify', '--test', '--upgrade'].includes(args[i]) && mode === 'inventory') mode = args[i].slice(2);
+    else if (['--prepare', '--apply', '--verify', '--test', '--upgrade', '--atomicity-test'].includes(args[i]) && mode === 'inventory') mode = args[i].slice(2);
     else fail('ARGUMENT_REJECTED');
   }
   if (!workdir || !path.isAbsolute(workdir) || /^[\\/]{2}|^[a-z]+:\/\//i.test(workdir) || /[\r\n\0]/.test(workdir)) fail('LOCAL_DIRECTORY_REQUIRED');
   return { workdir: path.resolve(workdir), mode };
+}
+
+// Keep raw statements byte-for-byte; the shared lexer understands dollar bodies,
+// escaped strings, quoted identifiers and nested comments.
+function migrationStatements(sql) {
+  const { tokens, errors } = lexSql(sql);
+  if (errors.length) fail('MIGRATION_WRAPPER_REJECTED');
+  const statements = [];
+  let start = 0;
+  for (const token of tokens) {
+    if (token.type === 'code' && token.text === ';') {
+      const raw = sql.slice(start, token.end);
+      if (splitStatements(lexSql(raw).tokens).length) statements.push(raw);
+      start = token.end;
+    }
+  }
+  if (tokens.some((token) => token.start >= start && token.type !== 'comment' && token.text.trim())) fail('MIGRATION_WRAPPER_REJECTED');
+  return statements;
+}
+
+export function extractMigrationTransaction(sql) {
+  const statements = migrationStatements(sql);
+  const withoutComments = (statement) => lexSql(statement).tokens.map((token) => token.type === 'comment' ? ' ' : token.text).join('').trim();
+  if (statements.length < 3 || !/^BEGIN\s*;$/i.test(withoutComments(statements[0])) ||
+      !/^COMMIT\s*;$/i.test(withoutComments(statements.at(-1)))) fail('MIGRATION_WRAPPER_REJECTED');
+  const body = statements.slice(1, -1);
+  for (const raw of body) {
+    const [statement] = splitStatements(lexSql(raw).tokens);
+    if (/^(?:BEGIN|START|COMMIT|END|ABORT|ROLLBACK|SAVEPOINT|RELEASE)\b|^PREPARE\s+TRANSACTION\b|^SET\s+(?:(?:LOCAL|SESSION)\s+)?TRANSACTION\b|^SET\s+SESSION\s+CHARACTERISTICS\b/i.test(statement)) fail('MIGRATION_TRANSACTION_CONTROL_REJECTED');
+  }
+  return body;
 }
 
 export function loadInventory(directory = FIXTURES) {
@@ -201,7 +233,7 @@ export async function runResearchTap(client) {
   }
 }
 
-async function upgrade(client, target) {
+async function upgrade(client, target, comparisonProbe) {
   const evidence = JSON.parse(readFileSync(path.join(target.workdir, 'baseline-evidence.json'), 'utf8'));
   if (evidence.target.projectId !== target.projectId || evidence.target.workdir !== target.workdir || evidence.results.length !== 3) fail('BASELINE_EVIDENCE_MISMATCH');
   await checkRpcs(client);
@@ -219,8 +251,10 @@ async function upgrade(client, target) {
     const definitions = async () => (await client.query('SELECT signature,pg_get_functiondef(to_regprocedure(signature)) AS definition FROM unnest($1::text[]) signature ORDER BY signature', [protectedSignatures])).rows;
     const originalDefinitions = await definitions();
     const sql = readFileSync(path.join(ROOT, 'supabase/migrations/20260928230000_research_booking_cancellation.sql'), 'utf8');
+    const body = extractMigrationTransaction(sql).join('');
     for (let pass = 1; pass <= 2; pass++) {
-      await client.query(sql);
+      await client.query(body);
+      if (comparisonProbe) await comparisonProbe(client);
       assertSnapshotEqual(before, await snapshot(client));
       if (!isDeepStrictEqual(originalDefinitions, await definitions())) fail('UNRELATED_RPC_CHANGED');
       console.log(`Upgrade pass ${pass}: all business rows and unrelated RPC definitions unchanged`);
@@ -231,6 +265,63 @@ async function upgrade(client, target) {
     await client.query('ROLLBACK');
     throw error;
   }
+}
+
+// Main-only opt-in evidence. No fixture rows are inserted, edited or deleted.
+async function atomicityTest(client, target) {
+  await checkRpcs(client);
+  const sql = readFileSync(path.join(ROOT, 'supabase/migrations/20260928230000_research_booking_cancellation.sql'), 'utf8');
+  extractMigrationTransaction(sql);
+  const catalog = async () => (await client.query(`
+    SELECT 'proc' AS kind, p.oid::text AS id, to_jsonb(p) AS data FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('private','public')
+    UNION ALL SELECT 'class',c.oid::text,to_jsonb(c) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('private','public')
+    UNION ALL SELECT 'constraint',c.oid::text,to_jsonb(c) FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname IN ('private','public')
+    UNION ALL SELECT 'trigger',t.oid::text,to_jsonb(t) FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('private','public')
+    ORDER BY kind,id`)).rows;
+  const before = await snapshot(client);
+  const definitions = await catalog();
+  const sentinel = `research_atomicity_${randomUUID().replaceAll('-', '')}`;
+  const assertRestored = async () => {
+    assertSnapshotEqual(before, await snapshot(client));
+    assertSnapshotEqual(definitions, await catalog());
+    if ((await client.query('SELECT to_regclass($1) AS relation', [`private.${sentinel}`])).rows[0].relation !== null) fail('ATOMICITY_SENTINEL_SURVIVED');
+  };
+  // Send separately, as a standalone migration runner would. A missing BEGIN
+  // must not be hidden by PostgreSQL's implicit multi-command transaction.
+  let lateFailure = false;
+  try {
+    const statements = migrationStatements(sql);
+    for (let i = 0; i < statements.length; i++) {
+      if (i === statements.length - 1) {
+        await client.query(`CREATE TABLE private.${sentinel}(id integer)`);
+        await client.query(`ALTER TABLE private.${sentinel} ADD COLUMN id integer`);
+      }
+      await client.query(statements[i]);
+    }
+  } catch (error) {
+    if (error.code !== '42701') throw error;
+    lateFailure = true;
+  } finally {
+    await client.query('ROLLBACK');
+  }
+  if (!lateFailure) fail('ATOMICITY_FAILURE_NOT_OBSERVED');
+  await assertRestored();
+  console.log('PASS standalone late DDL failure: catalog, business rows and sentinel rolled back');
+  let comparisonFailure = false;
+  try {
+    await upgrade(client, target, async (connection) => {
+      await connection.query(`CREATE TABLE private.${sentinel}(id integer)`);
+      // Exercise the real post-upgrade comparator without mutating legacy data.
+      assertSnapshotEqual(before, { ...await snapshot(connection), atomicityProbe: true });
+    });
+  } catch (error) {
+    if (error.message !== 'UPGRADE_DATA_CHANGED') throw error;
+    comparisonFailure = true;
+  }
+  if (!comparisonFailure) fail('ATOMICITY_FAILURE_NOT_OBSERVED');
+  await assertRestored();
+  console.log('PASS failed post-upgrade comparison: catalog, business rows and sentinel rolled back');
+  return { status: 'atomicity 2/2 passed; no business data changed', migrationSha256: sha(sql) };
 }
 
 // Shared by the opt-in upgrade/TAP and two-session harness; no alternate safety path.
@@ -263,6 +354,7 @@ export async function openLocalClient(workdir) {
 async function execute(target, mode, inventory) {
   const client = await openLocalClient(target.workdir);
   try {
+    if (mode === 'atomicity-test') return await atomicityTest(client, target);
     if (mode === 'upgrade') return await upgrade(client, target);
     if (mode === 'test') {
       await checkRpcs(client);

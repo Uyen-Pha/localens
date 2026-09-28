@@ -175,7 +175,7 @@ SELECT ok(NOT has_function_privilege(r,'private.research_demo_cancellation_allow
 SELECT ok(NOT has_function_privilege(r,'public.research_demo_cancel_booking(uuid,text)','EXECUTE'),r||' cannot call cancellation') FROM unnest(ARRAY['anon','service_role']) r;
 SELECT ok(has_function_privilege('authenticated','public.research_demo_cancel_booking(uuid,text)','EXECUTE'),'authenticated can call cancellation');
 SELECT ok(p.prosecdef AND 'search_path=""'=ANY(p.proconfig),'cancellation definer has empty search path') FROM pg_proc p WHERE p.oid='public.research_demo_cancel_booking(uuid,text)'::regprocedure;
-SELECT ok('lock_timeout=5s'=ANY(p.proconfig) AND 'statement_timeout=10s'=ANY(p.proconfig),'cancellation has bounded timeouts') FROM pg_proc p WHERE p.oid='public.research_demo_cancel_booking(uuid,text)'::regprocedure;
+SELECT ok('lock_timeout=5s'=ANY(p.proconfig) AND 'statement_timeout=5s'=ANY(p.proconfig),p.oid::regprocedure::text||' has bounded 5s timeouts') FROM pg_proc p WHERE p.oid IN ('public.research_demo_cancel_booking(uuid,text)'::regprocedure,'public.research_demo_booking(uuid,boolean)'::regprocedure,'public.research_demo_checkout(uuid,jsonb)'::regprocedure);
 SELECT is(pg_temp.research_call((b->>'owner_id')::uuid,sql)->>'sqlstate','42501','browser direct history write blocked')
  FROM cancellation_cases CROSS JOIN (VALUES
  ('INSERT INTO private.research_demo_booking_cancellations SELECT * FROM private.research_demo_booking_cancellations RETURNING to_jsonb(booking_id)'),
