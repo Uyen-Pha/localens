@@ -1,3 +1,13 @@
+# Compact tour catalog — 2026-09-28
+
+final result: passed
+
+Target: C:/Users/Admin/AppData/Local/Temp/codex-clipboard-5ec65917-edd3-4eb5-b42a-bbc7fcf9244c.png (950x829). Implementation: C:/Users/Admin/Documents/Project/output/recovery-audit-20260928/tour-compact-desktop.png (cropped content at 1280x1100 CSS viewport, 1232x920 capture). Compared both images together; source is a scaled/cropped content reference, so no pixel-exact claim. Local demo lacks departures and intentionally retains the availability note; Preview uses existing runtime availability.
+
+Initial comparison found oversized card text and body spacing (P2). Reduced text and spacing; final recapture compared with source: three compact columns, same six existing photo assets, green filter panel, title/summary/price hierarchy, no inline itinerary or extra departure button. Original font and palette retained; all key text readable in full-view comparison, no separate crop required. Image focal points have minor source-crop differences (P3). No actionable P0/P1/P2 mismatch remains.
+
+Interaction: keyword search updates results; clear filter restores catalog; component tests cover both image/title links choosing the earliest eligible departure and unavailable-tour fallback. Mobile 390x844: document width 375, no horizontal overflow; controls retain 44px touch targets. Browser error log empty. No backend, database or booking mutation changes.
+
 # Guide UI visual QA — 2026-09-28
 
 Scope: presentation only in the existing RuntimeGuidePortal and GuideSchedule. Restored the original missing guide-bay-banner.webp. No runtime ports, RPCs, schema, assignments or profile persistence changed.

@@ -114,8 +114,8 @@ const copy: Record<Locale, FixedTourRuntimeCopy> = {
   },
   vi: {
     catalogEyebrow: "Khám phá cùng LocalLens",
-    catalogHeading: "Tour cố định tại Thành phố Hồ Chí Minh",
-    catalogIntro: "Xem các tour song ngữ đã xuất bản và số chỗ hiện tại của từng chuyến.",
+    catalogHeading: "Tour cố định tại TP.HCM",
+    catalogIntro: "Chọn tour và lịch khởi hành phù hợp với bạn.",
     runtimeDisclosure: "Chế độ trải nghiệm: bạn có thể thử đặt chỗ và thanh toán. Không phát sinh đặt chỗ hoặc thu tiền thật.",
     loading: "Đang tải dữ liệu tour cố định…",
     emptyCatalog: "Hiện chưa có tour cố định đã xuất bản.",

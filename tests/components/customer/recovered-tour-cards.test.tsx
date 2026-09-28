@@ -40,27 +40,18 @@ it('applies the restored budget choice to the visible catalog',async()=>{
   expect(screen.getAllByRole('article')).toHaveLength(2);
   expect(screen.queryByRole('heading',{name:'Sài Gòn đời thường: Cà phê vợt và Tân Định'})).not.toBeInTheDocument();
 });
-it('shows six unique cards with accessible itinerary details even without departures',async()=>{
+it('shows six compact cards with image and title navigation even without departures',async()=>{
   mount();
   await screen.findByRole('heading',{name:'Tour đã xuất bản 1'});
   const cards=screen.getAllByRole('article');
   expect(cards).toHaveLength(6);
   expect(new Set(cards.map(card=>within(card).getByRole('heading').textContent)).size).toBe(6);
   for(const [index,card] of cards.entries()){
-    const toggle=within(card).getByText('Xem thông tin tour');
-    fireEvent.click(toggle);
-    expect(toggle.closest('details')).toHaveAttribute('open');
+    expect(card.querySelector('details')).toBeNull();
+    expect(within(card).getAllByRole('link')).toHaveLength(2);
     const tour=[...base,...additionalPublishedTours('vi')][index];
     expect(within(card).getAllByRole('link',{name:tour.title})).toHaveLength(2);
     expect(within(card).getAllByRole('link',{name:tour.title})[0].getAttribute('href')?.replace('/?','?')).toBe(`/vi/tours/detail?tour=${tour.slug}`);
-    for(const label of ['Điểm hẹn','Hành trình','Bao gồm','Không bao gồm','Điều kiện hủy']){
-      expect(within(card).getByText(label)).toBeVisible();
-    }
-    expect(within(card).getByText(tour.meetingPoint)).toBeVisible();
-    expect(within(card).getByText(tour.cancellationPolicy)).toBeVisible();
-    for(const text of [...tour.stops.map(stop=>stop.title),...tour.inclusions,...tour.exclusions]){
-      expect(within(card).getAllByText(text).some(node=>node.closest('details'))).toBe(true);
-    }
     expect(within(card).getByText('Chưa có lịch khởi hành')).toBeInTheDocument();
     expect(within(card).queryByRole('link',{name:'Đặt tour'})).not.toBeInTheDocument();
   }
@@ -68,7 +59,7 @@ it('shows six unique cards with accessible itinerary details even without depart
 it('selects the earliest eligible matching departure from an unsorted mixed list',async()=>{
   const valid:LiveDepartureAvailability={id:'later',tourVersionId:'version-0',startAt:'2099-02-01T00:00:00Z',endAt:'2099-02-01T06:00:00Z',status:'scheduled',remainingCapacity:8};
   mount([valid,{...valid,id:'another-tour',tourVersionId:'unrelated',startAt:'2099-01-01T00:00:00Z'},{...valid,id:'cancelled',status:'cancelled',startAt:'2099-01-01T00:00:00Z'},{...valid,id:'earliest',startAt:'2099-01-02T00:00:00Z'}]);
-  const link=await screen.findByRole('link',{name:'Chọn lịch khởi hành'});
+  const [link]=await screen.findAllByRole('link',{name:'Tour đã xuất bản 1'});
   expect(link.getAttribute('href')?.replace('/?','?')).toBe('/vi/booking?departure=earliest&partySize=1');
 });
 it.each(['cancelled','sold-out','past'] as const)('does not expose a booking link for %s departure',async kind=>{
@@ -76,9 +67,9 @@ it.each(['cancelled','sold-out','past'] as const)('does not expose a booking lin
   await screen.findByRole('heading',{name:'Tour đã xuất bản 1'});
   expect(screen.queryAllByRole('link').filter(link=>/\/booking(?:\/|\?)/.test(link.getAttribute('href')??''))).toHaveLength(0);
 });
-it('opens the existing combined detail and booking page directly from title image and CTA',async()=>{
+it('opens the existing combined detail and booking page directly from title and image',async()=>{
   mount([{id:'actual-departure',tourVersionId:'version-0',startAt:'2099-01-01T00:00:00Z',endAt:'2099-01-01T06:00:00Z',status:'scheduled',remainingCapacity:8}]);
-  const href=(await screen.findByRole('link',{name:'Chọn lịch khởi hành'})).getAttribute('href')!;
+  const href=(await screen.findAllByRole('link',{name:'Tour đã xuất bản 1'}))[0].getAttribute('href')!;
   const url=new URL(href,'https://localens.test');
   expect(url.pathname.replace(/\/$/,'')).toBe('/vi/booking');
   expect(url.searchParams.get('departure')).toBe('actual-departure');

@@ -60,7 +60,7 @@ const FIXED_TOUR_ACCEPTANCE_COPY: Record<Locale, FixedTourAcceptanceCopy> = {
   },
   vi: {
     toursNav: "Tour",
-    catalogHeading: "Tour cố định tại Thành phố Hồ Chí Minh",
+    catalogHeading: "Tour cố định tại TP.HCM",
     catalogDisclosure: "Danh mục demo: nút đặt tour chỉ mở luồng thử nghiệm cục bộ. Chưa có đặt tour thực tế hay khoản tiền nào bị trừ.",
     tourTitle: "Chợ địa phương và ẩm thực đường phố",
     guideTourTitle: "Markets and Street Food",

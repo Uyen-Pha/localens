@@ -37,7 +37,7 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
   const visual = locale === "vi" ? {
     eyebrow: "Sài Gòn qua góc nhìn bản địa", image: "Ảnh minh họa", minutes: "phút",
     details: "Điểm hẹn & hành trình", book: "Đặt tour", departures: "Chọn lịch khởi hành",
-    count: "hành trình để khám phá", perPerson: "/ khách", stops: activityTimeline ? "hoạt động" : "điểm dừng",
+    count: "hành trình để khám phá", perPerson: "/ khách", stops: activityTimeline ? "mốc lịch trình" : "điểm dừng",
     comingSoon: "Chưa có lịch khởi hành",
   } : {
     eyebrow: "Saigon through local eyes", image: "Illustrative image", minutes: "min",
@@ -138,17 +138,6 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
                     <TourRating locale={locale} departure={(departure ?? departures[0])?.id}/>
                     <p className="runtime-tour__price">{formatVnd(tour.priceVndMinor, locale)} <span>{visual.perPerson}</span></p>
                     {!departure ? <p className="runtime-tour__availability" role="note">{departures.length ? (vi ? 'Hiện không có lịch khởi hành khả dụng để đặt' : 'No available departure to book') : visual.comingSoon}</p> : null}
-                    <details className="runtime-tour__details">
-                      <summary>{vi ? 'Xem thông tin tour' : 'View tour information'}</summary>
-                      <dl>
-                        <div><dt>{vi ? 'Điểm hẹn' : 'Meeting point'}</dt><dd>{tour.meetingPoint}</dd></div>
-                        <div><dt>{vi ? 'Hành trình' : 'Itinerary'}</dt><dd><ol>{tour.stops.map(stop=><li key={stop.position}>{stop.title}</li>)}</ol></dd></div>
-                        <div><dt>{vi ? 'Bao gồm' : 'Included'}</dt><dd><ul>{tour.inclusions.map((item,i)=><li key={i}>{item}</li>)}</ul></dd></div>
-                        <div><dt>{vi ? 'Không bao gồm' : 'Excluded'}</dt><dd><ul>{tour.exclusions.map((item,i)=><li key={i}>{item}</li>)}</ul></dd></div>
-                        <div><dt>{vi ? 'Điều kiện hủy' : 'Cancellation policy'}</dt><dd>{tour.cancellationPolicy}</dd></div>
-                      </dl>
-                    </details>
-                    <div className="runtime-tour__departures"><Link className="runtime-tour__book" href={detailHref}>{departure ? visual.departures : (vi?'Xem chi tiết':'View details')}</Link></div>
                   </div>
                 </article>
               );

@@ -7,7 +7,8 @@ afterEach(()=>{cleanup();vi.restoreAllMocks();});
 it('catalog exposes daily departures already present in the backend instead of only old base dates',async()=>{
   vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-09-28T00:00:00Z'));
   render(<BookingLocalPreview locale="vi" catalog/>);
-  expect(await screen.findAllByRole('link',{name:'Chọn lịch khởi hành'})).toHaveLength(2);
+  await screen.findByRole('heading',{name:'Dấu ấn Sài Gòn'});
+  expect(screen.getAllByRole('link').filter(link=>/\/booking\/?\?departure=/.test(link.getAttribute('href')??''))).toHaveLength(4);
 });
 it('recognizes an existing additional tour departure across booking and payment presentation',()=>{
   const match=bookingDepartures.find(x=>x.departure.id==='d1800000-0000-4000-8000-000000424013');
