@@ -38,6 +38,12 @@ Base: `5a2fcee`. User requests completion, preserving approved thesis UI and sta
 
 ### Portal acceptance fixes
 
+- Final suite completed: 2,551 / 2,560 passed, nine failed; failures remain confined to artifacts, RLS matrix and cloud-seed audit suites. No test suppression. User explicitly approved website-only release with these database audit exceptions recorded separately; no hosted migration, seed, backfill or permission change is authorized.
+- Approved website source is `c8f4dcb`; this documentation update does not change that application tree. Production rollback target captured before release: `dpl_25gE3NcfK4XCynHevS6U4aP7dK3R`, https://localens-eh0q0kw9t-local-lens2.vercel.app. GitHub main before release: `3ad187ff61e1898cc20049a31ae1ece98761fb32`; stale local main is a clean ancestor and will only fast-forward. Existing recovery branches/worktrees and unrelated local edits are retained.
+
+- Fix source commit `c8f4dcb` deployed successfully to https://localens-n40cl6ld4-local-lens2.vercel.app (deployment `dpl_8LgahB9uXyQszGtksQ5C9HgKhwwL`). Remote build/TypeScript passed, 43 pages generated. Authenticated visual recheck on this new domain still requires login.
+- User approved appending this exact domain to the previous 14 origins. Old digest `4f28be749fc7cec5b63d7b5f2c9853f4593ba41c7a5c9cfd1b3ef351d50b9bb4`; new digest `6f2e783d08b19621a854a05393952a0600540791f429862466bcc60af561dfa5`, verified against computed expected value. New domain, preceding Preview and production preflights return 204 with exact origin; unapproved.example remains 403. No SQL/database/production frontend change.
+
 - RED: three new regressions failed for the observed guide status, departure cancellation boundary, and obsolete payment label. GREEN: five focused files, 22 tests passed (including workspace cancellation and past-date UI visibility).
 - Guide presentation now separates started assignments from upcoming, retaining cancelled/completed authority; no automatic database completion. Added a Started filter so past assignments remain accessible.
 - Prototype cancellation denies start-time equality, past and invalid dates at mutation time and hides cancel actions for ineligible departures. History and booked seats remain unchanged.
