@@ -6,6 +6,8 @@ import { getDictionary } from "@/lib/i18n/dictionaries";
 import type { DemoPortalComposition } from "@/lib/application/portal/composition";
 import type { SupabasePortalShell } from "@/lib/application/portal/supabase-shell";
 import { readPersonalizationRequest } from "@/lib/application/planner/personalization-session";
+import { savePersonalizationRequest } from "@/lib/application/planner/personalization-session";
+import { researchInput, researchReady, revisionId, requestId } from '../../fixtures/research-recovery';
 
 const mocks = vi.hoisted(() => ({
   loadPortalSurfaceComposition: vi.fn(),
@@ -78,6 +80,17 @@ function supabaseComposition(): SupabasePortalShell {
 }
 
 describe("PlannerSurface", () => {
+  it('connects the authenticated research planner to request submission', async () => {
+    savePersonalizationRequest(researchInput);
+    const submit = vi.fn(async () => requestId);
+    mocks.loadPortalSurfaceComposition.mockResolvedValue({ ...supabaseComposition(), researchPlanner: vi.fn(async () => researchReady), researchRequests: { submit }, session: { getSession: async () => ({ role: 'customer', userId: 'customer-a' }) } });
+    render(<PlannerSurface locale="vi" copy={copy} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Tiếp tục yêu cầu đã lưu' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Tôi đồng ý với lịch trình này.' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận & Gửi yêu cầu' }));
+    await screen.findByText('Trạng thái: Chờ duyệt');
+    expect(submit).toHaveBeenCalledExactlyOnceWith(revisionId);
+  });
   it("preserves description and manual values when switching input modes", async () => {
     mocks.loadPortalSurfaceComposition.mockResolvedValue(demoComposition());
     render(<PlannerSurface locale="vi" copy={copy} />);

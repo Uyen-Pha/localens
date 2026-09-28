@@ -1,4 +1,5 @@
 import { createResearchPlannerAdapter, type ResearchPlannerPort } from '@/lib/infrastructure/supabase/research-planner-adapter';
+import { createResearchRequestAdapter, type ResearchRequestPort } from '@/lib/infrastructure/supabase/research-request-adapter';
 import { createGuideProfileAdapter } from '@/lib/infrastructure/supabase/guide-profile-adapter';
 import type { GuideProfilePort } from './guide-profile';
 import { createReviewedBookings, type ReviewedBookings } from '@/lib/infrastructure/supabase/reviewed-bookings';
@@ -34,6 +35,7 @@ type SupabaseRuntimeConfig = Extract<BrowserRuntimeConfig, { mode: "supabase" }>
 export interface SupabasePortalShell extends FixedTourRuntimeComposition {
   readonly guideProfile?: GuideProfilePort;
   readonly researchPlanner?: ResearchPlannerPort;
+  readonly researchRequests?: ResearchRequestPort;
   readonly account?: AccountAdapter;
   readonly reviewedBookings?: ReviewedBookings;
   readonly mode: "supabase";
@@ -59,6 +61,7 @@ export function createSupabasePortalShell(
       mode: "supabase",
       guideProfile: createGuideProfileAdapter(client),
       researchPlanner: createResearchPlannerAdapter(client),
+      researchRequests: createResearchRequestAdapter(client),
       reviewedBookings: createReviewedBookings(client),
       account: createAccountAdapter(client, config.supabaseUrl, config.supabasePublishableKey),
       session: createSupabasePortalSessionAdapter(client),

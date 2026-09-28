@@ -10,7 +10,9 @@ export type ResearchStop = {id:string;name:string;address:string;arrival:string;
 export type ResearchLeg = {from:string;to:string;departure:string;arrival:string;minutes:number;costVnd:number};
 export type ResearchPlan = {stops:ResearchStop[];legs:ResearchLeg[];totalVnd:number;visitAndFoodVnd:number;guideVnd:number;transportVnd:number;durationMinutes:number;returnTime:string};
 export type PreferenceNotice = {preference:keyof ResearchInput['priorityWeights'];reason:'closed'|'constraints'};
-export type ResearchResponse = {status:'ready';plan:ResearchPlan;dataMode:'internal_simulation';ranking:'ai';preferenceNotices?:PreferenceNotice[];exchangeRateVndPerUsd:number|null} | {status:'no_match'|'invalid'|'ai_error';reasons:string[]};
+/** Server snapshots may contain the historical balanced pace; input validation is unchanged. */
+export type ResearchSavedInput = Omit<ResearchInput, 'pace'> & {pace:'relaxed'|'active'|'balanced'};
+export type ResearchResponse = {status:'ready';plan:ResearchPlan;dataMode:'internal_simulation';ranking:'ai'|'customer';preferenceNotices?:PreferenceNotice[];exchangeRateVndPerUsd:number|null;revisionId?:string;revisionNumber?:number;request?:ResearchSavedInput;lockedStopIds?:string[];submittedRequestId?:string;catalogVersion?:string} | {status:'no_match'|'invalid'|'ai_error';reasons:string[]};
 const mins=(s:string)=>Number(s.slice(0,2))*60+Number(s.slice(3,5));
 const clock=(n:number)=>`${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`;
 const disabled=new Set(['LL-R27','LL-R28','LL-R29','LL-R30']);

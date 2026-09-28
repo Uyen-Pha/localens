@@ -1,5 +1,13 @@
 # Recovery review ledger
 
+## Planner result — existing backend option 1
+
+- Recovered result/adjustment/confirmation UI, authenticated session boundary, existing research RPC adapters and read-only customer request list.
+- Final focused tests: 35/35; typecheck, lint and demo build passed. Whole suite remains failing and was run before the final review corrections; not release acceptance.
+- Three review findings reproduced then fixed: stale callback cache writes, stale revisions after ambiguous saves, and incompatible duration input bounds.
+- No cloud data, migration, booking/payment/guide business or deployment changes.
+- Detailed evidence and remaining boundaries: `2026-09-28-planner-result-checkpoint.md`; live contract inspection: `2026-09-28-supabase-planner-readonly-audit.md`.
+
 ## 2026-09-28 — Setup
 
 - User authorized the aggregate recovery proposal and requested choices at meaningful stages.

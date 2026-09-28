@@ -13,7 +13,7 @@ import type { PlannerCopy } from "@/lib/i18n/dictionaries";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { PersonalizationForm } from "./personalization-form";
 import { NaturalLanguagePersonalizationForm } from "./natural-language-personalization-form";
-import { ResearchPlannerFlow } from './research-planner-flow';
+import { ResearchPlannerSession } from './research-planner-session';
 import { researchAreas } from '@/lib/application/planner/research-areas';
 import { readPersonalizationState } from "@/lib/application/planner/personalization-session";
 import styles from "./planner-recovery.module.css";
@@ -125,7 +125,7 @@ export function PlannerSurface({ locale, copy }: PlannerSurfaceProps) {
       return <Flow locale={locale} copy={copy} />;
     }
     if (selection.composition.mode !== "supabase") return null;
-    if (selection.composition.researchPlanner) return <ResearchPlannerFlow locale={locale} planner={selection.composition.researchPlanner} />;
+    if (selection.composition.researchPlanner) return <ResearchPlannerSession locale={locale} planner={selection.composition.researchPlanner} requests={selection.composition.researchRequests} session={selection.composition.session} />;
     const { Flow } = selection.planner;
     return <Flow locale={locale} copy={copy} planner={selection.composition.planner} />;
   }
