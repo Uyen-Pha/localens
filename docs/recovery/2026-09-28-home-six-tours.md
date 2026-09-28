@@ -16,10 +16,22 @@ Keep the green homepage and map. Show the six historical tours and their informa
 ## Verification so far
 
 - Focused catalog/search/merge tests: 10 passed, zero failed.
-- Final typecheck, lint and local webpack demo build passed; deployed build must still be checked.
+- Final typecheck, lint and local webpack demo build passed. Vercel remote build passed and deployment is READY.
 - First full run: 2,189 passed / 78 failed. The one new search-fixture failure was reproduced independently and corrected. Final full run: 2,191 passed / 77 failed / 2,268 total (`output/recovery-audit-20260928/tours-final-suite.json`). All remaining failure names match the prior Preview report; this does not establish that all underlying causes are harmless. No new failing test names.
 - Independent read-only review found no critical/important issue. Its three minor findings were addressed: expanded-content/uniqueness coverage, mixed departure selection coverage, and clearer unavailable wording.
-- Prior Preview read-only catalog shows six cards: Dấu ấn Sài Gòn; Sắc màu Chợ Lớn và trải nghiệm làm đèn Phú Bình; Mỹ thuật Sài Gòn và du ngoạn sông chiều tối; Dạo Chợ Lớn: Chợ Bình Tây và bữa cơm địa phương; Sài Gòn đời thường: Cà phê vợt và Tân Định; Củ Chi: Theo dấu lịch sử tại Bến Đình. New deployment visual verification is still pending.
+- New Preview read-only catalog shows six cards: Dấu ấn Sài Gòn; Sắc màu Chợ Lớn và trải nghiệm làm đèn Phú Bình; Mỹ thuật Sài Gòn và du ngoạn sông chiều tối; Dạo Chợ Lớn: Chợ Bình Tây và bữa cơm địa phương; Sài Gòn đời thường: Cà phê vợt và Tân Định; Củ Chi: Theo dấu lịch sử tại Bến Đình.
+
+## Preview handoff
+
+- Source checkpoint: `430436b2f6ecc3ef4b74b08b5c0c9d35c324c2a0` on `codex/recovery-review`; no GitHub push or main merge performed.
+- Preview: https://localens-8nqgxegxd-local-lens2.vercel.app/vi/tours/
+- Homepage: https://localens-8nqgxegxd-local-lens2.vercel.app/vi/
+- Deployment: `dpl_FFoYb4jev8Ph4YWKG1vuST3Lc1Le`; explicit Preview target; existing production untouched.
+- Browser verified six cards, green homepage/map and homepage-to-catalog link. Expanded details for proposal tours operate with pointer clicks, including mobile. Catalog document client/scroll width: desktop 1265/1265; mobile 375/375 at 390px viewport (scrollbar excluded). Temporary viewport reset.
+- Live catalog currently has **no eligible future bookable departure**: three runtime tours show unavailable, three proposals show no departure. No booking link shown. No records were created to change this; positive real-ID selection is covered by component tests, not an actual checkout.
+- Screenshot evidence under `Project/output/recovery-audit-20260928`: `six-tours-preview-view.png`, `six-tours-mobile-details.png`, `home-six-tours-preview.png`. An intermediate full-page image has stitching duplication; use the viewport images, not `six-tours-preview-desktop.png`, for visual acceptance. DOM contains six distinct cards.
+- Read-only research-planner OPTIONS for this new Preview returned 403 without Access-Control-Allow-Origin. Existing approved origin remains `https://localens-jnkdacj1j-local-lens2.vercel.app`; this new URL is for Home/Tours inspection, not Planner end-to-end acceptance. No further allowlist change was made.
+- Complete-history backup bundle verified at `Project/output/recovery-audit-20260928/recovery-home-six-tours.bundle`.
 
 ## Not claimed
 
