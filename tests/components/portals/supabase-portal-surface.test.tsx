@@ -420,10 +420,25 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
     session.seed(ACCOUNTS[2].identity);
     renderSurface({ locale, shell: shellFor(session), expectedRole: "admin" });
 
+    expect(await screen.findByRole('navigation', {name:'Điều hướng quản trị'})).toBeVisible();
+
     fireEvent.click(await screen.findByRole("button", { name: copy.signOut }));
 
     expect(await screen.findByRole("heading", { name: copy.heading })).toBeInTheDocument();
     expect(screen.getByLabelText(copy.password)).toBeInTheDocument();
+  });
+
+  it('opens existing research administration through the authenticated admin menu', async()=>{
+    const session=new MemoryRuntimeSession();
+    session.seed(ACCOUNTS[2].identity);
+    const shell=shellFor(session);
+    renderSurface({locale,expectedRole:'admin',shell:{...shell,researchDemo:{
+      submit:async()=>'',listCustomer:async()=>[],listAdmin:async()=>[],
+      decide:async()=>{},createQuote:async()=>'',
+    }}});
+    fireEvent.click(await screen.findByRole('button',{name:'Tour cá nhân hóa'}));
+    expect(await screen.findByRole('heading',{name:'Xử lý tour cá nhân hóa'})).toBeVisible();
+    expect(await screen.findByText('Chưa có yêu cầu tour cá nhân hóa.')).toBeVisible();
   });
 
   it("mounts read-only booking cancellation history only for an administrator", async () => {

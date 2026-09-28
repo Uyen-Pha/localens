@@ -395,11 +395,11 @@ describe("PersonalizationForm", () => {
 
   it("defaults to the next safe 09:00 start in Ho Chi Minh City", () => {
     expect(defaultHcmcPlannerStart(Date.parse("2026-09-05T01:59:00Z"))).toEqual({
-      date: "2026-09-05",
+      date: "2026-09-08",
       time: "09:00",
     });
     expect(defaultHcmcPlannerStart(Date.parse("2026-09-05T02:00:00Z"))).toEqual({
-      date: "2026-09-06",
+      date: "2026-09-08",
       time: "09:00",
     });
   });

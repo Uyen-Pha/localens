@@ -14,6 +14,9 @@ import { portalCopy, portalPath, roleLabel, signedInRoleText } from "@/component
 import type { PortalNavigate, PortalRole } from "@/components/portals/portal-surface";
 import styles from "@/components/portals/portal.module.css";
 
+const AdminPrototype=lazy(()=>import('@/components/admin/admin-prototype').then(module=>({default:module.AdminPrototype})));
+const ResearchDemoRequests=lazy(()=>import('@/components/customer/research-demo-requests').then(module=>({default:module.ResearchDemoRequests})));
+
 export interface SupabasePortalSurfaceProps {
   locale: Locale;
   expectedRole?: PortalRole;
@@ -27,16 +30,6 @@ type LoadState = "loading" | "ready" | "error";
 const RuntimeFixedTourAccount = lazy(async () => {
   const module = await import("@/components/customer/runtime-fixed-tour-account");
   return { default: module.RuntimeFixedTourAccount };
-});
-
-const RuntimeBookingManagement = lazy(async () => {
-  const module = await import("@/components/admin/runtime-booking-management");
-  return { default: module.RuntimeBookingManagement };
-});
-
-const RuntimeGuideAssignmentQueue = lazy(async () => {
-  const module = await import("@/components/admin/runtime-guide-assignment-queue");
-  return { default: module.RuntimeGuideAssignmentQueue };
 });
 
 const RuntimeGuideAssignmentList = lazy(async () => {
@@ -166,10 +159,15 @@ function RuntimeRoleShell({
   if (session.role === 'guide') return <Suspense fallback={<p role="status">{copy.loading}</p>}>
     <RuntimeGuideAssignmentList locale={locale} session={session} profilePort={composition.guideProfile} assignments={composition.guideAssignments} onSignOut={onSignOut}/>
   </Suspense>;
+  if (session.role === 'admin') {
+    return <Suspense fallback={<p role="status">{copy.loading}</p>}><AdminPrototype identity={session} onSignOut={onSignOut} signOutLabel={copy.signOut} actionError={actionError} connectedScreens={{
+      operations:composition.researchDemo ? <section><h1>Xử lý tour cá nhân hóa</h1><p>Kiểm tra lịch trình → Duyệt hoặc phản hồi → Lập báo giá.</p><ResearchDemoRequests port={composition.researchDemo} admin locale={locale}/></section> : undefined,
+    }}/></Suspense>;
+  }
   return (
     <RuntimeFrame locale={locale} session={session} onSignOut={onSignOut}>
       <section
-        className={session.role === "admin" ? `${styles.runtimeShell} ${styles.runtimeAdminShell}` : styles.runtimeShell}
+        className={styles.runtimeShell}
         aria-labelledby="runtime-shell-heading"
       >
         <p className={styles.eyebrow}>{copy.runtimeConnected}</p>
@@ -189,16 +187,6 @@ function RuntimeRoleShell({
               bookingCancellations={composition.bookingCancellations}
             />
           </Suspense>
-        ) : null}
-        {session.role === "admin" ? (
-          <div className={styles.runtimeAdminGrid}>
-            <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
-              <RuntimeBookingManagement locale={locale} bookingManagement={composition.bookingCancellations} />
-            </Suspense>
-            <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
-              <RuntimeGuideAssignmentQueue locale={locale} assignments={composition.guideAssignments} />
-            </Suspense>
-          </div>
         ) : null}
       </section>
     </RuntimeFrame>
