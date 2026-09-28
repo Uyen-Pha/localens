@@ -29,6 +29,7 @@ import {
 import { signInPath } from "@/lib/navigation/safe-return-to";
 import { formatHcmMinute } from "@/lib/domain/itinerary/local-time";
 import styles from "./planner-recovery.module.css";
+import {hasPersonalizedLeadTime, PERSONALIZED_LEAD_TIME_MS, personalizedLeadTimeMessage} from '@/lib/application/planner/departure-lead-time';
 
 type PersonalizationFormCopy = Dictionary["home"]["personalizationForm"];
 
@@ -52,9 +53,10 @@ export function hcmcCalendarDate(now: number): string {
 }
 
 export function defaultHcmcPlannerStart(now: number): { date: string; time: "09:00" } {
-  const current = formatHcmMinute(Math.floor(now / MINUTE_MS));
+  const earliest = now + PERSONALIZED_LEAD_TIME_MS;
+  const date = hcmcCalendarDate(earliest);
   return {
-    date: current.slice(11, 16) < "09:00" ? current.slice(0, 10) : hcmcCalendarDate(now + DAY_MS),
+    date: Date.parse(`${date}T09:00:00+07:00`) >= earliest ? date : hcmcCalendarDate(earliest + DAY_MS),
     time: "09:00",
   };
 }
@@ -62,7 +64,7 @@ export function defaultHcmcPlannerStart(now: number): { date: string; time: "09:
 function isFutureHcmcStart(date: string, time: string, now: number): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return false;
   const value = Date.parse(`${date}T${time}:00+07:00`);
-  return Number.isFinite(value) && value > now;
+  return Number.isFinite(value) && hasPersonalizedLeadTime(`${date}T${time}:00+07:00`, now);
 }
 
 function keepFocusedControlVisible(event: FocusEvent<HTMLFormElement>): void {
@@ -243,7 +245,7 @@ export function PersonalizationForm({
   useEffect(() => {
     const now = Date.now();
     const start = defaultHcmcPlannerStart(now);
-    setMinimumStartDate(hcmcCalendarDate(now));
+    setMinimumStartDate(hcmcCalendarDate(now + PERSONALIZED_LEAD_TIME_MS));
     setStartDate(start.date);
     setStartTime(start.time);
   }, []);
@@ -278,7 +280,7 @@ export function PersonalizationForm({
 
   const selectedAreas = (summary.areas ?? "").split("|").filter(Boolean);
   const travelers = Number(summary.partySize ?? 2);
-  const canSuggestBudget = Number.isInteger(travelers) && travelers >= 1 && travelers <= 20 && selectedAreas.length > 0;
+  const canSuggestBudget = Number.isInteger(travelers) && travelers >= 1 && travelers <= 20 && Number(durationHours) > 0;
   // Provisional planning assumptions, not supplier pricing or route costs.
   const budgetBase = travelers * ((Number(durationHours) + Number(durationExtra) / 60) * 100000 + Math.max(0, selectedAreas.length - 1) * 50000);
   const budgetLow = Math.ceil(budgetBase * 0.8 / 50000) * 50000;
@@ -331,7 +333,7 @@ export function PersonalizationForm({
 
     if (hasDate && hasTime && !hasFutureStart) {
       setIsPreviewed(false);
-      setValidationError(copy.startInPastMessage);
+      setValidationError(personalizedLeadTimeMessage(locale));
       setPreview(undefined);
       setPreviewError(null);
       setPlannerHandoffSaved(false);
@@ -403,7 +405,7 @@ export function PersonalizationForm({
             <span aria-hidden="true" className="planner-date-display__value">{startDate ? startDate.split("-").reverse().join("/") : "DD/MM/YYYY"}</span>
             <input name="startDate" type="date" lang={vi ? "vi-VN" : "en-GB"} min={minimumStartDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} aria-label={copy.startDateLabel} aria-describedby="planner-date-format timezone-hint" required />
           </span>
-          <span id="planner-date-format" className="planner-date-format">{vi ? "Ngày / Tháng / Năm" : "Day / Month / Year"}</span>
+          <span id="planner-date-format" className="planner-date-format">{vi ? "Gửi trước giờ khởi hành ít nhất 72 giờ" : "Submit at least 72 hours before departure"}</span>
 
         </label>
   );
@@ -492,7 +494,7 @@ export function PersonalizationForm({
           <button type="button" onClick={() => setBudgetAmount(String(toDisplayAmount(budgetSuggested)))}>{vi ? "Dùng mức" : "Use"} {showBudget(budgetSuggested)}</button>
           <small>{vi ? "Ước tính tham khảo, không phải báo giá. Bạn có thể nhập mức khác." : "Planning estimate, not a quote. You can enter another budget."}</small>
           <details><summary>{vi ? "Cách ước tính" : "How this is estimated"}</summary><small>{vi ? "Tạm tính 100.000 VND/người/giờ, cộng 50.000 VND/người cho mỗi khu vực bổ sung; khoảng dao động ±20%. Chưa tính theo điểm đến hay nhà cung cấp cụ thể." : "Provisional allowance: VND 100,000/person/hour plus VND 50,000/person per additional area, with a ±20% range. Not based on specific venues or suppliers."}{budgetCurrency === "USD" ? (vi ? " Quy đổi tham khảo: 1 USD = 26.000 VND." : "Indicative conversion: USD 1 = VND 26,000.") : ""}</small></details>
-        </> : <small>{vi ? "Chọn khu vực và số người để xem ngân sách gợi ý." : "Select areas and group size to see a budget suggestion."}</small>}
+        </> : <small>{vi ? "Nhập số người và thời lượng hợp lệ để xem ngân sách gợi ý." : "Enter a valid group size and duration to see a budget suggestion."}</small>}
         </div>
   );
 

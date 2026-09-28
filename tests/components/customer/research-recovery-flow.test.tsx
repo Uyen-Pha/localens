@@ -6,7 +6,19 @@ import { savePersonalizationRequest, readPersonalizationState } from '@/lib/appl
 import { researchInput, researchReady, revisionId, nextRevisionId, requestId } from '../../fixtures/research-recovery';
 
 beforeEach(() => { window.sessionStorage.clear(); savePersonalizationRequest(researchInput); });
-afterEach(cleanup);
+afterEach(()=>{cleanup();vi.restoreAllMocks();});
+
+it('rechecks the 72-hour lead time when confirming after time has elapsed', async () => {
+  vi.spyOn(Date,'now').mockReturnValue(Date.parse(researchInput.startAt)-72*60*60*1000-60000);
+  savePersonalizationRequest(researchInput);
+  const submit=vi.fn(async()=>requestId);
+  render(<ResearchPlannerFlow locale="vi" planner={async()=>researchReady} requests={{submit}} actorRole="customer" actorId="customer-a"/>);
+  fireEvent.click(await screen.findByRole('checkbox',{name:'Tôi đồng ý với lịch trình này.'}));
+  vi.mocked(Date.now).mockReturnValue(Date.parse(researchInput.startAt)-72*60*60*1000+1);
+  fireEvent.click(screen.getByRole('button',{name:'Xác nhận & Gửi yêu cầu'}));
+  expect(await screen.findByRole('alert')).toHaveTextContent('72');
+  expect(submit).not.toHaveBeenCalled();
+});
 
 it('requires agreement, submits the current revision once, and shows pending review only on success', async () => {
   const planner = vi.fn(async () => researchReady);

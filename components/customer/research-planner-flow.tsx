@@ -10,6 +10,7 @@ import type { ResearchRequestPort } from "@/lib/infrastructure/supabase/research
 import { ResearchGuidedAdjustments } from "./research-guided-adjustments";
 import { ResearchItineraryTimeline } from "./research-itinerary-timeline";
 import styles from "./research-planner-flow.module.css";
+import {hasPersonalizedLeadTime, personalizedLeadTimeMessage} from '@/lib/application/planner/departure-lead-time';
 
 type ActorRole = "customer" | "guide" | "admin" | "signed-out";
 
@@ -138,6 +139,12 @@ export function ResearchPlannerFlow({
 
   async function send() {
     if (!isCurrent() || !requests || !result || result.status !== "ready" || !result.revisionId || !confirmed || sendingLock.current || editing || sent || needsRefresh || refreshing) return;
+    const saved = readPersonalizationState();
+    const startAt = result.request?.startAt ?? (saved.status === 'ok' ? saved.request.startAt : '');
+    if (!hasPersonalizedLeadTime(startAt)) {
+      setSendError('DEPARTURE_TOO_SOON');
+      return;
+    }
     sendingLock.current = true;
     setSending(true);
     setSendError("");
@@ -230,7 +237,8 @@ export function ResearchPlannerFlow({
           <label><input type="checkbox" disabled={sending || editing || needsRefresh || refreshing} checked={confirmed} onChange={(event) => { setConfirmed(event.target.checked); setSendError(""); }} />{vi ? "Tôi đồng ý với lịch trình này." : "I agree with this itinerary."}</label>
           <button className="button" type="button" disabled={!confirmed || !result.revisionId || sending || editing || needsRefresh || refreshing} onClick={() => void send()}>{sending ? (vi ? "Đang gửi…" : "Sending…") : (vi ? "Xác nhận & Gửi yêu cầu" : "Confirm & send request")}</button>
           {sendError === "AUTH_REQUIRED" && <p role="alert">{vi ? "Phiên đăng nhập đã hết. Vui lòng đăng nhập lại." : "Your session has expired. Please sign in again."}</p>}
-          {sendError && sendError !== "AUTH_REQUIRED" && <p role="alert">{vi ? "Gửi yêu cầu thất bại. Vui lòng thử lại sau." : "The request could not be sent. Please try again later."}</p>}
+          {sendError === 'DEPARTURE_TOO_SOON' && <p role="alert">{personalizedLeadTimeMessage(locale)}</p>}
+          {sendError && sendError !== "AUTH_REQUIRED" && sendError !== 'DEPARTURE_TOO_SOON' && <p role="alert">{vi ? "Gửi yêu cầu thất bại. Vui lòng thử lại sau." : "The request could not be sent. Please try again later."}</p>}
           <p>{vi ? "Gửi yêu cầu chưa tạo đơn đặt tour và chưa thu tiền." : "Sending a request does not create a booking or charge you."}</p>
         </>}
         {sent && <div role="status"><p><strong>{vi ? "Yêu cầu đã được gửi" : "Request sent"}</strong></p>{submittedNow ? <p>{vi ? "Trạng thái: Chờ duyệt" : "Status: Pending review"}</p> : <p>{vi ? "Xem trạng thái mới nhất trong danh sách yêu cầu." : "Check the request list for the latest status."}</p>}<Link className="button button--secondary" href={`/${locale}/bookings/#personalized-requests`}>{vi ? "Xem yêu cầu của tôi" : "View my requests"}</Link></div>}

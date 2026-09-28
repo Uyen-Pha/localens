@@ -20,6 +20,7 @@ import {
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary, PersonalizationPriorityKey } from "@/lib/i18n/dictionaries";
 import { signInPath } from "@/lib/navigation/safe-return-to";
+import {hasPersonalizedLeadTime, personalizedLeadTimeMessage} from '@/lib/application/planner/departure-lead-time';
 import { ItineraryPreview, type ItineraryPreviewError } from "@/components/customer/itinerary-preview";
 
 type PersonalizationFormCopy = Dictionary["home"]["personalizationForm"];
@@ -98,7 +99,7 @@ async function resolveRuntimeSelection(
 function isFutureHcmcStart(date: string, time: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return false;
   const start = Date.parse(`${date}T${time}:00+07:00`);
-  return Number.isFinite(start) && start > Date.now();
+  return Number.isFinite(start) && hasPersonalizedLeadTime(`${date}T${time}:00+07:00`);
 }
 
 function toAmount(raw: string, currency: "VND" | "USD"): number | null {
@@ -431,7 +432,7 @@ export function NaturalLanguagePersonalizationForm({
       return;
     }
     if (!draft.startDate || !draft.startTime || !isFutureHcmcStart(draft.startDate, draft.startTime)) {
-      setValidationError(vi ? "Hãy chọn ngày và giờ bắt đầu trong tương lai theo giờ Thành phố Hồ Chí Minh." : "Choose a future start date and time in Ho Chi Minh City.");
+      setValidationError(personalizedLeadTimeMessage(locale));
       return;
     }
     const request = buildRequest(draft, description, locale, areaOptions, runtimeSelection.mode);
