@@ -90,6 +90,10 @@ function chooseDemoMarketPriority(copy: {
   fireEvent.change(screen.getByLabelText(traditionalMarket.label), { target: { value: "1" } });
 }
 
+function submitButton() {
+  return screen.getByRole("button", { name: /^(Create suggested itinerary|Tạo lịch trình gợi ý)$/ });
+}
+
 function fillValidForm(
   copy: ReturnType<typeof getDictionary>["home"]["personalizationForm"],
   specialNeeds = "",
@@ -99,7 +103,7 @@ function fillValidForm(
   });
   fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
   if (specialNeeds) {
-    fireEvent.change(screen.getByLabelText(copy.specialNeedsLabel), {
+    fireEvent.change(screen.getByRole("textbox", { name: /Anything else we should plan around\?|Yêu cầu đặc biệt khác/ }), {
       target: { value: specialNeeds },
     });
   }
@@ -129,12 +133,97 @@ function runtimeComposition(initialized: Promise<void> = Promise.resolve()) {
 
 async function waitUntilReady(copy: ReturnType<typeof getDictionary>["home"]["personalizationForm"]) {
   await waitFor(
-    () => expect(screen.getByRole("button", { name: copy.submitLabel })).toBeEnabled(),
+    () => {
+      expect(screen.getByRole("form", { name: copy.formLabel })).toHaveAttribute("aria-busy", "false");
+      expect(submitButton()).toBeEnabled();
+    },
     { timeout: 5_000 },
   );
 }
 
 describe("PersonalizationForm", () => {
+  it.each([false, true])("uses all resolved catalog areas when areas are omitted (compact=%s)", async (compact) => {
+    const copy = getDictionary("en").home.personalizationForm;
+    compositionHarness.results = [runtimeComposition()];
+    render(<PersonalizationForm copy={copy} compact={compact} />);
+    await waitUntilReady(copy);
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+    expect(readPersonalizationRequest()?.areas).toEqual(copy.areaOptions.map(option => option.value));
+    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["2026-09-05T02:00:00.000Z", true],
+    ["2026-09-05T02:00:00.001Z", false],
+  ])("checks the exact 72-hour boundary at submission: %s", async (now, allowed) => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse(now));
+    const copy = getDictionary("en").home.personalizationForm;
+    compositionHarness.results = [runtimeComposition()];
+    render(<PersonalizationForm copy={copy} />);
+    await waitUntilReady(copy);
+    fillValidForm(copy);
+    fireEvent.change(screen.getByLabelText(copy.startDateLabel), { target: { value: "2026-09-08" } });
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+    expect(readPersonalizationRequest() !== null).toBe(allowed);
+    if (!allowed) expect(screen.getByRole("alert")).toHaveTextContent(/at least 72 hours/);
+  });
+
+  it("rechecks lead time when a form has remained open", async () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-05T02:00:00Z"));
+    const copy = getDictionary("en").home.personalizationForm;
+    compositionHarness.results = [runtimeComposition()];
+    render(<PersonalizationForm copy={copy} />);
+    await waitUntilReady(copy);
+    fillValidForm(copy);
+    clock.mockReturnValue(Date.parse("2026-09-05T02:00:01Z"));
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/at least 72 hours/);
+    expect(readPersonalizationRequest()).toBeNull();
+  });
+
+  it("does not fill an empty Supabase catalog with demo areas", async () => {
+    const copy = getDictionary("en").home.personalizationForm;
+    const composition = runtimeComposition();
+    composition.personalizationAreas.listAreas.mockResolvedValue([]);
+    compositionHarness.results = [composition];
+    render(<PersonalizationForm copy={copy} />);
+    await waitUntilReady(copy);
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+    expect(screen.getByRole("alert")).toHaveTextContent(copy.validationMessage);
+    expect(readPersonalizationRequest()).toBeNull();
+    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["en" as const, "123.45"],
+    ["vi" as const, "123,45"],
+  ])("saves localized USD input in exact cents (%s)", async (locale, amount) => {
+    const copy = getDictionary(locale).home.personalizationForm;
+    compositionHarness.results = [runtimeComposition()];
+    render(<PersonalizationForm copy={copy} locale={locale} />);
+    await waitUntilReady(copy);
+    fireEvent.change(screen.getByLabelText(copy.budgetCurrencyLabel), { target: { value: "USD" } });
+    fireEvent.change(screen.getByRole("textbox", { name: copy.budgetLabel }), { target: { value: amount } });
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+    expect(readPersonalizationRequest()?.budget).toEqual({ currency: "USD", amountMinor: 12345 });
+  });
+
+  it("applies the suggested group budget and preserves a customer's later edit", async () => {
+    const copy = getDictionary("en").home.personalizationForm;
+    compositionHarness.results = [runtimeComposition()];
+    render(<PersonalizationForm copy={copy} />);
+    await waitUntilReady(copy);
+    fillValidForm(copy);
+    fireEvent.change(screen.getByLabelText(copy.partySizeLabel), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText(copy.durationHoursLabel), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use 1,200,000 VND" }));
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+    expect(readPersonalizationRequest()?.budget).toEqual({ currency: "VND", amountMinor: 1200000 });
+    fireEvent.change(screen.getByRole("textbox", { name: copy.budgetLabel }), { target: { value: "1,500,000" } });
+    fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
+    expect(readPersonalizationRequest()?.budget.amountMinor).toBe(1500000);
+  });
+
   it("exposes every planning preference in a labeled, grouped form", () => {
     const dictionary = getDictionary("en");
 
@@ -153,17 +242,14 @@ describe("PersonalizationForm", () => {
       dictionary.home.personalizationForm.durationMinutesLabel,
     );
     expect(durationHours).toHaveAttribute("name", "durationHours");
-    expect(durationHours).toHaveAttribute("min", "0");
-    expect(durationHours).toHaveAttribute("max", "12");
+    expect(within(durationHours).getAllByRole("option").map(option => (option as HTMLOptionElement).value)).toEqual(Array.from({ length: 12 }, (_, i) => String(i + 1)));
     expect(durationMinutes).toHaveAttribute("name", "durationAdditionalMinutes");
-    expect(durationMinutes).toHaveAttribute("min", "0");
-    expect(durationMinutes).toHaveAttribute("max", "45");
-    expect(durationMinutes).toHaveAttribute("step", "15");
+    expect(within(durationMinutes).getAllByRole("option").map(option => (option as HTMLOptionElement).value)).toEqual(Array.from({ length: 12 }, (_, i) => String(i * 5)));
     expect(durationHours.compareDocumentPosition(durationMinutes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole("group", { name: dictionary.home.personalizationForm.areasLabel })).toBeInTheDocument();
     expect(screen.getByLabelText(dictionary.home.personalizationForm.budgetLabel)).toHaveAttribute(
       "name",
-      "budgetAmount",
+      "budgetDisplay",
     );
     expect(screen.getByLabelText(dictionary.home.personalizationForm.budgetCurrencyLabel)).toHaveAttribute(
       "name",
@@ -175,23 +261,19 @@ describe("PersonalizationForm", () => {
     );
     expect(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel)).toHaveAttribute(
       "min",
-      hcmcCalendarDate(Date.now()),
+      hcmcCalendarDate(Date.now() + 72 * 60 * 60 * 1000),
     );
     expect(screen.getByLabelText(dictionary.home.personalizationForm.startTimeLabel)).toBeInTheDocument();
     expect(screen.getByLabelText(dictionary.home.personalizationForm.languageLabel)).toHaveAttribute("name", "guideLanguage");
     expect(screen.getByLabelText(dictionary.home.personalizationForm.partySizeLabel)).toBeInTheDocument();
     expect(screen.getByLabelText(dictionary.home.personalizationForm.paceLabel)).toHaveAttribute("name", "pace");
     expect(screen.getByLabelText(dictionary.home.personalizationForm.dietLabel)).toBeInTheDocument();
-    expect(screen.getByLabelText(dictionary.home.personalizationForm.mobilityLabel)).toBeInTheDocument();
     expect(screen.getByLabelText(dictionary.home.personalizationForm.specialNeedsLabel)).toHaveAttribute(
       "maxlength",
       "1000",
     );
 
     for (const option of dictionary.home.personalizationForm.dietOptions) {
-      expect(screen.getByRole("option", { name: option.label })).toHaveValue(option.value);
-    }
-    for (const option of dictionary.home.personalizationForm.mobilityOptions) {
       expect(screen.getByRole("option", { name: option.label })).toHaveValue(option.value);
     }
     expect(dictionary.home.personalizationForm.dietOptions.map((option) => option.value)).toEqual([
@@ -204,11 +286,9 @@ describe("PersonalizationForm", () => {
       "none",
       "step-free",
     ]);
-    expect(screen.getByText(dictionary.home.personalizationForm.dietaryUnsupportedNote)).toBeInTheDocument();
-    expect(screen.getByText(dictionary.home.personalizationForm.mobilityUnsupportedNote)).toBeInTheDocument();
 
     const priorityGroup = screen.getByRole("group", {
-      name: dictionary.home.personalizationForm.prioritiesLegend,
+      name: "Experience priorities",
     });
     expect(priorityGroup).toBeInTheDocument();
     for (const priority of dictionary.home.personalizationForm.priorities) {
@@ -216,12 +296,11 @@ describe("PersonalizationForm", () => {
         "name",
         `priorityWeights.${priority.key}`,
       );
-      expect(screen.getByLabelText(priority.label)).toHaveAttribute("min", "0");
-      expect(screen.getByLabelText(priority.label)).toHaveAttribute("max", "5");
+      expect(within(screen.getByLabelText(priority.label)).getAllByRole("option")).toHaveLength(4);
     }
     expect(screen.getByLabelText(
       dictionary.home.personalizationForm.priorities.find(({ key }) => key === "street_food")!.label,
-    )).toHaveValue(3);
+    )).toHaveValue("3");
     expect(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[0].label)).toHaveAttribute("value", "demo-hcmc-district-1");
     expect(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[1].label)).toHaveAttribute("value", "demo-hcmc-district-3");
   });
@@ -252,13 +331,14 @@ describe("PersonalizationForm", () => {
     expect(() => fireEvent.focus(specialNeeds)).not.toThrow();
   });
 
-  it("requires a date, time, and at least one area before showing the local preview", async () => {
+  it("requires a date before showing the local preview", async () => {
     const dictionary = getDictionary("en");
 
     render(<PersonalizationForm copy={dictionary.home.personalizationForm} />);
     await waitUntilReady(dictionary.home.personalizationForm);
     const form = screen.getByRole("form", { name: dictionary.home.personalizationForm.formLabel });
 
+    fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel), { target: { value: "" } });
     fireEvent.submit(form);
 
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -269,9 +349,7 @@ describe("PersonalizationForm", () => {
     fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startDateLabel), {
       target: { value: defaultHcmcPlannerStart(Date.now()).date },
     });
-    fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.startTimeLabel), {
-      target: { value: "09:00" },
-    });
+
     fireEvent.click(screen.getByLabelText(dictionary.home.personalizationForm.areaOptions[0].label));
     chooseDemoMarketPriority(dictionary.home.personalizationForm);
     fireEvent.submit(form);
@@ -294,7 +372,7 @@ describe("PersonalizationForm", () => {
     chooseDemoMarketPriority(copy);
     fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(copy.startInPastMessage);
+    expect(screen.getByRole("alert")).toHaveTextContent(/at least 72 hours/);
     expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
   });
 
@@ -311,6 +389,8 @@ describe("PersonalizationForm", () => {
     fireEvent.click(screen.getByLabelText(copy.areaOptions[0].label));
     chooseDemoMarketPriority(copy);
 
+    // A tampered value must still be rejected at the submit boundary.
+    screen.getByLabelText(copy.durationHoursLabel).appendChild(new Option("0", "0"));
     fireEvent.change(screen.getByLabelText(copy.durationHoursLabel), {
       target: { value: "0" },
     });
@@ -323,12 +403,8 @@ describe("PersonalizationForm", () => {
     fireEvent.change(screen.getByLabelText(copy.durationHoursLabel), {
       target: { value: "12" },
     });
-    fireEvent.change(screen.getByLabelText(copy.durationMinutesLabel), {
-      target: { value: "15" },
-    });
-    fireEvent.submit(form);
-    expect(screen.getByRole("alert")).toHaveTextContent(copy.validationMessage);
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(copy.durationMinutesLabel)).toHaveValue("0");
+    expect(within(screen.getByLabelText(copy.durationMinutesLabel)).getAllByRole("option")).toHaveLength(1);
   });
 
   it("maps controls to the itinerary request contract with an explicit HCMC offset", () => {
@@ -404,20 +480,16 @@ describe("PersonalizationForm", () => {
     });
   });
 
-  it("applies visible presets to existing controls without submitting the planner", () => {
+  it("changes priorities and pace without submitting, and resets the form", () => {
     const copy = getDictionary("en").home.personalizationForm;
     render(<PersonalizationForm copy={copy} />);
-
-    fireEvent.click(screen.getByRole("button", { name: copy.historyPresetLabel }));
-    expect(screen.getByLabelText(copy.priorities.find(({ key }) => key === "history")!.label)).toHaveValue(5);
-    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: copy.foodPresetLabel }));
-    expect(screen.getByLabelText(copy.priorities.find(({ key }) => key === "street_food")!.label)).toHaveValue(5);
-    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
-
+    const history = screen.getByLabelText(copy.priorities.find(({ key }) => key === "history")!.label);
+    fireEvent.change(history, { target: { value: "3" } });
     fireEvent.change(screen.getByLabelText(copy.paceLabel), { target: { value: "active" } });
-    fireEvent.click(screen.getByRole("button", { name: copy.relaxedPresetLabel }));
+    expect(history).toHaveValue("3");
+    expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Reset form" }));
+    expect(history).toHaveValue("0");
     expect(screen.getByLabelText(copy.paceLabel)).toHaveValue("relaxed");
     expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
   });
@@ -437,13 +509,13 @@ describe("PersonalizationForm", () => {
   it.each([
     [
       "en" as const,
-      "Your preferences are saved in this tab. Sign in with a demo customer account to generate and save an AI-assisted itinerary.",
+      getDictionary("en").home.personalizationForm.runtimePlannerLinkDisclosure,
       "Sign in to open the AI planner",
       "/en/sign-in?returnTo=%2Fen%2Fplanner%2F",
     ],
     [
       "vi" as const,
-      "Nhu cầu được lưu trong tab này. Hãy đăng nhập tài khoản khách hàng demo để AI tạo và lưu lịch trình.",
+      getDictionary("vi").home.personalizationForm.runtimePlannerLinkDisclosure,
       "Đăng nhập để mở planner AI",
       "/vi/sign-in?returnTo=%2Fvi%2Fplanner%2F",
     ],
@@ -567,7 +639,7 @@ describe("PersonalizationForm", () => {
 
     render(<PersonalizationForm copy={copy} locale="en" />);
     const form = screen.getByRole("form", { name: copy.formLabel });
-    const submit = screen.getByRole("button", { name: copy.submitLabel });
+    const submit = submitButton();
     fillValidForm(copy);
 
     expect(submit).toBeDisabled();
@@ -597,7 +669,7 @@ describe("PersonalizationForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: copy.submitLabel })).toBeEnabled();
+      expect(submitButton()).toBeEnabled();
     });
     expect(compositionHarness.loadPortalSurfaceComposition).toHaveBeenCalledTimes(2);
   });
@@ -621,7 +693,7 @@ describe("PersonalizationForm", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: copy.submitLabel })).toBeEnabled());
+    await waitFor(() => expect(submitButton()).toBeEnabled());
     expect(compositionHarness.loadPortalSurfaceComposition).toHaveBeenCalledTimes(2);
     expect(retryInitialization).toHaveBeenCalledOnce();
     expect(readOnlyApiHarness.createReadOnlyApi).toHaveBeenCalledOnce();
@@ -643,7 +715,7 @@ describe("PersonalizationForm", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The secure planner handoff is unavailable. Try again.",
     );
-    expect(screen.getByRole("button", { name: copy.submitLabel })).toBeDisabled();
+    expect(submitButton()).toBeDisabled();
     expect(document.querySelectorAll('input[name="areas"]')).toHaveLength(0);
     expect(readOnlyApiHarness.previewItinerary).not.toHaveBeenCalled();
   });
@@ -656,7 +728,7 @@ describe("PersonalizationForm", () => {
     });
 
     render(<PersonalizationForm copy={copy} locale="en" />);
-    await waitFor(() => expect(screen.getByRole("button", { name: copy.submitLabel })).toBeEnabled());
+    await waitFor(() => expect(submitButton()).toBeEnabled());
     fillValidForm(copy);
     fireEvent.submit(screen.getByRole("form", { name: copy.formLabel }));
 
@@ -696,9 +768,8 @@ describe("PersonalizationForm", () => {
     fireEvent.change(screen.getByLabelText(copy.startDateLabel), {
       target: { value: startDate },
     });
-    fireEvent.change(screen.getByLabelText(copy.startTimeLabel), {
-      target: { value: "10:30" },
-    });
+    fireEvent.change(screen.getByLabelText("Start hour"), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText("Start minute"), { target: { value: "30" } });
     fireEvent.change(screen.getByLabelText(copy.durationHoursLabel), {
       target: { value: "4" },
     });
@@ -777,11 +848,11 @@ describe("PersonalizationForm", () => {
 
     render(<PersonalizationForm copy={dictionary.home.personalizationForm} />);
     const amount = screen.getByLabelText(dictionary.home.personalizationForm.budgetLabel);
-    expect(amount).toHaveAttribute("step", "1");
+    expect(amount).toHaveAttribute("inputmode", "numeric");
     fireEvent.change(screen.getByLabelText(dictionary.home.personalizationForm.budgetCurrencyLabel), {
       target: { value: "USD" },
     });
-    expect(amount).toHaveAttribute("step", "0.01");
+    expect(amount).toHaveAttribute("inputmode", "decimal");
   });
 
   it("maps USD decimals to exact positive cents and rejects sub-cent or fractional VND", () => {

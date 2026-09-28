@@ -32,7 +32,7 @@ describe("fixed-tour runtime import boundary", () => {
     expect(loader).not.toMatch(/^import (?!type\b).*supabase-shell/m);
   });
 
-  it("keeps customer routes behind a bidirectional mode-selected boundary", () => {
+  it("keeps the reusable route surface behind a bidirectional mode-selected boundary", () => {
     const surface = source("components/customer/fixed-tour-route-surface.tsx");
     expect(surface).toContain('import("@/components/customer/demo-tour-catalog-entry")');
     expect(surface).toContain('import("@/components/customer/demo-booking-entry")');
@@ -41,11 +41,20 @@ describe("fixed-tour runtime import boundary", () => {
     expect(surface).not.toMatch(/^import (?!type\b).*demo-tour-catalog-entry/m);
     expect(surface).not.toMatch(/^import (?!type\b).*runtime-tour-catalog/m);
 
+  });
+
+  it("keeps approved customer routes on the reviewed runtime preview without importing the old demo catalog", () => {
     for (const route of ["tours", "booking"] as const) {
       const page = source(`app/[locale]/${route}/page.tsx`);
-      expect(page).toContain("FixedTourRouteSurface");
+      expect(page).toContain('from "@/components/dev/booking-local-preview"');
       expect(page).not.toMatch(/createReadOnlyApi|TourCatalogExplorer|DemoBookingEntry/);
     }
+    const preview = source("components/dev/booking-local-preview.tsx");
+    expect(preview).toContain('from "@/components/customer/runtime-tour-catalog"');
+    expect(preview).toContain('from "@/components/customer/runtime-fixed-tour-booking"');
+    expect(preview).toContain('from "@/components/portals/portal-session"');
+    expect(preview).not.toMatch(/infrastructure\/mock|mock-booking|demo-tour-catalog-entry/);
+    expect(preview).not.toMatch(/^import (?!type\b).*supabase-shell/m);
   });
 
   it("reads booking pathname and query from the Next router under Suspense", () => {

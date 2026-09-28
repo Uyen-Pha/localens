@@ -1,15 +1,15 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { FixedToursGrid } from "@/components/customer/fixed-tours-grid";
 import ToursPage, { generateMetadata } from "@/app/[locale]/tours/page";
-import { createReadOnlyApi } from "@/lib/application/api/read-only-api";
-import { getDemoDepartureForTourSlug } from "@/lib/application/booking/mock-booking";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { fixedTourRuntimeCopy } from "@/lib/i18n/fixed-tour-runtime";
 
 const originalRuntimeMode = process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME;
 
 beforeEach(() => {
+  // Exercise the real local composition without connecting to a hosted database.
   process.env.NEXT_PUBLIC_LOCALLENS_RUNTIME = "demo";
 });
 
@@ -22,108 +22,80 @@ afterEach(() => {
 describe("localized fixed tours page", () => {
   it("keeps the browser title and Open Graph title aligned", async () => {
     const metadata = await generateMetadata({ params: Promise.resolve({ locale: "en" }) });
-
     expect(metadata.title).toBe(metadata.openGraph?.title);
   });
 
-  it("renders the localized internal demo catalog and its exact tour facts", async () => {
-    const dictionary = getDictionary("en");
-    const catalogResult = createReadOnlyApi().listTours("en");
-    if (!catalogResult.ok) throw new Error("expected demo catalog");
-
+  it("renders six approved compact tours with facts and detail links when no departure is available", async () => {
     render(await ToursPage({ params: Promise.resolve({ locale: "en" }) }));
 
-    const heading = await screen.findByRole("heading", { level: 1, name: dictionary.home.tourCatalog.catalogHeading });
-    expect(heading).toBeInTheDocument();
-    expect(heading.closest(".section-heading")).toHaveClass("section-heading--tours");
-    expect(screen.getByRole("note")).toHaveTextContent(dictionary.home.tourCatalog.disclosure);
-    expect(screen.getByRole("group", { name: dictionary.home.tourCatalog.filtersLegend })).toHaveClass(
-      "tour-catalog-filters--editorial",
-    );
-    expect(document.querySelector(".demo-tour-grid")).toHaveClass("demo-tour-grid--editorial");
-    for (const tour of catalogResult.value.tours) {
-      const cardHeading = screen.getByRole("heading", { level: 2, name: tour.title });
-      expect(cardHeading).toBeInTheDocument();
-      expect(cardHeading.closest(".demo-tour-card")).toHaveClass("demo-tour-card--editorial");
-      expect(screen.getByText(tour.summary)).toBeInTheDocument();
-      expect(screen.getByText(tour.meetingPoint)).toBeInTheDocument();
-      expect(screen.getByText(tour.sourceUrl)).toBeInTheDocument();
-      expect(screen.getAllByText(tour.attribution).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(tour.verifiedAt).length).toBeGreaterThan(0);
+    expect(await screen.findByRole("heading", { level: 1, name: "Fixed tours in Ho Chi Minh City" })).toBeInTheDocument();
+    const cards = await screen.findAllByRole("article", {}, { timeout: 5_000 });
+    expect(cards).toHaveLength(6);
+    expect(screen.getByRole("status")).toHaveTextContent("06 journeys to discover");
+    expect(screen.getAllByRole("note")[0]).toHaveTextContent(fixedTourRuntimeCopy("en").runtimeDisclosure);
+
+    const expectedTours = [
+      ["Saigon Heritage", "demo-heritage-and-market-morning", "4h 30m", "790,000"],
+      ["Cholon Culture and Phu Binh Lantern Making", "demo-craft-and-tasting-afternoon", "9h", "1,990,000"],
+      ["Saigon Fine Arts and Evening River Cruise", "demo-waterways-and-evening-stories", "5h 30m", "1,590,000"],
+      ["Dạo Chợ Lớn: Chợ Bình Tây và bữa cơm địa phương", "ll-f04", "2h", "290,000"],
+      ["Sài Gòn đời thường: Cà phê vợt và Tân Định", "ll-f05", "3h 30m", "490,000"],
+      ["Củ Chi: Theo dấu lịch sử tại Bến Đình", "ll-f06", "7h 30m", "990,000"],
+    ];
+    for (const [index, [title, slug, duration, price]] of expectedTours.entries()) {
+      const card = cards[index];
+      expect(within(card).getByRole("heading", { level: 2, name: title })).toBeInTheDocument();
+      expect(card).toHaveTextContent(duration);
+      expect(card).toHaveTextContent(price);
+      expect(within(card).getByRole("img").getAttribute("alt")).toBeTruthy();
+      for (const link of within(card).getAllByRole("link", { name: title })) {
+        expect(link).toHaveAttribute("href", `/en/tours/detail?tour=${slug}`);
+      }
+      expect(within(card).getByRole("note")).toHaveTextContent("No departure scheduled yet");
+      expect(card.querySelector(".runtime-tour__summary")?.textContent).toBeTruthy();
+      // Expanded itinerary and source facts belong on the detail page.
+      expect(card.querySelector("details")).toBeNull();
     }
-    for (const tour of catalogResult.value.tours) {
-      const departure = getDemoDepartureForTourSlug(tour.slug);
-      if (departure === undefined) throw new Error(`missing demo departure for ${tour.slug}`);
-      expect(screen.getByRole("link", { name: `${dictionary.home.tourCatalog.bookLabel} ${tour.title}` })).toHaveAttribute(
-        "href",
-        `/en/booking?departure=${departure.departureId}&partySize=1`,
-      );
-    }
+    expect(document.querySelector(".demo-tour-grid")).toBeNull();
+    expect(document.querySelector('a[href*="/booking/"]')).toBeNull();
   });
 
-  it("keeps every filter and card label localized in English and Vietnamese", async () => {
-    for (const locale of ["en", "vi"] as const) {
-      const dictionary = getDictionary(locale);
-      const copy = dictionary.home.tourCatalog;
-      const catalogResult = createReadOnlyApi().listTours(locale);
-      if (!catalogResult.ok) throw new Error(`expected ${locale} demo catalog`);
+  it.each([
+    { locale: "en" as const, search: "Search tours", keyword: "What would you like to explore?", language: "Content language", experience: "Experience", budget: "Budget / person (VND)", duration: "Duration", submit: "Search", reset: "Clear filters", title: "Saigon Heritage", empty: "No matching results" },
+    { locale: "vi" as const, search: "Tìm kiếm tour", keyword: "Bạn muốn khám phá điều gì?", language: "Ngôn ngữ nội dung", experience: "Loại trải nghiệm", budget: "Ngân sách / khách (VND)", duration: "Thời lượng", submit: "Tìm kiếm", reset: "Xóa bộ lọc", title: "Dấu ấn Sài Gòn", empty: "Không có kết quả phù hợp" },
+  ])("localizes the $locale search controls and applies keyword, budget, and reset actions", async (copy) => {
+    render(await ToursPage({ params: Promise.resolve({ locale: copy.locale }) }));
+    expect(await screen.findAllByRole("article", {}, { timeout: 5_000 })).toHaveLength(6);
+    const search = screen.getByRole("search", { name: copy.search });
+    expect(within(search).getByRole("combobox", { name: copy.language })).toHaveValue(copy.locale);
+    expect(within(search).getByRole("combobox", { name: copy.experience })).toHaveValue("");
+    expect(within(search).getByRole("combobox", { name: copy.duration })).toHaveValue("");
 
-      render(await ToursPage({ params: Promise.resolve({ locale }) }));
+    fireEvent.change(within(search).getByRole("searchbox", { name: copy.keyword }), { target: { value: copy.locale === "vi" ? "Dinh Độc Lập" : "Saigon Heritage" } });
+    fireEvent.click(within(search).getByRole("button", { name: copy.submit }));
+    await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(1));
+    expect(screen.getByRole("heading", { level: 2, name: copy.title })).toBeInTheDocument();
+    expect(within(screen.getByRole("heading", { level: 2, name: copy.title })).getByRole("link")).toHaveAttribute(
+      "href", `/${copy.locale}/tours/detail?tour=demo-heritage-and-market-morning`,
+    );
 
-      const filters = await screen.findByRole("group", { name: copy.filtersLegend });
-      expect(within(filters).getByText(copy.filtersLegend)).toBeInTheDocument();
-      expect(screen.getByLabelText(copy.keywordLabel)).toBeInTheDocument();
-      expect(screen.getByLabelText(copy.areaLabel)).toBeInTheDocument();
-      expect(screen.getByLabelText(copy.experienceLabel)).toBeInTheDocument();
-      expect(within(filters).getByRole("option", { name: copy.allAreasLabel })).toBeInTheDocument();
-      expect(within(filters).getByRole("option", { name: copy.allExperienceTypesLabel })).toBeInTheDocument();
-      for (const option of [...copy.areaOptions, ...copy.experienceTypeOptions]) {
-        expect(within(filters).getByRole("option", { name: option.label })).toBeInTheDocument();
-      }
-      expect(within(filters).getByRole("button", { name: copy.clearFiltersLabel })).toBeInTheDocument();
+    fireEvent.change(within(search).getByRole("combobox", { name: copy.budget }), { target: { value: "under300k" } });
+    fireEvent.click(within(search).getByRole("button", { name: copy.submit }));
+    expect(await screen.findByRole("heading", { name: copy.empty })).toBeInTheDocument();
+    expect(screen.queryAllByRole("article")).toHaveLength(0);
 
-      const firstTour = catalogResult.value.tours[0];
-      if (!firstTour) throw new Error(`expected ${locale} tour card`);
-      const firstCardHeading = screen.getByRole("heading", { level: 2, name: firstTour.title });
-      const firstCard = firstCardHeading.closest<HTMLElement>(".demo-tour-card");
-      if (!firstCard) throw new Error(`expected ${locale} tour card container`);
-
-      for (const label of [
-        copy.detailsLabel,
-        copy.durationLabel,
-        copy.priceLabel,
-        copy.meetingPointLabel,
-        copy.experienceTypesLabel,
-        copy.areasLabel,
-        copy.stopsLabel,
-        copy.inclusionsLabel,
-        copy.exclusionsLabel,
-        copy.cancellationPolicyLabel,
-        copy.sourceLabel,
-        copy.attributionLabel,
-        copy.verifiedLabel,
-        copy.licenseLabel,
-      ]) {
-        expect(firstCard).toHaveTextContent(label);
-      }
-      expect(within(firstCard).getByRole("link", { name: `${copy.bookLabel} ${firstTour.title}` })).toBeInTheDocument();
-
-      cleanup();
-    }
+    fireEvent.click(within(search).getByRole("button", { name: copy.reset }));
+    await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(6));
+    expect(within(search).getByRole("searchbox", { name: copy.keyword })).toHaveValue("");
+    expect(within(search).getByRole("combobox", { name: copy.budget })).toHaveValue("");
   });
 
   it("keeps the fixed-tour grid and cards on the editorial class contract", () => {
     const dictionary = getDictionary("en");
-
     render(<FixedToursGrid locale="en" copy={dictionary.home} />);
-
-    const grid = document.querySelector(".tour-grid");
-    expect(grid).not.toBeNull();
-    expect(grid).toHaveClass("tour-grid--editorial");
+    expect(document.querySelector(".tour-grid")).toHaveClass("tour-grid--editorial");
     for (const tour of dictionary.home.fixedTours) {
-      const card = document.getElementById(tour.id);
-      expect(card).not.toBeNull();
-      expect(card).toHaveClass("tour-card--editorial");
+      expect(document.getElementById(tour.id)).toHaveClass("tour-card--editorial");
     }
   });
 });

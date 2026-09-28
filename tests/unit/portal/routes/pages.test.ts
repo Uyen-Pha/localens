@@ -21,7 +21,7 @@ describe("portal route contracts", () => {
       expect(source).toContain("generateStaticParams");
       expect(source).toContain('{ locale: "en" }');
       expect(source).toContain('{ locale: "vi" }');
-      expect(source).toContain(route === "sign-in" ? "SignInRouteSurface" : "PortalSurface");
+      expect(source).toContain(route === "sign-in" ? "SignInRouteSurface" : route === "account" ? "CustomerAccount" : "PortalSurface");
     }
   });
 

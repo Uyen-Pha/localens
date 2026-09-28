@@ -117,6 +117,31 @@ afterEach(() => {
 });
 
 describe("runtime fixed-tour account", () => {
+  it.each([
+    { paymentStatus: undefined },
+    { paymentDeadlineAt: undefined },
+    { paymentDeadlineAt: null },
+    { paymentStatus: undefined, paymentDeadlineAt: undefined, tripStartAt: undefined },
+  ])("shows bookings without enabling cancellation for unknown eligibility %j", async (unknown) => {
+    const cancel = vi.fn(async () => cancelled);
+    render(<RuntimeFixedTourAccount locale="en"
+      fixedTour={port({ bookings: vi.fn(async () => [{ ...booking, ...unknown }]) })}
+      bookingCancellations={cancellationPort({ cancel })} />);
+    expect(await screen.findByRole("article", { name: booking.titleEn })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("does not use a separate payment receipt to authorize unknown cancellation eligibility", async () => {
+    render(<RuntimeFixedTourAccount locale="en"
+      fixedTour={port({
+        bookings: vi.fn(async () => [{ ...booking, status: "confirmed" as const, paymentStatus: undefined }]),
+        payments: vi.fn(async () => [paidStatus]),
+      })} bookingCancellations={cancellationPort()} />);
+    expect(await screen.findByRole("article", { name: booking.titleEn })).toHaveTextContent("Paid");
+    expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
+  });
+
   it("opens the Vietnamese immediate-cancellation dialog without mutating", async () => {
     const cancel = vi.fn(async () => cancelled);
     render(<RuntimeFixedTourAccount locale="vi" fixedTour={port()} bookingCancellations={cancellationPort({ cancel })} />);
@@ -469,7 +494,7 @@ describe("runtime fixed-tour account", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Hoàn tất thanh toán mô phỏng" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(
-      "Đã ghi nhận thanh toán mô phỏng cho bản demo đồ án này.",
+      "Đã ghi nhận thanh toán mô phỏng",
     ));
     expect(screen.getByText("Đã xác nhận", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Đã thanh toán", { exact: true })).toBeInTheDocument();

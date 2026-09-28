@@ -402,7 +402,7 @@ describe("PlannerFlow", () => {
     render(<PlannerFlow locale="vi" copy={copy} />);
 
     expect(screen.getByText(/Khám phá các dãy chợ/)).toBeInTheDocument();
-    expect(screen.getByText(/Chỉ là đề xuất demo/)).toBeInTheDocument();
+    expect(screen.getByText(copy.simulatedDisclosure)).toBeInTheDocument();
 
     const lockButton = screen.getByRole("button", {
       name: `${copy.lockLabel}: ${"Bảo tàng Chứng tích Chiến tranh"}`,

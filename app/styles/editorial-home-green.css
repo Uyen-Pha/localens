@@ -1,3 +1,4 @@
+/* editorial-css-sha256: e082fd8d27a4828fe7934619646280f2c341c1ac174a178fc3a45e3c5af85253 */
 /* Green-white landing composition. The historical editorial-home.css remains
    intact; this route-scoped layer carries the selected visual direction. */
 .customer-home.customer-home--green {
@@ -9,7 +10,6 @@
   width: 100vw;
   max-width: 100vw;
   margin: calc(-1 * var(--space-6)) 0 0 calc(50% - 50vw);
-  overflow: hidden;
   background: var(--color-paper);
 }
 
@@ -611,6 +611,7 @@
   }
 
   .customer-home--green .customer-hero__stops {
+    grid-template-columns: 1fr;
     gap: 0.5rem;
     margin: -1.25rem 0 0;
     padding-inline: 0.75rem;
@@ -619,7 +620,6 @@
   .customer-home--green .customer-hero__stops li { padding: 0.5rem; }
   .customer-home--green .customer-hero__stops img { height: 4.5rem; }
   .customer-home--green .customer-hero__stops h2 { font-size: 0.75rem; }
-  .customer-home--green .customer-hero__stops li > p:last-child { display: none; }
 
   .customer-home--green .experience-grid { grid-template-columns: 1fr; }
   .customer-home--green .experience-intro { grid-column: auto; min-height: 0; padding: 0 0 var(--space-7); }

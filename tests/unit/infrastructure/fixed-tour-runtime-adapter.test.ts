@@ -178,6 +178,84 @@ async function expectRejectCode(
 }
 
 describe("Supabase fixed-tour runtime adapter", () => {
+  it.each(["payment_status", "payment_deadline_at", "trip_start_at"])(
+    "retries a recognized missing %s column with the legacy owner-scoped projection", async (column) => {
+      const legacy: Record<string, unknown> = bookingRow();
+      delete legacy.payment_status;
+      delete legacy.payment_deadline_at;
+      delete legacy.trip_start_at;
+      for (const error of [
+        { code: "42703", message: `column customer_bookings_v.${column} does not exist` },
+        { code: "PGRST204", message: `Could not find the '${column}' column of 'customer_bookings_v' in the schema cache` },
+      ]) {
+        const { client } = clientDouble();
+        const currentQuery = queryDouble({ data: null, error });
+        const legacyQuery = queryDouble({ data: [legacy], error: null });
+        client.from.mockReturnValueOnce(currentQuery).mockReturnValueOnce(legacyQuery);
+        const result = await createSupabaseFixedTourRuntimeAdapter(client as never).listOwnBookings();
+        expect(result).toHaveLength(1);
+        expect(result[0]).toMatchObject({ id: ids.booking, status: "pending_payment" });
+        expect(result[0].paymentStatus).toBeUndefined();
+        expect(result[0].paymentDeadlineAt).toBeUndefined();
+        expect(result[0].tripStartAt).toBeUndefined();
+        expect(client.from.mock.calls).toEqual([["customer_bookings_v"], ["customer_bookings_v"]]);
+        expect(legacyQuery.select).toHaveBeenCalledWith("id,status,source_kind,source_id,tour_version_id,quote_id,title_en,title_vi,cancellation_policy,catalog_snapshot_id,travel_snapshot_id,fx_snapshot_id,fx_vnd_per_usd,per_person_vnd_minor,total_vnd_minor,checkout_currency,checkout_amount_minor,party_size,language,meeting_point,hold_expires_at,created_at");
+        expect(legacyQuery.eq).not.toHaveBeenCalled();
+        expect(legacyQuery.order.mock.calls).toEqual([["created_at", { ascending: false }], ["id", { ascending: false }]]);
+      }
+    },
+  );
+
+  it.each([
+    [{ code: "42501", message: "permission denied" }, "FORBIDDEN"],
+    [{ code: "PGRST301", message: "JWT expired" }, "UNAUTHENTICATED"],
+    [{ code: "08006", message: "connection failure" }, "SERVICE_UNAVAILABLE"],
+    [{ code: "42501", message: "column customer_bookings_v.payment_status does not exist" }, "FORBIDDEN"],
+    [{ code: "42703", message: "column customer_bookings_v.title_en does not exist" }, "SERVICE_UNAVAILABLE"],
+    [{ code: "42703", message: "column other_view.payment_status does not exist" }, "SERVICE_UNAVAILABLE"],
+    [{ code: "PGRST204", message: "Could not find the 'payment_status' column of 'other_view' in the schema cache" }, "SERVICE_UNAVAILABLE"],
+    [{ code: "42P01", message: "relation customer_bookings_v does not exist" }, "SERVICE_UNAVAILABLE"],
+    [{ code: "42703", message: "unknown schema error payment_status" }, "SERVICE_UNAVAILABLE"],
+  ] as const)("does not downgrade unrelated failure %j", async (error, code) => {
+    const { client } = clientDouble({ bookings: { data: null, error } });
+    await expectRejectCode(createSupabaseFixedTourRuntimeAdapter(client as never).listOwnBookings(), code);
+    expect(client.from).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [{ code: "42501", message: "permission denied" }, "FORBIDDEN"],
+    [{ code: "08006", message: "network failed" }, "SERVICE_UNAVAILABLE"],
+    [{ code: "42703", message: "column customer_bookings_v.payment_status does not exist" }, "SERVICE_UNAVAILABLE"],
+  ] as const)("preserves legacy retry failure without another downgrade %j", async (error, code) => {
+    const { client } = clientDouble();
+    client.from
+      .mockReturnValueOnce(queryDouble({ data: null, error: { code: "42703", message: "column customer_bookings_v.payment_status does not exist" } }))
+      .mockReturnValueOnce(queryDouble({ data: null, error }));
+    await expectRejectCode(createSupabaseFixedTourRuntimeAdapter(client as never).listOwnBookings(), code);
+    expect(client.from).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([false, true])("preserves a thrown network failure (legacy retry: %s)", async (legacy) => {
+    const { client } = clientDouble();
+    const failedQuery = queryDouble({ data: null, error: null });
+    failedQuery.then.mockImplementation((_resolve, reject) => Promise.reject(new Error("network private detail")).catch(reject));
+    if (legacy) client.from.mockReturnValueOnce(queryDouble({
+      data: null, error: { code: "42703", message: "column customer_bookings_v.payment_status does not exist" },
+    }));
+    client.from.mockReturnValueOnce(failedQuery);
+    await expectRejectCode(createSupabaseFixedTourRuntimeAdapter(client as never).listOwnBookings(), "SERVICE_UNAVAILABLE");
+    expect(client.from).toHaveBeenCalledTimes(legacy ? 2 : 1);
+  });
+
+  it("does not mask malformed legacy rows as an empty booking list", async () => {
+    const { client } = clientDouble();
+    client.from
+      .mockReturnValueOnce(queryDouble({ data: null, error: { code: "42703", message: "column customer_bookings_v.payment_status does not exist" } }))
+      .mockReturnValueOnce(queryDouble({ data: [{ id: ids.booking, owner_user_id: "private" }], error: null }));
+    await expectRejectCode(createSupabaseFixedTourRuntimeAdapter(client as never).listOwnBookings(), "INVALID_RESPONSE");
+    expect(client.from).toHaveBeenCalledTimes(2);
+  });
+
   it("uses an exact locale-filtered published-tour projection and existing mapper", async () => {
     const { client, tourQuery } = clientDouble();
     const adapter = createSupabaseFixedTourRuntimeAdapter(client as never);

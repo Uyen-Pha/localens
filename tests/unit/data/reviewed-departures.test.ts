@@ -8,8 +8,10 @@ it("runs each tour seven days every week, preserves duration and uses unique dep
   reviewedDataset.tours.forEach((tour, index) => {
     const base = tour.departures[0];
     const departures = reviewedDepartures(base, index);
-    expect(departures).toHaveLength(175);
-    expect(departures[0].id).toBe(base.id);
+    const fromOriginal = departures.filter(d => Date.parse(d.startAt) >= Date.parse(base.startAt));
+    expect(fromOriginal).toHaveLength(175);
+    expect(fromOriginal[0].id).toBe(base.id);
+    expect(fromOriginal[0].startAt).toBe(base.startAt);
     for (let week = 0; week < 25; week++) {
       expect(departures.filter(d => Math.floor((Date.parse(d.startAt) - Date.parse(base.startAt)) / 604800000) === week)).toHaveLength(7);
     }

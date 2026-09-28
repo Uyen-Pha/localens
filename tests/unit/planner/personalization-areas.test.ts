@@ -20,14 +20,17 @@ function input(overrides: Record<string, unknown> = {}) {
 }
 
 describe("personalization catalog area contract", () => {
-  it("maps only the current snapshot and pins the synthetic area label", () => {
-    expect(normalizeCatalogAreaOptions(input())).toEqual<PersonalizationAreaOption[]>([
+  it.each([
+    ["en", "Central HCMC (illustrative data)"],
+    ["vi", "Khu vực trung tâm TP.HCM (dữ liệu minh họa)"],
+  ] as const)("maps only the current snapshot and identifies illustrative data in %s", (locale, label) => {
+    expect(normalizeCatalogAreaOptions(input({ locale }))).toEqual<PersonalizationAreaOption[]>([
       {
         value: SYNTHETIC_CENTRAL_AREA_SLUG,
         slug: SYNTHETIC_CENTRAL_AREA_SLUG,
         areaId,
         snapshotId,
-        label: "Synthetic Central HCMC Demo Area",
+        label,
       },
     ]);
   });

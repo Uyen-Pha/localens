@@ -21,7 +21,8 @@ export function BookingLocalPreview({ locale, catalog = false, tourSlug }: { loc
     const requested = new URLSearchParams(window.location.search).get("departure");
     setShowPreviewTools(new URLSearchParams(window.location.search).get("previewTools") === "1");
     setInitialPartySize(new URLSearchParams(window.location.search).get("partySize") ?? "1");
-    if (requested && dataset.tours.some((t, i) => t.departures.some(d => reviewedDepartures(d, i).some(item => item.id === requested)))) setDepartureId(requested);
+    // Only an absent parameter means browse; explicit stale/invalid IDs must fail closed.
+    if (requested !== null) setDepartureId(requested);
   }, []);
   const checkoutPath = useRef("");
   const [scenario, setScenario] = useState("customer");

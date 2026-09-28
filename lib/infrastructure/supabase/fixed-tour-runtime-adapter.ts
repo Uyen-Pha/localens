@@ -76,6 +76,9 @@ const CUSTOMER_BOOKING_COLUMNS = [
   "created_at",
 ].join(",");
 
+const LEGACY_CUSTOMER_BOOKING_COLUMNS = CUSTOMER_BOOKING_COLUMNS.split(",").filter((column) =>
+  column !== "payment_status" && column !== "payment_deadline_at" && column !== "trip_start_at").join(",");
+
 const HOLD_RESULT_FIELDS = ["booking_id", "hold_expires_at", "state"] as const;
 const PAYMENT_STATUS_COLUMNS = [
   "booking_id",
@@ -115,6 +118,15 @@ function errorCode(error: unknown): string {
 
 function errorMessage(error: unknown): string {
   return isRecord(error) && typeof error.message === "string" ? error.message.toLowerCase() : "";
+}
+
+function isMissingCancellationColumn(error: unknown): boolean {
+  const code = errorCode(error);
+  const message = errorMessage(error);
+  if (code === "42703") {
+    return /^column (?:(?:"?public"?\.)?"?customer_bookings_v"?\.)?"?(payment_status|payment_deadline_at|trip_start_at)"? does not exist$/.test(message);
+  }
+  return code === "PGRST204" && /^could not find the '(payment_status|payment_deadline_at|trip_start_at)' column of 'customer_bookings_v' in the schema cache$/.test(message);
 }
 
 function mapServiceError(error: unknown): FixedTourRuntimeError {
@@ -273,14 +285,21 @@ export function createSupabaseFixedTourRuntimeAdapter(
 
     async listOwnBookings(): Promise<CustomerBooking[]> {
       await requireSession(client);
-      const data = await responseData(
-        client
+      const query = (columns: string) => client
           .from("customer_bookings_v")
-          .select(CUSTOMER_BOOKING_COLUMNS)
+          .select(columns)
           .order("created_at", { ascending: false })
-          .order("id", { ascending: false }),
-      );
-      return mappedRows(data, mapCustomerBooking);
+          .order("id", { ascending: false });
+      let legacy = false;
+      const data = await responseData((async () => {
+        const response = await query(CUSTOMER_BOOKING_COLUMNS);
+        if (!isMissingCancellationColumn(response.error)) return response;
+        // Retry only schema-version differences, retaining the same RLS view.
+        // Errors from this one retry still go through the normal error mapping.
+        legacy = true;
+        return await query(LEGACY_CUSTOMER_BOOKING_COLUMNS);
+      })());
+      return mappedRows(data, (row) => mapCustomerBooking(row, legacy ? "legacy" : "current"));
     },
 
     async listOwnPaymentStatuses(): Promise<FixedTourPaymentStatus[]> {

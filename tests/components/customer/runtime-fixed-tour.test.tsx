@@ -14,6 +14,13 @@ import type { LiveDepartureAvailability, PublishedTour } from "@/lib/domain/data
 const DEPARTURE_ID = "11111111-1111-4111-8111-111111111111";
 const VERSION_ID = "22222222-2222-4222-8222-222222222222";
 
+// Reviews have their own composition loader; keep these booking tests offline.
+vi.mock("@/components/portals/portal-session", () => ({
+  loadPortalSurfaceComposition: vi.fn(async () => { throw new Error("Reviews unavailable in booking tests"); }),
+}));
+
+const holdStorageKey = (size = 1) => `localens.fixed-tour.hold:en:${DEPARTURE_ID}:${size}`;
+
 const tours: Record<"en" | "vi", PublishedTour> = {
   en: {
     id: "33333333-3333-4333-8333-333333333333",
@@ -131,7 +138,7 @@ function shell(port: FixedTourRuntimePort, current: PortalIdentity | null): Supa
 }
 
 beforeEach(() => window.sessionStorage.clear());
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("runtime fixed-tour catalog", () => {
   it("does not create a hold if the account changes to a guide before submission", async () => {
@@ -222,7 +229,7 @@ describe("runtime fixed-tour booking", () => {
     expect(port.beginBooking).not.toHaveBeenCalled();
   });
 
-  it.each([null, identity("guide"), identity("admin")])(
+  it.each([identity("guide"), identity("admin")])(
     "never calls the hold RPC for a non-customer session",
     async (current) => {
       const port = fixedTour();
@@ -237,6 +244,85 @@ describe("runtime fixed-tour booking", () => {
       expect(port.beginBooking).not.toHaveBeenCalled();
     },
   );
+
+  it("redirects a signed-out customer to sign-in on submit without creating a hold", async () => {
+    const port = fixedTour();
+    render(<RuntimeFixedTourBooking locale="en" composition={shell(port, null)} departureId={DEPARTURE_ID} initialPartySize="2" navigate={() => undefined} />);
+    const button = await screen.findByRole("button", { name: /book tour/i });
+    const assign = vi.fn();
+    const realWindow = window;
+    vi.stubGlobal("window", new Proxy(realWindow, {
+      get: (target, property) => property === "location" ? { ...target.location, assign } : Reflect.get(target, property),
+    }));
+    fireEvent.click(button);
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
+    const destination = new URL(assign.mock.calls[0][0], "https://localens.test");
+    expect(destination.pathname).toBe("/en/sign-in/");
+    expect(destination.searchParams.get("returnTo")).toBe(`/en/booking/?departure=${DEPARTURE_ID}&partySize=2`);
+    expect(port.beginBooking).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(holdStorageKey(2))).toBeNull();
+  });
+
+  it.each(["scheduled", "sold_out"] as const)("replays the same lost-response key after remount with zero capacity and %s status", async (status) => {
+    let remainingCapacity = 1;
+    const beginBooking = vi.fn<FixedTourRuntimePort["beginBooking"]>()
+      .mockImplementationOnce(async () => { remainingCapacity = 0; throw new FixedTourRuntimeError("SERVICE_UNAVAILABLE"); })
+      .mockResolvedValueOnce({ bookingId: "55555555-5555-4555-8555-555555555555", holdExpiresAt: "2099-09-05T02:35:00.000Z", state: "resumed" });
+    const port = fixedTour({ beginBooking, listAvailability: vi.fn(async () => [{ ...availability, remainingCapacity, status: remainingCapacity ? "scheduled" : status }]) });
+    const composition = shell(port, identity("customer"));
+    const navigate = vi.fn();
+    const page = <RuntimeFixedTourBooking locale="en" composition={composition} departureId={DEPARTURE_ID} initialPartySize="1" navigate={navigate} />;
+    const first = render(page);
+    fireEvent.click(await screen.findByRole("button", { name: /book tour/i }));
+    await screen.findByText(/service is unavailable/i);
+    expect(navigate).not.toHaveBeenCalled();
+    const original = beginBooking.mock.calls[0][0];
+    expect(original.idempotencyKey).toBeTruthy();
+    first.unmount();
+    render(page);
+    const retry = await screen.findByRole("button", { name: /book tour/i });
+    expect(beginBooking).toHaveBeenCalledTimes(1);
+    fireEvent.click(retry);
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/en/account/?hold=resumed"));
+    expect(beginBooking).toHaveBeenCalledTimes(2);
+    expect(beginBooking.mock.calls[1][0]).toEqual(original);
+  });
+
+  it.each(["missing", "different-party-size"])("blocks zero-capacity initial load with a %s attempt key", async (key) => {
+    if (key === "different-party-size") sessionStorage.setItem(holdStorageKey(2), "other-payload-key");
+    const port = fixedTour({ listAvailability: vi.fn(async () => [{ ...availability, remainingCapacity: 0 }]) });
+    render(<RuntimeFixedTourBooking locale="en" composition={shell(port, identity("customer"))} departureId={DEPARTURE_ID} initialPartySize="1" navigate={() => undefined} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/sold out/i);
+    expect(screen.queryByRole("button", { name: /book tour/i })).not.toBeInTheDocument();
+    expect(port.beginBooking).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(holdStorageKey())).toBeNull();
+  });
+
+  it.each(["guide", "admin"] as const)("blocks replay when the account changes to %s despite a matching key", async (role) => {
+    sessionStorage.setItem(holdStorageKey(), "existing-attempt");
+    const port = fixedTour({ listAvailability: vi.fn(async () => [{ ...availability, remainingCapacity: 0 }]) });
+    const composition = shell(port, identity("customer"));
+    vi.mocked(composition.session.getSession).mockResolvedValueOnce(identity("customer")).mockResolvedValue(identity(role));
+    render(<RuntimeFixedTourBooking locale="en" composition={composition} departureId={DEPARTURE_ID} initialPartySize="1" navigate={() => undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: /book tour/i }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /book tour/i })).not.toBeInTheDocument());
+    expect(port.beginBooking).not.toHaveBeenCalled();
+    expect(port.listAvailability).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([0, 1])("blocks matching-key replay at departure start plus %i milliseconds", async (offset) => {
+    sessionStorage.setItem(holdStorageKey(), "existing-attempt");
+    const start = Date.parse(availability.startAt);
+    const clock = vi.spyOn(Date, "now").mockReturnValue(start - 1000);
+    const port = fixedTour({ listAvailability: vi.fn(async () => [{ ...availability, remainingCapacity: 0 }]) });
+    render(<RuntimeFixedTourBooking locale="en" composition={shell(port, identity("customer"))} departureId={DEPARTURE_ID} initialPartySize="1" navigate={() => undefined} />);
+    const retry = await screen.findByRole("button", { name: /book tour/i });
+    clock.mockReturnValue(start + offset);
+    fireEvent.click(retry);
+    await waitFor(() => expect(screen.queryByRole("button", { name: /book tour/i })).not.toBeInTheDocument());
+    expect(port.listAvailability).toHaveBeenCalledTimes(2);
+    expect(port.beginBooking).not.toHaveBeenCalled();
+  });
 
   it("validates party size and sends only the four browser-owned fields", async () => {
     const port = fixedTour();
@@ -302,6 +388,24 @@ describe("runtime fixed-tour booking", () => {
     });
 
     expect(beginBooking).toHaveBeenCalledTimes(1);
+  });
+
+  it("replays the same hold key after a lost response even when its hold exhausted capacity", async () => {
+    const beginBooking = vi.fn()
+      .mockRejectedValueOnce(new FixedTourRuntimeError("SERVICE_UNAVAILABLE"))
+      .mockResolvedValueOnce({ bookingId: "55555555-5555-4555-8555-555555555555", holdExpiresAt: "2099-09-05T02:35:00.000Z", state: "resumed" });
+    const listAvailability = vi.fn()
+      .mockResolvedValueOnce([availability])
+      .mockResolvedValueOnce([availability])
+      .mockResolvedValue([{ ...availability, remainingCapacity: 0, status: "sold_out" }]);
+    const destinations: string[] = [];
+    render(<RuntimeFixedTourBooking locale="en" composition={shell(fixedTour({ beginBooking, listAvailability }), identity("customer"))} departureId={DEPARTURE_ID} initialPartySize="1" navigate={path => destinations.push(path)} />);
+    fireEvent.click(await screen.findByRole("button", { name: /book tour/i }));
+    await screen.findByText(/service is unavailable/i);
+    fireEvent.click(screen.getByRole("button", { name: /book tour/i }));
+    await waitFor(() => expect(destinations).toEqual(["/en/account/?hold=resumed"]));
+    expect(beginBooking).toHaveBeenCalledTimes(2);
+    expect(beginBooking.mock.calls[0]).toEqual(beginBooking.mock.calls[1]);
   });
 
   it.each([

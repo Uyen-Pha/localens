@@ -550,7 +550,7 @@ describe("SupabasePlannerFlow", () => {
 
     expect(await screen.findByRole("button", { name: "Generate itinerary" })).toBeEnabled();
     expect(screen.getByRole("note")).toHaveTextContent(
-      "Authenticated thesis-demo planner — generate and save an itinerary only after you choose the action.",
+      "Signed-in itinerary planner — an itinerary is generated and saved only after you choose the action.",
     );
     expect(screen.queryByText(/does not generate or save an itinerary yet/i)).not.toBeInTheDocument();
   });
@@ -568,7 +568,7 @@ describe("SupabasePlannerFlow", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(
-      "The thesis-demo AI limit has been reached today. LocalLens will not retry automatically; try again after the quota resets.",
+      "Today's AI request limit has been reached. LocalLens will not retry automatically; try again after the limit resets.",
     );
     expect(alert).not.toHaveTextContent(/fallback proposal/i);
     await Promise.resolve();

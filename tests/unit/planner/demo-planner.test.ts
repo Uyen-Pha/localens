@@ -87,7 +87,7 @@ describe("demo planner adapter", () => {
       groupCostMaxVnd: 255_000,
     });
     expect(state.current.warnings).toContain(
-      "Demo proposal only: operating hours and availability still require company confirmation.",
+      "Illustrative proposal only: operating hours and availability still require company confirmation.",
     );
     expect(state.history).toHaveLength(0);
   });
@@ -98,7 +98,9 @@ describe("demo planner adapter", () => {
     expect(state.locale).toBe("vi");
     expect(state.current.items[0]?.title).toBe("Chợ Bến Thành");
     expect(state.current.items[0]?.activity).toContain("Khám phá");
-    expect(state.current.warnings[0]).toContain("Chỉ là đề xuất demo");
+    expect(state.current.warnings).toContain(
+      "Đề xuất mang tính minh họa; giờ hoạt động và tình trạng nhận khách vẫn cần công ty xác nhận.",
+    );
     expect(state.current.items.map((item) => item.title)).not.toContain("War Remnants Museum");
   });
 

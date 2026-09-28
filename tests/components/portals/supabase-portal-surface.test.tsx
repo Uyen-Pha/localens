@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PortalSurface } from "@/components/portals/portal-surface";
@@ -428,6 +428,25 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
     expect(screen.getByLabelText(copy.password)).toBeInTheDocument();
   });
 
+  it("announces a generic guide sign-out failure, keeps the session, and allows retry", async () => {
+    const session = new MemoryRuntimeSession();
+    session.seed(ACCOUNTS[1].identity);
+    vi.spyOn(session, "signOut").mockRejectedValueOnce(new Error("private-remote-sign-out-detail"));
+    renderSurface({ locale, shell: shellFor(session), expectedRole: "guide" });
+
+    fireEvent.click(await screen.findByRole("button", { name: copy.signOut }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(copy.actionError);
+    expect(document.body.textContent).not.toContain("private-remote-sign-out-detail");
+    expect(screen.queryByRole("heading", { name: copy.heading })).not.toBeInTheDocument();
+    await expect(session.getSession()).resolves.toMatchObject({ role: "guide" });
+
+    fireEvent.click(screen.getByRole("button", { name: copy.signOut }));
+    expect(await screen.findByRole("heading", { name: copy.heading })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await expect(session.getSession()).resolves.toBeNull();
+  });
+
   it('opens existing research administration through the authenticated admin menu', async()=>{
     const session=new MemoryRuntimeSession();
     session.seed(ACCOUNTS[2].identity);
@@ -436,12 +455,13 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
       cancelBooking:vi.fn(),submit:async()=>'',listCustomer:async()=>[],listAdmin:async()=>[],
       decide:async()=>{},createQuote:async()=>'',
     }}});
-    fireEvent.click(await screen.findByRole('button',{name:'Tour cá nhân hóa'}));
+    const menu = await screen.findByRole('navigation', { name: 'Điều hướng quản trị' });
+    fireEvent.click(within(menu).getByRole('button',{name:'Tour cá nhân hóa'}));
     expect(await screen.findByRole('heading',{name:'Xử lý tour cá nhân hóa'})).toBeVisible();
     expect(await screen.findByText('Chưa có yêu cầu tour cá nhân hóa.')).toBeVisible();
   });
 
-  it("mounts read-only booking cancellation history only for an administrator", async () => {
+  it("keeps the approved admin booking preview separate from runtime cancellation history", async () => {
     const session = new MemoryRuntimeSession();
     session.seed(ACCOUNTS[2].identity);
     const cancellation: BookingCancellation = {
@@ -471,19 +491,21 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
       expectedRole: "admin",
     });
 
-    expect(await screen.findByRole("heading", {
-      name: locale === "vi" ? "Quản lý đơn đặt tour" : "Booking management",
-    })).toBeInTheDocument();
-    expect((await screen.findAllByText(booking.bookingId)).length).toBeGreaterThan(0);
-    expect(screen.getByText(locale === "vi" ? booking.titleVi : booking.titleEn)).toBeInTheDocument();
-    expect(listAdminBookings).toHaveBeenCalledTimes(1);
+    const menu = await screen.findByRole("navigation", { name: "Điều hướng quản trị" });
+    fireEvent.click(within(menu).getByRole("button", { name: "Đơn đặt tour" }));
+    expect(await screen.findByRole("heading", { name: "Quản lý đơn đặt tour" })).toBeVisible();
+    expect(await screen.findByRole("table")).toBeVisible();
+    expect(screen.getByText("Phân hệ mẫu · dữ liệu minh họa")).toBeVisible();
+    expect(screen.queryByText(booking.bookingId)).not.toBeInTheDocument();
+    expect(screen.queryByText(booking.titleVi)).not.toBeInTheDocument();
+    expect(listAdminBookings).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: /approve|reject|duyệt|từ chối/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", {
       name: locale === "vi" ? "Các giữ chỗ tour cố định của bạn" : "Your fixed-tour holds",
     })).not.toBeInTheDocument();
   });
 
-  it("mounts the runtime assignment queue only for an administrator", async () => {
+  it("keeps the approved admin assignment preview separate from runtime assignment ports", async () => {
     const session = new MemoryRuntimeSession();
     session.seed(ACCOUNTS[2].identity);
     const listAdminQueue = vi.fn(async () => [{
@@ -513,11 +535,14 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
       expectedRole: "admin",
     });
 
-    expect(await screen.findByRole("heading", {
-      name: locale === "vi" ? "Phân công hướng dẫn viên" : "Guide assignments",
-    })).toBeInTheDocument();
-    expect(listAdminQueue).toHaveBeenCalledTimes(1);
-    expect(listEligibleGuides).toHaveBeenCalledTimes(1);
+    const menu = await screen.findByRole("navigation", { name: "Điều hướng quản trị" });
+    fireEvent.click(within(menu).getByRole("button", { name: "Phân công hướng dẫn viên" }));
+    expect(await screen.findByRole("heading", { name: "Phân công hướng dẫn viên", level: 1 })).toBeVisible();
+    expect(await screen.findByRole("table")).toBeVisible();
+    expect(screen.getByText("Phân hệ mẫu · dữ liệu minh họa")).toBeVisible();
+    expect(screen.queryByText("Chợ đêm runtime")).not.toBeInTheDocument();
+    expect(listAdminQueue).not.toHaveBeenCalled();
+    expect(listEligibleGuides).not.toHaveBeenCalled();
   });
 
   it("mounts a read-only assignment list only for the authenticated guide", async () => {

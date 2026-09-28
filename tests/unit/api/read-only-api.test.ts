@@ -184,8 +184,8 @@ describe("read-only API application boundary", () => {
       title: "Chợ địa phương và ẩm thực đường phố",
       inclusions: ["hướng dẫn viên địa phương", "các điểm nếm thử"],
       exclusions: ["đưa đón khách sạn"],
-      cancellationPolicy: "Tour demo: thay đổi được miễn phí trước khi xác nhận.",
-      attribution: "Nhóm biên tập demo LocalLens",
+      cancellationPolicy: "Chính sách minh họa: có thể thay đổi miễn phí trước khi xác nhận.",
+      attribution: "Nhóm biên tập LocalLens (nội dung minh họa)",
       license: "CC BY 4.0",
       sourceUrl: "https://example.invalid/locallens/demo-sources/markets-and-street-food",
     });

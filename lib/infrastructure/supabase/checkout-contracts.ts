@@ -355,8 +355,15 @@ const BOOKING_FIELDS = [
   "language", "meeting_point", "payment_status", "payment_deadline_at", "trip_start_at", "hold_expires_at", "created_at",
 ] as const;
 
-export function mapCustomerBooking(row: unknown): Result<CustomerBooking, DataAdapterError> {
-  const fields = exactFields(row, BOOKING_FIELDS, "row");
+const LEGACY_BOOKING_FIELDS = BOOKING_FIELDS.filter((field) =>
+  field !== "payment_status" && field !== "payment_deadline_at" && field !== "trip_start_at");
+
+export function mapCustomerBooking(
+  row: unknown,
+  projection: "current" | "legacy" = "current",
+): Result<CustomerBooking, DataAdapterError> {
+  const legacy = projection === "legacy";
+  const fields = exactFields(row, legacy ? LEGACY_BOOKING_FIELDS : BOOKING_FIELDS, "row");
   if (!fields.ok) return fields;
   const id = safeUuid(fields.value.id, "row.id");
   const sourceId = safeUuid(fields.value.source_id, "row.source_id");
@@ -368,8 +375,10 @@ export function mapCustomerBooking(row: unknown): Result<CustomerBooking, DataAd
   const meetingPoint = safeText(fields.value.meeting_point, "row.meeting_point", 1, 500);
   const totalVndMinor = safeUnsignedMoney(fields.value.total_vnd_minor, "row.total_vnd_minor");
   const checkoutAmountMinor = safeUnsignedMoney(fields.value.checkout_amount_minor, "row.checkout_amount_minor");
-  const paymentDeadlineAt = safeNullableTimestamp(fields.value.payment_deadline_at, "row.payment_deadline_at");
-  const tripStartAt = safeNullableTimestamp(fields.value.trip_start_at, "row.trip_start_at");
+  const paymentDeadlineAt = legacy ? { ok: true, value: undefined } as const
+    : safeNullableTimestamp(fields.value.payment_deadline_at, "row.payment_deadline_at");
+  const tripStartAt = legacy ? { ok: true, value: undefined } as const
+    : safeNullableTimestamp(fields.value.trip_start_at, "row.trip_start_at");
   const holdExpiresAt = safeTimestamp(fields.value.hold_expires_at, "row.hold_expires_at");
   const createdAt = safeTimestamp(fields.value.created_at, "row.created_at");
   if (!id.ok) return id;
@@ -392,8 +401,8 @@ export function mapCustomerBooking(row: unknown): Result<CustomerBooking, DataAd
   if (fields.value.source_kind !== "departure" && fields.value.source_kind !== "quote") {
     return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "row.source_kind");
   }
-  let paymentStatus: PaymentStatus | null = null;
-  if (fields.value.payment_status !== null) {
+  let paymentStatus: PaymentStatus | null | undefined = legacy ? undefined : null;
+  if (!legacy && fields.value.payment_status !== null) {
     if (typeof fields.value.payment_status !== "string" || !PAYMENT_STATUSES.has(fields.value.payment_status as PaymentStatus)) {
       return invalid("INVALID_SHAPE", "data.adapter.invalid_shape", "row.payment_status");
     }

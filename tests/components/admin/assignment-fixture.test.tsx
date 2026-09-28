@@ -2,15 +2,72 @@ import {cleanup,fireEvent,render,screen,within,waitFor} from '@testing-library/r
 import {afterEach,it,expect,vi} from 'vitest';
 import {AdminAssignmentsFixture} from '@/components/dev/admin-assignments-fixture';
 afterEach(()=>{cleanup();vi.restoreAllMocks();});
-it('assigns a sample guide and refreshes counts without a server',async()=>{
+it('preserves previous guide history when reassigning a sample booking',async()=>{
  vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-09-26T00:00:00Z'));
  render(<AdminAssignmentsFixture/>);
  const table=await screen.findByRole('table');
  await screen.findByText('Khách sạn Windsor Plaza');
- fireEvent.click(within(table).getAllByRole('button',{name:'Xem và phân công'})[1]);
+ fireEvent.click(within(table).getAllByRole('button',{name:'Xem và phân công'})[0]);
+ fireEvent.click(screen.getByRole('radio',{name:/Trần Quốc Bảo/}));
+ fireEvent.click(screen.getByRole('button',{name:'Xác nhận phân công'}));
+ await screen.findByText('Phân công hướng dẫn viên thành công.');
+ const detail=screen.getByRole('heading',{name:'Chi tiết đơn được chọn'}).closest('section')!;
+ await waitFor(()=>expect(within(detail).getByText(/Đã kết thúc/)).toBeInTheDocument());
+ expect(within(detail).getByText('Nguyễn Minh Anh',{selector:'b'})).toBeInTheDocument();
+ expect(within(detail).getByText('Trần Quốc Bảo',{selector:'b'})).toBeInTheDocument();
+ expect(within(detail).getAllByText(/26\/09\/2026/)).toHaveLength(2);
+});
+it('assigns a sample guide and refreshes counts without a server',async()=>{
+ const network=vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('Fixture must stay offline'));
+ vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-09-26T00:00:00Z'));
+ render(<AdminAssignmentsFixture/>);
+ await screen.findByRole('table');
+ await screen.findByText('Khách sạn Windsor Plaza');
+ fireEvent.click(within(screen.getByText('Khách sạn Windsor Plaza').closest('tr')!).getByRole('button',{name:'Xem và phân công'}));
  fireEvent.click(screen.getByRole('radio',{name:/Trần Quốc Bảo/}));
  fireEvent.click(screen.getByRole('button',{name:'Xác nhận phân công'}));
  await screen.findByText('Phân công hướng dẫn viên thành công.');
  await waitFor(()=>expect(screen.getByRole('button',{name:/Chưa phân công/})).toHaveTextContent('6'));
  expect(screen.getByRole('button',{name:/Đã phân công/})).toHaveTextContent('14');
+ expect(network).not.toHaveBeenCalled();
+});
+
+it('keeps timestamped history across two reassignments and unchanged confirmation',async()=>{
+ const clock=vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-09-26T00:00:00Z'));
+ const network=vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('Fixture must stay offline'));
+ render(<AdminAssignmentsFixture/>);
+ const meeting=await screen.findByText('Khách sạn Windsor Plaza');
+ fireEvent.click(within(meeting.closest('tr')!).getByRole('button',{name:'Xem và phân công'}));
+ const detail=screen.getByRole('heading',{name:'Chi tiết đơn được chọn'}).closest('section')!;
+ const history=()=>Array.from(detail.querySelectorAll('p')).filter(p=>p.querySelector('b'));
+ async function assign(name:string,count:number){
+  fireEvent.click(screen.getByRole('radio',{name:new RegExp(name)}));
+  fireEvent.click(screen.getByRole('button',{name:'Xác nhận phân công'}));
+  await waitFor(()=>expect(history()).toHaveLength(count));
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Xác nhận phân công'})).toBeEnabled());
+ }
+ await assign('Trần Quốc Bảo',1);
+ expect(history()[0]).toHaveTextContent('07:00 26/09/2026 · Đã phân công');
+ clock.mockReturnValue(Date.parse('2026-09-26T01:00:00Z'));
+ await assign('Nguyễn Minh Anh',2);
+ clock.mockReturnValue(Date.parse('2026-09-26T02:00:00Z'));
+ await assign('Lê Phương Thảo',3);
+ const entries=history();
+ expect(entries[0]).toHaveTextContent('Trần Quốc Bảo');
+ expect(entries[0]).toHaveTextContent('07:00 26/09/2026 · Đã kết thúc');
+ expect(entries[0]).toHaveTextContent('Kết thúc: 08:00 26/09/2026');
+ expect(entries[1]).toHaveTextContent('Nguyễn Minh Anh');
+ expect(entries[1]).toHaveTextContent('08:00 26/09/2026 · Đã kết thúc');
+ expect(entries[1]).toHaveTextContent('Kết thúc: 09:00 26/09/2026');
+ expect(entries[2]).toHaveTextContent('Lê Phương Thảo');
+ expect(entries[2]).toHaveTextContent('09:00 26/09/2026 · Đã phân công');
+ expect(entries[2]).not.toHaveTextContent('Kết thúc:');
+ const before=entries.map(p=>p.textContent);
+ clock.mockReturnValue(Date.parse('2026-09-26T03:00:00Z'));
+ fireEvent.click(screen.getByRole('button',{name:'Xác nhận phân công'}));
+ await screen.findByText('Giữ nguyên hướng dẫn viên hiện tại.');
+ expect(history().map(p=>p.textContent)).toEqual(before);
+ expect(screen.getByRole('button',{name:/Chưa phân công/})).toHaveTextContent('6');
+ expect(screen.getByRole('button',{name:/Đã phân công/})).toHaveTextContent('14');
+ expect(network).not.toHaveBeenCalled();
 });

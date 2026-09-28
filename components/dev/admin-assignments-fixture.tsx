@@ -122,7 +122,7 @@ export function AdminAssignmentsFixture() {
       if (!selectedGuide || !current) throw new Error('Đơn mô phỏng không tồn tại.');
       if (!(Date.parse(current.startAt)>Date.now())) throw new RuntimeGuideAssignmentError('CONFLICT');
       const reassigned = Boolean(current.guideUserId && current.guideUserId !== guideUserId);
-      const assignmentId = current.assignmentId ?? `40000000-0000-4000-8000-${bookingId.slice(-12)}`;
+      const assignmentId = reassigned ? crypto.randomUUID() : current.assignmentId ?? crypto.randomUUID();
       const updated = {
         ...current,
         assignmentId,
@@ -130,7 +130,14 @@ export function AdminAssignmentsFixture() {
         guideDisplayName: selectedGuide.displayName,
         assignmentStatus: 'assigned' as const,
       };
-      histories.current.set(bookingId, historyFor(updated));
+      if (current.guideUserId !== guideUserId) {
+        const assignedAt = new Date(Date.now()).toISOString();
+        const previous = (histories.current.get(bookingId) ?? []).map(item =>
+          item.closedAt === null ? { ...item, status: 'closed', closedAt: assignedAt } : item);
+        histories.current.set(bookingId, [...previous, {
+          id: assignmentId, guide: selectedGuide.displayName, status: 'assigned', assignedAt, closedAt: null,
+        }]);
+      }
       rows.current = rows.current.map((item) => item.bookingId === bookingId ? updated : item);
       setRevision((revision) => revision + 1);
       return {

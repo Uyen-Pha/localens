@@ -56,7 +56,7 @@ describe("Supabase personalization area adapter", () => {
     await expect(createSupabasePersonalizationAreaAdapter(client as never).listAreas("en"))
       .resolves.toEqual([expect.objectContaining({
         value: "synthetic-central-hcmc",
-        label: "Synthetic Central HCMC Demo Area",
+        label: "Central HCMC (illustrative data)",
         areaId: ids.area,
         snapshotId: ids.snapshot,
       })]);

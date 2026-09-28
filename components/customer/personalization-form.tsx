@@ -300,6 +300,11 @@ export function PersonalizationForm({
       String(formData.get("startTime") ?? ""),
       Date.now(),
     );
+    // Omitting an area preference means all available catalog areas, as in
+    // natural-language entry. Never substitute demo areas in Supabase mode.
+    if (formData.getAll("areas").length === 0) {
+      for (const option of areaOptions) formData.append("areas", option.value);
+    }
     const submittedAreas = formData.getAll("areas");
     const hasArea = hasValidPersonalizationAreaSelection(submittedAreas, areaOptions);
     const durationHours = numericValue(formData, "durationHours");
@@ -459,9 +464,10 @@ export function PersonalizationForm({
   );
 
   const budgetInput = (
+    <>
+    <input type="hidden" name="budgetAmount" value={budgetAmount} />
     <label className="field">
           <span>{copy.budgetLabel}</span>
-          <input type="hidden" name="budgetAmount" value={budgetAmount} />
           <input name="budgetDisplay" type="text" inputMode={budgetCurrency === "USD" ? "decimal" : "numeric"}
             value={(() => {
               const [whole, fraction] = budgetAmount.split(".");
@@ -475,6 +481,7 @@ export function PersonalizationForm({
             }}
             required aria-label={copy.budgetLabel} />
         </label>
+    </>
   );
 
   const currencyField = (
@@ -509,10 +516,10 @@ export function PersonalizationForm({
 
   const areaFields = (
     <details ref={areasRef} className={compact ? styles.details : styles.expandedAreas} open={compact ? undefined : true}>
-      <summary>{vi ? "Khu vực · chọn ít nhất một" : "Areas · select at least one"}</summary>
+      <summary>{vi ? "Khu vực · tùy chọn" : "Areas · optional"}</summary>
       <fieldset className="field-group" aria-describedby="areas-hint">
         <legend>{copy.areasLabel}</legend>
-        <p className="field-group__hint" id="areas-hint">{copy.areasHint}</p>
+        <p className="field-group__hint" id="areas-hint">{vi ? "Để trống để xem xét tất cả khu vực hiện có." : "Leave blank to consider all available areas."}</p>
         <div className="check-grid">
           {areaOptions.map((option) => (
             <label className="check-card" key={option.value}>

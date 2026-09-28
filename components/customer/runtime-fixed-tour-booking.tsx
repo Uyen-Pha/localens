@@ -27,6 +27,11 @@ function keyFor(locale: Locale, departureId: string, partySize: number): string 
   return `localens.fixed-tour.hold:${locale}:${departureId}:${partySize}`;
 }
 
+function hasHoldAttempt(locale: Locale, departureId: string, partySize: number): boolean {
+  try { return Boolean(window.sessionStorage.getItem(keyFor(locale, departureId, partySize))); }
+  catch { return false; }
+}
+
 function idempotencyKey(locale: Locale, departureId: string, partySize: number): string {
   const storageKey = keyFor(locale, departureId, partySize);
   const existing = window.sessionStorage.getItem(storageKey);
@@ -111,7 +116,8 @@ export function RuntimeFixedTourBooking({
           if (!disposed) setState("NOT_FOUND");
           return;
         }
-        if (available.status !== "scheduled" || available.remainingCapacity < 1) {
+        const resuming = hasHoldAttempt(locale, departureId, Number(initialPartySize));
+        if ((available.status !== "scheduled" && !(resuming && available.status === "sold_out")) || (available.remainingCapacity < 1 && !resuming)) {
           if (!disposed) setState("SOLD_OUT");
           return;
         }
@@ -126,7 +132,7 @@ export function RuntimeFixedTourBooking({
       }
     })();
     return () => { disposed = true; };
-  }, [composition, departureId, locale]);
+  }, [composition, departureId, locale, initialPartySize]);
 
   useEffect(() => {
     if (state !== "ready" && state !== "loading") alertRef.current?.focus();
@@ -150,7 +156,8 @@ export function RuntimeFixedTourBooking({
       queueMicrotask(() => partyRef.current?.focus());
       return;
     }
-    if (size > departure.remainingCapacity) {
+    const resuming = hasHoldAttempt(locale, departure.id, size);
+    if (size > departure.remainingCapacity && !resuming) {
       setBookingError(locale === "vi" ? `Chỉ còn lại ${departure.remainingCapacity} chỗ` : `Only ${departure.remainingCapacity} places remain`);
       return;
     }
@@ -178,7 +185,7 @@ export function RuntimeFixedTourBooking({
         setState("NOT_FOUND");
         return;
       }
-      if (!latest || latest.status !== "scheduled" || latest.remainingCapacity < size) {
+      if (!latest || (latest.status !== "scheduled" && !(resuming && latest.status === "sold_out")) || (latest.remainingCapacity < size && !resuming)) {
         setBookingError(locale === "vi" ? "Rất tiếc, số chỗ vừa thay đổi. Vui lòng chọn lại" : "Availability has just changed. Please choose again.");
         return;
       }

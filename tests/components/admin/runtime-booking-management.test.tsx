@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RuntimeBookingManagement } from "@/components/admin/runtime-booking-management";
@@ -77,20 +77,25 @@ describe("runtime booking management", () => {
 
     const region = await screen.findByRole("region", { name: heading });
     expect(region).toHaveClass(styles.runtimeAdminCard, styles.runtimeAdminBookings);
+    fireEvent.click(await within(region).findByRole("button", { name: `Xem chi tiết ${activeBooking.bookingId}` }));
     const active = within(region).getByRole("article", { name: locale === "vi" ? activeBooking.titleVi : activeBooking.titleEn });
-    const cancelled = within(region).getByRole("article", { name: locale === "vi" ? cancelledBooking.titleVi : cancelledBooking.titleEn });
     expect(within(region).getByText(locale === "vi" ? "Tổng số đơn" : "Bookings", { exact: true }).parentElement).toHaveTextContent("2");
     expect(within(region).getByText(locale === "vi" ? "Đơn có lịch sử hủy" : "Cancelled with history", { exact: true }).parentElement).toHaveTextContent("1");
     expect(active).toHaveTextContent(activeBooking.bookingId);
     expect(active).toHaveTextContent(activeStatus);
     expect(active).not.toHaveTextContent(reason);
+    expect(active.querySelector("button, input, textarea, select")).toBeNull();
+    expect(within(region).queryByRole("button", { name: /^(approve|reject|cancel booking|refund|save|edit|duyệt|từ chối|hủy đơn|hoàn tiền|lưu|chỉnh sửa)(?:\s|$)/i })).not.toBeInTheDocument();
+    fireEvent.click(within(region).getByRole("button", { name: `Xem chi tiết ${cancelledBooking.bookingId}` }));
+    const cancelled = within(region).getByRole("article", { name: locale === "vi" ? cancelledBooking.titleVi : cancelledBooking.titleEn });
     expect(cancelled).toHaveTextContent(cancelledStatus);
     expect(cancelled).toHaveTextContent(reason);
     expect(cancelled).toHaveTextContent(source);
     expect(cancelled).toHaveTextContent(time);
-    expect(within(region).queryByRole("button")).not.toBeInTheDocument();
-    expect(within(region).queryByRole("textbox")).not.toBeInTheDocument();
-    expect(within(region).queryByRole("combobox")).not.toBeInTheDocument();
+    expect(within(cancelled).queryByRole("button")).not.toBeInTheDocument();
+    expect(within(cancelled).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(within(cancelled).queryByRole("combobox")).not.toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: /^(approve|reject|cancel booking|refund|save|edit|duyệt|từ chối|hủy đơn|hoàn tiền|lưu|chỉnh sửa)(?:\s|$)/i })).not.toBeInTheDocument();
     expect(listAdminBookings).toHaveBeenCalledTimes(1);
   });
 

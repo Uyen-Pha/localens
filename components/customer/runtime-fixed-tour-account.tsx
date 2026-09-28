@@ -236,10 +236,11 @@ export function RuntimeFixedTourAccount({
             const cancellationEligibility = evaluateCancellationEligibility({
               status: booking.status,
               sourceKind: booking.sourceKind,
-              paymentStatus: authoritativePaymentStatus,
-              paymentDeadlineAt: booking.paymentDeadlineAt
-                ?? (booking.sourceKind === "departure" ? booking.holdExpiresAt : null),
-              tripStartAt: booking.tripStartAt ?? null,
+              // Legacy projections have no cancellation authority. Display-only
+              // payment/hold fallbacks must not make them cancellable.
+              paymentStatus: booking.paymentStatus === undefined ? undefined : authoritativePaymentStatus,
+              paymentDeadlineAt: booking.paymentDeadlineAt,
+              tripStartAt: booking.tripStartAt,
             }, now);
             const canCancel = cancellation === undefined && cancellationEligibility.eligible;
             const paymentLabel = paymentStatusLabel(locale, booking.status, authoritativePaymentStatus);

@@ -19,6 +19,16 @@ function snapshot(overrides: Partial<CancellationBookingSnapshot> = {}): Cancell
 }
 
 describe("cancellation policy", () => {
+  it("does not treat unknown payment authority as an unpaid booking", () => {
+    expect(evaluateCancellationEligibility(snapshot({ paymentStatus: undefined }), NOW)).toMatchObject({
+      eligible: false, reason: "payment_not_cancellable",
+    });
+  });
+
+  it("blocks an unknown deadline or trip start", () => {
+    expect(evaluateCancellationEligibility(snapshot({ paymentDeadlineAt: undefined }), NOW).eligible).toBe(false);
+    expect(evaluateCancellationEligibility(snapshot({ status: "confirmed", paymentStatus: "paid", tripStartAt: undefined }), NOW).eligible).toBe(false);
+  });
   it("allows pending fixed-tour bookings while the 15-minute hold is active", () => {
     expect(evaluateCancellationEligibility(snapshot(), NOW)).toMatchObject({ eligible: true });
   });

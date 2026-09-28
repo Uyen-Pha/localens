@@ -157,6 +157,7 @@ function RuntimeRoleShell({
 }) {
   const copy = portalCopy(locale);
   if (session.role === 'guide') return <Suspense fallback={<p role="status">{copy.loading}</p>}>
+    {actionError ? <p className={styles.error} role="alert">{actionError}</p> : null}
     <RuntimeGuideAssignmentList locale={locale} session={session} profilePort={composition.guideProfile} assignments={composition.guideAssignments} onSignOut={onSignOut}/>
   </Suspense>;
   if (session.role === 'admin') {

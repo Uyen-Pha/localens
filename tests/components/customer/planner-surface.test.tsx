@@ -141,7 +141,7 @@ describe("PlannerSurface", () => {
     expect(screen.queryByRole("region", { name: getDictionary("vi").home.personalizationForm.preview.heading })).not.toBeInTheDocument();
   });
 
-  it("reveals required areas, then hands compact input to the existing runtime with unchanged units", async () => {
+  it("uses the current catalog when areas are omitted and preserves compact input units", async () => {
     const composition = supabaseComposition();
     Object.assign(composition, { personalizationAreas: { listAreas: async () => [
       { value: "district-1", label: "Khu trung tâm", slug: "district-1", areaId: "area-1", snapshotId: "snapshot-1" },
@@ -154,10 +154,6 @@ describe("PlannerSurface", () => {
     fireEvent.change(screen.getByLabelText("Ngày bắt đầu mong muốn"), { target: { value: "2030-10-10" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Giờ bắt đầu" }), { target: { value: "14" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Số người trong nhóm" }), { target: { value: "4" } });
-    fireEvent.click(submit);
-    expect(screen.getByText(/Khu vực ·/).closest("details")).toHaveAttribute("open");
-    expect(readPersonalizationRequest()).toBeNull();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Khu trung tâm" }));
     fireEvent.click(submit);
     expect(readPersonalizationRequest()).toMatchObject({
       startAt: "2030-10-10T14:00:00+07:00", durationMinutes: 180,

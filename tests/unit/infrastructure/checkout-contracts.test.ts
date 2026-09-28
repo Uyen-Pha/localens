@@ -78,6 +78,25 @@ const result = {
 };
 
 describe("Task 9 checkout contracts", () => {
+  it("maps an explicit legacy projection without inventing cancellation authority", () => {
+    const legacy: Record<string, unknown> = { ...bookingRow };
+    delete legacy.payment_status;
+    delete legacy.payment_deadline_at;
+    delete legacy.trip_start_at;
+    const mapped = mapCustomerBooking(legacy, "legacy");
+    expect(mapped.ok).toBe(true);
+    if (!mapped.ok) throw new Error("Expected legacy booking");
+    expect(mapped.value.id).toBe(ids.booking);
+    expect(mapped.value.holdExpiresAt).toBe(bookingRow.hold_expires_at);
+    expect(mapped.value.paymentStatus).toBeUndefined();
+    expect(mapped.value.paymentDeadlineAt).toBeUndefined();
+    expect(mapped.value.tripStartAt).toBeUndefined();
+    expect(mapCustomerBooking(legacy).ok).toBe(false);
+    expect(mapCustomerBooking({ ...legacy, owner_user_id: ids.booking }, "legacy").ok).toBe(false);
+    expect(mapCustomerBooking({ ...legacy, payment_status: null }, "legacy").ok).toBe(false);
+    expect(mapCustomerBooking({ ...legacy, total_vnd_minor: "bad" }, "legacy").ok).toBe(false);
+  });
+
   it("requires a strict checkout input and never accepts client-owned amount or actor fields", async () => {
     expect(toStartCheckoutInput({
       source: { kind: "departure", departureId: ids.departure },

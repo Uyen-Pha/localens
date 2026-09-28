@@ -192,7 +192,7 @@ describe("portal composition", () => {
     await expect(composition.session.getSession()).resolves.toBeNull();
     expect(storage.getItem("unrelated")).toBe("keep");
     await composition.session.selectDemoIdentity("demo-user-customer");
-    await expect(composition.customer.account.getAccount()).resolves.toMatchObject({ displayName: "Demo Traveler" });
+    await expect(composition.customer.account.getAccount()).resolves.toMatchObject({ displayName: "LocalLens Customer" });
   });
 
   it.each([

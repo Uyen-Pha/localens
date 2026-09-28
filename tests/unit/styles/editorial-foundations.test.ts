@@ -65,6 +65,9 @@ describe("editorial style foundations", () => {
       '@import "./editorial-home.css";',
       '@import "./editorial-home-green.css";',
       '@import "./editorial-tours.css";',
+      '@import "./runtime-tours.css";',
+      '@import "./runtime-booking.css";',
+      '@import "./editorial-runtime-booking.css";',
       '@import "./editorial-journey.css";',
       '@import "./editorial-booking.css";',
     ]);

@@ -2,6 +2,20 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement, ReactNode } from "react";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/en/",
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ replace: vi.fn() }),
+  notFound: () => { throw new Error("not found"); },
+}));
+
+vi.mock("@/components/portals/portal-session", () => ({
+  loadPortalSurfaceComposition: async () => ({
+    initialized: Promise.resolve(),
+    session: { getSession: async () => null },
+  }),
+}));
+
 vi.mock("next/font/local", () => ({
   default: (options: { variable?: string }) => {
     const name = options.variable === "--font-display" ? "mock-display" : "mock-body";
@@ -78,7 +92,7 @@ describe("SiteHeader", () => {
     expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
     expect(screen.getByText("Sign in")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("navigation", { name: "Language" })).toBeInTheDocument();
-    expect(screen.getByText("English")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("img", { name: "English" }).closest("[aria-current]")).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Tiếng Việt" })).toHaveAttribute(
       "href",
       "/vi",
@@ -189,7 +203,7 @@ describe("SiteHeader", () => {
     expect(
       screen.getByRole("link", { name: "Thành phố của chúng ta" }),
     ).toHaveAttribute("href", "/vi#experiences");
-    expect(screen.getByText("Tiếng Việt")).toHaveAttribute(
+    expect(screen.getByRole("img", { name: "Tiếng Việt" }).closest("[aria-current]")).toHaveAttribute(
       "aria-current",
       "page",
     );

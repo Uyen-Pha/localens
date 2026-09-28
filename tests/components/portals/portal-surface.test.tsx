@@ -55,10 +55,10 @@ describe("PortalSurface", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/loading/i);
     expect(await screen.findByRole(
       "heading",
-      { name: /sign in to your demo account/i },
+      { name: /choose an account to continue/i },
       { timeout: 5_000 },
     )).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /choose a demo identity/i }).getAttribute("href")).toMatch(/^\/en\/sign-in\/?$/);
+    expect(screen.getByRole("link", { name: /choose an account/i }).getAttribute("href")).toMatch(/^\/en\/sign-in\/?$/);
     expect(screen.queryByText(/markets and street food/i)).not.toBeInTheDocument();
   });
 
@@ -99,8 +99,8 @@ describe("PortalSurface", () => {
 
     const customerLinks = await screen.findAllByRole("link", { name: /continue as customer/i });
     expect(customerLinks).toHaveLength(2);
-    const primaryCustomerHeading = screen.getByRole("heading", { name: "Demo Traveler" });
-    const secondaryCustomerHeading = screen.getByRole("heading", { name: "Second Demo Traveler" });
+    const primaryCustomerHeading = screen.getByRole("heading", { name: "LocalLens Customer" });
+    const secondaryCustomerHeading = screen.getByRole("heading", { name: "LocalLens Customer 2" });
     expect(primaryCustomerHeading).toBeInTheDocument();
     expect(secondaryCustomerHeading).toBeInTheDocument();
     const primaryCustomerCard = primaryCustomerHeading.closest("article");
@@ -167,9 +167,9 @@ describe("PortalSurface", () => {
     );
 
     const identity = userId === "demo-user-customer"
-      ? screen.findByRole("heading", { name: "Demo Traveler" })
+      ? screen.findByRole("heading", { name: "LocalLens Customer" })
       : screen.findByRole("heading", {
-        name: userId === "demo-user-guide" ? "Demo Guide" : "Demo Administrator",
+        name: userId === "demo-user-guide" ? "LocalLens Guide" : "LocalLens Administrator",
       });
     const card = (await identity).closest("article");
     expect(card).not.toBeNull();
@@ -187,11 +187,11 @@ describe("PortalSurface", () => {
     window.localStorage.setItem("locallens.demo.booking.v1:booking-1", "remove");
 
     render(<TestSurface locale="en" composition={composition} />);
-    const reset = await screen.findByRole("button", { name: /reset locallens demo/i });
+    const reset = await screen.findByRole("button", { name: /reset locallens experience/i });
     fireEvent.click(reset);
 
-    expect(await screen.findByRole("status")).toHaveTextContent(/demo state was reset/i);
-    await waitFor(() => expect(screen.getByRole("heading", { name: /sign in to your demo account/i })).toHaveFocus());
+    expect(await screen.findByRole("status")).toHaveTextContent(/experience was reset/i);
+    await waitFor(() => expect(screen.getByRole("heading", { name: /choose an account to continue/i })).toHaveFocus());
     await expect(composition.session.getSession()).resolves.toBeNull();
     expect(window.sessionStorage.getItem("localens.custom-request.v1")).toBeNull();
     expect(window.localStorage.getItem("locallens.demo.booking.v1:booking-1")).toBeNull();
@@ -214,10 +214,10 @@ describe("PortalSurface", () => {
 
     try {
       render(<TestSurface locale="en" composition={composition} />);
-      fireEvent.click(await screen.findByRole("button", { name: /reset locallens demo/i }));
+      fireEvent.click(await screen.findByRole("button", { name: /reset locallens experience/i }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(/could not be fully reset/i);
-      expect(screen.queryByText(/demo state was reset/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/experience was reset/i)).not.toBeInTheDocument();
     } finally {
       removeSpy.mockRestore();
       window.sessionStorage.removeItem("localens.custom-request.v1");
@@ -418,8 +418,8 @@ describe("PortalSurface", () => {
 
     render(<TestSurface locale="vi" expectedRole="customer" composition={composition} />);
 
-    expect(await screen.findByRole("heading", { name: /đăng nhập tài khoản demo/i })).toBeInTheDocument();
-    expect(screen.getByText(/chỉ là bản demo/i)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /chọn tài khoản để tiếp tục/i })).toBeInTheDocument();
+    expect(screen.getByText(/không xác minh tài khoản thật/i)).toBeInTheDocument();
   });
 
   it("shows the admin overview, fixed-only assignment, and simulated reporting", async () => {
@@ -438,7 +438,7 @@ describe("PortalSurface", () => {
     expect(screen.getByRole("link", { name: /open catalog review/i }).getAttribute("href")).toMatch(/^\/en\/admin\/catalog\/?$/);
     expect(screen.getByText(/fixed departures only/i)).toBeInTheDocument();
     expect(screen.getByText(/personalized-tour guide assignment is not supported/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/demo-only/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: /admin space/i })).toHaveAttribute("href", "/en/admin");
   });
 
   it("submits the visibly selected fallback guide and exposes the assignment in that guide portal", async () => {
@@ -491,9 +491,9 @@ describe("PortalSurface", () => {
     expect(await screen.findByText(/request decision saved/i)).toBeInTheDocument();
     expect((await composition.admin.personalizedRequests.listPersonalizedRequests()).find((request) => request.id === "demo-request-personalized")?.status).toBe("approved");
     expect(screen.queryByRole("spinbutton", { name: /quote amount:/i })).not.toBeInTheDocument();
-    const issueQuoteForm = await screen.findByRole("button", { name: /issue demo quote/i });
+    const issueQuoteForm = await screen.findByRole("button", { name: /create quote/i });
     fireEvent.click(issueQuoteForm);
-    expect(await screen.findByText(/demo quote issued/i)).toBeInTheDocument();
+    expect(await screen.findByText(/quote created in this browser session/i)).toBeInTheDocument();
   });
 
   it("announces a portal load error and recovers through the retry action", async () => {
@@ -514,7 +514,7 @@ describe("PortalSurface", () => {
     expect(await screen.findByRole("heading", { name: /could not load this portal/i })).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(/try again/i);
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
-    expect(await screen.findByRole("heading", { name: /sign in to your demo account/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /choose an account to continue/i })).toBeInTheDocument();
     compositions.push(composition);
   });
 
