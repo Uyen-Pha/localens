@@ -1,5 +1,5 @@
 // Localhost illustration only. Weekdays use the tour's Ho Chi Minh City date.
-export const tourOperatingDays = [[0, 1, 2, 3, 4, 5, 6], [0, 1, 2, 3, 4, 5, 6], [0, 1, 2, 3, 4, 5, 6]] as const;
+export const tourOperatingDays = [[0, 1, 2, 3, 4, 5, 6], [0, 1, 2, 3, 4, 5, 6], [0, 1, 2, 3, 4, 5, 6], [0, 1, 2, 3, 4, 5, 6], [0, 1, 2, 3, 4, 5, 6], [0, 1, 2, 3, 4, 5, 6]] as const;
 
 export function reviewedDepartures<T extends { id: string; startAt: string; endAt: string }>(departure: T, tourIndex: number): T[] {
   // Add earlier daily departures without moving any existing booking's date or ID.

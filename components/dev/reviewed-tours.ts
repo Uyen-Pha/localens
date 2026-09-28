@@ -1,4 +1,5 @@
 import original from "@/data/demo/thesis-demo.v1.json";
+import {additionalFixedTours} from '@/lib/application/fixed-tour/additions';
 import { reviewedToursEnglish, reviewedEnglishExclusions, reviewedEnglishCancellation } from "./reviewed-tours-en";
 
 // Local design data only: approved itinerary proposals, not supplier bookings.
@@ -31,7 +32,7 @@ const proposals = [
 
 export const reviewedDataset = {
   ...original,
-  places: proposals.flatMap((p, i) => p.stops.map((title, j) => ({ id: `review-${i}-${j}`, slug: `review-${i}-${j}`, translations: { vi: { title }, en: { title: reviewedToursEnglish[i].stops[j] } } }))),
+  places: [...proposals.flatMap((p, i) => p.stops.map((title, j) => ({ id: `review-${i}-${j}`, slug: `review-${i}-${j}`, translations: { vi: { title }, en: { title: reviewedToursEnglish[i].stops[j] } } }))), ...additionalFixedTours.flatMap(t=>t.stops.map((title,j)=>({id:`${t.code}-${j}`,slug:`${t.code.toLowerCase()}-${j}`,translations:{vi:{title},en:{title}}})))],
   tours: original.tours.map((tour, i) => {
     const p = proposals[i];
     const english = reviewedToursEnglish[i];
@@ -45,6 +46,21 @@ export const reviewedDataset = {
       cancellationPolicy: "Điều kiện hủy và đổi ngày của từng dịch vụ cần được xác nhận trước khi mở bán. Thanh toán trên website hiện là mô phỏng, không phát sinh thu tiền hoặc đặt dịch vụ thực tế.",
       departures: tour.departures.slice(0, 1).map(d => ({ ...d, capacity: 15, startAt: `${d.startAt.slice(0, 10)}T${p.start}:00.000Z`, endAt: `${d.endAt.slice(0, 10)}T${p.end}:00.000Z` })),
     };
-  }),
+  }).concat(additionalFixedTours.map((tour,i)=>{
+    // Existing database base IDs and dates verified read-only on 2026-09-28.
+    // Availability remains gated by reviewed_demo_availability; this creates no rows.
+    const startAt=['2026-09-16T03:00:00.000Z','2026-09-16T01:00:00.000Z','2026-09-16T00:30:00.000Z'][i];
+    const translation={title:tour.name,summary:tour.summary,meetingPoint:tour.meeting??'Điểm hẹn tại trung tâm TP.HCM cần được xác nhận trước chuyến đi.'};
+    return {...original.tours[0],id:tour.code,versionId:`${tour.code}-v1`,slug:tour.code.toLowerCase(),
+      durationMinutes:tour.duration,priceVndPerPerson:tour.price,
+      translations:{vi:translation,en:translation},
+      inclusions:tour.includes,exclusions:tour.excludes,englishInclusions:tour.includes,englishExclusions:tour.excludes,
+      cancellationPolicy:'Thanh toán mô phỏng. Đơn đã xác nhận được hủy khi còn ít nhất 48 giờ trước khởi hành.',
+      englishCancellationPolicy:'Simulated payment. Confirmed bookings can be cancelled at least 48 hours before departure.',
+      overview:{vi:{transport:'Theo chương trình',note:tour.description},en:{transport:'As listed in the itinerary',note:tour.description}},
+      stopPlaceIds:tour.stops.map((_,j)=>`${tour.code}-${j}`),
+      departures:[{...original.tours[0].departures[0],id:`d1700000-0000-4000-8000-${String(424+i).padStart(12,'0')}`,capacity:15,startAt,endAt:new Date(Date.parse(startAt)+tour.duration*60000).toISOString()}],
+    };
+  })),
 };
 

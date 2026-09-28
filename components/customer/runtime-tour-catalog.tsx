@@ -15,6 +15,7 @@ import { mergeRecoveredPublishedTours } from '@/lib/application/fixed-tour/recov
 import { formatTourDuration } from '@/lib/application/fixed-tour/additions';
 import searchStyles from './tour-search.module.css';
 import { TourRating } from './tour-reviews';
+import { RuntimeTourDetail } from './runtime-tour-detail';
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -25,7 +26,8 @@ function formatVnd(value: string, locale: Locale): string {
     : value;
 }
 
-export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTimeline = false }: {
+export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTimeline = false, tourSlug }: {
+  tourSlug?: string;
   activityTimeline?: boolean;
   locale: Locale;
   fixedTour: FixedTourRuntimePort;
@@ -78,6 +80,13 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
 
   useEffect(() => { void load(searchedLanguage.current); return () => { requestId.current++; }; }, [load, retryKey]);
 
+  if (tourSlug !== undefined) {
+    if (state === 'loading') return <p role="status">{copy.loading}</p>;
+    if (state === 'error') return <div role="alert"><p>{copy.serviceUnavailable}</p><button onClick={()=>setRetryKey(n=>n+1)}>{copy.retry}</button></div>;
+    const tour = tours.find(item=>item.slug===tourSlug);
+    if (!tour) return <div><p role="alert">{vi?'Không tìm thấy tour':'Tour not found'}</p><Link href={`/${locale}/tours/`}>{vi?'← Danh sách tour':'← All tours'}</Link></div>;
+    return <RuntimeTourDetail key={tour.slug} tour={tour} availability={availability} locale={locale}/>;
+  }
 
   return (
     <div className="runtime-catalog">
@@ -110,7 +119,7 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
             {results.map((tour, index) => {
               const departures = availability.filter((item) => item.tourVersionId === tour.versionId);
               const departure = departures.filter(item => item.status === 'scheduled' && item.remainingCapacity > 0 && Date.parse(item.startAt) > Date.now()).sort((a,b)=>Date.parse(a.startAt)-Date.parse(b.startAt))[0];
-              const detailHref = departure ? '/' + tour.locale + '/booking/?departure=' + departure.id + '&partySize=1' : null;
+              const detailHref = `/${tour.locale}/tours/detail/?tour=${encodeURIComponent(tour.slug)}`;
               const picture = tourIllustration(tour.slug);
               return (
                 <article className="runtime-tour" key={`${tour.id}:${tour.versionId}`}>
@@ -137,7 +146,7 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
                         <div><dt>{vi ? 'Điều kiện hủy' : 'Cancellation policy'}</dt><dd>{tour.cancellationPolicy}</dd></div>
                       </dl>
                     </details>
-                    {departure && <div className="runtime-tour__departures"><p>{new Intl.DateTimeFormat(vi ? 'vi-VN' : 'en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Ho_Chi_Minh'}).format(new Date(departure.startAt))} (UTC+7)</p><Link className="runtime-tour__book" href={detailHref!}>{visual.book}</Link></div>}
+                    <div className="runtime-tour__departures"><Link className="runtime-tour__book" href={departure ? `${detailHref}#departures` : detailHref}>{departure ? visual.departures : (vi?'Xem chi tiết':'View details')}</Link></div>
                   </div>
                 </article>
               );

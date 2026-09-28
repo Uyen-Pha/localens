@@ -51,6 +51,8 @@ it('shows six unique cards with accessible itinerary details even without depart
     fireEvent.click(toggle);
     expect(toggle.closest('details')).toHaveAttribute('open');
     const tour=[...base,...additionalPublishedTours('vi')][index];
+    expect(within(card).getAllByRole('link',{name:tour.title})).toHaveLength(2);
+    expect(within(card).getAllByRole('link',{name:tour.title})[0].getAttribute('href')?.replace('/?','?')).toBe(`/vi/tours/detail?tour=${tour.slug}`);
     for(const label of ['Điểm hẹn','Hành trình','Bao gồm','Không bao gồm','Điều kiện hủy']){
       expect(within(card).getByText(label)).toBeVisible();
     }
@@ -66,19 +68,18 @@ it('shows six unique cards with accessible itinerary details even without depart
 it('selects the earliest eligible matching departure from an unsorted mixed list',async()=>{
   const valid:LiveDepartureAvailability={id:'later',tourVersionId:'version-0',startAt:'2099-02-01T00:00:00Z',endAt:'2099-02-01T06:00:00Z',status:'scheduled',remainingCapacity:8};
   mount([valid,{...valid,id:'another-tour',tourVersionId:'unrelated',startAt:'2099-01-01T00:00:00Z'},{...valid,id:'cancelled',status:'cancelled',startAt:'2099-01-01T00:00:00Z'},{...valid,id:'earliest',startAt:'2099-01-02T00:00:00Z'}]);
-  const link=await screen.findByRole('link',{name:'Đặt tour'});
-  expect(new URL(link.getAttribute('href')!,'https://localens.test').searchParams.get('departure')).toBe('earliest');
+  const link=await screen.findByRole('link',{name:'Chọn lịch khởi hành'});
+  expect(link.getAttribute('href')?.replace('/?','?')).toBe('/vi/tours/detail?tour=published-0#departures');
 });
 it.each(['cancelled','sold-out','past'] as const)('does not expose a booking link for %s departure',async kind=>{
   mount([{id:'departure-1',tourVersionId:'version-0',startAt:kind==='past'?'2020-01-01T00:00:00Z':'2099-01-01T00:00:00Z',endAt:'2099-01-01T06:00:00Z',status:kind==='cancelled'?'cancelled':'scheduled',remainingCapacity:kind==='sold-out'?0:8}]);
   await screen.findByRole('heading',{name:'Tour đã xuất bản 1'});
   expect(screen.queryAllByRole('link').filter(link=>/\/booking(?:\/|\?)/.test(link.getAttribute('href')??''))).toHaveLength(0);
 });
-it('keeps the real departure identity in the available booking link',async()=>{
+it('routes through detail instead of bypassing it to book',async()=>{
   mount([{id:'actual-departure',tourVersionId:'version-0',startAt:'2099-01-01T00:00:00Z',endAt:'2099-01-01T06:00:00Z',status:'scheduled',remainingCapacity:8}]);
-  const href=(await screen.findByRole('link',{name:'Đặt tour'})).getAttribute('href')!;
+  const href=(await screen.findByRole('link',{name:'Chọn lịch khởi hành'})).getAttribute('href')!;
   const url=new URL(href,'https://localens.test');
-  expect(url.pathname.replace(/\/$/,'')).toBe('/vi/booking');
-  expect(url.searchParams.get('departure')).toBe('actual-departure');
-  expect(url.searchParams.get('partySize')).toBe('1');
+  expect(url.pathname.replace(/\/$/,'')).toBe('/vi/tours/detail');
+  expect(url.searchParams.get('tour')).toBe('published-0');
 });

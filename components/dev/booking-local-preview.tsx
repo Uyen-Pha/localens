@@ -13,7 +13,7 @@ import { reviewedDataset as dataset } from "./reviewed-tours";
 import { loadPortalSurfaceComposition } from "@/components/portals/portal-session";
 
 
-export function BookingLocalPreview({ locale, catalog = false }: { locale: Locale; catalog?: boolean }) {
+export function BookingLocalPreview({ locale, catalog = false, tourSlug }: { locale: Locale; catalog?: boolean; tourSlug?: string }) {
   const [departureId, setDepartureId] = useState(dataset.tours[0].departures[0].id);
   const [showPreviewTools, setShowPreviewTools] = useState(false);
   const [initialPartySize, setInitialPartySize] = useState("1");
@@ -37,7 +37,7 @@ export function BookingLocalPreview({ locale, catalog = false }: { locale: Local
         return { position: index + 1, placeId: id, placeSlug: place.slug, title: place.translations[locale].title };
       }),
     })), locale);
-    const departures: LiveDepartureAvailability[] = dataset.tours.flatMap((tour, tourIndex) => (catalog ? tour.departures : tour.departures.flatMap(departure => reviewedDepartures(departure, tourIndex))).map((departure) => ({
+    const departures: LiveDepartureAvailability[] = dataset.tours.flatMap((tour, tourIndex) => tour.departures.flatMap(departure => reviewedDepartures(departure, tourIndex)).map((departure) => ({
       id: departure.id, tourVersionId: tour.versionId, startAt: departure.startAt, endAt: departure.endAt,
       status: "scheduled" as const, remainingCapacity: scenario === "soldout" ? 0 : departure.capacity,
     })));
@@ -50,7 +50,7 @@ export function BookingLocalPreview({ locale, catalog = false }: { locale: Local
       listPublishedTours: async (requestedLocale) => { if (scenario === "error") throw new Error("Preview error"); return getTours(requestedLocale); },
       listAvailability: async () => {
         const shell = await loadPortalSurfaceComposition(); await shell.initialized;
-        if(shell.mode !== 'supabase' || !shell.reviewedBookings) return departures;
+        if(shell.mode !== 'supabase' || !shell.reviewedBookings) return catalog ? [] : departures;
         const availability = await shell.reviewedBookings.availability();
         const remaining = new Map(availability.map(row=>[row.departure_id,row.remaining]));
         return departures.map(d=>({...d,remainingCapacity:remaining.get(d.id) ?? 0}));
@@ -96,7 +96,7 @@ export function BookingLocalPreview({ locale, catalog = false }: { locale: Local
         </select>
       </label>
     </div>}
-    {catalog ? <RuntimeTourCatalog locale={locale} fixedTour={composition.fixedTour} initialized={composition.initialized} activityTimeline /> :
+    {catalog ? <RuntimeTourCatalog locale={locale} fixedTour={composition.fixedTour} initialized={composition.initialized} activityTimeline tourSlug={tourSlug} /> :
     <RuntimeFixedTourBooking key={`${locale}:${scenario}:${departureId}:${initialPartySize}`} locale={locale} composition={composition}
       departureId={departureId} initialPartySize={initialPartySize} localCalendar
       overview={dataset.tours.find((t, i) => t.departures.some(d => reviewedDepartures(d, i).some(item => item.id === departureId)))?.overview[locale]}
