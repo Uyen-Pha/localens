@@ -1,3 +1,38 @@
+# Admin prototype visual QA — 2026-09-28
+
+final result: passed
+
+Source: C:/Users/Admin/AppData/Local/Temp/codex-clipboard-e53cc185-2cb1-4439-a29a-dca9d167a32a.png (945×446).
+Implementation: C:/Users/Admin/Documents/Project/output/recovery-audit-20260928/admin-departures-desktop.png, viewport 1890×900 CSS pixels.
+Mobile evidence: C:/Users/Admin/Documents/Project/output/recovery-audit-20260928/admin-departures-mobile.png (390×844 viewport).
+State: departures, first published sample tour, first table page, no dialog, light theme.
+
+## Comparison
+
+Source and implementation were opened together in one image-comparison call. Source appears downscaled approximately 50%; comparison is composition-level, not a pixel-exact claim. Additional live DOM and desktop places capture checked labels/wrapping. Small reference lettering is not sharp enough to establish exact font metrics.
+
+- Typography: original product font retained; headings, labels and data hierarchy preserved. No clipped headline or metric value observed.
+- Spacing/layout: white left navigation, green main, five metrics, table and right attention panel retained. Persistent simulation notice intentionally adds height. Assignment/request menu entries excluded by scope.
+- Colors: green active controls and pale surfaces retained; separate semantic status colors.
+- Imagery: existing tour photo reused with compact crop; no generated replacement artwork.
+- Copy: explicit prototype notice; departure actions limited to create/view/track/cancel. Synthetic identity replaces actual account identity.
+- Mobile: all six views checked at 390px, document width 375px, no page-wide horizontal overflow; tables scroll locally.
+
+No actionable visual P0/P1/P2 found in this comparison. Exact font pixel matching is not claimed due to source density/blur. Functional review separately found and fixed navigation escape, modal draft contamination and disconnected departure data; regression tests added. Browser breadcrumb was retested and remained on prototype. Console checks showed no errors before the final archive-history-only fix.
+
+## Checklist
+
+- [x] Desktop source/render comparison
+- [x] Mobile navigation/overflow
+- [x] Create dialog and immutable departure details
+- [x] Mock/no-persistence notice
+- [x] Independent source review and targeted regression coverage
+- [ ] User acceptance of Preview
+
+---
+
+## Previous QA record (retained)
+
 # Bookings recovery visual QA
 
 final result: blocked
