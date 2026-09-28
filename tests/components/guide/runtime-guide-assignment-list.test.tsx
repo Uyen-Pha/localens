@@ -36,6 +36,12 @@ function port(listOwnAssignments: RuntimeGuideAssignmentPort["listOwnAssignments
 afterEach(cleanup);
 
 describe("runtime guide read-only assignments", () => {
+  it("renders completed assignment history without indexing an active-only label map", async () => {
+    render(<RuntimeGuideAssignmentList locale="en" assignments={port(vi.fn(async () => [{ ...assignment, assignmentStatus: "completed" as const }]))} />);
+
+    expect(await screen.findByText("Completed")).toBeInTheDocument();
+  });
+
   it("announces an explicit loading state", () => {
     const list = vi.fn(() => new Promise<GuideOwnAssignment[]>(() => undefined));
     render(<RuntimeGuideAssignmentList locale="en" assignments={port(list)} />);

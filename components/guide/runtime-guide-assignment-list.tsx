@@ -75,6 +75,9 @@ export function RuntimeGuideAssignmentList({
         <div className={styles.list}>
           {items.map((item) => {
             const requirementLabels = [...item.mobilityFlags, ...item.dietaryFlags].map((flag) => text.flags[flag]);
+            const assignmentStatus = item.assignmentStatus === "completed"
+              ? (locale === "vi" ? "Đã hoàn thành" : "Completed")
+              : text.assignmentStatus[item.assignmentStatus];
             return (
               <article className={styles.assignmentCard} key={item.assignmentId} aria-labelledby={`runtime-guide-own-${item.assignmentId}`}>
                 <h3 id={`runtime-guide-own-${item.assignmentId}`}>{item.title}</h3>
@@ -83,7 +86,7 @@ export function RuntimeGuideAssignmentList({
               <div><dt>{text.meetingPoint}</dt><dd>{item.meetingPoint}</dd></div>
               <div><dt>{text.partySize}</dt><dd>{item.partySize}</dd></div>
               <div><dt>{text.tourLanguage}</dt><dd>{text.language[item.language]}</dd></div>
-              <div><dt>{text.status}</dt><dd>{text.assignmentStatus[item.assignmentStatus]}</dd></div>
+              <div><dt>{text.status}</dt><dd>{assignmentStatus}</dd></div>
               <div><dt>{text.requirements}</dt><dd>{requirementLabels.length === 0 ? text.noRequirements : requirementLabels.join(", ")}</dd></div>
                 </dl>
               </article>

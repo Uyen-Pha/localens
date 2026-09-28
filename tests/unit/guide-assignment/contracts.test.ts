@@ -257,3 +257,9 @@ describe("runtime guide-assignment contracts", () => {
     });
   });
 });
+it('accepts personalized assignment queue rows with no fixed departure/version, but rejects partial references',()=>{
+ const result=parseAdminGuideAssignmentQueueItem(queueRow({departure_id:null,tour_version_id:null}));
+ expect(result.ok).toBe(true);
+ if(result.ok){expect(result.value.departureId).toBeNull();expect(result.value.tourVersionId).toBeNull();}
+ expect(parseAdminGuideAssignmentQueueItem(queueRow({departure_id:null})).ok).toBe(false);
+});
