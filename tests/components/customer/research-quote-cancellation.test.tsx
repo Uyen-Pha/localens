@@ -30,6 +30,32 @@ it('back sends nothing, confirmation locks repeated clicks and reloads cancelled
  expect(p.booking).toHaveBeenLastCalledWith(revisionId,false);
  expect(screen.queryByRole('button',{name:'Thanh toán'})).not.toBeInTheDocument();
 });
+it('preserves contact, travelers and payment scenario through Cancel then Back and blocks payment',async()=>{
+ const p=setup();
+ const name=await screen.findByLabelText('Họ và tên');
+ fireEvent.change(name,{target:{value:'Current contact'}});
+ fireEvent.change(screen.getByLabelText('Số điện thoại'),{target:{value:'+84912345678'}});
+ fireEvent.change(screen.getByLabelText('Họ và tên hành khách 1'),{target:{value:'First traveler'}});
+ fireEvent.change(screen.getByLabelText('Họ và tên hành khách 2'),{target:{value:'Second traveler'}});
+ fireEvent.change(screen.getByLabelText('Chọn thẻ thử'),{target:{value:'declined'}});
+ fireEvent.click(screen.getByRole('button',{name:'Hủy đơn'}));
+ expect(screen.queryByRole('button',{name:'Xác nhận thanh toán'})).not.toBeInTheDocument();
+ fireEvent.click(screen.getByRole('button',{name:'Quay lại'}));
+ expect(screen.getByLabelText('Họ và tên')).toHaveValue('Current contact');
+ expect(screen.getByLabelText('Số điện thoại')).toHaveValue('+84912345678');
+ expect(screen.getByLabelText('Họ và tên hành khách 1')).toHaveValue('First traveler');
+ expect(screen.getByLabelText('Họ và tên hành khách 2')).toHaveValue('Second traveler');
+ expect(screen.getByLabelText('Chọn thẻ thử')).toHaveValue('declined');
+ const form=screen.getByLabelText('Họ và tên').closest('form')!;
+ fireEvent.click(screen.getByRole('button',{name:'Hủy đơn'}));
+ expect(form.querySelector('input')).toBeDisabled();
+ expect(form.querySelector('button[type="submit"]')).toBeDisabled();
+ fireEvent.submit(form);
+ expect(p.checkout).not.toHaveBeenCalled();
+ expect(p.cancelBooking).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Quay lại'}));
+ expect(screen.getByRole('button',{name:'Xác nhận thanh toán'})).toBeEnabled();
+});
 it('network failure retains key across back/reopen and retries; failed reload never invents success',async()=>{
  const p=setup();
  fireEvent.click(await screen.findByRole('button',{name:'Hủy đơn'}));

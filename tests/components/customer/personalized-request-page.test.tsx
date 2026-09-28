@@ -9,6 +9,39 @@ const quote={id:revisionId,title:'Báo giá riêng',amount:1000000,currency:'VND
 const booking={id:requestId,quote_id:revisionId,status:'pending_payment',payment_status:'pending',party_size:2,expires_at:quote.expiresAt,amount:quote.amount,currency:quote.currency};
 beforeEach(()=>{vi.clearAllMocks();history.replaceState({},'',`/vi/personalized-payment/?request=${requestId}&quote=${revisionId}`);mocks.list.mockResolvedValue([{id:requestId,status:'approved',request:researchInput,plan:researchReady.plan,quotes:[quote],history:[]}]);mocks.booking.mockResolvedValue(booking);});
 afterEach(cleanup);
+it.each([false,true])('preserves current traveler fields through Cancel then Back (older draft: %s) and blocks payment',async(olderDraft)=>{
+ const {container}=render(<PersonalizedRequestPage locale="vi" payment/>);
+ await screen.findByText('Thông tin hành khách');
+ if(olderDraft){
+  fireEvent.change(screen.getAllByLabelText('Họ và tên')[0],{target:{value:'Older draft'}});
+  fireEvent.submit(container.querySelector('form')!);
+  fireEvent.click(screen.getByRole('button',{name:'Sửa thông tin'}));
+ }
+ for(let i=0;i<2;i++){
+  fireEvent.change(screen.getAllByLabelText('Họ và tên')[i],{target:{value:`Current traveler ${i}`}});
+  fireEvent.change(screen.getAllByLabelText('Quốc gia/khu vực')[i],{target:{value:'US'}});
+  fireEvent.change(screen.getAllByLabelText('Số điện thoại')[i],{target:{value:'+12025550123'}});
+  fireEvent.change(screen.getAllByLabelText('Email')[i],{target:{value:`current${i}@example.test`}});
+ }
+ fireEvent.click(screen.getByRole('button',{name:'Hủy đơn'}));
+ expect(screen.queryByRole('button',{name:'Tiếp tục thanh toán'})).not.toBeInTheDocument();
+ fireEvent.click(screen.getByRole('button',{name:'Quay lại'}));
+ for(let i=0;i<2;i++){
+  expect(screen.getAllByLabelText('Họ và tên')[i]).toHaveValue(`Current traveler ${i}`);
+  expect(screen.getAllByLabelText('Quốc gia/khu vực')[i]).toHaveValue('US');
+  expect(screen.getAllByLabelText('Số điện thoại')[i]).toHaveValue('+12025550123');
+  expect(screen.getAllByLabelText('Email')[i]).toHaveValue(`current${i}@example.test`);
+ }
+ const form=container.querySelector('form')!;
+ fireEvent.click(screen.getByRole('button',{name:'Hủy đơn'}));
+ expect(form.querySelector('input')).toBeDisabled();
+ expect(form.querySelector('button[type="submit"]')).toBeDisabled();
+ fireEvent.submit(form);
+ fireEvent.click(screen.getByRole('button',{name:'Quay lại'}));
+ expect(screen.getByRole('button',{name:'Tiếp tục thanh toán'})).toBeEnabled();
+ expect(mocks.checkout).not.toHaveBeenCalled();
+ expect(mocks.cancelBooking).not.toHaveBeenCalled();
+});
 it('loads the matching quote without creating a booking and renders traveler payment fields',async()=>{
  render(<PersonalizedRequestPage locale="vi" payment/>);
  expect(await screen.findByText('Thông tin hành khách')).toBeInTheDocument();
