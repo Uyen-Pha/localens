@@ -42,6 +42,17 @@ Root cause: catalog used only past base dates, while booking used expanded daily
 
 ## Verification boundary
 
-18 focused tests passed after observed RED failures. Typecheck passed after correcting a nullable meeting point; lint passed. Full suite/build and live preview evidence will be recorded after completion. Existing unrelated failing suite cases are tracked separately in `2026-09-28-preview-remaining-failures.md`.
+18 focused tests passed after observed RED failures. Typecheck passed after correcting a nullable meeting point; lint passed. Local webpack static build and Vercel Turbopack build both passed.
+
+Full suite: 2203 passed / 77 failed / 2280 total. All 77 failing full names match the prior `tours-visual-suite.json` baseline; none added or removed. This name comparison is not a claim that every baseline defect is harmless. Failure names are tracked in `2026-09-28-preview-remaining-failures.md`; fresh report: `C:/Users/Admin/Documents/Project/output/recovery-audit-20260928/tour-detail-final-suite.json`.
+
+Product checkpoint: `ee7cea51b9a026da5c428391a428764b398c2fc7`. Complete-history backup verified at `C:/Users/Admin/Documents/Project/output/recovery-audit-20260928/recovery-tour-detail.bundle`.
+
+Preview: https://localens-n4ntqprpm-local-lens2.vercel.app/vi/tours/
+Deployment: `dpl_4MHgruXSWbbYmDb6dCtvzHASC7P5`, READY. No production release or main push.
+
+Live read-only browser checks: six catalog cards, all six detail routes and all six booking routes render matching titles, 29 September dates and 15 remaining seats. Changed Cu Chi to 30 September using native keyboard input and followed the link: booking retained 07:30-15:00, price 990000 VND and the selected date. Automated date `fill()` changed the input DOM without updating React state in this browser connector; keyboard input exercised the real change successfully. Mobile viewport 390px: clientWidth=scrollWidth=375px. Screenshots saved as `tour-detail-preview-desktop.png` and `tour-detail-preview-mobile.png` under the audit output directory. No booking/payment form was submitted.
+
+With explicit user approval, appended only the exact new Preview origin to ALLOWED_ORIGINS, verified prior configuration digest before writing and all other secret hashes unchanged afterwards. All seven allowed origins returned OPTIONS 204 with matching ACAO; unapproved.example returned 403. No database rows were modified.
 
 Payments remain simulated. No real booking or payment is submitted during this read-only UI verification. English prose for the three additional tours is still the existing Vietnamese source text; translation is not claimed complete.
