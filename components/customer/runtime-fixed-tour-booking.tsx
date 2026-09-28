@@ -165,11 +165,19 @@ export function RuntimeFixedTourBooking({
         window.location.assign(signInPath(locale, `/${locale}/booking/?departure=${departure.id}&partySize=${size}`));
         return;
       }
+      if (session.role !== "customer") {
+        setState("FORBIDDEN");
+        return;
+      }
       const fresh = await composition.fixedTour.listAvailability();
       setConnectionLost(false);
       setDepartures(fresh.filter(item => item.tourVersionId === departure.tourVersionId));
       const latest = fresh.find(item => item.id === departure.id);
       if (latest) setDeparture(latest);
+      if (latest && !(Date.parse(latest.startAt) > Date.now())) {
+        setState("NOT_FOUND");
+        return;
+      }
       if (!latest || latest.status !== "scheduled" || latest.remainingCapacity < size) {
         setBookingError(locale === "vi" ? "Rất tiếc, số chỗ vừa thay đổi. Vui lòng chọn lại" : "Availability has just changed. Please choose again.");
         return;
@@ -191,6 +199,9 @@ export function RuntimeFixedTourBooking({
           const latest = fresh.find(item => item.id === departure.id);
           if (latest) setDeparture(latest);
         } catch { setConnectionLost(true); }
+      } else if (error instanceof FixedTourRuntimeError) {
+        setConnectionLost(stage === "check");
+        setBookingError(message(error.code));
       } else {
         setConnectionLost(stage === "check");
         setBookingError(locale === "vi"

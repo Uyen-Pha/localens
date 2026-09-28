@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RuntimeFixedTourBooking } from "@/components/customer/runtime-fixed-tour-booking";
@@ -134,19 +134,43 @@ beforeEach(() => window.sessionStorage.clear());
 afterEach(cleanup);
 
 describe("runtime fixed-tour catalog", () => {
+  it("does not create a hold if the account changes to a guide before submission", async () => {
+    const port = fixedTour();
+    const composition = shell(port, identity("customer"));
+    vi.mocked(composition.session.getSession)
+      .mockResolvedValueOnce(identity("customer"))
+      .mockResolvedValue(identity("guide"));
+    render(<RuntimeFixedTourBooking locale="en" composition={composition} departureId={DEPARTURE_ID} initialPartySize="1" navigate={() => undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: /book tour/i }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /book tour/i })).not.toBeInTheDocument());
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(port.beginBooking).not.toHaveBeenCalled();
+  });
+
+  it("does not create a hold when the departure starts while the page is open", async () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2099-09-05T01:59:00Z"));
+    try {
+      const port = fixedTour();
+      render(<RuntimeFixedTourBooking locale="en" composition={shell(port, identity("customer"))} departureId={DEPARTURE_ID} initialPartySize="1" navigate={() => undefined} />);
+      const button = await screen.findByRole("button", { name: /book tour/i });
+      clock.mockReturnValue(Date.parse("2099-09-05T02:00:00Z"));
+      fireEvent.click(button);
+      await waitFor(() => expect(screen.queryByRole("button", { name: /book tour/i })).not.toBeInTheDocument());
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(port.beginBooking).not.toHaveBeenCalled();
+    } finally { clock.mockRestore(); }
+  });
+
   it.each(["en", "vi"] as const)("renders localized %s data and live availability", async (locale) => {
     const port = fixedTour();
     render(<RuntimeTourCatalog locale={locale} fixedTour={port} initialized={Promise.resolve()} />);
 
     expect(await screen.findByRole("heading", { name: tours[locale].title })).toBeInTheDocument();
     expect(screen.getByText(tours[locale].summary)).toBeInTheDocument();
-    expect(screen.getByText(tours[locale].meetingPoint)).toBeInTheDocument();
-    expect(screen.getByText(tours[locale].cancellationPolicy)).toBeInTheDocument();
-    expect(screen.getByRole("img")).toHaveAccessibleName();
-    expect(decodeURIComponent(screen.getByRole("img").getAttribute("src") ?? "")).toContain("/images/");
-    expect(screen.getByText(locale === "vi" ? "Ảnh minh họa" : "Illustrative image")).toBeInTheDocument();
-    expect(screen.getByText(locale === "vi" ? "Còn 8 chỗ" : "8 seats remaining")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: new RegExp(tours[locale].title) })).toHaveAttribute(
+    const card = within(screen.getByRole("heading", { name: tours[locale].title }).closest("article")!);
+    expect(card.getByRole("img")).toHaveAccessibleName();
+    expect(decodeURIComponent(card.getByRole("img").getAttribute("src") ?? "")).toContain("/images/");
+    for (const link of screen.getAllByRole("link", { name: tours[locale].title })) expect(link).toHaveAttribute(
       "href",
       `/${locale}/booking?departure=${DEPARTURE_ID}&partySize=1`,
     );
@@ -159,8 +183,10 @@ describe("runtime fixed-tour catalog", () => {
       listAvailability: vi.fn(async () => [{ ...availability, remainingCapacity: 0 }]),
     });
     const view = render(<RuntimeTourCatalog locale="en" fixedTour={port} initialized={Promise.resolve()} />);
-    expect(await screen.findByText(/sold out/i)).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Runtime Saigon walk/ })).not.toBeInTheDocument();
+    expect(await screen.findByText(/no available departure to book/i)).toBeInTheDocument();
+    for (const link of screen.getAllByRole("link", { name: /Runtime Saigon walk/ })) {
+      expect(link).toHaveAttribute("href", "/en/tours/detail?tour=runtime-saigon");
+    }
 
     view.unmount();
     render(<RuntimeTourCatalog
@@ -168,7 +194,7 @@ describe("runtime fixed-tour catalog", () => {
       fixedTour={fixedTour({ listPublishedTours: vi.fn(async () => { throw new Error(secret); }) })}
       initialized={Promise.resolve()}
     />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(/unavailable/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/error occurred while loading tours/i);
     expect(document.body).not.toHaveTextContent(secret);
   });
 });
@@ -186,6 +212,8 @@ describe("runtime fixed-tour booking", () => {
 
     const heading = await screen.findByRole("heading", { name: tours.en.title });
     const surface = heading.closest(".tour-booking");
+    expect(screen.getByText(tours.en.meetingPoint)).toBeInTheDocument();
+    expect(screen.getByText(tours.en.cancellationPolicy)).toBeInTheDocument();
 
     expect(surface).toHaveClass("tour-booking--editorial");
     expect(surface?.querySelector(".tour-booking__layout--editorial")).not.toBeNull();
@@ -222,14 +250,14 @@ describe("runtime fixed-tour booking", () => {
     />);
 
     await screen.findByRole("spinbutton", { name: /party size/i });
-    fireEvent.click(screen.getByRole("button", { name: /hold/i }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/between 1 and 100/i);
+    fireEvent.submit(screen.getByRole("button", { name: /book tour/i }).closest("form")!);
+    expect(await screen.findByText(/select 1 to 15 travelers/i)).toHaveAttribute("role", "alert");
     const correctedParty = screen.getByRole("spinbutton", { name: /party size/i });
     expect(correctedParty).toHaveFocus();
     expect(port.beginBooking).not.toHaveBeenCalled();
 
     fireEvent.change(correctedParty, { target: { value: "2" } });
-    fireEvent.click(screen.getByRole("button", { name: /hold/i }));
+    fireEvent.click(screen.getByRole("button", { name: /book tour/i }));
     await waitFor(() => expect(port.beginBooking).toHaveBeenCalledTimes(1));
     const payload = vi.mocked(port.beginBooking).mock.calls[0]?.[0];
     expect(Object.keys(payload ?? {}).sort()).toEqual([
@@ -245,11 +273,11 @@ describe("runtime fixed-tour booking", () => {
       .mockResolvedValueOnce({ bookingId: "55555555-5555-4555-8555-555555555555", holdExpiresAt: "2099-09-05T02:35:00.000Z", state: "resumed" });
     const port = fixedTour({ beginBooking });
     const first = render(<RuntimeFixedTourBooking locale="en" composition={shell(port, identity("customer"))} departureId={DEPARTURE_ID} initialPartySize="1" navigate={() => undefined} />);
-    fireEvent.click(await screen.findByRole("button", { name: /hold/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /book tour/i }));
     await waitFor(() => expect(beginBooking).toHaveBeenCalledTimes(1));
     first.unmount();
     render(<RuntimeFixedTourBooking locale="en" composition={shell(port, identity("customer"))} departureId={DEPARTURE_ID} initialPartySize="1" navigate={() => undefined} />);
-    fireEvent.click(await screen.findByRole("button", { name: /hold/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /book tour/i }));
     await waitFor(() => expect(beginBooking).toHaveBeenCalledTimes(2));
     expect(beginBooking.mock.calls[0][0].idempotencyKey).toBe(beginBooking.mock.calls[1][0].idempotencyKey);
   });
@@ -265,7 +293,7 @@ describe("runtime fixed-tour booking", () => {
       navigate={() => undefined}
     />);
 
-    const button = await screen.findByRole("button", { name: /hold/i });
+    const button = await screen.findByRole("button", { name: /book tour/i });
     const form = button.closest("form");
     expect(form).not.toBeNull();
     await act(async () => {
@@ -278,14 +306,14 @@ describe("runtime fixed-tour booking", () => {
 
   it.each([
     ["IDEMPOTENCY_CONFLICT", /earlier request/i],
-    ["SOLD_OUT", /sold out/i],
+    ["SOLD_OUT", /availability has just changed/i],
     ["NOT_FOUND", /no longer available/i],
     ["SERVICE_UNAVAILABLE", /service is unavailable/i],
   ] as const)("maps %s without leaking adapter details", async (code, message) => {
     const port = fixedTour({ beginBooking: vi.fn(async () => { throw new FixedTourRuntimeError(code); }) });
     render(<RuntimeFixedTourBooking locale="en" composition={shell(port, identity("customer"))} departureId={DEPARTURE_ID} initialPartySize="1" navigate={() => undefined} />);
-    fireEvent.click(await screen.findByRole("button", { name: /hold/i }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    fireEvent.click(await screen.findByRole("button", { name: /book tour/i }));
+    expect(await screen.findByText(message)).toHaveAttribute("role", "alert");
     expect(document.body).not.toHaveTextContent("P0001");
   });
 });
