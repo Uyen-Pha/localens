@@ -90,7 +90,7 @@ export function createSupabasePortalSessionAdapter(
 
   async function clearFailedSignIn(): Promise<void> {
     try {
-      await client.auth.signOut();
+      await client.auth.signOut({ scope: "local" });
     } catch {
       // Preserve the original generic identity failure; cleanup is best effort.
     }
@@ -134,7 +134,7 @@ export function createSupabasePortalSessionAdapter(
     async signOut(): Promise<void> {
       let response: Awaited<ReturnType<PortalSupabaseClient["auth"]["signOut"]>>;
       try {
-        response = await client.auth.signOut();
+        response = await client.auth.signOut({ scope: "local" });
       } catch {
         throw unauthenticated();
       }

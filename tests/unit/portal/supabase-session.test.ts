@@ -211,6 +211,7 @@ describe("Supabase portal session adapter", () => {
       "FORBIDDEN",
     );
     expect(signOut).toHaveBeenCalledOnce();
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
     expect(error.message).toBe("The authenticated portal identity is unavailable.");
     expect(error.message).not.toContain(password);
     expect(error.message).not.toContain(rpcSecret);
@@ -229,6 +230,7 @@ describe("Supabase portal session adapter", () => {
       "FORBIDDEN",
     );
     expect(signOut).toHaveBeenCalledOnce();
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
     expect(error.message).toBe("The authenticated portal identity is unavailable.");
     expect(error.message).not.toContain(rpcSecret);
     expect(error.message).not.toContain(cleanupSecret);
@@ -263,5 +265,6 @@ describe("Supabase portal session adapter", () => {
 
     await expect(adapter.signOut()).resolves.toBeUndefined();
     expect(signOut).toHaveBeenCalledOnce();
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
   });
 });
