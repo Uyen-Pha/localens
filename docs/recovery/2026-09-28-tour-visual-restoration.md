@@ -21,4 +21,19 @@ Read-only reference: `C:/Users/Admin/Documents/Project/localens-guide-release`.
 - Independent read-only review found no blocking functional regression. It identified the original PNGs' combined 8.97 MB download size with unoptimized images. Exact source recovery is retained for this Preview; image compression is deferred, not claimed resolved.
 - No frontend production deployment or main merge is authorized.
 
-Deployment and final checks will be recorded below after verification.
+## Verified Preview
+
+- Product source: `645ba13a126b097411e1ff45db8cbba69ea89302`. Complete-history bundle verified: `Project/output/recovery-audit-20260928/recovery-tour-visuals.bundle`.
+- URL: https://localens-ky8urh7pf-local-lens2.vercel.app/vi/tours/
+- Homepage: https://localens-ky8urh7pf-local-lens2.vercel.app/vi/
+- Deployment `dpl_AxoCkZqSvJDBFmzxrKs8WJYCfJ9a`: remote build passed, READY, explicit Preview target. No main merge, GitHub push or production promotion.
+- Browser: six cards; all six image elements complete with nonzero natural widths; individual artwork for all three additions. Correct hours/minutes visible. Each of four budget options tested against live catalog: 1 / 1 / 2 / 2 results; Clear filters restores six.
+- Desktop and mobile catalog client/scroll widths matched (1265/1265 and 375/375); expanded mobile itinerary readable. Temporary viewport reset. Screenshots: `Project/output/recovery-audit-20260928/tours-restored-artwork.png` and `tours-restored-mobile.png`.
+- Homepage map remains visible. One automated pointer attempt on the homepage tour link did not navigate; keyboard activation navigated and loaded six cards. Do not claim complete pointer-path acceptance from this check.
+- Live records still have no eligible future bookable departure; UI shows unavailable/no-departure notes. No schedules or reservations created.
+
+## Separately approved Planner origin
+
+After the deployment URL was known, the user explicitly approved adding only `https://localens-ky8urh7pf-local-lens2.vercel.app` to the existing five-origin list. A fresh SHA-256 guard verified the prior exact value before writing `ALLOWED_ORIGINS`; all other existing secret digests remained unchanged. New digest: `8e77c9ac5223c741bc3dead88fa51cfca5ecd64f5ea8b98ae997b6ec6a49133c`.
+
+Read-only research-planner OPTIONS: all six approved origins return 204 with their own Access-Control-Allow-Origin. Unapproved example still returns 403 without allow-origin. No wildcard, database write, migration, authentication change or Edge code deployment. This verifies CORS permission, not generation/refinement/submission; the previously reported disabled adjustment controls remain unresolved.
