@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import type { ResearchRequestPort, ResearchRequestSummary } from '@/lib/infrastructure/supabase/research-request-adapter';
-import { ResearchItineraryTimeline } from './research-itinerary-timeline';
 import styles from './research-request-list.module.css';
 
 export function ResearchRequestList({locale,service}:{locale:'vi'|'en';service:ResearchRequestPort}) {
@@ -14,6 +14,8 @@ export function ResearchRequestList({locale,service}:{locale:'vi'|'en';service:R
   const [query,setQuery]=useState('');
   const [filter,setFilter]=useState('all');
   const [sort,setSort]=useState('newest');
+  const [now,setNow]=useState(Date.now());
+  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
   useEffect(()=>{
     let disposed=false;setRows(null);setFailed(false);setPage(0);
     if(!service.listCustomer){setFailed(true);return;}
@@ -26,8 +28,8 @@ export function ResearchRequestList({locale,service}:{locale:'vi'|'en';service:R
   const currentPage=Math.min(page,Math.max(0,Math.ceil(visible.length/5)-1));
   const date=(value:string)=>new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Ho_Chi_Minh'}).format(new Date(value));
   return <section id="personalized-requests" className={styles.section} aria-label={vi?'Yêu cầu tour cá nhân hóa':'Personalized tour requests'}>
-    <h2>{vi?'Yêu cầu tour cá nhân hóa':'Personalized tour requests'}</h2>
-    <p>{vi?'Yêu cầu gửi công ty xem xét, không phải xác nhận đặt tour hay thanh toán.':'Requests for review, not booking or payment confirmations.'}</p>
+    <h2>{vi?'Yêu cầu tour cá nhân hóa & báo giá':'Personalized requests & quotes'}</h2>
+    <p>{vi?'Lịch trình sử dụng dữ liệu mô phỏng. Chi phí đề xuất chưa phải báo giá chính thức.':'Itineraries use simulation data. Estimates are not final quotes.'}</p>
     <div className={styles.toolbar}>
       <input type="search" aria-label={vi?'Tìm yêu cầu':'Search requests'} placeholder={vi?'Mã yêu cầu, điểm đến…':'Request ID, destination…'} value={query} onChange={event=>{setQuery(event.target.value);setPage(0);}}/>
       <select aria-label={vi?'Trạng thái yêu cầu':'Request status'} value={filter} onChange={event=>{setFilter(event.target.value);setPage(0);}}><option value="all">{vi?'Tất cả trạng thái':'All statuses'}</option>{Object.entries(statuses).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select>
@@ -37,17 +39,18 @@ export function ResearchRequestList({locale,service}:{locale:'vi'|'en';service:R
     {failed?<div role="alert"><p>{vi?'Chưa tải được yêu cầu. Vui lòng thử lại.':'Unable to load requests. Please retry.'}</p><button type="button" onClick={()=>setRetry(n=>n+1)}>{vi?'Thử lại':'Retry'}</button></div>:rows===null?<p role="status">{vi?'Đang tải yêu cầu…':'Loading requests…'}</p>:<>
       {!rows.length&&<p>{vi?'Bạn chưa có yêu cầu tour cá nhân hóa.':'No personalized tour requests yet.'}</p>}
       {!!rows.length&&!visible.length&&<p role="status">{vi?'Không có yêu cầu phù hợp. Hãy thử từ khóa hoặc trạng thái khác.':'No matching requests. Try another search or status.'}</p>}
-      {!!visible.length&&<div className={styles.columns} aria-hidden="true"><span>{vi?'Mã yêu cầu / Hành trình':'Request / Itinerary'}</span><span>{vi?'Thông tin chuyến đi':'Trip information'}</span><span>{vi?'Trạng thái':'Status'}</span></div>}
-      {visible.slice(currentPage*5,currentPage*5+5).map(row=><article key={row.id} className={styles.card}>
-        <div className={styles.overview}>
-          <div><p className={styles.code}>{row.id}</p><h3>{row.plan.stops.map(stop=>stop.name).join(' → ')}</h3><small>{vi?'Ngày tạo: ':'Created: '}{date(row.createdAt)}</small></div>
-          <div><p>{vi?'Khởi hành':'Departure'}: {date(row.request.startAt)} (UTC+07:00)</p><p>{row.request.partySize} {vi?'khách':'guests'} · {new Intl.NumberFormat(locale).format(row.plan.totalVnd)} VND ({vi?'ước tính':'estimate'})</p></div>
-          <div><span className={styles.badge}>{statuses[row.status]}</span></div>
-        </div>
-        {row.notes&&<p>{row.notes}</p>}
-        <details><summary>{vi?'Xem hành trình đã gửi':'View submitted itinerary'}</summary><ResearchItineraryTimeline locale={locale} plan={row.plan}/></details>
-        {row.history.length>0&&<details><summary>{vi?'Lịch sử xử lý':'Processing history'}</summary><ul>{row.history.map((event,index)=><li key={index}>{statuses[event.status as keyof typeof statuses]??event.status}{event.note?` · ${event.note}`:''}</li>)}</ul></details>}
-      </article>)}
+      {!!visible.length&&<table className={styles.table}><thead><tr><th>{vi?'Mã yêu cầu':'Request ID'}</th><th>{vi?'Hành trình':'Itinerary'}</th><th>{vi?'Lần gửi gần nhất / Hạn xử lý':'Last submitted / Processing deadline'}</th><th>{vi?'Trạng thái':'Status'}</th><th><span className={styles.srOnly}>{vi?'Thao tác':'Actions'}</span></th></tr></thead><tbody>
+      {visible.slice(currentPage*5,currentPage*5+5).map(row=>{
+        const quote=row.status==='approved'?(row.quotes??[]).find(q=>q.status==='accepted'||q.status!=='expired'&&Date.parse(q.expiresAt)>now&&Date.parse(row.request.startAt)>now):undefined;
+        const detailPath=`/${locale}/personalized-request/?request=${encodeURIComponent(row.id)}`;
+        return <tr key={row.id}>
+          <td className={styles.code} data-label={vi?'Mã yêu cầu':'Request ID'}><span title={row.id}>{row.id.length>20?row.id.slice(0,8):row.id}</span></td>
+          <td data-label={vi?'Hành trình':'Itinerary'}>{row.plan.stops.map(stop=>stop.name).join(' → ')}</td>
+          <td data-label={vi?'Lần gửi / Hạn xử lý':'Submitted / Deadline'}>{date(row.submittedAt??row.createdAt)}{row.processingCompletedAt?<small>{vi?'Đã trả kết quả: ':'Processed: '}{date(row.processingCompletedAt)}</small>:row.processingDueAt&&<small className={Date.parse(row.processingDueAt)<=now?styles.warning:undefined}>{vi?'Hạn xử lý: ':'Due: '}{date(row.processingDueAt)}</small>}</td>
+          <td data-label={vi?'Trạng thái':'Status'}><span className={styles.badge}>{statuses[row.status]}</span>{quote&&<small>{quote.status==='checkout_pending'?(vi?'Đơn chờ thanh toán':'Awaiting payment'):quote.status==='accepted'?(vi?'Xem trạng thái thanh toán':'View payment status'):(vi?'Báo giá đã phát hành':'Quote issued')}</small>}{Date.parse(row.request.startAt)<=now&&<small className={styles.warning}>{vi?'Ngày khởi hành đã qua':'Departure has passed'}</small>}</td>
+          <td><div className={styles.rowActions}>{quote&&<Link href={quote.status==='active'?`${detailPath}&quote=${encodeURIComponent(quote.id)}`:`/${locale}/personalized-payment/?request=${encodeURIComponent(row.id)}&quote=${encodeURIComponent(quote.id)}`}>{quote.status==='active'?(vi?'Xem báo giá':'View quote'):quote.status==='checkout_pending'?(vi?'Thanh toán':'Pay now'):(vi?'Xem kết quả':'View result')}</Link>}<Link href={detailPath}>{vi?'Xem chi tiết':'View details'}</Link></div></td>
+        </tr>;
+      })}</tbody></table>}
       {visible.length>5&&<nav aria-label={vi?'Phân trang yêu cầu':'Request pagination'}><button type="button" disabled={currentPage===0} onClick={()=>setPage(currentPage-1)}>{vi?'Trang trước':'Previous page'}</button><span aria-live="polite">{currentPage+1} / {Math.ceil(visible.length/5)}</span><button type="button" disabled={(currentPage+1)*5>=visible.length} onClick={()=>setPage(currentPage+1)}>{vi?'Trang sau':'Next page'}</button></nav>}
     </>}
   </section>;

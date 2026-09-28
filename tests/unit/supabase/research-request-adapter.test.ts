@@ -29,3 +29,13 @@ it('does not send invalid revision IDs to the database',async()=>{
   await expect(c.adapter.submit('not-an-id')).rejects.toThrow('INVALID_REVISION');
   expect(c.rpc).not.toHaveBeenCalled();
 });
+it('preserves quotes and processing deadlines returned by the existing list RPC',async()=>{
+ const quote={id:revisionId,title:'Báo giá',amount:1000000,currency:'VND',conditions:'Included',status:'checkout_pending',createdAt:'2026-09-28T00:00:00Z',expiresAt:'2027-10-09T00:00:00Z'};
+ const c=setup([{id:requestId,ownerId:requestId,status:'approved',revisionId,request:researchInput,plan:researchReady.plan,createdAt:'2026-09-28T00:00:00Z',submittedAt:null,processingDueAt:'2026-09-30T00:00:00Z',notes:null,history:[],quotes:[quote]}]);
+ expect((await c.adapter.listCustomer!())[0]).toMatchObject({quotes:[quote],processingDueAt:'2026-09-30T00:00:00Z'});
+});
+it('reads a quote booking without creating one on navigation',async()=>{
+ const c=setup(null);
+ expect(await c.adapter.booking!(revisionId,false)).toBeNull();
+ expect(c.rpc).toHaveBeenCalledExactlyOnceWith('research_demo_booking',{p_quote:revisionId,p_create:false});
+});

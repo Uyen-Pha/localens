@@ -7,6 +7,11 @@ import {
 } from "@/lib/navigation/safe-return-to";
 
 describe("safe return-to navigation", () => {
+  it('preserves exact personalized detail/payment return paths but rejects nested paths',()=>{
+    for(const path of ['/vi/personalized-request/?request=r','/vi/personalized-payment/?request=r&quote=q'])expect(parseSafeReturnTo('vi',path)).toBe(path);
+    expect(parseSafeReturnTo('vi','/vi/personalized-payment/other')).toBeNull();
+    expect(parseSafeReturnTo('vi','/en/personalized-payment/?quote=q')).toBeNull();
+  });
   it("accepts only the current locale booking path and preserves its query", () => {
     const returnTo = "/en/booking/?departure=departure-1&partySize=2";
 
