@@ -17,6 +17,10 @@
 - Do not merge historical branches wholesale. Each imported change must be adapted to the current runtime component boundary.
 - Do not represent unavailable proposal tours as bookable live records or create duplicate tour rows.
 - Existing baseline failures must be separated from regression failures introduced by this recovery.
+- The Word specification is the final business authority for cancellation, quote deadlines, planner submission, guide assignment, and simulated payment scope.
+- `actualExpiry = min(issuedAt + 48h, tripStart - 24h)` is the only personalized-quote expiry rule; the payment deadline is inherited from that value.
+- Cancellation must support valid pending-payment cancellation without a 48-hour rule and confirmed-order cancellation only when at least 48 hours remain; no manual admin cancellation decision flow may be restored.
+- Only lint errors in files changed by this recovery may be fixed; unrelated baseline lint errors must remain untouched and be reported separately.
 
 ## Tasks
 
@@ -50,6 +54,30 @@
    - Record pre-existing failures separately from changes introduced by this branch.
    - Start a Vercel Preview deployment only after local checks; do not use the production deployment command.
    - Inspect the Preview routes for customer, tours, planner, booking, guide, and admin/sign-in gates. Report the Preview URL and exact changed-file list before any merge to `main`.
+
+## Continuation Tasks — Word-aligned runtime recovery
+
+7. **Cancellation contract**
+   - Add failing unit/database-facing tests for fixed pending-payment cancellation, personalized pending-payment cancellation, confirmed cancellation at/after the 48-hour boundary, payment-processing/reviewing rejection, idempotent seat release, and no departure-seat release for personalized bookings.
+   - Update only the current runtime application/UI, RPC/migration layer, adapters, and focused tests needed to implement those rules. Keep cancellation history immutable and do not restore admin approval/rejection decisions.
+   - Update cancellation copy so the UI explains both valid branches and does not claim that every cancellation requires 48 hours.
+
+8. **Personalized quote deadline**
+   - Add failing tests proving the minimum-of-two-deadlines rule and inheritance of `valid_until` into a personalized checkout.
+   - Replace remaining exact-48-hour assumptions in active application code, Supabase functions/migrations, adapters, Admin quote UI, customer quote UI, and focused database tests. Preserve historical data immutability where the schema requires it.
+
+9. **Planner submission path**
+   - Add failing tests for the full natural-language-to-submission sequence: analyze, create itinerary, revise, confirm, authenticate, validate ownership/revision/72-hour lead time, snapshot the confirmed revision, and transition to `pending_review`.
+   - Keep the recovered presentation and manual-form fallback while binding the flow to the current runtime ports.
+
+10. **Guide assignment scope**
+   - Add failing tests for both departure-backed fixed bookings and quote-backed personalized bookings, including confirmed/paid/eligible checks and guide schedule display.
+   - Keep the current calendar/list/filter presentation and do not reintroduce the old “Today/This week” surface.
+
+11. **Recovery verification and Preview**
+   - Run targeted tests, related database tests where available, typecheck, changed-file lint, build, and the full relevant test command after the preceding tasks.
+   - Record baseline lint failures separately from changed-file failures.
+   - Create Vercel Preview only; inspect customer, planner, booking/payment, guide, Admin, and sign-in gates; do not merge or deploy Production.
 
 ## Review Focus
 
