@@ -149,8 +149,8 @@ export function CustomerAccount({ locale, section = 'personal' }: { locale: Loca
         <h2 className={styles.bookingTitle}>{vi ? 'Đơn đặt tour' : 'Bookings'}</h2>
         <p className={styles.intro}>{vi ? 'Xem các tour đã đặt, theo dõi thanh toán và quản lý chuyến đi của bạn.' : 'View your booked tours, track payments and manage your trips.'}</p>
         {demo && <CustomerPortal locale={locale} composition={demo.shell} session={demo.identity} onSignOut={() => router.replace(`/${locale}/sign-in/`)} bookingsOnly />}
-        {bookingServices?.reviewedBookings && <ReviewedBookingsList locale={locale} service={bookingServices.reviewedBookings} onLoaded={setReviewedCount}/>}
         {bookingServices?.researchRequests && <ResearchRequestList locale={locale} service={bookingServices.researchRequests}/>}
+        {bookingServices?.reviewedBookings && <ReviewedBookingsList locale={locale} service={bookingServices.reviewedBookings} onLoaded={setReviewedCount}/>}
         {bookingServices && <RuntimeFixedTourAccount hideEmpty={Boolean(bookingServices.reviewedBookings) || reviewedCount > 0} locale={locale} fixedTour={bookingServices.fixedTour} bookingCancellations={bookingServices.bookingCancellations} />}
       </div> : <section className={styles.content} aria-labelledby="account-section">
         <h2 id="account-section">{vi ? 'Thông tin cá nhân & bảo mật' : 'Personal information & security'}</h2>
