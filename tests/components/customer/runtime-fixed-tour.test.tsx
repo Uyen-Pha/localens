@@ -174,6 +174,26 @@ describe("runtime fixed-tour catalog", () => {
 });
 
 describe("runtime fixed-tour booking", () => {
+  it("exposes the recovered editorial presentation slots without changing the runtime booking surface", async () => {
+    const port = fixedTour();
+    render(<RuntimeFixedTourBooking
+      locale="en"
+      composition={shell(port, identity("customer"))}
+      departureId={DEPARTURE_ID}
+      initialPartySize="1"
+      navigate={() => undefined}
+    />);
+
+    const heading = await screen.findByRole("heading", { name: tours.en.title });
+    const surface = heading.closest(".tour-booking");
+
+    expect(surface).toHaveClass("tour-booking--editorial");
+    expect(surface?.querySelector(".tour-booking__layout--editorial")).not.toBeNull();
+    expect(surface?.querySelector(".tour-booking__checkout--editorial")).not.toBeNull();
+    expect(screen.getByRole("button", { name: /book tour/i })).toBeInTheDocument();
+    expect(port.beginBooking).not.toHaveBeenCalled();
+  });
+
   it.each([null, identity("guide"), identity("admin")])(
     "never calls the hold RPC for a non-customer session",
     async (current) => {

@@ -204,11 +204,11 @@ export function RuntimeFixedTourBooking({
   }
 
   const backLink = <Link className="tour-booking__back" href={`/${locale}/tours/`}><ArrowLeft size={16} aria-hidden="true" />{ui.back}</Link>;
-  if (state === "loading") return <div className="tour-booking">{backLink}<div className="tour-booking__state" role="status" aria-live="polite">{copy.loading}</div></div>;
+  if (state === "loading") return <div className="tour-booking tour-booking--editorial">{backLink}<div className="tour-booking__state" role="status" aria-live="polite">{copy.loading}</div></div>;
   const invalidParty = state === "INVALID_INPUT";
   if ((state !== "ready" && !invalidParty) || !departure || !tour) {
     return (
-      <section className="tour-booking tour-detail" aria-labelledby="runtime-booking-heading">
+      <section className="tour-booking tour-booking--editorial tour-detail" aria-labelledby="runtime-booking-heading">
         {backLink}
         <div className="tour-booking__state">
           <ShieldCheck size={32} aria-hidden="true" />
@@ -233,13 +233,13 @@ export function RuntimeFixedTourBooking({
   const timeFormat = new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Ho_Chi_Minh" });
 
   return (
-    <section className="tour-booking tour-detail" aria-labelledby="runtime-booking-heading">
+    <section className="tour-booking tour-booking--editorial tour-detail" aria-labelledby="runtime-booking-heading">
       {backLink}
       <ol className="tour-booking__steps" aria-label={copy.bookingHeading}>
         {ui.steps.map((step, index) => <li key={step} aria-current={index === 1 ? "step" : undefined}><span>{index + 1}</span>{step}</li>)}
       </ol>
-      <div className="tour-booking__layout">
-        <div className="tour-booking__story">
+      <div className="tour-booking__layout tour-booking__layout--editorial">
+        <div className="tour-booking__story tour-booking__story--editorial">
           <TourGallery locale={locale} slug={tour.slug} src={picture.src} alt={picture[locale]}/><p className="tour-booking__eyebrow">{ui.eyebrow}</p>
           <h1 id="runtime-booking-heading">{tour.title}</h1>
           <p className="tour-booking__intro">{tour.summary}</p>
@@ -264,7 +264,7 @@ export function RuntimeFixedTourBooking({
           
           {overview && <details className="tour-booking__policy"><summary>{locale === "vi" ? "Thông tin cần biết trước chuyến đi" : "Before you go"}</summary><p>{overview.note}</p></details>}
         </div>
-        <aside className="tour-booking__checkout" aria-labelledby="booking-checkout">
+        <aside className="tour-booking__checkout tour-booking__checkout--editorial" aria-labelledby="booking-checkout">
           <p className="tour-booking__eyebrow">{copy.catalogEyebrow}</p>
           <h2 id="booking-checkout">{ui.reserve}</h2>
           <p className="tour-booking__price">{validPrice ? money(unitPrice) : "—"}<span>{ui.perPerson}</span></p>

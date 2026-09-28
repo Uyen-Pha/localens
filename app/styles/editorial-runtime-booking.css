@@ -1,0 +1,130 @@
+/* Recovered editorial presentation for the current runtime booking surface.
+   This file owns layout and styling only; runtime mutations stay in the
+   Supabase-backed booking components. */
+.tour-booking--editorial {
+  max-width: 1100px;
+  padding-block: clamp(1.5rem, 4vw, 3.5rem) clamp(3rem, 7vw, 5rem);
+}
+
+.tour-booking--editorial .tour-booking__back {
+  color: var(--color-brand-forest);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.tour-booking--editorial .tour-booking__steps {
+  gap: clamp(1rem, 4vw, 2.5rem);
+  margin-bottom: clamp(2rem, 5vw, 3.5rem);
+  padding-block: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.tour-booking--editorial .tour-booking__steps li {
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.tour-booking--editorial .tour-booking__steps li[aria-current] > span {
+  background: var(--color-brand-forest);
+}
+
+.tour-booking__layout--editorial {
+  grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 0.75fr);
+  gap: clamp(2rem, 6vw, 5rem);
+}
+
+.tour-booking__story--editorial .tour-booking__eyebrow,
+.tour-booking__checkout--editorial .tour-booking__eyebrow {
+  color: var(--color-cta-vermilion-dark);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.tour-booking__story--editorial h1 {
+  max-width: 15ch;
+  color: var(--color-brand-forest);
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  letter-spacing: -0.065em;
+  line-height: 0.98;
+}
+
+.tour-booking__story--editorial .tour-booking__intro {
+  max-width: 42rem;
+  margin-top: 1.25rem;
+  color: var(--color-muted);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.tour-booking__story--editorial .tour-booking__hero {
+  border-radius: 0.75rem;
+  box-shadow: 0 1.25rem 3rem rgba(13, 71, 59, 0.1);
+}
+
+.tour-booking__story--editorial .tour-booking__facts {
+  gap: 1rem 2rem;
+  padding-block: 1.5rem;
+  border-bottom-color: var(--color-rule);
+}
+
+.tour-booking__story--editorial .tour-booking__itinerary,
+.tour-booking__story--editorial .tour-booking__inclusions,
+.tour-booking__story--editorial .tour-booking__policy {
+  border-color: var(--color-rule);
+}
+
+.tour-booking__checkout--editorial {
+  top: 2rem;
+  border: 0;
+  border-top: 3px solid var(--color-brand-forest);
+  border-radius: 0;
+  padding: clamp(1.25rem, 3vw, 2rem) 0 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.tour-booking__checkout--editorial h2 {
+  max-width: 14ch;
+  color: var(--color-brand-forest);
+  font-size: clamp(1.75rem, 3vw, 2.7rem);
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.tour-booking__checkout--editorial .tour-booking__price {
+  color: var(--color-brand-forest);
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+}
+
+.tour-booking__checkout--editorial .tour-booking__date,
+.tour-booking__checkout--editorial .tour-booking__assurance {
+  border-left: 3px solid var(--color-cta-vermilion);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--color-cta-vermilion) 7%, var(--color-surface));
+  padding: 1rem 1.1rem;
+}
+
+.tour-booking__checkout--editorial .tour-booking__button {
+  border-radius: 0.45rem;
+  background: var(--color-brand-forest);
+  box-shadow: 0 0.6rem 1.4rem rgba(13, 71, 59, 0.14);
+}
+
+.tour-booking__checkout--editorial .tour-booking__button:hover {
+  background: var(--color-brand-forest-deep, #08392f);
+}
+
+.tour-booking__checkout--editorial .tour-booking__disclosure {
+  border-top-color: var(--color-rule);
+}
+
+@media (max-width: 900px) {
+  .tour-booking__layout--editorial {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tour-booking__checkout--editorial {
+    border-top: 1px solid var(--color-rule);
+    padding-top: 2rem;
+  }
+}
