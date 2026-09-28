@@ -35,12 +35,12 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
     eyebrow: "Sài Gòn qua góc nhìn bản địa", image: "Ảnh minh họa", minutes: "phút",
     details: "Điểm hẹn & hành trình", book: "Đặt tour", departures: "Chọn lịch khởi hành",
     count: "hành trình để khám phá", perPerson: "/ khách", stops: activityTimeline ? "hoạt động" : "điểm dừng",
-    comingSoon: "Lịch khởi hành đang được cập nhật",
+    comingSoon: "Chưa có lịch khởi hành",
   } : {
     eyebrow: "Saigon through local eyes", image: "Illustrative image", minutes: "min",
     details: "Meeting point & itinerary", book: "Book tour", departures: "Choose a departure",
     count: "journeys to discover", perPerson: "/ person", stops: activityTimeline ? "activities" : "stops",
-    comingSoon: "Departure schedule is being updated",
+    comingSoon: "No departure scheduled yet",
   };
   const [state, setState] = useState<LoadState>("loading");
   const [tours, setTours] = useState<PublishedTour[]>([]);
@@ -108,7 +108,7 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
           <div className="runtime-catalog__grid">
             {results.map((tour, index) => {
               const departures = availability.filter((item) => item.tourVersionId === tour.versionId);
-              const departure = departures.find(item => item.status === 'scheduled' && item.remainingCapacity > 0) ?? departures[0];
+              const departure = departures.filter(item => item.status === 'scheduled' && item.remainingCapacity > 0 && Date.parse(item.startAt) > Date.now()).sort((a,b)=>Date.parse(a.startAt)-Date.parse(b.startAt))[0];
               const detailHref = departure ? '/' + tour.locale + '/booking/?departure=' + departure.id + '&partySize=1' : null;
               const picture = tourIllustration(tour.slug);
               return (
@@ -123,9 +123,20 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
                     </div>
                     <h2>{detailHref ? <Link href={detailHref}>{tour.title}</Link> : tour.title}</h2>
                     <p className="runtime-tour__summary">{tour.summary}</p>
-                    <TourRating locale={locale} departure={departure?.id}/>
+                    <TourRating locale={locale} departure={(departure ?? departures[0])?.id}/>
                     <p className="runtime-tour__price">{formatVnd(tour.priceVndMinor, locale)} <span>{visual.perPerson}</span></p>
-                    {!departure ? <p className="runtime-tour__availability" role="note">{visual.comingSoon}</p> : null}
+                    {!departure ? <p className="runtime-tour__availability" role="note">{departures.length ? (vi ? 'Hiện không có lịch khởi hành khả dụng để đặt' : 'No available departure to book') : visual.comingSoon}</p> : null}
+                    <details className="runtime-tour__details">
+                      <summary>{vi ? 'Xem thông tin tour' : 'View tour information'}</summary>
+                      <dl>
+                        <div><dt>{vi ? 'Điểm hẹn' : 'Meeting point'}</dt><dd>{tour.meetingPoint}</dd></div>
+                        <div><dt>{vi ? 'Hành trình' : 'Itinerary'}</dt><dd><ol>{tour.stops.map(stop=><li key={stop.position}>{stop.title}</li>)}</ol></dd></div>
+                        <div><dt>{vi ? 'Bao gồm' : 'Included'}</dt><dd><ul>{tour.inclusions.map((item,i)=><li key={i}>{item}</li>)}</ul></dd></div>
+                        <div><dt>{vi ? 'Không bao gồm' : 'Excluded'}</dt><dd><ul>{tour.exclusions.map((item,i)=><li key={i}>{item}</li>)}</ul></dd></div>
+                        <div><dt>{vi ? 'Điều kiện hủy' : 'Cancellation policy'}</dt><dd>{tour.cancellationPolicy}</dd></div>
+                      </dl>
+                    </details>
+                    {departure && <div className="runtime-tour__departures"><p>{new Intl.DateTimeFormat(vi ? 'vi-VN' : 'en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Ho_Chi_Minh'}).format(new Date(departure.startAt))} (UTC+7)</p><Link className="runtime-tour__book" href={detailHref!}>{visual.book}</Link></div>}
                   </div>
                 </article>
               );

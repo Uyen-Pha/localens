@@ -5,7 +5,8 @@ import type { FixedTourRuntimePort } from '@/lib/application/fixed-tour/contract
 import type { PublishedTour } from '@/lib/domain/data/contracts';
 import { filterTours, emptyTourSearch } from '@/lib/application/fixed-tour/search';
 afterEach(cleanup);
-const tours = [{id:'1',versionId:'v1',slug:'heritage',locale:'vi',title:'Dấu ấn Sài Gòn',summary:'Di sản và cơm tấm',meetingPoint:'Bưu điện',durationMinutes:270,priceVndMinor:'790000',stops:[]},{id:'2',versionId:'v2',slug:'lantern',locale:'vi',title:'Chợ Lớn làm đèn',summary:'Lantern workshop',meetingPoint:'Chợ Lớn',durationMinutes:540,priceVndMinor:'1990000',stops:[]}] as unknown as PublishedTour[];
+const details = {inclusions:['Hướng dẫn viên'],exclusions:['Chi phí cá nhân'],cancellationPolicy:'Theo điều kiện đặt tour',sourceUrl:'',verifiedAt:'',attribution:'Test fixture',license:'Test fixture'};
+const tours: PublishedTour[] = [{...details,id:'1',versionId:'v1',slug:'heritage',locale:'vi',title:'Dấu ấn Sài Gòn',summary:'Di sản và cơm tấm',meetingPoint:'Bưu điện',durationMinutes:270,priceVndMinor:'790000',stops:[]},{...details,id:'2',versionId:'v2',slug:'lantern',locale:'vi',title:'Chợ Lớn làm đèn',summary:'Lantern workshop',meetingPoint:'Chợ Lớn',durationMinutes:540,priceVndMinor:'1990000',stops:[]}];
 it('combines accent-insensitive keywords, price, duration and experience',()=>{
  expect(filterTours(tours,{...emptyTourSearch,keyword:'cho lon',experience:'craft',budget:'1to2m',duration:'full'})).toHaveLength(1);
  expect(filterTours(tours,{...emptyTourSearch,keyword:'cho lon',budget:'under1m'})).toHaveLength(0);
