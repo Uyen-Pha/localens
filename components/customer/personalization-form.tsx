@@ -28,6 +28,7 @@ import {
 } from "@/lib/application/planner/personalization-areas";
 import { signInPath } from "@/lib/navigation/safe-return-to";
 import { formatHcmMinute } from "@/lib/domain/itinerary/local-time";
+import styles from "./planner-recovery.module.css";
 
 type PersonalizationFormCopy = Dictionary["home"]["personalizationForm"];
 
@@ -199,14 +200,17 @@ export function PersonalizationForm({
   locale = "en",
   onPrepared,
   areaOptionsOverride,
+  compact = false,
 }: {
   copy: PersonalizationFormCopy;
   locale?: Locale;
   onPrepared?: () => void;
   areaOptionsOverride?: readonly {value:string;label:string}[];
+  compact?: boolean;
 }) {
   const vi = locale === "vi";
   const formRef = useRef<HTMLFormElement>(null);
+  const areasRef = useRef<HTMLDetailsElement>(null);
   const [summary, setSummary] = useState<Record<string, string>>({});
   function updateSummary() {
     if (!formRef.current) return;
@@ -344,6 +348,7 @@ export function PersonalizationForm({
       !hasValidBudget ||
       !hasPriority
     ) {
+      if (!hasArea && areasRef.current) areasRef.current.open = true;
       setIsPreviewed(false);
       setValidationError(copy.validationMessage);
       setPreview(undefined);
@@ -391,10 +396,44 @@ export function PersonalizationForm({
     setPlannerHandoffError(!saved);
   }
 
-  return (
-    <form ref={formRef} onChange={updateSummary} className="personalization-form personalization-form--editorial planner-request" aria-label={copy.formLabel} aria-busy={runtimeSelection === null && !runtimeLoadFailed} onFocusCapture={keepFocusedControlVisible} onSubmit={handleSubmit}>
-<div className="planner-request__main"><section className="planner-request__section"><h2><b>01</b>{vi ? "Thông tin chuyến đi" : "Trip information"}</h2><div className="personalization-form__grid">
-        <fieldset className="duration-field">
+  const dateField = (
+    <label className="field">
+          <span>{copy.startDateLabel}</span>
+          <span className="planner-date-display">
+            <span aria-hidden="true" className="planner-date-display__value">{startDate ? startDate.split("-").reverse().join("/") : "DD/MM/YYYY"}</span>
+            <input name="startDate" type="date" lang={vi ? "vi-VN" : "en-GB"} min={minimumStartDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} aria-label={copy.startDateLabel} aria-describedby="planner-date-format timezone-hint" required />
+          </span>
+          <span id="planner-date-format" className="planner-date-format">{vi ? "Ngày / Tháng / Năm" : "Day / Month / Year"}</span>
+
+        </label>
+  );
+
+  const timeField = (
+    <div className="field" role="group" aria-label={copy.startTimeLabel}>
+          <span>{copy.startTimeLabel}</span>
+          <input type="hidden" name="startTime" value={startTime} />
+          <span className="planner-start-time">
+            {compact ? <select aria-label={vi ? "Giờ bắt đầu" : "Start hour"} value={startTime.slice(0,2)} onChange={event => setStartTime(event.target.value + startTime.slice(2))}>
+              {Array.from({length:24},(_,i) => <option key={i} value={String(i).padStart(2,"0")}>{String(i).padStart(2,"0")}</option>)}
+            </select> : <select aria-label={vi ? "Giờ bắt đầu" : "Start hour"} value={String(Number(startTime.slice(0,2)) % 12 || 12)}
+              onChange={event => { const hour = Number(event.target.value) % 12 + (Number(startTime.slice(0,2)) >= 12 ? 12 : 0); setStartTime(String(hour).padStart(2,"0") + startTime.slice(2)); }}>
+              {Array.from({length:12},(_,i) => <option key={i+1} value={i+1}>{String(i+1).padStart(2,"0")}</option>)}
+            </select>}
+            <span aria-hidden="true">:</span>
+            <select aria-label={vi ? "Phút bắt đầu" : "Start minute"} value={startTime.slice(3,5)}
+              onChange={event => setStartTime(startTime.slice(0,3) + event.target.value)}>
+              {Array.from({length:60},(_,i) => <option key={i} value={String(i).padStart(2,"0")}>{String(i).padStart(2,"0")}</option>)}
+            </select>
+            {!compact && <select aria-label={vi ? "Buổi bắt đầu" : "AM or PM"} value={Number(startTime.slice(0,2)) >= 12 ? "PM" : "AM"}
+              onChange={event => { const hour = Number(startTime.slice(0,2)) % 12 + (event.target.value === "PM" ? 12 : 0); setStartTime(String(hour).padStart(2,"0") + startTime.slice(2)); }}>
+              <option value="AM">AM</option><option value="PM">PM</option>
+            </select>}
+          </span>
+        </div>
+  );
+
+  const durationField = (
+    <fieldset className="duration-field">
           <legend>{copy.durationLabel}</legend>
           <div className="duration-field__inputs">
             <label className="field">
@@ -407,8 +446,18 @@ export function PersonalizationForm({
             </label>
           </div>
         </fieldset>
+  );
 
-        <div className="field planner-budget-field"><label className="field">
+  const partyField = (
+    <label className="field">
+          <span>{copy.partySizeLabel}</span>
+          <input name="partySize" type="number" min={1} max={20} defaultValue={2} required aria-label={copy.partySizeLabel} />
+
+        </label>
+  );
+
+  const budgetInput = (
+    <label className="field">
           <span>{copy.budgetLabel}</span>
           <input type="hidden" name="budgetAmount" value={budgetAmount} />
           <input name="budgetDisplay" type="text" inputMode={budgetCurrency === "USD" ? "decimal" : "numeric"}
@@ -424,7 +473,19 @@ export function PersonalizationForm({
             }}
             required aria-label={copy.budgetLabel} />
         </label>
-        <div className="planner-budget-suggestion">
+  );
+
+  const currencyField = (
+    <label className="field">
+          <span>{copy.budgetCurrencyLabel}</span>
+          <select name="budgetCurrency" value={budgetCurrency} onChange={(event) => { const currency = event.target.value as "VND" | "USD"; setBudgetCurrency(currency); if (currency === "VND") setBudgetAmount(current => current.split(".")[0]); }}>
+            {copy.budgetCurrencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+  );
+
+  const budgetSuggestion = (
+    <div className="planner-budget-suggestion">
         {canSuggestBudget ? <>
           <span>{vi ? "Gợi ý cho cả nhóm" : "Suggested group budget"}</span>
           <strong>{showBudget(budgetLow)} – {showBudget(budgetHigh)}</strong>
@@ -432,63 +493,21 @@ export function PersonalizationForm({
           <small>{vi ? "Ước tính tham khảo, không phải báo giá. Bạn có thể nhập mức khác." : "Planning estimate, not a quote. You can enter another budget."}</small>
           <details><summary>{vi ? "Cách ước tính" : "How this is estimated"}</summary><small>{vi ? "Tạm tính 100.000 VND/người/giờ, cộng 50.000 VND/người cho mỗi khu vực bổ sung; khoảng dao động ±20%. Chưa tính theo điểm đến hay nhà cung cấp cụ thể." : "Provisional allowance: VND 100,000/person/hour plus VND 50,000/person per additional area, with a ±20% range. Not based on specific venues or suppliers."}{budgetCurrency === "USD" ? (vi ? " Quy đổi tham khảo: 1 USD = 26.000 VND." : "Indicative conversion: USD 1 = VND 26,000.") : ""}</small></details>
         </> : <small>{vi ? "Chọn khu vực và số người để xem ngân sách gợi ý." : "Select areas and group size to see a budget suggestion."}</small>}
-        </div></div>
-
-        <label className="field">
-          <span>{copy.budgetCurrencyLabel}</span>
-          <select name="budgetCurrency" value={budgetCurrency} onChange={(event) => { const currency = event.target.value as "VND" | "USD"; setBudgetCurrency(currency); if (currency === "VND") setBudgetAmount(current => current.split(".")[0]); }}>
-            {copy.budgetCurrencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </label>
-
-        <label className="field">
-          <span>{copy.startDateLabel}</span>
-          <span className="planner-date-display">
-            <span aria-hidden="true" className="planner-date-display__value">{startDate ? startDate.split("-").reverse().join("/") : "DD/MM/YYYY"}</span>
-            <input name="startDate" type="date" lang={vi ? "vi-VN" : "en-GB"} min={minimumStartDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} aria-label={copy.startDateLabel} aria-describedby="planner-date-format timezone-hint" required />
-          </span>
-          <span id="planner-date-format" className="planner-date-format">{vi ? "Ngày / Tháng / Năm" : "Day / Month / Year"}</span>
-          
-        </label>
-
-        <div className="field" role="group" aria-label={copy.startTimeLabel}>
-          <span>{copy.startTimeLabel}</span>
-          <input type="hidden" name="startTime" value={startTime} />
-          <span className="planner-start-time">
-            <select aria-label={vi ? "Giờ bắt đầu" : "Start hour"} value={String(Number(startTime.slice(0,2)) % 12 || 12)}
-              onChange={event => { const hour = Number(event.target.value) % 12 + (Number(startTime.slice(0,2)) >= 12 ? 12 : 0); setStartTime(String(hour).padStart(2,"0") + startTime.slice(2)); }}>
-              {Array.from({length:12},(_,i) => <option key={i+1} value={i+1}>{String(i+1).padStart(2,"0")}</option>)}
-            </select>
-            <span aria-hidden="true">:</span>
-            <select aria-label={vi ? "Phút bắt đầu" : "Start minute"} value={startTime.slice(3,5)}
-              onChange={event => setStartTime(startTime.slice(0,3) + event.target.value)}>
-              {Array.from({length:60},(_,i) => <option key={i} value={String(i).padStart(2,"0")}>{String(i).padStart(2,"0")}</option>)}
-            </select>
-            <select aria-label={vi ? "Buổi bắt đầu" : "AM or PM"} value={Number(startTime.slice(0,2)) >= 12 ? "PM" : "AM"}
-              onChange={event => { const hour = Number(startTime.slice(0,2)) % 12 + (event.target.value === "PM" ? 12 : 0); setStartTime(String(hour).padStart(2,"0") + startTime.slice(2)); }}>
-              <option value="AM">AM</option><option value="PM">PM</option>
-            </select>
-          </span>
         </div>
+  );
 
-        <label className="field">
+  const languageField = (
+    <label className="field">
           <span>{copy.languageLabel}</span>
           <select name="guideLanguage" defaultValue="en">
             {copy.languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
+  );
 
-        <label className="field">
-          <span>{copy.partySizeLabel}</span>
-          <input name="partySize" type="number" min={1} max={20} defaultValue={2} required aria-label={copy.partySizeLabel} />
-          
-        </label>
-      </div>
-
-      <p className="form-timezone" id="timezone-hint">{copy.timezoneHint}</p>
-
-</section><section className="planner-request__section"><h2><b>02</b>{vi ? "Khu vực và sở thích" : "Areas and interests"}</h2>
-
+  const areaFields = (
+    <details ref={areasRef} className={compact ? styles.details : styles.expandedAreas} open={compact ? undefined : true}>
+      <summary>{vi ? "Khu vực · chọn ít nhất một" : "Areas · select at least one"}</summary>
       <fieldset className="field-group" aria-describedby="areas-hint">
         <legend>{copy.areasLabel}</legend>
         <p className="field-group__hint" id="areas-hint">{copy.areasHint}</p>
@@ -501,12 +520,37 @@ export function PersonalizationForm({
           ))}
         </div>
       </fieldset>
+      </details>
+  );
 
-      <fieldset className="field-group">
-        <legend>{vi ? "Mức độ ưu tiên các trải nghiệm" : "Experience priorities"}</legend>
-        <div className="priority-grid">
+  return (
+    <form ref={formRef} onChange={updateSummary} className={`personalization-form personalization-form--editorial planner-request ${compact ? styles.compact : ""}`} aria-label={copy.formLabel} aria-busy={runtimeSelection === null && !runtimeLoadFailed} onFocusCapture={keepFocusedControlVisible} onSubmit={handleSubmit}>
+<div className="planner-request__main"><section className="planner-request__section"><h2>{compact ? (vi ? "Bạn muốn khám phá như thế nào?" : "How would you like to explore?") : <><b>01</b>{vi ? "Thông tin chuyến đi" : "Trip information"}</>}</h2><div className="personalization-form__grid">
+        {compact ? <>
+          {dateField}{timeField}{durationField}{partyField}{budgetInput}{currencyField}{budgetSuggestion}
+        </> : <>
+          {durationField}
+          <div className="field planner-budget-field">{budgetInput}{budgetSuggestion}</div>
+          {currencyField}{dateField}{timeField}{languageField}{partyField}
+        </>}
+      </div>
+
+      <p className="form-timezone" id="timezone-hint">{copy.timezoneHint}</p>
+
+</section><section className={`planner-request__section ${compact ? styles.preferences : ""}`}>
+      {!compact && <h2><b>02</b>{vi ? "Khu vực và sở thích" : "Areas and interests"}</h2>}
+
+      {!compact && areaFields}
+
+      <fieldset className={`field-group ${compact ? styles.interests : ""}`}>
+        <legend>{compact ? (vi ? "Bạn thích trải nghiệm nào?" : "What do you enjoy?") : (vi ? "Mức độ ưu tiên các trải nghiệm" : "Experience priorities")}</legend>
+        <div className={compact ? styles.chips : "priority-grid"}>
           {copy.priorities.map((priority) => (
-            <label className="priority-control" key={priority.key}>
+            compact ? <label key={priority.key}>
+              <input type="hidden" name={`priorityWeights.${priority.key}`} value={priorityWeights[priority.key]} />
+              <input type="checkbox" checked={priorityWeights[priority.key] > 0} onChange={event => setPriorityWeights(current => ({...current, [priority.key]: event.target.checked ? 3 : 0}))} />
+              <span>{priority.label}</span>
+            </label> : <label className="priority-control" key={priority.key}>
               <span>{priority.label}</span>
               <select name={`priorityWeights.${priority.key}`} value={priorityWeights[priority.key]} aria-label={priority.label} onChange={event => setPriorityWeights(current => ({ ...current, [priority.key]: Number(event.target.value) as 0 | 1 | 2 | 3 }))}>
 {(vi ? ["Không ưu tiên","Ưu tiên thấp","Ưu tiên vừa","Ưu tiên cao"] : ["No preference","Low priority","Medium priority","High priority"]).map((label,value) => <option key={value} value={value}>{label}</option>)}</select>
@@ -514,14 +558,23 @@ export function PersonalizationForm({
           ))}
         </div>
       </fieldset>
+      {compact && <fieldset className={styles.pace}><legend>{copy.paceLabel}</legend><div className={styles.chips}>
+        {copy.paceOptions.map(option => <label key={option.value}><input type="radio" name="pace" value={option.value} checked={pace === option.value} onChange={() => setPace(option.value === "active" ? "active" : "relaxed")} /><span>{option.label}</span></label>)}
+      </div></fieldset>}
+      {compact && areaFields}
 
-</section><section className="planner-request__section"><h2><b>03</b>{vi ? "Nhu cầu bổ sung" : "Additional requirements"}</h2><div className="personalization-form__grid personalization-form__grid--details">
-        <label className="field">
+</section><section className="planner-request__section">
+      {!compact && <h2><b>03</b>{vi ? "Nhu cầu bổ sung" : "Additional requirements"}</h2>}
+      <details className={compact ? styles.details : styles.expandedAreas} open={compact ? undefined : true}>
+      <summary>{vi ? "Tùy chọn nâng cao" : "Advanced options"}</summary>
+      <div className="personalization-form__grid personalization-form__grid--details">
+        {compact && <label className="field"><span>{copy.languageLabel}</span><select name="guideLanguage" defaultValue="en">{copy.languageOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
+        {!compact && <label className="field">
           <span>{copy.paceLabel}</span>
           <select name="pace" value={pace} onChange={(event) => setPace(event.target.value === "active" ? "active" : "relaxed")}>
             {copy.paceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-        </label>
+        </label>}
         <label className="field">
           <span>{vi ? "Yêu cầu ăn uống" : copy.dietLabel}</span>
           <select name="diet" defaultValue="none" aria-label={vi ? "Yêu cầu ăn uống" : copy.dietLabel}>
@@ -534,8 +587,9 @@ export function PersonalizationForm({
           <small id="special-needs-hint">{copy.specialNeedsHint}</small>
         </label>
       </div>
+      </details>
 
-</section><section className="planner-request__section"><h2><b>04</b>{vi ? "Xác nhận yêu cầu" : "Review your request"}</h2><div className="personalization-form__footer">
+</section><section className="planner-request__section"><h2><b>{compact ? "02" : "04"}</b>{vi ? "Xác nhận yêu cầu" : "Review your request"}</h2><div className="personalization-form__footer">
         <button className="button button--primary" type="submit" disabled={runtimeSelection === null}>{vi ? "Tạo lịch trình gợi ý" : "Create suggested itinerary"}</button>
 <button className="button button--secondary" type="button" onClick={() => {
 formRef.current?.reset(); const start = defaultHcmcPlannerStart(Date.now());

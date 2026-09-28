@@ -65,7 +65,7 @@ export function ItineraryPreview({
     }
   }, [preview]);
 
-  if (preview === undefined && error === undefined) return null;
+  if (preview == null && error == null) return null;
 
   const warning = preview?.items.some(
     (item) => item.transitionBufferMinutesBefore > 0,

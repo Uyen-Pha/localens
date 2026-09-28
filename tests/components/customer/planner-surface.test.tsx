@@ -1,10 +1,11 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PlannerSurface } from "@/components/customer/planner-surface";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import type { DemoPortalComposition } from "@/lib/application/portal/composition";
 import type { SupabasePortalShell } from "@/lib/application/portal/supabase-shell";
+import { readPersonalizationRequest } from "@/lib/application/planner/personalization-session";
 
 const mocks = vi.hoisted(() => ({
   loadPortalSurfaceComposition: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("@/components/portals/portal-session", () => ({
 
 afterEach(() => {
   cleanup();
+  window.sessionStorage.clear();
   mocks.loadPortalSurfaceComposition.mockReset();
 });
 
@@ -76,6 +78,83 @@ function supabaseComposition(): SupabasePortalShell {
 }
 
 describe("PlannerSurface", () => {
+  it("preserves description and manual values when switching input modes", async () => {
+    mocks.loadPortalSurfaceComposition.mockResolvedValue(demoComposition());
+    render(<PlannerSurface locale="vi" copy={copy} />);
+    const description = await screen.findByRole("textbox", { name: "Mô tả nhu cầu chuyến đi" });
+    fireEvent.change(description, { target: { value: "Hai người thích lịch sử, đi ngày 10/10/2027." } });
+    fireEvent.click(screen.getByRole("button", { name: "Tự nhập chi tiết" }));
+    const partyLabel = getDictionary("vi").home.personalizationForm.partySizeLabel;
+    fireEvent.change(screen.getByRole("spinbutton", { name: partyLabel }), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: /Quay lại nhập câu mô tả/ }));
+    expect(screen.getByRole("textbox", { name: "Mô tả nhu cầu chuyến đi" })).toHaveValue("Hai người thích lịch sử, đi ngày 10/10/2027.");
+    expect(screen.queryByRole("spinbutton", { name: partyLabel })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tự nhập chi tiết" }));
+    expect(screen.getByRole("spinbutton", { name: partyLabel })).toHaveValue(4);
+  });
+
+  it("offers compact preference chips and expandable areas without changing the group-budget contract", async () => {
+    mocks.loadPortalSurfaceComposition.mockResolvedValue(demoComposition());
+    render(<PlannerSurface locale="vi" copy={copy} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Tự nhập chi tiết" }));
+    const formCopy = getDictionary("vi").home.personalizationForm;
+    const history = screen.getByRole("checkbox", { name: formCopy.priorities.find(p => p.key === "history")!.label });
+    fireEvent.click(history);
+    const form = history.closest("form")!;
+    expect(new FormData(form).get("priorityWeights.history")).toBe("3");
+    expect(new FormData(form).get("budgetAmount")).toBe("1000000");
+    expect(screen.getByText("Tùy chọn nâng cao").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText(/Khu vực ·/).closest("details")).not.toHaveAttribute("open");
+  });
+
+  it("keeps compact keyboard navigation in the same order as the visible form", async () => {
+    mocks.loadPortalSurfaceComposition.mockResolvedValue(demoComposition());
+    render(<PlannerSurface locale="vi" copy={copy} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Tự nhập chi tiết" }));
+    const form = screen.getByRole("form", { name: getDictionary("vi").home.personalizationForm.formLabel });
+    const fields = [...form.querySelectorAll('input:not([type="hidden"]), select')].slice(0, 8);
+    expect(fields.map(field => field.getAttribute("name") || field.getAttribute("aria-label"))).toEqual([
+      "startDate", "Giờ bắt đầu", "Phút bắt đầu", "durationHours", "durationAdditionalMinutes", "partySize", "budgetDisplay", "budgetCurrency",
+    ]);
+    const pace = screen.getByRole("group", { name: "Nhịp độ mong muốn" });
+    const areas = screen.getByText(/Khu vực ·/);
+    expect(pace.compareDocumentPosition(areas) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("does not show an empty itinerary before a request has been generated", async () => {
+    mocks.loadPortalSurfaceComposition.mockResolvedValue(demoComposition());
+    render(<PlannerSurface locale="vi" copy={copy} />);
+    await screen.findByText(copy.simulatedDisclosure);
+    expect(screen.queryByRole("region", { name: getDictionary("vi").home.personalizationForm.preview.heading })).not.toBeInTheDocument();
+  });
+
+  it("reveals required areas, then hands compact input to the existing runtime with unchanged units", async () => {
+    const composition = supabaseComposition();
+    Object.assign(composition, { personalizationAreas: { listAreas: async () => [
+      { value: "district-1", label: "Khu trung tâm", slug: "district-1", areaId: "area-1", snapshotId: "snapshot-1" },
+    ] } });
+    mocks.loadPortalSurfaceComposition.mockResolvedValue(composition);
+    render(<PlannerSurface locale="vi" copy={copy} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Tự nhập chi tiết" }));
+    const submit = screen.getByRole("button", { name: "Tạo lịch trình gợi ý" });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Ngày bắt đầu mong muốn"), { target: { value: "2030-10-10" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Giờ bắt đầu" }), { target: { value: "14" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Số người trong nhóm" }), { target: { value: "4" } });
+    fireEvent.click(submit);
+    expect(screen.getByText(/Khu vực ·/).closest("details")).toHaveAttribute("open");
+    expect(readPersonalizationRequest()).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Khu trung tâm" }));
+    fireEvent.click(submit);
+    expect(readPersonalizationRequest()).toMatchObject({
+      startAt: "2030-10-10T14:00:00+07:00", durationMinutes: 180,
+      partySize: 4, areas: ["district-1"], budget: { currency: "VND", amountMinor: 1000000 },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Quay lại nhập câu mô tả/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Tự nhập chi tiết" }));
+    expect(screen.getByRole("spinbutton", { name: "Số người trong nhóm" })).toHaveValue(4);
+  });
+
   it("renders the existing deterministic planner in demo mode", async () => {
     mocks.loadPortalSurfaceComposition.mockResolvedValue(demoComposition());
 

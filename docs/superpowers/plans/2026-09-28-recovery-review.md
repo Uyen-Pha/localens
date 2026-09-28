@@ -37,8 +37,8 @@ Files: this plan; `docs/recovery/review-ledger.md`.
 
 Files to compare: `components/customer/planner-surface.tsx`, `natural-language-personalization-form.tsx`, `personalization-form.tsx`, `research-planner-flow.tsx`, related CSS; historical `research-itinerary-timeline.tsx`, `research-guided-adjustments.tsx`, `research-request-revision.tsx`.
 
-- [ ] Show actual recovered vs historical screens, including natural input, manual form and return action.
-- [ ] Obtain the user's layout choice before changing a disputed layout.
+- [x] Show actual recovered vs historical screens, including natural input, manual form and return action.
+- [x] Obtain the user's layout choice before changing a disputed layout. User chose A (compact form) on 28 September.
 - [ ] Trace presentation inputs against `ResearchPlannerFlow`, the current planner port, saved preferences and request/revision state. Port only components with compatible boundaries.
 - [ ] Verify natural-to-manual switching, preferences preservation, itinerary display, and confirmation/submission availability without claiming missing backend operations work.
 - [ ] Run relevant component/unit tests, typecheck, changed-file lint and build; commit the accepted unit.
