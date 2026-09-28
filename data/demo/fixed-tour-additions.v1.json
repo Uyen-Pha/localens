@@ -1,0 +1,120 @@
+{
+  "version": "fixed-tour-additions.v1",
+  "source": "LocalLens_Codex_3_tour_moi_15_khach.md",
+  "tours": [
+    {
+      "code": "LL-F04",
+      "name": "Dạo Chợ Lớn: Chợ Bình Tây và bữa cơm địa phương",
+      "price": 290000,
+      "capacity": 15,
+      "duration": 120,
+      "suggestedTime": "10:00–12:00",
+      "meeting": "Khu vực cổng chính Chợ Bình Tây, đường Tháp Mười",
+      "summary": "Khám phá kiến trúc và nhịp sống mua bán tại Chợ Bình Tây, tìm hiểu nét văn hóa đặc trưng của khu Chợ Lớn và khép lại hành trình bằng một bữa cơm địa phương ngay trong khu vực chợ.",
+      "description": "Tour bắt đầu tại Chợ Bình Tây. Khách cùng hướng dẫn viên tìm hiểu kiến trúc của khu chợ, lịch sử hình thành và cách tổ chức không gian mua bán. Chương trình lựa chọn một số khu hàng tiêu biểu để khách có thời gian quan sát, nghe giới thiệu và tìm hiểu đời sống thương mại tại Chợ Lớn.\n\nCuối chương trình, đoàn dùng một suất cơm địa phương đã được đặt trước tại cơ sở trong hoặc gần khu vực Chợ Bình Tây. Tour kết thúc tại khu chợ.",
+      "stops": [
+        "10:00–10:10 — Tập trung, kiểm tra khách và giới thiệu chương trình.",
+        "10:10–10:40 — Tìm hiểu kiến trúc và câu chuyện Chợ Bình Tây.",
+        "10:40–11:10 — Tham quan các khu hàng được lựa chọn.",
+        "11:10–11:20 — Di chuyển đến khu ăn uống, vệ sinh và ổn định chỗ.",
+        "11:20–11:55 — Dùng bữa cơm địa phương.",
+        "11:55–12:00 — Dự phòng và kết thúc."
+      ],
+      "includes": [
+        "Hướng dẫn viên tiếng Anh.",
+        "1 suất cơm địa phương.",
+        "1 chai nước uống.",
+        "Bảo hiểm theo phạm vi dịch vụ của công ty."
+      ],
+      "excludes": [
+        "Phương tiện đến điểm gặp.",
+        "Mua sắm.",
+        "Món ăn/đồ uống gọi thêm.",
+        "Chi phí cá nhân."
+      ],
+      "departures": [],
+      "reviews": [],
+      "status": "proposal",
+      "supplierStatus": "unconfirmed"
+    },
+    {
+      "code": "LL-F05",
+      "name": "Sài Gòn đời thường: Cà phê vợt và Tân Định",
+      "price": 490000,
+      "capacity": 15,
+      "duration": 210,
+      "suggestedTime": "08:00–11:30",
+      "meeting": "Khu vực đầu hẻm 330 Phan Đình Phùng",
+      "summary": "Bắt đầu buổi sáng với một ly cà phê vợt, dạo qua Nhà thờ Tân Định và khám phá khu chợ cùng tên trước khi thưởng thức một tô phở địa phương. Hành trình mang đến góc nhìn gần gũi về cà phê, kiến trúc, chợ và ẩm thực Sài Gòn.",
+      "description": "Khách gặp hướng dẫn viên tại khu vực Phan Đình Phùng và bắt đầu chương trình bằng một đồ uống tại quán cà phê vợt. Trong thời gian thưởng thức, hướng dẫn viên giới thiệu văn hóa cà phê Sài Gòn và phương pháp pha cà phê bằng vợt.\n\nĐoàn tiếp tục đi bộ đến Nhà thờ Tân Định để quan sát kiến trúc bên ngoài và chụp ảnh tại khu vực được phép. Sau đó, khách khám phá Chợ Tân Định, tìm hiểu hoạt động mua bán và các nhóm hàng đặc trưng.\n\nĐiểm cuối là Phở Hương Bình, nơi khách dùng một tô phở theo danh mục đã thống nhất trong gói tour.",
+      "stops": [
+        "08:00–08:10 — Tập trung.",
+        "08:10–08:45 — Cà phê vợt và tìm hiểu văn hóa cà phê.",
+        "08:45–09:15 — Đi bộ đến Nhà thờ Tân Định.",
+        "09:15–09:40 — Tham quan kiến trúc bên ngoài.",
+        "09:40–09:50 — Đi đến Chợ Tân Định.",
+        "09:50–10:20 — Tham quan Chợ Tân Định.",
+        "10:20–10:40 — Đi đến Phở Hương Bình.",
+        "10:40–11:20 — Dùng phở.",
+        "11:20–11:30 — Dự phòng và kết thúc."
+      ],
+      "includes": [
+        "Hướng dẫn viên tiếng Anh.",
+        "1 đồ uống tại quán cà phê vợt.",
+        "1 tô phở tiêu chuẩn.",
+        "1 chai nước uống.",
+        "Bảo hiểm theo phạm vi dịch vụ của công ty."
+      ],
+      "excludes": [
+        "Món gọi thêm.",
+        "Mua sắm.",
+        "Phương tiện đến điểm gặp hoặc rời điểm kết thúc.",
+        "Chi phí cá nhân."
+      ],
+      "departures": [],
+      "reviews": [],
+      "status": "proposal",
+      "supplierStatus": "unconfirmed"
+    },
+    {
+      "code": "LL-F06",
+      "name": "Củ Chi: Theo dấu lịch sử tại Bến Đình",
+      "price": 990000,
+      "capacity": 15,
+      "duration": 450,
+      "suggestedTime": "07:30–15:00",
+      "meeting": null,
+      "summary": "Rời trung tâm thành phố để tìm hiểu lịch sử tại Địa đạo Bến Đình. Du khách nghe thuyết minh, tham quan các khu vực được phép tiếp cận và có thể lựa chọn trải nghiệm đoạn hầm phù hợp. Tour bao gồm xe khứ hồi, vé tham quan, bữa trưa và nước uống.",
+      "description": "Chương trình bắt đầu tại một điểm hẹn cố định ở trung tâm TP.HCM. Xe đưa đoàn đến khu Địa đạo Bến Đình.\n\nTại khu di tích, khách được giới thiệu về lịch sử, cấu trúc và vai trò của hệ thống địa đạo. Khách tham quan các khu vực theo tuyến cho phép. Việc xuống đoạn hầm là lựa chọn của khách, không bắt buộc đối với mọi người.\n\nSau khi tham quan, đoàn dùng bữa trưa theo thực đơn đặt trước tại khu Bến Đình, nghỉ ngắn rồi trở về điểm hẹn ban đầu.",
+      "stops": [
+        "07:30–07:45 — Tập trung tại trung tâm.",
+        "07:45–09:45 — Di chuyển đến Bến Đình.",
+        "09:45–10:00 — Làm thủ tục và nghỉ ngắn.",
+        "10:00–12:00 — Tham quan Địa đạo Bến Đình.",
+        "12:00–12:10 — Di chuyển đến khu ăn uống.",
+        "12:10–12:50 — Ăn trưa.",
+        "12:50–14:50 — Trở về trung tâm.",
+        "14:50–15:00 — Dự phòng và kết thúc."
+      ],
+      "includes": [
+        "Xe khứ hồi từ điểm hẹn.",
+        "Hướng dẫn viên tiếng Anh.",
+        "Vé và dịch vụ tham quan trong gói.",
+        "1 bữa trưa theo thực đơn đoàn.",
+        "1 chai nước uống.",
+        "Bảo hiểm theo phạm vi dịch vụ của công ty."
+      ],
+      "excludes": [
+        "Đón trả nhiều khách sạn.",
+        "Món gọi thêm.",
+        "Mua sắm.",
+        "Hoạt động trả phí ngoài chương trình.",
+        "Chi phí cá nhân."
+      ],
+      "departures": [],
+      "reviews": [],
+      "status": "proposal",
+      "supplierStatus": "unconfirmed"
+    }
+  ]
+}

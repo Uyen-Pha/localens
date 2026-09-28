@@ -11,6 +11,7 @@ import type { Locale } from "@/lib/i18n/config";
 import { tourIllustration } from "@/lib/domain/data/tour-illustrations";
 import { fixedTourRuntimeCopy } from "@/lib/i18n/fixed-tour-runtime";
 import { emptyTourSearch, filterTours, type TourSearch } from '@/lib/application/fixed-tour/search';
+import { mergeRecoveredPublishedTours } from '@/lib/application/fixed-tour/recovered-catalog';
 import searchStyles from './tour-search.module.css';
 import { TourRating } from './tour-reviews';
 
@@ -34,10 +35,12 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
     eyebrow: "Sài Gòn qua góc nhìn bản địa", image: "Ảnh minh họa", minutes: "phút",
     details: "Điểm hẹn & hành trình", book: "Đặt tour", departures: "Chọn lịch khởi hành",
     count: "hành trình để khám phá", perPerson: "/ khách", stops: activityTimeline ? "hoạt động" : "điểm dừng",
+    comingSoon: "Lịch khởi hành đang được cập nhật",
   } : {
     eyebrow: "Saigon through local eyes", image: "Illustrative image", minutes: "min",
     details: "Meeting point & itinerary", book: "Book tour", departures: "Choose a departure",
     count: "journeys to discover", perPerson: "/ person", stops: activityTimeline ? "activities" : "stops",
+    comingSoon: "Departure schedule is being updated",
   };
   const [state, setState] = useState<LoadState>("loading");
   const [tours, setTours] = useState<PublishedTour[]>([]);
@@ -61,7 +64,7 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
         fixedTour.listPublishedTours(contentLocale), fixedTour.listAvailability(),
       ]);
       if (request !== requestId.current) return;
-      setTours(published);
+      setTours(mergeRecoveredPublishedTours(published, contentLocale));
       setAvailability(departures);
       setState("ready");
     } catch {
@@ -122,6 +125,7 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
                     <p className="runtime-tour__summary">{tour.summary}</p>
                     <TourRating locale={locale} departure={departure?.id}/>
                     <p className="runtime-tour__price">{formatVnd(tour.priceVndMinor, locale)} <span>{visual.perPerson}</span></p>
+                    {!departure ? <p className="runtime-tour__availability" role="note">{visual.comingSoon}</p> : null}
                   </div>
                 </article>
               );

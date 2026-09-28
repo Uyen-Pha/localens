@@ -7,6 +7,7 @@ import type { FixedTourRuntimePort } from "@/lib/application/fixed-tour/contract
 import type { RuntimeSessionPort } from "@/lib/application/portal/contracts";
 import type { PublishedTour, LiveDepartureAvailability } from "@/lib/domain/data/contracts";
 import type { Locale } from "@/lib/i18n/config";
+import { mergeRecoveredPublishedTours } from "@/lib/application/fixed-tour/recovered-catalog";
 import { reviewedDepartures } from "./reviewed-departures";
 import { reviewedDataset as dataset } from "./reviewed-tours";
 import { loadPortalSurfaceComposition } from "@/components/portals/portal-session";
@@ -25,7 +26,7 @@ export function BookingLocalPreview({ locale, catalog = false }: { locale: Local
   const checkoutPath = useRef("");
   const [scenario, setScenario] = useState("customer");
   const composition = useMemo(() => {
-    const getTours = (locale: Locale): PublishedTour[] => dataset.tours.map((tour) => ({
+    const getTours = (locale: Locale): PublishedTour[] => mergeRecoveredPublishedTours(dataset.tours.map((tour) => ({
       id: tour.id, versionId: tour.versionId, slug: tour.slug, locale,
       ...tour.translations[locale], durationMinutes: tour.durationMinutes,
       priceVndMinor: String(tour.priceVndPerPerson), inclusions: locale === "en" ? tour.englishInclusions : tour.inclusions, exclusions: locale === "en" ? tour.englishExclusions : tour.exclusions,
@@ -35,7 +36,7 @@ export function BookingLocalPreview({ locale, catalog = false }: { locale: Local
         const place = dataset.places.find((item) => item.id === id)!;
         return { position: index + 1, placeId: id, placeSlug: place.slug, title: place.translations[locale].title };
       }),
-    }));
+    })), locale);
     const departures: LiveDepartureAvailability[] = dataset.tours.flatMap((tour, tourIndex) => (catalog ? tour.departures : tour.departures.flatMap(departure => reviewedDepartures(departure, tourIndex))).map((departure) => ({
       id: departure.id, tourVersionId: tour.versionId, startAt: departure.startAt, endAt: departure.endAt,
       status: "scheduled" as const, remainingCapacity: scenario === "soldout" ? 0 : departure.capacity,
@@ -79,7 +80,7 @@ export function BookingLocalPreview({ locale, catalog = false }: { locale: Local
 
   return <>
     {process.env.NODE_ENV === "development" && showPreviewTools && <div className="booking-preview-bar">
-      <p>{locale === "vi" ? "3 lịch trình đề xuất · Ngày khởi hành minh họa, chưa xác nhận dịch vụ." : "3 proposed itineraries · Illustrative departure dates; services are not confirmed."}</p>
+      <p>{locale === "vi" ? "6 lịch trình đề xuất · Ngày khởi hành minh họa, chưa xác nhận dịch vụ." : "6 proposed itineraries · Illustrative departure dates; services are not confirmed."}</p>
       {!catalog && <label>{locale === "vi" ? "Chọn tour để xem" : "Choose a tour to preview"}
         <select value={departureId} onChange={event => { setDepartureId(event.target.value); checkoutPath.current = ""; }}>
           {dataset.tours.map(t => <option key={t.id} value={t.departures[0].id}>{t.translations[locale].title}</option>)}
