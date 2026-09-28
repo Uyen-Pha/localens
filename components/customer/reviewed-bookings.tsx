@@ -15,29 +15,35 @@ import { bookingStatusLabels } from '@/lib/i18n/booking-status';
 import { tourIllustration } from '@/lib/domain/data/tour-illustrations';
 import styles from './reviewed-bookings.module.css';
 const departures=reviewedDataset.tours.flatMap((tour,i)=>tour.departures.flatMap(d=>reviewedDepartures(d,i)).map(departure=>({tour,departure})));
+const PAGE_SIZE=5;
 const filters=['all','pending_payment','confirmed','completed','cancelled','expired'] as const;
 export function ReviewedBookingsList({locale,service,onLoaded}:{locale:Locale;service:ReviewedBookings;onLoaded:(count:number)=>void}) {
  const [reviewing,setReviewing]=useState<ReviewedBooking|null>(null),[notice,setNotice]=useState('');
  const [cancelling,setCancelling]=useState<ReviewedBooking|null>(null);
  const [rows,setRows]=useState<ReviewedBooking[]>([]),[error,setError]=useState(false),[loading,setLoading]=useState(true),[reload,setReload]=useState(0),[now,setNow]=useState(Date.now());
- const [filter,setFilter]=useState<string>('all'),[query,setQuery]=useState(''),[sort,setSort]=useState('newest'),[copied,setCopied]=useState<string|null>(null);
+ const [filter,setFilter]=useState<string>('all'),[query,setQuery]=useState(''),[sort,setSort]=useState('newest'),[copied,setCopied]=useState<string|null>(null),[page,setPage]=useState(1);
  useEffect(()=>{let active=true;const load=()=>{void service.list().then(data=>{if(active){setRows(data);onLoaded(data.length);setError(false);setLoading(false);}}).catch(()=>{if(active){setError(true);setLoading(false);}});};load();window.addEventListener('focus',load);window.addEventListener('localens-bookings-changed',load);const timer=setInterval(()=>setNow(Date.now()),1000);const poll=setInterval(load,15000);return()=>{active=false;clearInterval(timer);clearInterval(poll);window.removeEventListener('focus',load);window.removeEventListener('localens-bookings-changed',load);};},[service,reload,onLoaded]);
  useEffect(()=>{if(!copied)return;const timer=setTimeout(()=>setCopied(null),2000);return()=>clearTimeout(timer);},[copied]);
+ useEffect(()=>{setPage(1);},[filter,query,sort]);
  const vi=locale==='vi';
  const statusOf=(row:ReviewedBooking)=>row.status==='pending_payment'&&Date.parse(row.expires_at)<=now?'expired':row.status;
  const date=(value:string,time=false)=>new Intl.DateTimeFormat(vi?'vi-VN':'en-GB',{dateStyle:'medium',...(time?{timeStyle:'short' as const}:{}),timeZone:'Asia/Ho_Chi_Minh'}).format(new Date(value));
  const money=(value:number)=>new Intl.NumberFormat(vi?'vi-VN':'en-US',{style:'currency',currency:vi?'VND':'USD'}).format(vi?value:value/26000);
  const normalize=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
  const visible=rows.filter(row=>{const match=departures.find(d=>d.departure.id===row.departure_id);return(filter==='all'||statusOf(row)===filter)&&normalize((match?.tour.translations[locale].title??'')+' '+row.id).includes(normalize(query.trim()));}).sort((a,b)=>(Date.parse(a.created_at)-Date.parse(b.created_at))*(sort==='newest'?-1:1));
+ const pageCount=Math.max(1,Math.ceil(visible.length/PAGE_SIZE));
+ const currentPage=Math.min(page,pageCount);
+ const paginated=visible.slice((currentPage-1)*PAGE_SIZE,currentPage*PAGE_SIZE);
  if(loading)return <p role="status">{vi?'Đang tải đơn đặt tour…':'Loading bookings…'}</p>;
  if(error)return <p role="alert">{vi?'Không thể tải dữ liệu đơn hàng lúc này. Vui lòng thử lại sau':'Unable to load bookings.'} <button onClick={()=>setReload(n=>n+1)}>{vi?'Thử lại':'Retry'}</button></p>;
  if(!rows.length)return <div className={styles.empty}><Ticket size={32}/><h3>{vi?'Bạn chưa có đơn đặt tour nào':'You have no bookings yet'}</h3><Link href={'/'+locale+'/tours/'}>{vi?'Khám phá tour':'Explore tours'}</Link></div>;
- return <section className={styles.bookings} aria-label={vi?'Đơn đặt tour mô phỏng':'Simulated tour bookings'}>
+ return <section className={styles.bookings} aria-labelledby="fixed-bookings-heading">
+ <h2 id="fixed-bookings-heading" className={styles.heading}>{vi?'Tour cố định đã đặt':'Booked fixed tours'}</h2>
  {notice&&<p role="status">{notice}</p>}
  <div className={styles.toolbar}><div className={styles.filters} aria-label={vi?'Lọc trạng thái đơn':'Filter booking status'}>{filters.map(key=><button key={key} aria-pressed={filter===key} onClick={()=>setFilter(key)}>{key==='all'?(vi?'Tất cả':'All'):bookingStatusLabels[locale][key]} <span>({rows.filter(r=>key==='all'||statusOf(r)===key).length})</span></button>)}</div>
  <div className={styles.tools}><label className={styles.search}><Search size={20}/><input aria-label={vi?'Tìm đơn đặt tour':'Search bookings'} placeholder={vi?'Tìm theo tên tour, mã đơn…':'Search by tour or booking ID…'} value={query} onChange={e=>setQuery(e.target.value)}/></label><select aria-label={vi?'Sắp xếp đơn':'Sort bookings'} value={sort} onChange={e=>setSort(e.target.value)}><option value="newest">{vi?'Mới nhất':'Newest first'}</option><option value="oldest">{vi?'Cũ nhất':'Oldest first'}</option></select></div></div>
  {!visible.length&&<div className={styles.empty}><Ticket size={32}/><h3>{vi?'Không có đơn phù hợp':'No matching bookings'}</h3><p>{vi?'Thử tên tour khác hoặc thay đổi bộ lọc.':'Try another tour name or change your filters.'}</p><button onClick={()=>{setQuery('');setFilter('all');setReload(n=>n+1);}}>{vi?'Xóa bộ lọc':'Clear filters'}</button></div>}
- {visible.map(row=>{
+ {paginated.map(row=>{
  const match=departures.find(x=>x.departure.id===row.departure_id),status=statusOf(row),title=match?.tour.translations[locale].title??(vi?'Tour đã đặt':'Booked tour');
  const picture=tourIllustration(match?.tour.slug??'');
  return <article key={row.id} className={styles.card}>
@@ -47,7 +53,7 @@ export function ReviewedBookingsList({locale,service,onLoaded}:{locale:Locale;se
  <footer className={styles.footer}><p><Info size={17}/>{vi?'Thanh toán mô phỏng — không phát sinh thu tiền thật.':'Simulated payment — no real charge.'}</p><div>{status==='pending_payment'&&<Link className={styles.primary} href={'/'+locale+'/payment-preview/?booking='+row.id+'&departure='+row.departure_id+'&partySize='+row.party_size}>{vi?'Tiếp tục thanh toán':'Continue payment'}<ArrowRight size={18}/></Link>}<Link className={styles.primary} href={`/${locale}/booking-details/?booking=${row.id}`}>{vi?'Xem chi tiết':'View details'}<ArrowRight size={18}/></Link>{canCancelBooking(row,now)&&<button className={styles.secondary} onClick={()=>setCancelling(row)}>{vi?'Hủy đơn':'Cancel booking'}</button>}{(canReviewBooking(row)||row.reviewed_at)&&<button className={styles.secondary} onClick={()=>setReviewing(row)}>{row.reviewed_at?(vi?'Xem đánh giá của bạn':'View your review'):(vi?'Đánh giá tour':'Review tour')}</button>}</div></footer>
  
  </div></article>;
- })}{reviewing&&<ReviewTourDialog locale={locale} booking={reviewing} service={service} onClose={()=>setReviewing(null)} onSaved={saved=>{setRows(current=>current.map(item=>item.id===saved.id?saved:item));setNotice(vi?"Cảm ơn bạn đã chia sẻ trải nghiệm!":"Thank you for sharing your experience!");}}/>}{cancelling&&<CancelBookingDialog locale={locale} booking={cancelling} service={service} onClose={()=>setCancelling(null)} onCancelled={saved=>setRows(current=>current.map(item=>item.id===saved.id?saved:item))}/>}</section>;
+ })}{visible.length>PAGE_SIZE&&<nav className={styles.pagination} aria-label={vi?'Phân trang tour cố định':'Fixed-tour booking pages'}><button type="button" disabled={currentPage===1} onClick={()=>setPage(value=>Math.max(1,value-1))}>{vi?'Trước':'Previous'}</button><span aria-live="polite">{vi?`Trang ${currentPage} / ${pageCount}`:`Page ${currentPage} of ${pageCount}`}</span><button type="button" disabled={currentPage===pageCount} onClick={()=>setPage(value=>Math.min(pageCount,value+1))}>{vi?'Sau':'Next'}</button></nav>}{reviewing&&<ReviewTourDialog locale={locale} booking={reviewing} service={service} onClose={()=>setReviewing(null)} onSaved={saved=>{setRows(current=>current.map(item=>item.id===saved.id?saved:item));setNotice(vi?"Cảm ơn bạn đã chia sẻ trải nghiệm!":"Thank you for sharing your experience!");}}/>}{cancelling&&<CancelBookingDialog locale={locale} booking={cancelling} service={service} onClose={()=>setCancelling(null)} onCancelled={saved=>setRows(current=>current.map(item=>item.id===saved.id?saved:item))}/>}</section>;
 }
 
 
