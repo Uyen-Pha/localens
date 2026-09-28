@@ -9,3 +9,47 @@
 @media(min-width:1800px){.hero>div,.container{max-width:none;width:100%;padding-inline:clamp(24px,3vw,64px)}.schedulePage .container,.schedulePage .hero>div{max-width:none}}
 
 .page button{transition:transform 160ms ease,box-shadow 160ms ease,background-color 160ms ease,border-color 160ms ease}.page button:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(16,76,67,.16)}.page button:not(:disabled):active{transform:translateY(0);box-shadow:0 2px 6px rgba(16,76,67,.13)}.page .primary,.page .wide{background:linear-gradient(135deg,#075b4e,#0a8f72);border-color:#075b4e;color:#fff;font-weight:700;box-shadow:0 5px 14px rgba(7,91,78,.22)}.page .primary:hover:not(:disabled),.page .wide:hover:not(:disabled){background:linear-gradient(135deg,#044a3f,#087860);box-shadow:0 8px 18px rgba(7,91,78,.28)}.page .primary:disabled,.page .wide:disabled{background:#dce8e2;border-color:#c5d5ce;color:#64766f;box-shadow:none}
+
+/* Shared, bounded frame: switching tabs must not resize the guide portal. */
+:global(body):has(.page) :global(.site-header){display:none}
+:global(#main-content):has(.page){width:100%;max-width:none;padding:0;margin:0}
+.page{min-width:0;padding-bottom:28px}
+.page .container,.page .hero>div{box-sizing:border-box;width:100%;max-width:1440px;margin-inline:auto;padding-inline:24px}
+.page .hero>div{min-height:140px;padding-block:22px}
+.page .hero h1{font-size:2rem;letter-spacing:-.8px;margin:6px 0 8px}
+.page .hero p{max-width:58%;line-height:1.5}
+.page .tabs{margin:16px 0;gap:14px}
+.page .tabs button{min-width:0;padding:12px 18px;gap:12px}
+.page .tabs svg{width:23px;height:23px}
+.page .tabs strong{font-size:.95rem}
+.page .tabs small{font-size:.8rem}
+.page .tabs .signOut{margin-left:auto}
+.grid{grid-template-columns:minmax(0,2.2fr) minmax(280px,1fr);gap:16px}
+.card,.sidebar .card{min-width:0;padding:18px}
+.heading{gap:12px;margin-bottom:16px}
+.heading>svg{width:22px;height:22px;padding:9px}
+.page h2{font-size:1.2rem;letter-spacing:-.3px}
+.fieldRow{padding:12px;gap:12px;grid-template-columns:22px 115px minmax(0,1fr) auto}
+.fieldRow>strong{font-size:.82rem}
+.fieldRow>button{font-size:.8rem;padding:8px}
+.summary{padding:14px}
+.summary dd,.identity strong{overflow-wrap:anywhere}
+.identity{padding-bottom:14px}
+.identity>span{width:42px;height:42px;font-size:1.1rem}
+@media(max-width:1100px){
+ .fieldRow{grid-template-columns:22px minmax(0,1fr) auto}
+ .fieldValue{grid-column:2/-1;grid-row:2}
+}
+@media(max-width:760px){
+ .page .container,.page .hero>div{padding-inline:16px}
+ .page .hero>div{min-height:0;padding-block:22px}
+ .page .hero h1{font-size:1.65rem}
+ .page .hero p{max-width:none}
+ .page .tabs{gap:8px;flex-wrap:wrap}
+ .page .tabs button{padding:10px;flex:1;min-height:44px}
+ .page .tabs .signOut{flex:0 0 auto}
+ .page .tabs strong{font-size:.85rem}
+ .grid{grid-template-columns:minmax(0,1fr)}
+ .card,.sidebar .card{padding:14px}
+}
+@media(prefers-reduced-motion:reduce){.page button{transition:none}.page button:not(:disabled):hover{transform:none}}

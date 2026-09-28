@@ -1,3 +1,13 @@
+# Guide UI visual QA — 2026-09-28
+
+Scope: presentation only in the existing RuntimeGuidePortal and GuideSchedule. Restored the original missing guide-bay-banner.webp. No runtime ports, RPCs, schema, assignments or profile persistence changed.
+
+Reference: user-supplied guide profile and calendar screenshots. Desktop checked at 1440x1000; mobile at 390x844. Profile and schedule retain the green banner, tabs, left content and right detail/profile cards. Mobile document width 375px within the 390px viewport; no page-level horizontal overflow observed. Calendar/list switch and selection of a tour displayed its detail. Dynamic test data deliberately differs from the reference; this is not a pixel-exact claim.
+
+Evidence: output/recovery-audit-20260928/guide-profile-after.png and guide-calendar-after.png outside the checkout. Full-page calendar capture has a stitching artifact; live viewport and DOM were also checked. A temporary local fixture harness was removed before build; it is not shipped. Supabase-authenticated visual verification remains pending user sign-in on Preview.
+
+Checks: guide banner regression observed failing before restoring the asset, then passing. Guide-targeted suite 104/104 passed; typecheck and new-test lint passed. Broader suite and deployment results are reported separately.
+
 # Admin prototype visual QA — 2026-09-28
 
 final result: passed
