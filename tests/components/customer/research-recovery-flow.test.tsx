@@ -12,7 +12,7 @@ it('rechecks the 72-hour lead time when confirming after time has elapsed', asyn
   vi.spyOn(Date,'now').mockReturnValue(Date.parse(researchInput.startAt)-72*60*60*1000-60000);
   savePersonalizationRequest(researchInput);
   const submit=vi.fn(async()=>requestId);
-  render(<ResearchPlannerFlow locale="vi" planner={async()=>researchReady} requests={{submit}} actorRole="customer" actorId="customer-a"/>);
+  render(<ResearchPlannerFlow locale="vi" planner={async()=>researchReady} requests={{cancelBooking:vi.fn(),submit}} actorRole="customer" actorId="customer-a"/>);
   fireEvent.click(await screen.findByRole('checkbox',{name:'Tôi đồng ý với lịch trình này.'}));
   vi.mocked(Date.now).mockReturnValue(Date.parse(researchInput.startAt)-72*60*60*1000+1);
   fireEvent.click(screen.getByRole('button',{name:'Xác nhận & Gửi yêu cầu'}));
@@ -23,7 +23,7 @@ it('rechecks the 72-hour lead time when confirming after time has elapsed', asyn
 it('requires agreement, submits the current revision once, and shows pending review only on success', async () => {
   const planner = vi.fn(async () => researchReady);
   const submit = vi.fn(async () => requestId);
-  render(<ResearchPlannerFlow locale="vi" planner={planner} requests={{ submit }} actorRole="customer" actorId="customer-a" />);
+  render(<ResearchPlannerFlow locale="vi" planner={planner} requests={{ cancelBooking:vi.fn(),submit }} actorRole="customer" actorId="customer-a" />);
   const send = await screen.findByRole('button', { name: 'Xác nhận & Gửi yêu cầu' });
   expect(send).toBeDisabled();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Tôi đồng ý với lịch trình này.' }));
@@ -52,7 +52,7 @@ it('does not generate for non-customer accounts', async () => {
 
 it('retains the itinerary after submission fails and allows retry', async () => {
   const submit = vi.fn().mockRejectedValueOnce(new Error('REQUEST_SUBMIT_FAILED')).mockResolvedValue(requestId);
-  render(<ResearchPlannerFlow locale="vi" planner={async () => researchReady} requests={{ submit }} actorRole="customer" actorId="customer-a" />);
+  render(<ResearchPlannerFlow locale="vi" planner={async () => researchReady} requests={{ cancelBooking:vi.fn(),submit }} actorRole="customer" actorId="customer-a" />);
   fireEvent.click(await screen.findByRole('checkbox', { name: 'Tôi đồng ý với lịch trình này.' }));
   fireEvent.click(screen.getByRole('button', { name: 'Xác nhận & Gửi yêu cầu' }));
   await screen.findByRole('alert');
@@ -69,7 +69,7 @@ it('requires agreement again after a saved adjustment and submits the new revisi
     refine: vi.fn(async () => next),
   });
   const submit = vi.fn(async () => requestId);
-  render(<ResearchPlannerFlow locale="vi" planner={planner} requests={{ submit }} actorRole="customer" actorId="customer-a" />);
+  render(<ResearchPlannerFlow locale="vi" planner={planner} requests={{ cancelBooking:vi.fn(),submit }} actorRole="customer" actorId="customer-a" />);
   fireEvent.click(await screen.findByRole('checkbox', { name: 'Tôi đồng ý với lịch trình này.' }));
   fireEvent.click(screen.getByRole('button', { name: 'Điều chỉnh lịch trình' }));
   fireEvent.click(screen.getByRole('button', { name: 'Tiết kiệm hơn' }));
@@ -109,7 +109,7 @@ it('does not regenerate when resuming an already submitted itinerary', async () 
   const planner=Object.assign(vi.fn(async()=>researchReady),{resume:vi.fn(async()=>({...researchReady,submittedRequestId:requestId}))});
   const a=render(<ResearchPlannerFlow locale="vi" planner={planner} actorRole="customer" actorId="customer-a" />);
   await screen.findByText('Điểm tham quan A'); a.unmount();
-  render(<ResearchPlannerFlow locale="vi" planner={planner} actorRole="customer" actorId="customer-a" requests={{submit:vi.fn()}} />);
+  render(<ResearchPlannerFlow locale="vi" planner={planner} actorRole="customer" actorId="customer-a" requests={{cancelBooking:vi.fn(),submit:vi.fn()}} />);
   await screen.findByText('Yêu cầu đã được gửi');
   expect(screen.queryByText('Trạng thái: Chờ duyệt')).not.toBeInTheDocument();
   expect(screen.queryByRole('button',{name:'Xác nhận & Gửi yêu cầu'})).not.toBeInTheDocument();
@@ -135,7 +135,7 @@ it('does not attach a late edit result to a newly prepared request',async()=>{
 it('reloads a conflicting revision and requires agreement again before resubmitting',async()=>{
   const planner=Object.assign(vi.fn(async()=>researchReady),{resume:vi.fn(async()=>({...researchReady,revisionId:nextRevisionId,revisionNumber:2}))});
   const submit=vi.fn().mockRejectedValueOnce(Error('REVISION_CONFLICT')).mockResolvedValue(requestId);
-  render(<ResearchPlannerFlow locale="vi" planner={planner} requests={{submit}} actorRole="customer" actorId="customer-a"/>);
+  render(<ResearchPlannerFlow locale="vi" planner={planner} requests={{cancelBooking:vi.fn(),submit}} actorRole="customer" actorId="customer-a"/>);
   fireEvent.click(await screen.findByRole('checkbox',{name:'Tôi đồng ý với lịch trình này.'}));
   fireEvent.click(screen.getByRole('button',{name:'Xác nhận & Gửi yêu cầu'}));
   await screen.findByText('Phiên bản 2');

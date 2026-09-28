@@ -2,9 +2,9 @@ import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {PersonalizedRequestPage} from '@/components/customer/personalized-request-page';
 import {requestId,revisionId,researchInput,researchReady} from '../../fixtures/research-recovery';
-const mocks=vi.hoisted(()=>({list:vi.fn(),booking:vi.fn(),checkout:vi.fn(),replace:vi.fn()}));
+const mocks=vi.hoisted(()=>({list:vi.fn(),booking:vi.fn(),checkout:vi.fn(),cancelBooking:vi.fn(),replace:vi.fn()}));
 vi.mock('next/navigation',()=>{const router={replace:mocks.replace};return {useRouter:()=>router,useSearchParams:()=>new URLSearchParams(window.location.search)};});
-vi.mock('@/components/portals/portal-session',()=>({loadPortalSurfaceComposition:async()=>({mode:'supabase',initialized:Promise.resolve(),session:{getSession:async()=>({role:'customer'})},researchRequests:{listCustomer:mocks.list,booking:mocks.booking,checkout:mocks.checkout}})}));
+vi.mock('@/components/portals/portal-session',()=>({loadPortalSurfaceComposition:async()=>({mode:'supabase',initialized:Promise.resolve(),session:{getSession:async()=>({role:'customer'})},researchRequests:{listCustomer:mocks.list,booking:mocks.booking,checkout:mocks.checkout,cancelBooking:mocks.cancelBooking}})}));
 const quote={id:revisionId,title:'Báo giá riêng',amount:1000000,currency:'VND',conditions:'Bao gồm hướng dẫn viên',status:'checkout_pending',createdAt:'2026-09-28T00:00:00Z',expiresAt:'2099-10-09T00:00:00Z'};
 const booking={id:requestId,quote_id:revisionId,status:'pending_payment',payment_status:'pending',party_size:2,expires_at:quote.expiresAt,amount:quote.amount,currency:quote.currency};
 beforeEach(()=>{vi.clearAllMocks();history.replaceState({},'',`/vi/personalized-payment/?request=${requestId}&quote=${revisionId}`);mocks.list.mockResolvedValue([{id:requestId,status:'approved',request:researchInput,plan:researchReady.plan,quotes:[quote],history:[]}]);mocks.booking.mockResolvedValue(booking);});
@@ -79,4 +79,39 @@ it('invalidates the old booking when only the request query changes',async()=>{
  view.rerender(<PersonalizedRequestPage locale="vi" payment/>);
  expect(await screen.findByRole('alert')).toBeInTheDocument();
  expect(screen.queryByText('Thông tin hành khách')).not.toBeInTheDocument();
+});
+it('cancels only after confirmation and renders the reloaded state without payment',async()=>{
+ render(<PersonalizedRequestPage locale="vi" payment/>);
+ fireEvent.click(await screen.findByRole('button',{name:'Hủy đơn'}));
+ fireEvent.click(screen.getByRole('button',{name:'Quay lại'}));
+ expect(mocks.cancelBooking).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Hủy đơn'}));
+ mocks.cancelBooking.mockResolvedValue({...booking,status:'cancelled'});
+ mocks.booking.mockResolvedValue({...booking,status:'cancelled'});
+ fireEvent.click(screen.getByRole('button',{name:'Xác nhận hủy'}));
+ await screen.findByText('Đã hủy đơn đặt tour');
+ expect(mocks.cancelBooking).toHaveBeenCalledExactlyOnceWith(requestId,expect.any(String));
+ expect(mocks.booking).toHaveBeenCalledTimes(2);
+ expect(screen.queryByText('Thông tin hành khách')).not.toBeInTheDocument();
+ fireEvent.click(screen.getByRole('button',{name:'Làm mới'}));
+ await screen.findByText('Đã hủy đơn đặt tour');
+ expect(screen.queryByRole('button',{name:'Tiếp tục thanh toán'})).not.toBeInTheDocument();
+});
+it('uses the bound trip for confirmed cancellation even when the current request departure is past',async()=>{
+ mocks.list.mockResolvedValue([{id:requestId,status:'approved',request:{...researchInput,startAt:'2020-01-01'},plan:researchReady.plan,quotes:[quote],history:[]}]);
+ mocks.booking.mockResolvedValue({...booking,status:'confirmed',payment_status:'paid',trip_start_at:'2099-10-01T00:00:00Z'});
+ render(<PersonalizedRequestPage locale="vi" payment/>);
+ expect(await screen.findByRole('button',{name:'Hủy đơn'})).toBeEnabled();
+});
+it('hides confirmed cancellation when bound trip is absent despite a future current request',async()=>{
+ mocks.booking.mockResolvedValue({...booking,status:'confirmed',payment_status:'paid'});
+ render(<PersonalizedRequestPage locale="vi" payment/>);
+ await screen.findByText('Đã xác nhận đơn đặt tour');
+ expect(screen.queryByRole('button',{name:'Hủy đơn'})).not.toBeInTheDocument();
+});
+it('expired stored deadline prevents cancellation despite a future quote deadline',async()=>{
+ mocks.booking.mockResolvedValue({...booking,expires_at:'2020-01-01T00:00:00Z'});
+ render(<PersonalizedRequestPage locale="vi" payment/>);
+ await screen.findByText(/không còn đủ điều kiện thanh toán/);
+ expect(screen.queryByRole('button',{name:'Hủy đơn'})).not.toBeInTheDocument();
 });

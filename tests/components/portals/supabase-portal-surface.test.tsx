@@ -433,7 +433,7 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
     session.seed(ACCOUNTS[2].identity);
     const shell=shellFor(session);
     renderSurface({locale,expectedRole:'admin',shell:{...shell,researchDemo:{
-      submit:async()=>'',listCustomer:async()=>[],listAdmin:async()=>[],
+      cancelBooking:vi.fn(),submit:async()=>'',listCustomer:async()=>[],listAdmin:async()=>[],
       decide:async()=>{},createQuote:async()=>'',
     }}});
     fireEvent.click(await screen.findByRole('button',{name:'Tour cá nhân hóa'}));

@@ -1,11 +1,14 @@
 import type {CheckoutDetails} from './reviewed-bookings';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import type {ResearchInput, ResearchPlan} from '@/lib/application/planner/research-planner';
+import {createResearchRequestAdapter,researchBookingSchema} from './research-request-adapter';
+import type {ResearchBooking} from './research-request-adapter';
+export type {ResearchBooking} from './research-request-adapter';
 
 export type ResearchDemoQuote = {id:string; title:string; amount:number; currency:'VND'|'USD'; conditions:string; status:'active'|'expired'|'checkout_pending'|'accepted'; createdAt:string; expiresAt:string};
 export type ResearchDemoRequest = {id:string;ownerId:string;status:'pending_review'|'changes_requested'|'approved'|'rejected';revisionId:string;request:ResearchInput;plan:ResearchPlan;createdAt:string;submittedAt?:string;processingDueAt?:string;processingCompletedAt?:string|null;notes:string|null;quotes:ResearchDemoQuote[];history:{status:string;note:string|null;at:string}[]};
-export type ResearchBooking={id:string;quote_id:string;status:'pending_payment'|'confirmed'|'expired';payment_status:'pending'|'failed'|'paid';party_size:number;expires_at:string;amount:number;currency:string};
 export type ResearchDemoPort = {
+ cancelBooking(bookingId:string,idempotencyKey:string):Promise<ResearchBooking>;
  booking?:(quoteId:string,create:boolean)=>Promise<ResearchBooking|null>;
  checkout?:(quoteId:string,details:CheckoutDetails)=>Promise<ResearchBooking>;
  beginRevision?:(requestId:string,expectedRevision:string)=>Promise<string>;
@@ -23,8 +26,9 @@ export function createResearchDemoAdapter(client:SupabaseClient):ResearchDemoPor
   return data as T;
  }
  return {
-  booking:(quoteId,create)=>rpc('research_demo_booking',{p_quote:quoteId,p_create:create}),
-  checkout:(quoteId,details)=>rpc('research_demo_checkout',{p_quote:quoteId,p_details:details}),
+  cancelBooking:createResearchRequestAdapter(client).cancelBooking,
+  booking:async(quoteId,create)=>researchBookingSchema.nullable().parse(await rpc('research_demo_booking',{p_quote:quoteId,p_create:create})),
+  checkout:async(quoteId,details)=>researchBookingSchema.parse(await rpc('research_demo_checkout',{p_quote:quoteId,p_details:details})),
   beginRevision:(requestId,expectedRevision)=>rpc('research_demo_begin_revision',{p_request_id:requestId,p_expected_revision:expectedRevision}),
   resubmit:(requestId,expectedRevision,revisionId)=>rpc('research_demo_resubmit',{p_request_id:requestId,p_expected_revision:expectedRevision,p_revision_id:revisionId}),
   submit:revisionId=>rpc('research_demo_submit',{p_revision_id:revisionId}),

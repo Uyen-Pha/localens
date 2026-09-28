@@ -39,3 +39,7 @@ it('reads a quote booking without creating one on navigation',async()=>{
  expect(await c.adapter.booking!(revisionId,false)).toBeNull();
  expect(c.rpc).toHaveBeenCalledExactlyOnceWith('research_demo_booking',{p_quote:revisionId,p_create:false});
 });
+it('preserves nullable cancellation fields on a cancelled checkout response',async()=>{
+ const saved={id:requestId,quote_id:revisionId,status:'cancelled',payment_status:'paid',party_size:1,expires_at:'2027-10-01',amount:1000000,currency:'VND',cancelled_at:'2026-09-28T00:00:00Z',trip_start_at:null};
+ expect(await setup(saved).adapter.checkout!(revisionId,{travelers:[],outcome:'success'})).toEqual(saved);
+});

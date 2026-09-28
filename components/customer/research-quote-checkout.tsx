@@ -13,6 +13,7 @@ import type { CheckoutDetails } from "@/lib/infrastructure/supabase/reviewed-boo
 import { CheckoutFields } from "../dev/checkout-fields";
 import s from "../admin/admin-quotes.module.css";
 import local from "./research-demo-requests.module.css";
+import {ResearchCancelBookingDialog} from './research-cancel-booking-dialog';
 
 type CheckoutStage = "quote" | "confirm" | "pay";
 
@@ -38,14 +39,18 @@ export function ResearchQuoteCheckout({
   const [booking, setBooking] = useState<ResearchBooking | null>(null);
   const [stage, setStage] = useState<CheckoutStage>(initialStage);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cancelBlocked, setCancelBlocked] = useState(false);
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now());
   const lock = useRef(false);
+  const cancellationKeys = useRef(new Map<string,string>());
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setLoadFailed(false);
     port.booking?.(quote.id, false)
       .then((nextBooking) => {
         if (!alive) return;
@@ -53,7 +58,10 @@ export function ResearchQuoteCheckout({
         if (initialStage === "pay" && nextBooking === null) setStage("confirm");
       })
       .catch(() => {
-        if (alive) setError(vi ? "Không thể tải trạng thái đặt tour. Vui lòng thử lại." : "Unable to load booking status. Please retry.");
+        if (alive) {
+          setLoadFailed(true);
+          setError(vi ? "Không thể tải trạng thái đặt tour. Vui lòng thử lại." : "Unable to load booking status. Please retry.");
+        }
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -65,7 +73,7 @@ export function ResearchQuoteCheckout({
     };
   }, [initialStage, port, quote.id, vi]);
 
-  const expired = Date.parse(quote.expiresAt) <= now || booking?.status === "expired";
+  const expired = !(Date.parse(booking?.expires_at ?? quote.expiresAt) > now) || booking?.status === "expired";
   const past = Date.parse(request.request.startAt) <= now;
   const paymentFailed = booking?.payment_status === "failed";
   const unavailable = expired || past || request.status !== "approved";
@@ -77,7 +85,7 @@ export function ResearchQuoteCheckout({
   };
 
   async function create() {
-    if (lock.current || unavailable || !port.booking) return;
+    if (lock.current || cancelBlocked || booking?.status === 'cancelled' || unavailable || !port.booking) return;
     lock.current = true;
     setBusy(true);
     setError("");
@@ -96,7 +104,7 @@ export function ResearchQuoteCheckout({
   }
 
   async function pay(details: CheckoutDetails) {
-    if (lock.current || unavailable || !port.checkout) return;
+    if (lock.current || cancelBlocked || booking?.status !== 'pending_payment' || unavailable || !port.checkout) return;
     lock.current = true;
     setBusy(true);
     setError("");
@@ -117,8 +125,11 @@ export function ResearchQuoteCheckout({
 
   if (!port.booking || !port.checkout) return null;
   if (loading) return <p role="status">{vi ? "Đang kiểm tra đơn đặt tour…" : "Checking booking…"}</p>;
+  if (loadFailed) return <p role="alert" className={s.error}>{error}</p>;
+  const cancellation=booking&&<ResearchCancelBookingDialog key={booking.id} booking={booking} vi={vi} now={now} disabled={busy} requestKeys={cancellationKeys.current} cancelBooking={port.cancelBooking} reloadBooking={()=>port.booking!(quote.id,false)} onBooking={saved=>{setBooking(saved);if(saved.status==='cancelled')onChanged?.();}} onBlockedChange={setCancelBlocked}/>;
+  if (booking?.status === 'cancelled') return <div role="status"><h4>{vi?'Đã hủy đơn đặt tour':'Booking cancelled'}</h4><p>{vi?'Mã đơn':'Booking ID'}: {booking.id}</p></div>;
   if (booking?.status === "confirmed") {
-    return <div role="status"><h4>{vi ? "Đã xác nhận đơn đặt tour" : "Booking confirmed"}</h4><p>{vi ? "Đã thanh toán mô phỏng · Không thu tiền thật" : "Simulated payment recorded · No real charge"}</p><p>{vi ? "Mã đơn" : "Booking ID"}: {booking.id}</p></div>;
+    return <><div role="status"><h4>{vi ? "Đã xác nhận đơn đặt tour" : "Booking confirmed"}</h4><p>{vi ? "Đã thanh toán mô phỏng · Không thu tiền thật" : "Simulated payment recorded · No real charge"}</p><p>{vi ? "Mã đơn" : "Booking ID"}: {booking.id}</p></div>{cancellation}</>;
   }
 
   return <div>
@@ -127,6 +138,9 @@ export function ResearchQuoteCheckout({
     {error && <p role="alert" className={s.error}>{error}</p>}
     {booking && <p>{vi ? "Mã đơn" : "Booking ID"}: {booking.id} · {expired ? (vi ? "Đã hết hạn" : "Expired") : paymentFailed ? (vi ? "Thanh toán thất bại · Có thể thử lại" : "Payment failed · You can retry") : (vi ? "Chờ thanh toán" : "Awaiting payment")}</p>}
     {paymentFailed && !expired && <p role="status" className={s.error}>{vi ? "Lần thanh toán trước chưa thành công. Kiểm tra lại thông tin rồi chọn “Thanh toán” để thử lại." : "The previous payment did not complete. Review your details and choose “Pay now” to retry."}</p>}
+    {cancellation}
+    {!cancelBlocked&&<>
     {unavailable ? <p role="status" className={s.error}>{past ? (vi ? "Ngày khởi hành đã qua. Vui lòng liên hệ LocalLens để điều chỉnh lịch trình và nhận báo giá mới." : "The departure date has passed. Contact LocalLens to update the itinerary and obtain a new quote.") : (vi ? "Yêu cầu hoặc báo giá không còn đủ điều kiện đặt tour." : "This request or quote is no longer eligible for booking.")}</p> : stage === "quote" ? (booking ? <Link className={local.payLink} href={paymentPath}>{vi ? "Thanh toán" : "Pay now"}</Link> : <button disabled={busy} onClick={() => setStage("confirm")}>{vi ? "Tiếp tục đặt tour" : "Continue booking"}</button>) : stage === "confirm" ? <section><h4>{vi ? "Xác nhận đặt tour cá nhân hóa" : "Confirm personalized booking"}</h4><p>{quote.title} · {request.request.partySize} {vi ? "khách" : "travelers"}</p><p>{new Date(request.request.startAt).toLocaleString(vi ? "vi-VN" : "en-US", { timeZone: "Asia/Ho_Chi_Minh" })}</p><p><strong>{money}</strong></p><p>{quote.conditions}</p><p>{vi ? "Xác nhận sẽ tạo đơn chờ thanh toán. Bạn chưa bị trừ tiền ở bước này." : "Confirming creates a booking awaiting payment. No payment is taken at this step."}</p><button disabled={busy} onClick={() => void create()}>{busy ? (vi ? "Đang tạo đơn…" : "Creating…") : (vi ? "Xác nhận đặt tour" : "Confirm booking")}</button><button className={s.secondary} disabled={busy} onClick={exit}>{vi ? "Quay lại" : "Back"}</button></section> : <CheckoutFields vi={vi} size={booking?.party_size ?? request.request.partySize} contact={{ name: "", email: "", phone: "" }} disabled={unavailable} busy={busy} error={error} onPay={(details) => void pay(details)} onBack={exit} />}
+    </>}
   </div>;
 }
