@@ -1,0 +1,737 @@
+{
+  "version": 1,
+  "source": "supabase/migrations/20260929020000_research_checkout_permissions.sql",
+  "scope": "Reviewed checkout/cancellation/actor graph only; additive grants, not the full database ACL or approval of restored baseline RPCs.",
+  "platformPrerequisite": "postgres auth USAGE WITH GRANT OPTION, or existing identity-owner auth USAGE; hosted prerequisite requires separate approval. Local fixture is rollback-only.",
+  "inventoryLimitations": [
+    "Existing checker misses FORCE RLS issued by the restored workflow dynamic loop. Revision-links has ENABLE RLS only and is explicitly forceRls=false; its missing FORCE RLS remains a real baseline gap.",
+    "Existing checker omits explicit grants nested in DO blocks and auth-schema policy names; this contract records them without changing that checker.",
+    "Existing policy manifest inventories dynamic templates, not all explicit policy bodies.",
+    "The three projection/predicate helpers are SECURITY INVOKER; only the actor helper and three public RPCs are SECURITY DEFINER.",
+    "Four restored tables have no policies. Keep their missing-policy failures visible; do not invent permissive policies.",
+    "Baseline RPCs outside these seven signatures retain their existing ownership and remain outside this contract."
+  ],
+  "functions": [
+    {
+      "signature": "public.research_demo_booking(uuid,boolean)",
+      "owner": "localens_checkout_rpc_owner",
+      "security": "definer",
+      "operation": "owner reads/creates research booking and normalizes expiry",
+      "effectiveExecuteRolesIncludingOwner": [
+        "authenticated",
+        "postgres",
+        "localens_checkout_rpc_owner"
+      ]
+    },
+    {
+      "signature": "public.research_demo_checkout(uuid,jsonb)",
+      "owner": "localens_checkout_rpc_owner",
+      "security": "definer",
+      "operation": "owner validates travelers and records simulated payment",
+      "effectiveExecuteRolesIncludingOwner": [
+        "authenticated",
+        "postgres",
+        "localens_checkout_rpc_owner"
+      ]
+    },
+    {
+      "signature": "public.research_demo_cancel_booking(uuid,text)",
+      "owner": "localens_cancellation_customer_rpc_owner",
+      "security": "definer",
+      "operation": "owner cancels eligible research booking with atomic immutable history",
+      "effectiveExecuteRolesIncludingOwner": [
+        "authenticated",
+        "postgres",
+        "localens_cancellation_customer_rpc_owner"
+      ]
+    },
+    {
+      "signature": "private.research_demo_actor(boolean)",
+      "owner": "localens_identity_rpc_owner",
+      "security": "definer",
+      "operation": "preserved actor/customer/admin and ban checks",
+      "effectiveExecuteRolesIncludingOwner": [
+        "localens_checkout_rpc_owner",
+        "localens_cancellation_customer_rpc_owner",
+        "postgres",
+        "localens_identity_rpc_owner"
+      ]
+    },
+    {
+      "signature": "private.research_demo_cancellation_allowed(text,text,timestamptz,timestamptz,timestamptz)",
+      "owner": "localens_checkout_rpc_owner",
+      "security": "invoker",
+      "operation": "pure eligibility predicate",
+      "effectiveExecuteRolesIncludingOwner": [
+        "localens_checkout_rpc_owner",
+        "localens_cancellation_customer_rpc_owner",
+        "postgres"
+      ]
+    },
+    {
+      "signature": "private.research_demo_trip_start(private.research_demo_bookings)",
+      "owner": "localens_checkout_rpc_owner",
+      "security": "invoker",
+      "operation": "read bound revision departure",
+      "effectiveExecuteRolesIncludingOwner": [
+        "localens_checkout_rpc_owner",
+        "localens_cancellation_customer_rpc_owner",
+        "postgres"
+      ]
+    },
+    {
+      "signature": "private.research_demo_booking_payload(private.research_demo_bookings)",
+      "owner": "localens_checkout_rpc_owner",
+      "security": "invoker",
+      "operation": "read cancellation timestamp and bound departure",
+      "effectiveExecuteRolesIncludingOwner": [
+        "localens_checkout_rpc_owner",
+        "localens_cancellation_customer_rpc_owner",
+        "postgres"
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "name": "private.research_demo_booking_cancellations",
+      "owner": "postgres",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_checkout_cancellations_select",
+        "research_cancel_cancellations_select",
+        "research_cancel_cancellations_insert"
+      ]
+    },
+    {
+      "name": "private.research_demo_bookings",
+      "owner": "postgres",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_checkout_bookings_select",
+        "research_checkout_bookings_insert",
+        "research_checkout_bookings_update",
+        "research_cancel_bookings_select",
+        "research_cancel_bookings_update"
+      ]
+    },
+    {
+      "name": "private.research_demo_catalog_versions",
+      "owner": "postgres",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": []
+    },
+    {
+      "name": "private.research_demo_places",
+      "owner": "postgres",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": []
+    },
+    {
+      "name": "private.research_demo_quotes",
+      "owner": "postgres",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_checkout_quotes_select"
+      ]
+    },
+    {
+      "name": "private.research_demo_request_events",
+      "owner": "postgres",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_checkout_events_insert"
+      ]
+    },
+    {
+      "name": "private.research_demo_requests",
+      "owner": "postgres",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_checkout_requests_select",
+        "research_checkout_requests_lock",
+        "research_cancel_requests_select",
+        "research_cancel_requests_lock"
+      ]
+    },
+    {
+      "name": "private.research_demo_revision_links",
+      "owner": "postgres",
+      "rlsEnabled": true,
+      "forceRls": false,
+      "policies": []
+    },
+    {
+      "name": "private.research_demo_revisions",
+      "owner": "postgres",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_checkout_revisions_select",
+        "research_cancel_revisions_select"
+      ]
+    },
+    {
+      "name": "private.research_demo_stops",
+      "owner": "postgres",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": []
+    }
+  ],
+  "grants": [
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_requests",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_revisions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_bookings",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_booking_cancellations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_requests",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "public",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_requests",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_revisions",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_bookings",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_booking_cancellations",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_requests",
+      "privilege": "update",
+      "columns": [
+        "id"
+      ],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "private",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "schema",
+      "objectName": "auth",
+      "privilege": "usage",
+      "columns": [],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "auth.uid()",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.thesis_demo_manifest",
+      "privilege": "select",
+      "columns": [
+        "environment",
+        "project_ref"
+      ],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.user_roles",
+      "privilege": "select",
+      "columns": [
+        "role",
+        "user_id"
+      ],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "auth.users",
+      "privilege": "select",
+      "columns": [
+        "banned_until",
+        "id"
+      ],
+      "grantee": "localens_identity_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_bookings",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_bookings",
+      "privilege": "update",
+      "columns": [
+        "checkout_details",
+        "paid_at",
+        "payment_status",
+        "status"
+      ],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_bookings",
+      "privilege": "update",
+      "columns": [
+        "status"
+      ],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_quotes",
+      "privilege": "select",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_request_events",
+      "privilege": "insert",
+      "columns": [
+        "actor_id",
+        "note",
+        "request_id",
+        "status"
+      ],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "table",
+      "objectName": "private.research_demo_booking_cancellations",
+      "privilege": "insert",
+      "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.research_demo_booking(uuid,boolean)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.research_demo_booking(uuid,boolean)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "postgres"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.research_demo_checkout(uuid,jsonb)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.research_demo_checkout(uuid,jsonb)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "postgres"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.research_demo_cancel_booking(uuid,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "authenticated"
+    },
+    {
+      "objectType": "function",
+      "objectName": "public.research_demo_cancel_booking(uuid,text)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "postgres"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.research_demo_actor(boolean)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.research_demo_actor(boolean)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.research_demo_actor(boolean)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "postgres"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.research_demo_cancellation_allowed(text,text,timestamptz,timestamptz,timestamptz)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.research_demo_cancellation_allowed(text,text,timestamptz,timestamptz,timestamptz)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.research_demo_cancellation_allowed(text,text,timestamptz,timestamptz,timestamptz)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "postgres"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.research_demo_trip_start(private.research_demo_bookings)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.research_demo_trip_start(private.research_demo_bookings)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.research_demo_trip_start(private.research_demo_bookings)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "postgres"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.research_demo_booking_payload(private.research_demo_bookings)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_checkout_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.research_demo_booking_payload(private.research_demo_bookings)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "localens_cancellation_customer_rpc_owner"
+    },
+    {
+      "objectType": "function",
+      "objectName": "private.research_demo_booking_payload(private.research_demo_bookings)",
+      "privilege": "execute",
+      "columns": [],
+      "grantee": "postgres"
+    }
+  ],
+  "policies": [
+    {
+      "table": "private.research_demo_booking_cancellations",
+      "name": "research_checkout_cancellations_select",
+      "command": "SELECT",
+      "roles": [
+        "localens_checkout_rpc_owner"
+      ],
+      "using": "current_user = 'localens_checkout_rpc_owner'",
+      "withCheck": null
+    },
+    {
+      "table": "private.research_demo_booking_cancellations",
+      "name": "research_cancel_cancellations_select",
+      "command": "SELECT",
+      "roles": [
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "using": "current_user = 'localens_cancellation_customer_rpc_owner'",
+      "withCheck": null
+    },
+    {
+      "table": "private.research_demo_booking_cancellations",
+      "name": "research_cancel_cancellations_insert",
+      "command": "INSERT",
+      "roles": [
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "using": null,
+      "withCheck": "current_user = 'localens_cancellation_customer_rpc_owner'"
+    },
+    {
+      "table": "private.research_demo_bookings",
+      "name": "research_checkout_bookings_select",
+      "command": "SELECT",
+      "roles": [
+        "localens_checkout_rpc_owner"
+      ],
+      "using": "current_user = 'localens_checkout_rpc_owner'",
+      "withCheck": null
+    },
+    {
+      "table": "private.research_demo_bookings",
+      "name": "research_checkout_bookings_insert",
+      "command": "INSERT",
+      "roles": [
+        "localens_checkout_rpc_owner"
+      ],
+      "using": null,
+      "withCheck": "current_user = 'localens_checkout_rpc_owner'"
+    },
+    {
+      "table": "private.research_demo_bookings",
+      "name": "research_checkout_bookings_update",
+      "command": "UPDATE",
+      "roles": [
+        "localens_checkout_rpc_owner"
+      ],
+      "using": "current_user = 'localens_checkout_rpc_owner'",
+      "withCheck": "current_user = 'localens_checkout_rpc_owner'"
+    },
+    {
+      "table": "private.research_demo_bookings",
+      "name": "research_cancel_bookings_select",
+      "command": "SELECT",
+      "roles": [
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "using": "current_user = 'localens_cancellation_customer_rpc_owner'",
+      "withCheck": null
+    },
+    {
+      "table": "private.research_demo_bookings",
+      "name": "research_cancel_bookings_update",
+      "command": "UPDATE",
+      "roles": [
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "using": "current_user = 'localens_cancellation_customer_rpc_owner'",
+      "withCheck": "current_user = 'localens_cancellation_customer_rpc_owner'"
+    },
+    {
+      "table": "private.research_demo_quotes",
+      "name": "research_checkout_quotes_select",
+      "command": "SELECT",
+      "roles": [
+        "localens_checkout_rpc_owner"
+      ],
+      "using": "current_user = 'localens_checkout_rpc_owner'",
+      "withCheck": null
+    },
+    {
+      "table": "private.research_demo_request_events",
+      "name": "research_checkout_events_insert",
+      "command": "INSERT",
+      "roles": [
+        "localens_checkout_rpc_owner"
+      ],
+      "using": null,
+      "withCheck": "current_user = 'localens_checkout_rpc_owner'"
+    },
+    {
+      "table": "private.research_demo_requests",
+      "name": "research_checkout_requests_select",
+      "command": "SELECT",
+      "roles": [
+        "localens_checkout_rpc_owner"
+      ],
+      "using": "current_user = 'localens_checkout_rpc_owner'",
+      "withCheck": null
+    },
+    {
+      "table": "private.research_demo_requests",
+      "name": "research_checkout_requests_lock",
+      "command": "UPDATE",
+      "roles": [
+        "localens_checkout_rpc_owner"
+      ],
+      "using": "current_user = 'localens_checkout_rpc_owner'",
+      "withCheck": "current_user = 'localens_checkout_rpc_owner'"
+    },
+    {
+      "table": "private.research_demo_requests",
+      "name": "research_cancel_requests_select",
+      "command": "SELECT",
+      "roles": [
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "using": "current_user = 'localens_cancellation_customer_rpc_owner'",
+      "withCheck": null
+    },
+    {
+      "table": "private.research_demo_requests",
+      "name": "research_cancel_requests_lock",
+      "command": "UPDATE",
+      "roles": [
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "using": "current_user = 'localens_cancellation_customer_rpc_owner'",
+      "withCheck": "current_user = 'localens_cancellation_customer_rpc_owner'"
+    },
+    {
+      "table": "private.research_demo_revisions",
+      "name": "research_checkout_revisions_select",
+      "command": "SELECT",
+      "roles": [
+        "localens_checkout_rpc_owner"
+      ],
+      "using": "current_user = 'localens_checkout_rpc_owner'",
+      "withCheck": null
+    },
+    {
+      "table": "private.research_demo_revisions",
+      "name": "research_cancel_revisions_select",
+      "command": "SELECT",
+      "roles": [
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "using": "current_user = 'localens_cancellation_customer_rpc_owner'",
+      "withCheck": null
+    },
+    {
+      "table": "private.thesis_demo_manifest",
+      "name": "research_actor_manifest_select",
+      "command": "SELECT",
+      "roles": [
+        "localens_identity_rpc_owner"
+      ],
+      "using": "current_user = 'localens_identity_rpc_owner' AND project_ref = 'twsdtfotrkljgbfsrmgz' AND environment = 'thesis-demo'",
+      "withCheck": null
+    },
+    {
+      "table": "private.user_roles",
+      "name": "research_actor_user_roles_select",
+      "command": "SELECT",
+      "roles": [
+        "localens_identity_rpc_owner"
+      ],
+      "using": "current_user = 'localens_identity_rpc_owner' AND user_id = auth.uid()",
+      "withCheck": null
+    },
+    {
+      "table": "auth.users",
+      "name": "research_actor_auth_user_select",
+      "command": "SELECT",
+      "roles": [
+        "localens_identity_rpc_owner"
+      ],
+      "using": "current_user = 'localens_identity_rpc_owner' AND id = auth.uid()",
+      "withCheck": null
+    }
+  ],
+  "revocations": {
+    "roles": [
+      "PUBLIC",
+      "anon",
+      "authenticated",
+      "service_role"
+    ],
+    "tables": [
+      "private.research_demo_bookings",
+      "private.research_demo_booking_cancellations"
+    ],
+    "functions": [
+      "public.research_demo_booking(uuid,boolean)",
+      "public.research_demo_checkout(uuid,jsonb)",
+      "public.research_demo_cancel_booking(uuid,text)",
+      "private.research_demo_actor(boolean)",
+      "private.research_demo_cancellation_allowed(text,text,timestamptz,timestamptz,timestamptz)",
+      "private.research_demo_trip_start(private.research_demo_bookings)",
+      "private.research_demo_booking_payload(private.research_demo_bookings)"
+    ],
+    "note": "ALL revoked on the listed objects; authenticated EXECUTE is then restored only for the three public RPCs. Existing unrelated role grants/memberships are preserved."
+  }
+}

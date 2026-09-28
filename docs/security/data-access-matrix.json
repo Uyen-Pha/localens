@@ -315,6 +315,184 @@
   },
   "tables": [
     {
+      "name": "private.research_demo_booking_cancellations",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [
+        "localens_checkout_rpc_owner",
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "writerOperation": "cancellation RPC inserts immutable history; checkout reads projection",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_checkout_cancellations_select",
+        "research_cancel_cancellations_select",
+        "research_cancel_cancellations_insert"
+      ],
+      "grants": [
+        "SELECT -> localens_checkout_rpc_owner",
+        "SELECT -> localens_cancellation_customer_rpc_owner",
+        "INSERT -> localens_cancellation_customer_rpc_owner"
+      ],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_bookings",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [
+        "localens_checkout_rpc_owner",
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "writerOperation": "named checkout/cancellation RPCs create bookings and mutate only permitted columns",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_checkout_bookings_select",
+        "research_checkout_bookings_insert",
+        "research_checkout_bookings_update",
+        "research_cancel_bookings_select",
+        "research_cancel_bookings_update"
+      ],
+      "grants": [
+        "SELECT -> localens_checkout_rpc_owner",
+        "SELECT -> localens_cancellation_customer_rpc_owner",
+        "INSERT -> localens_checkout_rpc_owner",
+        "UPDATE (checkout_details, paid_at, payment_status, status) -> localens_checkout_rpc_owner",
+        "UPDATE (status) -> localens_cancellation_customer_rpc_owner"
+      ],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_catalog_versions",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [],
+      "writerOperation": "original postgres-owned catalog path remains outside reviewed permission graph",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [],
+      "grants": [],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_places",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [],
+      "writerOperation": "original migration materializes catalog mapping; no named-role policy",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [],
+      "grants": [],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_quotes",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [
+        "localens_checkout_rpc_owner"
+      ],
+      "writerOperation": "original postgres-owned quote RPC remains unreviewed; named checkout owner reads",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_checkout_quotes_select"
+      ],
+      "grants": [
+        "SELECT -> localens_checkout_rpc_owner"
+      ],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_request_events",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [],
+      "writerOperation": "named checkout owner appends events; original postgres-owned workflow writers remain unreviewed",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_checkout_events_insert"
+      ],
+      "grants": [
+        "INSERT (actor_id, note, request_id, status) -> localens_checkout_rpc_owner"
+      ],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_requests",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [
+        "localens_checkout_rpc_owner",
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "writerOperation": "named checkout/cancellation owners lock with UPDATE(id); original workflow writers remain unreviewed",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_checkout_requests_select",
+        "research_checkout_requests_lock",
+        "research_cancel_requests_select",
+        "research_cancel_requests_lock"
+      ],
+      "grants": [
+        "SELECT -> localens_checkout_rpc_owner",
+        "UPDATE (id) -> localens_checkout_rpc_owner",
+        "SELECT -> localens_cancellation_customer_rpc_owner",
+        "UPDATE (id) -> localens_cancellation_customer_rpc_owner"
+      ],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_revision_links",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [],
+      "writerOperation": "original postgres-owned edit RPC remains unreviewed; no named-role policy",
+      "rlsEnabled": true,
+      "forceRls": false,
+      "policies": [],
+      "grants": [],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_revisions",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [
+        "localens_checkout_rpc_owner",
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "writerOperation": "original postgres-owned persist RPC remains unreviewed; named owners read",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_checkout_revisions_select",
+        "research_cancel_revisions_select"
+      ],
+      "grants": [
+        "SELECT -> localens_checkout_rpc_owner",
+        "SELECT -> localens_cancellation_customer_rpc_owner"
+      ],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_stops",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [],
+      "writerOperation": "original postgres-owned persist RPC remains unreviewed; no named-role policy",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [],
+      "grants": [],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
       "name": "private.audit_events",
       "policies": [
         "audit_events_admin_summary_select",
@@ -576,6 +754,7 @@
     {
       "name": "private.thesis_demo_manifest",
       "policies": [
+        "research_actor_manifest_select",
         "thesis_demo_manifest_migration_owner_all"
       ],
       "writerOperation": "verified thesis-demo seeder through the migration-owner database connection only",
@@ -604,6 +783,7 @@
     {
       "name": "private.user_roles",
       "policies": [
+        "research_actor_user_roles_select",
         "user_roles_admin_guide_runtime_projection_select",
         "user_roles_admin_summary_select",
         "user_roles_auth_trigger_insert",
@@ -1621,6 +1801,36 @@
   ],
   "rpcs": [
     {
+      "name": "public.research_demo_booking",
+      "signature": "public.research_demo_booking(uuid,boolean)",
+      "owner": "localens_checkout_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner reads/creates research booking and normalizes expiry",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.research_demo_checkout",
+      "signature": "public.research_demo_checkout(uuid,jsonb)",
+      "owner": "localens_checkout_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner validates travelers and records simulated payment",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.research_demo_cancel_booking",
+      "signature": "public.research_demo_cancel_booking(uuid,text)",
+      "owner": "localens_cancellation_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner cancels eligible research booking with atomic immutable history",
+      "credential": "browser-jwt"
+    },
+    {
       "name": "public.admin_user_summary",
       "signature": "public.admin_user_summary()",
       "owner": "localens_admin_rpc_owner",
@@ -1903,6 +2113,10 @@
     }
   ],
   "internalFunctions": [
+    "private.research_demo_actor(boolean)",
+    "private.research_demo_cancellation_allowed(text,text,timestamptz,timestamptz,timestamptz)",
+    "private.research_demo_trip_start(private.research_demo_bookings)",
+    "private.research_demo_booking_payload(private.research_demo_bookings)",
     "public.accept_guide_assignment(uuid)",
     "public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)",
     "public.advance_trip_plan_revision(uuid,integer,jsonb)",
