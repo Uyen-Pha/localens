@@ -4,6 +4,10 @@ import {AdminBookingsPreview} from '@/components/admin/admin-bookings-preview';
 import {bookingPreviewPort} from '@/components/dev/admin-bookings-fixture';
 import {filterBookings,emptyBookingFilters} from '@/lib/application/admin-bookings-preview';
 afterEach(cleanup);
+it('does not expose the removed review label in orders or filters',async()=>{
+ render(<AdminBookingsPreview/>);await screen.findByRole('button',{name:'Xem chi tiết LL-OD-003'});
+ expect(screen.queryAllByText('Đang rà soát thanh toán')).toHaveLength(0);
+});
 it('combines filters and leaves source bookings unchanged',async()=>{
  const rows=await bookingPreviewPort.list(),before=JSON.stringify(rows);
  const result=filterBookings(rows,{...emptyBookingFilters,query:'le quoc bao',payment:'review',from:'2026-09-13',to:'2026-09-13'});

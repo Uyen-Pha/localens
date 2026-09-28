@@ -6,7 +6,7 @@ import type { GuideOwnAssignment } from '@/lib/application/guide-assignment/cont
 import s from './guide-schedule.module.css';
 import { presentGuideAssignment } from './guide-assignment-presentation';
 
-type TourStatus = 'upcoming' | 'completed' | 'cancelled';
+type TourStatus = 'upcoming' | 'started' | 'completed' | 'cancelled';
 const zone = 'Asia/Ho_Chi_Minh';
 export const guideDayKey = (date: Date) => new Intl.DateTimeFormat('en-CA', {timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
 const monthKey = (date: Date) => guideDayKey(date).slice(0,7);
@@ -16,7 +16,10 @@ function shiftMonth(month:string, delta:number) {
   return date.toISOString().slice(0,7);
 }
 function statusOf(item:GuideOwnAssignment):TourStatus {
-  return item.tourStatus ?? (item.assignmentStatus === 'completed' ? 'completed' : 'upcoming');
+  if(item.tourStatus==='cancelled')return 'cancelled';
+  if(item.tourStatus==='completed'||item.assignmentStatus==='completed')return 'completed';
+  if(Date.parse(item.startAt)<=Date.now())return 'started';
+  return 'upcoming';
 }
 
 export function GuideSchedule({locale,items,loading,error,onRetry,getDetail}: {
@@ -44,9 +47,9 @@ export function GuideSchedule({locale,items,loading,error,onRetry,getDetail}: {
   const label=vi?`Tháng ${monthNumber}, ${year}`:new Intl.DateTimeFormat('en-GB',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(`${month}-01T00:00:00Z`));
   const monthly=items.filter(item=>monthKey(new Date(item.startAt))===month).map(item=>presentGuideAssignment(item,locale));
   const visible=monthly.filter(item=>statusOf(item)===filter).sort((a,b)=>Date.parse(a.startAt)-Date.parse(b.startAt));
-  const counts={upcoming:0,completed:0,cancelled:0};
+  const counts={upcoming:0,started:0,completed:0,cancelled:0};
   monthly.forEach(item=>counts[statusOf(item)]++);
-  const statusLabel=(status:TourStatus)=>({upcoming:t('Sắp tới','Upcoming'),completed:t('Đã hoàn thành','Completed'),cancelled:t('Đã hủy','Cancelled')})[status];
+  const statusLabel=(status:TourStatus)=>({upcoming:t('Sắp tới','Upcoming'),started:t('Đã khởi hành','Started'),completed:t('Đã hoàn thành','Completed'),cancelled:t('Đã hủy','Cancelled')})[status];
   const time=(date:string)=>new Intl.DateTimeFormat(vi?'vi-VN':'en-GB',{timeZone:zone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(date));
   const dateLabel=(date:string)=>new Intl.DateTimeFormat(vi?'vi-VN':'en-GB',{timeZone:zone,weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(date));
   const first=new Date(Date.UTC(year,monthNumber-1,1));
@@ -78,7 +81,7 @@ export function GuideSchedule({locale,items,loading,error,onRetry,getDetail}: {
       </div>
       <div className={s.filters} aria-label={t('Lọc trạng thái tour','Filter tour status')}>
         <strong>{t('Trạng thái tour:','Tour status:')}</strong>
-        {(['upcoming','completed','cancelled'] as const).map(status=><button key={status} type="button" aria-pressed={status===filter} onClick={()=>{resetSelection();setFilter(status);}}>{statusLabel(status)}{' '}{!loading&&!error&&<span>{counts[status]}</span>}</button>)}
+        {(['upcoming','started','completed','cancelled'] as const).map(status=><button key={status} type="button" aria-pressed={status===filter} onClick={()=>{resetSelection();setFilter(status);}}>{statusLabel(status)}{' '}{!loading&&!error&&<span>{counts[status]}</span>}</button>)}
       </div>
       <div className={s.monthBar}>
         <button type="button" aria-label={t('Tháng trước','Previous month')} disabled={year<=1900&&monthNumber===1} onClick={()=>changeMonth(shiftMonth(month,-1))}><ChevronLeft/></button>

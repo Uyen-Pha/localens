@@ -10,6 +10,14 @@ function setup(items:GuideOwnAssignment[], detail?: (id:string)=>Promise<GuideOw
   return render(<GuideSchedule locale="vi" items={items} loading={false} error={false} onRetry={()=>{}} getDetail={detail}/>);
 }
 describe('UC-GUI02 month calendar',()=>{
+  it('separates already-started assignments from upcoming without asserting completion',()=>{
+    setup([item('past','2026-09-11T01:00:00Z'),item('future','2026-09-13T01:00:00Z')]);
+    expect(screen.getByRole('button',{name:/Sắp tới 1/})).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:/Đã khởi hành 1/}));
+    expect(screen.getByRole('button',{name:/Tour past/})).toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:/Tour future/})).not.toBeInTheDocument();
+    expect(screen.getByRole('button',{name:/Đã hoàn thành 0/})).toBeInTheDocument();
+  });
   it('switches to a readable list while preserving selected status and detail',async()=>{
     setup([item('A','2026-09-13T01:00:00Z','cancelled')]);
     fireEvent.click(screen.getByRole('button',{name:/Đã hủy 1/}));
@@ -48,6 +56,7 @@ describe('UC-GUI02 month calendar',()=>{
   });
   it('uses Vietnam month boundaries and clears detail when navigating',async()=>{
     setup([item('A','2026-08-31T18:00:00Z'),item('B','2026-08-31T16:00:00Z')]);
+    fireEvent.click(screen.getByRole('button',{name:/Đã khởi hành 1/}));
     fireEvent.click(screen.getByRole('button',{name:/Tour A/}));
     expect(await screen.findByText('Điểm tham quan chính thức')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'Tháng trước'}));

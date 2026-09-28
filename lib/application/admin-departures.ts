@@ -9,7 +9,11 @@ export function createDeparture(input:Departure,now=Date.now()):Departure{
  if(!Number.isInteger(input.capacity)||input.capacity<1||input.capacity>1000)throw Error('Tổng số chỗ phải là số nguyên từ 1 đến 1.000');
  return {...input,held:0,booked:0,status:'scheduled'};
 }
-export function cancelDeparture(d:Departure):Departure{
+export function canCancelDeparture(d:Departure,now=Date.now()):boolean{
+ return ['scheduled','sold_out'].includes(d.status)&&Date.parse(`${d.date}T${d.start}:00+07:00`)>now;
+}
+export function cancelDeparture(d:Departure,now=Date.now()):Departure{
  if(d.status==='cancelled'||d.status==='completed')throw Error('Không thể hủy lịch đã hủy hoặc đã hoàn thành');
+ if(!canCancelDeparture(d,now))throw Error('Không thể hủy lịch đã đến giờ khởi hành');
  return {...d,status:'cancelled',held:0};
 }

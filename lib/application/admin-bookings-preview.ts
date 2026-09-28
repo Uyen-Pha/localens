@@ -1,5 +1,5 @@
 export const orderLabels = {pending_payment:'Chờ thanh toán',confirmed:'Đã xác nhận',completed:'Đã hoàn thành',cancelled:'Đã hủy',expired:'Đã hết hạn'} as const;
-export const paymentLabels = {pending:'Chờ thanh toán',processing:'Đang xử lý thanh toán',paid:'Đã thanh toán',failed:'Thanh toán thất bại',review:'Đang rà soát thanh toán'} as const;
+export const paymentLabels = {pending:'Chờ thanh toán',processing:'Đang xử lý thanh toán',paid:'Đã thanh toán',failed:'Thanh toán thất bại',review:'Chưa xác nhận thanh toán'} as const;
 export type BookingView = {
  id:string; customer:string; email:string; kind:'fixed'|'personalized'; tour:string; departure:string;
  people:number; total:number; status:keyof typeof orderLabels; payment:keyof typeof paymentLabels;

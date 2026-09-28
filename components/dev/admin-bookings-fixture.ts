@@ -16,7 +16,7 @@ const rows:BookingView[]=names.map((customer,i)=>{
  const deadlineMinutes=personalized?48*60:15;
  const history:BookingView['history']=[{at:createdAt,title:'Tạo đơn đặt tour',description:'Khách gửi thông tin đặt tour.'},{at:createdAt,title:personalized?'Thời hạn báo giá':'Tạm giữ chỗ',description:personalized?'Hạn thanh toán là thời điểm sớm hơn giữa 48 giờ từ lúc phát hành và 24 giờ trước khởi hành.':'Thời hạn giữ chỗ 15 phút.'}];
  if(payment==='paid')history.push({at:time(5),title:'Thanh toán thành công',description:'Thanh toán mô phỏng được ghi nhận; đơn chuyển sang Đã xác nhận.'});
- if(payment==='review')history.push({at:time(4),title:'Đang rà soát thanh toán',description:'Giao dịch cần đối soát. Chưa đủ căn cứ xác nhận thanh toán; quản trị viên chỉ theo dõi.'});
+ if(payment==='review')history.push({at:time(4),title:'Chưa xác nhận thanh toán',description:'Chưa đủ căn cứ xác nhận thanh toán; quản trị viên chỉ theo dõi.'});
  if(payment==='processing')history.push({at:time(3),title:'Đang xử lý thanh toán',description:'Đang chờ kết quả từ luồng thanh toán.'});
  if(payment==='failed')history.push({at:time(4),title:'Thanh toán thất bại',description:'Không ghi nhận thanh toán thành công.'});
  if(status==='cancelled')history.push({at:time(8),title:'Đã hủy đơn',description:'Khách hủy đơn trước khi thanh toán; không phát sinh hoàn tiền.'});
