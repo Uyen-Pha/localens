@@ -12,6 +12,7 @@ import { tourIllustration } from "@/lib/domain/data/tour-illustrations";
 import { fixedTourRuntimeCopy } from "@/lib/i18n/fixed-tour-runtime";
 import { emptyTourSearch, filterTours, type TourSearch } from '@/lib/application/fixed-tour/search';
 import { mergeRecoveredPublishedTours } from '@/lib/application/fixed-tour/recovered-catalog';
+import { formatTourDuration } from '@/lib/application/fixed-tour/additions';
 import searchStyles from './tour-search.module.css';
 import { TourRating } from './tour-reviews';
 
@@ -92,7 +93,7 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
           <div className={searchStyles.filters}>
             <label>{vi ? 'Ngôn ngữ nội dung' : 'Content language'}<select value={language} onChange={e=>setLanguage(e.target.value as Locale)}><option value="vi">Tiếng Việt</option><option value="en">English</option></select></label>
             <label>{vi ? 'Loại trải nghiệm' : 'Experience'}<select value={draft.experience} onChange={e=>setDraft({...draft,experience:e.target.value})}><option value="">{vi ? 'Tất cả trải nghiệm' : 'All experiences'}</option><option value="heritage">{vi ? 'Văn hóa & di sản' : 'Culture & heritage'}</option><option value="craft">{vi ? 'Thủ công & sáng tạo' : 'Arts & crafts'}</option><option value="river">{vi ? 'Du ngoạn sông' : 'River cruises'}</option><option value="food">{vi ? 'Ẩm thực' : 'Food experiences'}</option></select></label>
-            <label>{vi ? 'Ngân sách / khách (VND)' : 'Budget / person (VND)'}<select value={draft.budget} onChange={e=>setDraft({...draft,budget:e.target.value})}><option value="">{vi ? 'Tất cả mức giá' : 'Any budget'}</option><option value="under1m">{vi ? 'Dưới 1.000.000' : 'Under 1,000,000'}</option><option value="1to2m">{vi ? '1.000.000 – 2.000.000' : '1,000,000 – 2,000,000'}</option><option value="over2m">{vi ? 'Trên 2.000.000' : 'Over 2,000,000'}</option></select></label>
+            <label>{vi ? 'Ngân sách / khách (VND)' : 'Budget / person (VND)'}<select value={draft.budget} onChange={e=>setDraft({...draft,budget:e.target.value})}><option value="">{vi ? 'Tất cả mức giá' : 'Any budget'}</option><option value="under300k">{vi ? 'Dưới 300.000đ' : 'Under 300,000'}</option><option value="300to600k">{vi ? 'Từ 300.000đ đến dưới 600.000đ' : '300,000 to under 600,000'}</option><option value="600to1m">{vi ? 'Từ 600.000đ đến dưới 1.000.000đ' : '600,000 to under 1,000,000'}</option><option value="from1m">{vi ? 'Từ 1.000.000đ trở lên' : '1,000,000 and above'}</option></select></label>
             <label>{vi ? 'Thời lượng' : 'Duration'}<select value={draft.duration} onChange={e=>setDraft({...draft,duration:e.target.value})}><option value="">{vi ? 'Tất cả thời lượng' : 'Any duration'}</option><option value="half">{vi ? 'Tối đa 6 giờ' : 'Up to 6 hours'}</option><option value="full">{vi ? 'Trên 6 giờ' : 'Over 6 hours'}</option></select></label>
           </div>
           <button type="button" className={searchStyles.reset} onClick={()=>{setDraft({...emptyTourSearch});setCriteria({...emptyTourSearch});setLanguage(locale);void load();}}>{vi ? 'Xóa bộ lọc' : 'Clear filters'}</button>
@@ -118,7 +119,7 @@ export function RuntimeTourCatalog({ locale, fixedTour, initialized, activityTim
                   </figure>
                   <div className="runtime-tour__body">
                     <div className="runtime-tour__meta">
-                      <span><Clock3 size={15} aria-hidden="true" />{tour.durationMinutes} {visual.minutes}</span>
+                      <span><Clock3 size={15} aria-hidden="true" />{formatTourDuration(tour.durationMinutes, locale)}</span>
                       <span><Route size={15} aria-hidden="true" />{tour.stops.length} {visual.stops}</span>
                     </div>
                     <h2>{detailHref ? <Link href={detailHref}>{tour.title}</Link> : tour.title}</h2>

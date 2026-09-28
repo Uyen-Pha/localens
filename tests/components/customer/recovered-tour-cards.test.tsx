@@ -4,13 +4,42 @@ import {RuntimeTourCatalog} from '@/components/customer/runtime-tour-catalog';
 import {additionalPublishedTours} from '@/lib/application/fixed-tour/additions';
 import type {FixedTourRuntimePort} from '@/lib/application/fixed-tour/contracts';
 import type {LiveDepartureAvailability} from '@/lib/domain/data/contracts';
+import {emptyTourSearch, filterTours} from '@/lib/application/fixed-tour/search';
 
 afterEach(cleanup);
+it.each([
+  ['under300k',['299999']],
+  ['300to600k',['300000','599999']],
+  ['600to1m',['600000','999999']],
+  ['from1m',['1000000','1990000']],
+] as const)('respects recovered budget boundaries for %s',(budget,expected)=>{
+  const priced=['299999','300000','599999','600000','999999','1000000','1990000'].map(priceVndMinor=>({...additionalPublishedTours('vi')[0],priceVndMinor}));
+  expect(filterTours(priced,{...emptyTourSearch,budget}).map(t=>t.priceVndMinor)).toEqual(expected);
+});
 const base=additionalPublishedTours('vi').map((tour,i)=>({...tour,id:`published-${i}`,versionId:`version-${i}`,slug:`published-${i}`,title:`Tour đã xuất bản ${i+1}`}));
 function mount(departures:LiveDepartureAvailability[]=[]){
   const port={listPublishedTours:vi.fn(async()=>base),listAvailability:vi.fn(async()=>departures)} as unknown as FixedTourRuntimePort;
   render(<RuntimeTourCatalog locale="vi" fixedTour={port} initialized={Promise.resolve()}/>);
 }
+it('renders recovered tour-specific artwork and readable hours and minutes',async()=>{
+  mount();
+  await screen.findByRole('heading',{name:'Tour đã xuất bản 1'});
+  const expectations=[['ll-f04-binh-tay-market.png','2 giờ'],['ll-f05-vot-coffee-tan-dinh.png','3 giờ 30 phút'],['ll-f06-ben-dinh.png','7 giờ 30 phút']];
+  for(const [i,[filename,duration]] of expectations.entries()){
+    const card=screen.getAllByRole('article')[i+3];
+    expect(within(card).getByRole('img').getAttribute('src')).toContain(filename);
+    expect(within(card).getByText(duration)).toBeInTheDocument();
+  }
+});
+it('applies the restored budget choice to the visible catalog',async()=>{
+  mount();
+  await screen.findByRole('heading',{name:'Tour đã xuất bản 1'});
+  fireEvent.change(screen.getByLabelText('Ngân sách / khách (VND)'),{target:{value:'under300k'}});
+  fireEvent.click(screen.getByRole('button',{name:'Tìm kiếm'}));
+  await screen.findByRole('button',{name:'Tìm kiếm'});
+  expect(screen.getAllByRole('article')).toHaveLength(2);
+  expect(screen.queryByRole('heading',{name:'Sài Gòn đời thường: Cà phê vợt và Tân Định'})).not.toBeInTheDocument();
+});
 it('shows six unique cards with accessible itinerary details even without departures',async()=>{
   mount();
   await screen.findByRole('heading',{name:'Tour đã xuất bản 1'});

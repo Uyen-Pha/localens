@@ -9,6 +9,10 @@ export function filterTours(tours: PublishedTour[], filters: TourSearch) {
     const experiences: Record<string, RegExp> = { heritage:/di san|heritage|lich su|history|dinh doc lap|independence|van hoa|culture/, craft:/lam den|lantern|thu cong|workshop/, river:/du ngoan|cruise|bach dang|song sai gon|saigon river/, food:/am thuc|food|com tam|lunch|an trua|an toi|dinner/ };
     if (filters.experience && !experiences[filters.experience]?.test(text)) return false;
     const price = Number(tour.priceVndMinor);
+    if (filters.budget === 'under300k' && price >= 300000) return false;
+    if (filters.budget === '300to600k' && (price < 300000 || price >= 600000)) return false;
+    if (filters.budget === '600to1m' && (price < 600000 || price >= 1000000)) return false;
+    if (filters.budget === 'from1m' && price < 1000000) return false;
     if (filters.budget === 'under1m' && price >= 1000000) return false;
     if (filters.budget === '1to2m' && (price < 1000000 || price > 2000000)) return false;
     if (filters.budget === 'over2m' && price <= 2000000) return false;
