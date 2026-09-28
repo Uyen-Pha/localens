@@ -24,4 +24,10 @@ Two new request tests failed before implementation (missing search and sorting),
 
 Typecheck and lint passed. Local Supabase-mode webpack compilation passed using the actual project URL and an explicitly nonfunctional build-only public-key placeholder; this proves compilation, NOT authenticated connectivity. Remote Preview must use its existing real environment.
 
-Final test/deployment and screenshot evidence will be recorded after completion. No production release or main merge is authorized by this checkpoint.
+Final focused run: 19/19 tests passed across seven files (including section-order regression). Full run: 2,205 passed / 77 failed / 2,282 total, with no newly failing names versus direct-booking-suite.json. The section-order test was added after full-suite discovery and is covered by the separate focused run. Report: C:/Users/Admin/Documents/Project/output/recovery-audit-20260928/bookings-suite.json.
+
+Product checkpoint: 71edcfb5a86e2504e0bbe74aeaa03764b0b83830. Complete-history backup verified: C:/Users/Admin/Documents/Project/output/recovery-audit-20260928/recovery-bookings-ui.bundle.
+
+Preview READY: https://localens-j6yh75tri-local-lens2.vercel.app/vi/bookings/ (deployment dpl_43p5ahhPKWabNGhWtDR4uNfgwGLY). Remote build passed with the existing Vercel environment. Authenticated visual QA remains blocked pending user login; see design-qa.md. No production release or main merge.
+
+User explicitly approved the new domain. ALLOWED_ORIGINS was guarded by its previous digest, appended with only that domain, and verified against the expected new digest; other secrets' digests unchanged. No database writes.
