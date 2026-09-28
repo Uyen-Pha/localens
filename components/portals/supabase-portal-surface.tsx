@@ -168,7 +168,10 @@ function RuntimeRoleShell({
   </Suspense>;
   return (
     <RuntimeFrame locale={locale} session={session} onSignOut={onSignOut}>
-      <section className={styles.runtimeShell} aria-labelledby="runtime-shell-heading">
+      <section
+        className={session.role === "admin" ? `${styles.runtimeShell} ${styles.runtimeAdminShell}` : styles.runtimeShell}
+        aria-labelledby="runtime-shell-heading"
+      >
         <p className={styles.eyebrow}>{copy.runtimeConnected}</p>
         <h1 id="runtime-shell-heading">{copy.runtimeShellHeading}</h1>
         <dl className={styles.runtimeIdentity}>
@@ -188,14 +191,14 @@ function RuntimeRoleShell({
           </Suspense>
         ) : null}
         {session.role === "admin" ? (
-          <>
+          <div className={styles.runtimeAdminGrid}>
             <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
               <RuntimeBookingManagement locale={locale} bookingManagement={composition.bookingCancellations} />
             </Suspense>
             <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>
               <RuntimeGuideAssignmentQueue locale={locale} assignments={composition.guideAssignments} />
             </Suspense>
-          </>
+          </div>
         ) : null}
       </section>
     </RuntimeFrame>

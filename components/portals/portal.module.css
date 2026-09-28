@@ -613,6 +613,40 @@
   max-width: 52rem;
 }
 
+.runtimeAdminShell {
+  max-width: 76rem;
+  gap: clamp(1.25rem, 3vw, 2rem);
+}
+
+.runtimeAdminGrid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.runtimeAdminCard {
+  height: 100%;
+}
+
+.runtimeAdminBookings {
+  grid-column: span 7;
+}
+
+.runtimeAdminAssignments {
+  grid-column: span 5;
+}
+
+.runtimeAdminCard > .sectionHeader {
+  margin-bottom: 0;
+}
+
+.runtimeAdminCard > .metricGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
 .runtimeShell h1 {
   max-width: 18ch;
   margin: 0;
@@ -723,6 +757,11 @@
 
   .runtimeIdentity {
     grid-template-columns: 1fr;
+  }
+
+  .runtimeAdminBookings,
+  .runtimeAdminAssignments {
+    grid-column: 1 / -1;
   }
 
   .span4,

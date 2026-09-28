@@ -21,6 +21,12 @@ function formatDate(value: string, locale: Locale): string {
   }).format(new Date(value));
 }
 
+function bookingStatusClass(status: AdminBookingManagementProjection["bookingStatus"]): string {
+  if (status === "cancelled" || status === "expired") return styles.statusCoral;
+  if (status === "pending_payment") return styles.statusNeutral;
+  return styles.status;
+}
+
 export function RuntimeBookingManagement({
   locale,
   bookingManagement,
@@ -32,6 +38,7 @@ export function RuntimeBookingManagement({
   const fixedTourCopy = fixedTourRuntimeCopy(locale);
   const [items, setItems] = useState<AdminBookingManagementProjection[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const cancellationCount = items?.filter((item) => item.cancellation !== null).length ?? 0;
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -46,9 +53,27 @@ export function RuntimeBookingManagement({
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <section className={`${styles.card} runtime-portal-panel`} aria-labelledby="runtime-booking-management-heading">
-      <h2 id="runtime-booking-management-heading">{copy.bookingManagement}</h2>
+    <section
+      className={`${styles.card} ${styles.runtimeAdminCard} ${styles.runtimeAdminBookings} runtime-portal-panel`}
+      aria-labelledby="runtime-booking-management-heading"
+    >
+      <div className={styles.sectionHeader}>
+        <h2 id="runtime-booking-management-heading">{copy.bookingManagement}</h2>
+        {items !== null && !failed ? <span className={styles.eyebrow}>{items.length}</span> : null}
+      </div>
       <p className={styles.sectionIntro} role="note">{copy.bookingManagementIntro}</p>
+      {items !== null && !failed ? (
+        <dl className={styles.metricGrid} aria-label={locale === "vi" ? "Tổng quan đơn đặt tour" : "Booking overview"}>
+          <div className={styles.metric}>
+            <dt>{copy.totalBookings}</dt>
+            <dd>{items.length}</dd>
+          </div>
+          <div className={styles.metric}>
+            <dt>{copy.cancelledBookings}</dt>
+            <dd>{cancellationCount}</dd>
+          </div>
+        </dl>
+      ) : null}
       {items === null ? <p className={styles.srStatus} role="status">{locale === "vi" ? "Đang tải…" : "Loading…"}</p> : null}
       {failed ? (
         <div className={styles.error} role="alert">
@@ -61,7 +86,10 @@ export function RuntimeBookingManagement({
         <div className={styles.list}>
           {items.map((item) => (
             <article className={styles.bookingCard} key={item.bookingId} aria-labelledby={`runtime-booking-management-${item.bookingId}`}>
-              <h3 id={`runtime-booking-management-${item.bookingId}`}>{locale === "vi" ? item.titleVi : item.titleEn}</h3>
+              <div className={styles.cardTitleLine}>
+                <h3 id={`runtime-booking-management-${item.bookingId}`}>{locale === "vi" ? item.titleVi : item.titleEn}</h3>
+                <span className={bookingStatusClass(item.bookingStatus)}>{fixedTourCopy.bookingStatusLabels[item.bookingStatus]}</span>
+              </div>
               <dl className={styles.facts}>
                 <div><dt>{copy.bookingId}</dt><dd>{item.bookingId}</dd></div>
                 <div><dt>{copy.customerId}</dt><dd>{item.customerUserId}</dd></div>

@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RuntimeGuideAssignmentQueue } from "@/components/admin/runtime-guide-assignment-queue";
+import styles from "@/components/portals/portal.module.css";
 import {
   RuntimeGuideAssignmentError,
   type AdminGuideAssignmentQueueItem,
@@ -78,6 +79,9 @@ describe("runtime administrator guide assignment queue", () => {
     render(<RuntimeGuideAssignmentQueue locale={locale} assignments={port()} />);
 
     const region = await screen.findByRole("region", { name: heading });
+    expect(region).toHaveClass(styles.runtimeAdminCard, styles.runtimeAdminAssignments);
+    expect(within(region).getByText(locale === "vi" ? "Sẵn sàng phân công" : "Ready for assignment", { exact: true }).parentElement).toHaveTextContent("1");
+    expect(within(region).getByText(locale === "vi" ? "HDV phù hợp" : "Eligible guides", { exact: true }).parentElement).toHaveTextContent("2");
     expect(region).toHaveTextContent(title);
     expect(region).toHaveTextContent("Runtime Gate");
     expect(within(region).getByRole("combobox", { name: new RegExp(title, "i") })).toHaveValue(guides[0]!.guideUserId);

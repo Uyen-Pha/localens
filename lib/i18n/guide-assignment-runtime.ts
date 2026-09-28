@@ -4,6 +4,9 @@ const copy = {
   en: {
     adminHeading: "Guide assignments",
     adminDisclosure: "Only confirmed fixed departures are shown. The database rechecks guide role, schedule, and authoritative booking state before saving.",
+    fixedDeparturesOnly: "Fixed departures only",
+    pendingAssignments: "Ready for assignment",
+    eligibleGuides: "Eligible guides",
     guideHeading: "Your assigned tours",
     guideDisclosure: "This schedule is read-only. Contact an administrator if an assignment needs to change.",
     emptyAdmin: "No confirmed fixed-departure bookings are ready for assignment.",
@@ -36,6 +39,9 @@ const copy = {
   vi: {
     adminHeading: "Phân công hướng dẫn viên",
     adminDisclosure: "Chỉ hiển thị booking tour cố định đã xác nhận. Cơ sở dữ liệu sẽ kiểm tra lại vai trò, lịch và trạng thái booking trước khi lưu.",
+    fixedDeparturesOnly: "Chỉ lịch khởi hành cố định",
+    pendingAssignments: "Sẵn sàng phân công",
+    eligibleGuides: "HDV phù hợp",
     guideHeading: "Tour được phân công",
     guideDisclosure: "Lịch này chỉ đọc. Hãy liên hệ quản trị viên nếu cần thay đổi phân công.",
     emptyAdmin: "Không có booking tour cố định đã xác nhận nào sẵn sàng để phân công.",

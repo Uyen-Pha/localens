@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RuntimeBookingManagement } from "@/components/admin/runtime-booking-management";
+import styles from "@/components/portals/portal.module.css";
 import type {
   AdminBookingManagementProjection,
   BookingCancellation,
@@ -47,7 +48,7 @@ describe("runtime booking management", () => {
     {
       locale: "en" as const,
       heading: "Booking management",
-      activeStatus: "Awaiting confirmation",
+      activeStatus: "Awaiting payment",
       cancelledStatus: "Cancelled",
       reason: "No reason provided",
       source: "Fixed departure",
@@ -56,7 +57,7 @@ describe("runtime booking management", () => {
     {
       locale: "vi" as const,
       heading: "Quản lý đơn đặt tour",
-      activeStatus: "Chờ xác nhận",
+      activeStatus: "Chờ thanh toán",
       cancelledStatus: "Đã hủy",
       reason: "Không cung cấp lý do",
       source: "Lịch khởi hành cố định",
@@ -75,8 +76,11 @@ describe("runtime booking management", () => {
     render(<RuntimeBookingManagement locale={locale} bookingManagement={{ listAdminBookings }} />);
 
     const region = await screen.findByRole("region", { name: heading });
+    expect(region).toHaveClass(styles.runtimeAdminCard, styles.runtimeAdminBookings);
     const active = within(region).getByRole("article", { name: locale === "vi" ? activeBooking.titleVi : activeBooking.titleEn });
     const cancelled = within(region).getByRole("article", { name: locale === "vi" ? cancelledBooking.titleVi : cancelledBooking.titleEn });
+    expect(within(region).getByText(locale === "vi" ? "Tổng số đơn" : "Bookings", { exact: true }).parentElement).toHaveTextContent("2");
+    expect(within(region).getByText(locale === "vi" ? "Đơn có lịch sử hủy" : "Cancelled with history", { exact: true }).parentElement).toHaveTextContent("1");
     expect(active).toHaveTextContent(activeBooking.bookingId);
     expect(active).toHaveTextContent(activeStatus);
     expect(active).not.toHaveTextContent(reason);

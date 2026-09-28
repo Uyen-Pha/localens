@@ -131,9 +131,25 @@ export function RuntimeGuideAssignmentQueue({
   }
 
   return (
-    <section className={styles.card} aria-labelledby="runtime-guide-assignment-heading">
-      <h2 id="runtime-guide-assignment-heading">{text.adminHeading}</h2>
+    <section
+      className={`${styles.card} ${styles.runtimeAdminCard} ${styles.runtimeAdminAssignments}`}
+      aria-labelledby="runtime-guide-assignment-heading"
+    >
+      <div className={styles.sectionHeader}>
+        <h2 id="runtime-guide-assignment-heading">{text.adminHeading}</h2>
+        <span className={styles.status}>{text.fixedDeparturesOnly}</span>
+      </div>
       <p className={styles.sectionIntro} role="note">{text.adminDisclosure}</p>
+      <dl className={styles.metricGrid} aria-label={locale === "vi" ? "Tổng quan phân công" : "Assignment overview"}>
+        <div className={styles.metric}>
+          <dt>{text.pendingAssignments}</dt>
+          <dd>{queue.length}</dd>
+        </div>
+        <div className={styles.metric}>
+          <dt>{text.eligibleGuides}</dt>
+          <dd>{guides.length}</dd>
+        </div>
+      </dl>
       {queue.length === 0 ? <p className={styles.empty}>{text.emptyAdmin}</p> : (
         <div className={styles.list}>
           {queue.map((item) => {
