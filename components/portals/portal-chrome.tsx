@@ -8,14 +8,8 @@ import type { Locale } from "@/lib/i18n/config";
 import { portalCopy } from "@/components/portals/portal-copy";
 import styles from "@/components/portals/portal.module.css";
 
-export function PortalNotice({ locale }: { locale: Locale }) {
-  const copy = portalCopy(locale);
-
-  return (
-    <p className={styles.demoNotice} role="note">
-      <strong>{copy.demoOnly}.</strong> {copy.demoNotice}
-    </p>
-  );
+export function PortalNotice({}: { locale: Locale }) {
+  return null;
 }
 
 export function PortalNav({

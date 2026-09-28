@@ -1448,7 +1448,7 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
     openStripeMockLabel: "Open Stripe Test/Mock action",
     stripeMockHeading: "Stripe Test/Mock boundary",
     stripeMockMessage: "A live product would open Stripe Checkout. This step only simulates checkout in this browser account.",
-    noPaymentNetworkDisclosure: "No Stripe request, card details, real charge, or webhook is involved; checkout only updates this browser session.",
+    noPaymentNetworkDisclosure: "Simulated payment — no real charge is made.",
     backHomeLabel: "Back to LocalLens home",
   },
   vi: {
@@ -1509,7 +1509,7 @@ const customRequestCopy: Record<Locale, CustomRequestCopy> = {
     openStripeMockLabel: "Mở thao tác Stripe Test/Mock",
     stripeMockHeading: "Biên giới Stripe Test/Mock",
     stripeMockMessage: "Sản phẩm thật sẽ mở Stripe Checkout. Bước này chỉ mô phỏng thanh toán trong tài khoản trình duyệt.",
-    noPaymentNetworkDisclosure: "Không có request đến Stripe, thông tin thẻ, khoản tiền thật hay webhook; thao tác chỉ cập nhật phiên trình duyệt này.",
+    noPaymentNetworkDisclosure: "Thanh toán mô phỏng — không phát sinh thu tiền thật.",
     backHomeLabel: "Quay lại trang chủ LocalLens",
   },
 };

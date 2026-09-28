@@ -177,7 +177,6 @@ function RuntimeRoleShell({
           <div><dt>{copy.email}</dt><dd>{session.email}</dd></div>
           <div><dt>{copy.role}</dt><dd>{roleLabel(locale, session.role)}</dd></div>
         </dl>
-        <p className={styles.runtimeDisclosure} role="note">{copy.runtimeDisclosure}</p>
         {actionError ? <p className={styles.error} role="alert">{actionError}</p> : null}
         {session.role === "customer" ? (
           <Suspense fallback={<p role="status" aria-live="polite">{copy.loading}</p>}>

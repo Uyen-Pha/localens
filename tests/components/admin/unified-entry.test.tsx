@@ -4,6 +4,11 @@ import {afterEach, expect, it, vi} from 'vitest';
 import {AdminPrototype} from '@/components/admin/admin-prototype';
 
 afterEach(cleanup);
+it('omits technical persistence notes while preserving action errors',()=>{
+ render(<AdminPrototype actionError="Không thể thực hiện thao tác"/>);
+ expect(screen.queryByText(/Thao tác mẫu chỉ lưu tạm/)).not.toBeInTheDocument();
+ expect(screen.getByRole('alert')).toHaveTextContent('Không thể thực hiện thao tác');
+});
 it('overview contains eight shortcuts that open the selected management screen',()=>{
  render(<AdminPrototype connectedScreens={{operations:<h1>Personalized runtime</h1>}}/>);
  expect(screen.getByRole('heading',{name:'Tổng quan quản trị'})).toBeVisible();
