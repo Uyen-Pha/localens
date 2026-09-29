@@ -66,6 +66,13 @@ function dynamicOwnerBlockIsSafe(block: string, operation: RegExp): boolean {
 }
 
 describe("Task 13 RLS/RPC access matrix", () => {
+  it("does not accept an invoker declaration after SQL changes it to a definer", () => {
+    const root = checkerFixture();
+    writeFileSync(join(root, 'supabase/migrations/20260929990000_invoker_regression.sql'),
+      'BEGIN; ALTER FUNCTION public.reviewed_payment_sync() SECURITY DEFINER; COMMIT;');
+    try { expect(checkerFailure(root)).toMatch(/declared invoker but SQL is not SECURITY INVOKER/); }
+    finally { rmSync(root, { recursive: true, force: true }); }
+  });
   it("passes the final SQL/object/policy/signature/grant drift gate", () => {
     expect(() => execFileSync(process.execPath, [join(repoRoot, "scripts", "check-supabase-artifacts.mjs"), "--root", repoRoot], { encoding: "utf8" })).not.toThrow();
   });
@@ -179,10 +186,10 @@ describe("Task 13 RLS/RPC access matrix", () => {
       rpcs: Array<{ name: string; signature: string; owner: string; readerRoles: string[] }>;
       internalFunctions: string[];
     };
-    expect(matrix.tables).toHaveLength(86);
+    expect(matrix.tables).toHaveLength(99);
     expect(matrix.views).toHaveLength(24);
-    expect(matrix.rpcs).toHaveLength(28);
-    expect(matrix.internalFunctions).toHaveLength(111);
+    expect(matrix.rpcs).toHaveLength(56);
+    expect(matrix.internalFunctions).toHaveLength(125);
     expect(matrix.views).toEqual(expect.arrayContaining([
       expect.objectContaining({
         name: "public.itinerary_fx_snapshot_history_v",

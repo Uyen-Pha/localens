@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { renderMatrixMarkdown } from "./generate-data-access-matrix.mjs";
@@ -224,9 +225,9 @@ export function parseGrantStatement(statement) {
     objectType = `all_${allMatch[1].toLowerCase()}`;
     targetText = allMatch[2];
   } else {
-    const typed = objectText.match(/^(TABLE|VIEW|FUNCTION|SEQUENCE|SCHEMA)\s+(.+)$/i);
+    const typed = objectText.match(/^(TABLE|VIEW|FUNCTION|ROUTINE|PROCEDURE|SEQUENCE|SCHEMA)\s+(.+)$/i);
     if (typed) {
-      objectType = typed[1].toLowerCase();
+      objectType = /^(?:ROUTINE|PROCEDURE)$/i.test(typed[1]) ? 'function' : typed[1].toLowerCase();
       targetText = typed[2];
     }
   }
@@ -245,6 +246,8 @@ export function parseGrantStatement(statement) {
     privilege,
     columns,
     grantee,
+    ...(/WITH\s+GRANT\s+OPTION$/i.test(normalizedStatement) ? { grantOption: true } : {}),
+    ...(/^GRANT\s+OPTION\s+FOR\b/i.test(privilegeText) ? { grantOptionOnly: true } : {}),
   }))));
 }
 
@@ -255,16 +258,38 @@ function grantKey(grant) {
 function applyGrantRecords(state, records) {
   for (const record of records) {
     if (record.action === "grant") {
-      state.set(grantKey(record), { ...record, action: undefined });
+      const previous = state.get(grantKey(record));
+      state.set(grantKey(record), { ...record, action: undefined,
+        ...(previous?.grantOption ? { grantOption: true } : {}) });
       continue;
     }
-    for (const [key, current] of state) {
+    for (const [key, current] of [...state]) {
       const objectMatches = record.objectType.startsWith("all_")
         ? current.objectType === record.objectType.slice(4, -1) && current.objectName.startsWith(`${record.objectName}.`)
         : current.objectType === record.objectType && current.objectName === record.objectName;
       const privilegeMatches = record.privilege === "all" || current.privilege === record.privilege;
+      if (objectMatches && privilegeMatches && current.grantee === record.grantee
+        && record.columns.length > 0 && current.columns.length > 0) {
+        const affected = current.columns.filter((column) => record.columns.includes(column));
+        if (affected.length === 0) continue;
+        const remaining = current.columns.filter((column) => !record.columns.includes(column));
+        state.delete(key);
+        if (remaining.length) {
+          const rest = { ...current, columns: remaining };
+          state.set(grantKey(rest), rest);
+        }
+        if (record.grantOptionOnly) {
+          const retained = { ...current, columns: affected };
+          delete retained.grantOption;
+          state.set(grantKey(retained), retained);
+        }
+        continue;
+      }
       const columnsMatch = record.columns.length === 0 || current.columns.join(",") === record.columns.join(",");
-      if (objectMatches && privilegeMatches && columnsMatch && current.grantee === record.grantee) state.delete(key);
+      if (objectMatches && privilegeMatches && columnsMatch && current.grantee === record.grantee) {
+        if (record.grantOptionOnly) delete current.grantOption;
+        else state.delete(key);
+      }
     }
   }
 }
@@ -347,15 +372,56 @@ function checkMigrationNames(files, errors) {
   }
 }
 
-function checkSqlFile(file, errors) {
+// Recognize only an unconditional, literal FOREACH block. Unknown control flow
+// stays unproven; arbitrary strings/functions must never count as enabled RLS.
+function literalRlsFacts(tokens) {
+  const facts = {rls:[],forceRls:[]};
+  let prefix = '';
+  for (const token of tokens) {
+    if (token.type==='comment') continue;
+    if (token.type==='code' && token.text===';') { prefix=''; continue; }
+    const isDoBody = token.type==='dollar' && prefix.trim().toUpperCase()==='DO';
+    prefix += token.type==='code' ? token.text : ' quoted ';
+    if (!isDoBody) continue;
+    const quoted = token.text;
+    const delimiter = quoted.match(/^\$[^$]*\$/)?.[0];
+    if (!delimiter) continue;
+    const body = lexSql(quoted.slice(delimiter.length,-delimiter.length)).tokens
+      .map((token)=>token.type==='comment' ? ' ' : token.text).join('');
+    const loop = body.match(/^\s*DECLARE\s+([a-z_][a-z0-9_]*)\s+text\s*;\s*BEGIN\s+FOREACH\s+\1\s+IN\s+ARRAY\s+ARRAY\s*\[((?:\s*'[a-z_][a-z0-9_]*'\s*,?)+)\]\s+LOOP\s*([\s\S]*?)\s*END\s+LOOP\s*;\s*END\s*;?\s*$/i);
+    if (!loop) continue;
+    // %I quotes uppercase names; do not conflate them with lowercase objects.
+    // Newline-adjacent SQL strings concatenate, so commas must be explicit.
+    if (!/^\s*'[a-z_][a-z0-9_]*'\s*(?:,\s*'[a-z_][a-z0-9_]*'\s*)*$/.test(loop[2])) continue;
+    const calls = new RegExp(`EXECUTE\\s+(?:pg_catalog\\.)?format\\('([^']*)'\\s*,\\s*${loop[1]}\\s*\\)\\s*;`, 'gi');
+    const matches = [...loop[3].matchAll(calls)];
+    if (loop[3].replace(calls,'').trim()) continue;
+    const proven = [];
+    let supported = true;
+    for (const call of matches) {
+      const alter = call[1].match(/^ALTER TABLE (public|private)\.%I (ENABLE|FORCE) ROW LEVEL SECURITY$/i);
+      if (alter) proven.push({schema:alter[1].toLowerCase(),key:alter[2].toUpperCase()==='ENABLE'?'rls':'forceRls'});
+      else if (!/^REVOKE ALL ON (public|private)\.%I FROM PUBLIC,anon,authenticated,service_role$/i.test(call[1])) supported=false;
+    }
+    if (!supported) continue;
+    for (const name of loop[2].matchAll(/'([a-z_][a-z0-9_]*)'/gi)) {
+      for (const fact of proven) facts[fact.key].push(`${fact.schema}.${name[1].toLowerCase()}`);
+    }
+  }
+  return facts;
+}
+
+function checkSqlFile(file, errors, historicalChecks = []) {
   const source = readFileSync(file.path, "utf8");
   const { tokens, errors: lexicalErrors } = lexSql(source);
   for (const error of lexicalErrors) errors.push(`${file.name}: ${error}`);
 
   const structure = normalizedStructure(tokens);
   const statements = splitStatements(tokens);
-  if (!statements[0] || !isBeginWrapper(statements[0])) errors.push(`${file.name}: missing first top-level BEGIN wrapper`);
-  if (!statements.at(-1) || !isCommitWrapper(statements.at(-1))) errors.push(`${file.name}: missing last top-level COMMIT wrapper`);
+  if (!historicalChecks.includes('transaction-wrapper')) {
+    if (!statements[0] || !isBeginWrapper(statements[0])) errors.push(`${file.name}: missing first top-level BEGIN wrapper`);
+    if (!statements.at(-1) || !isCommitWrapper(statements.at(-1))) errors.push(`${file.name}: missing last top-level COMMIT wrapper`);
+  }
 
   const tables = [];
   for (const match of structure.text.matchAll(DATABASE_TABLE)) {
@@ -378,7 +444,8 @@ function checkSqlFile(file, errors) {
   for (const error of nestedLexerErrors) errors.push(`${file.name}: ${error}`);
   if (TEMPLATE_TOKEN.test(secretScan)) errors.push(`${file.name}: unresolved template token`);
   if (RAW_SECRET.test(secretScan) || SECRET_ASSIGNMENT.test(secretScan)) errors.push(`${file.name}: forbidden raw secret pattern`);
-  return { tables, rls, forceRls };
+  const literal = literalRlsFacts(tokens);
+  return { tables, rls:[...rls,...literal.rls], forceRls:[...forceRls,...literal.forceRls] };
 }
 
 function checkRequiredSeed(root, errors) {
@@ -399,6 +466,54 @@ function checkRequiredSeed(root, errors) {
   }
 }
 
+// Function identity excludes argument names, defaults, and OUT-only arguments.
+function definerSignature(name, argumentsSql) {
+  const types = splitSqlList(argumentsSql).flatMap((argument) => {
+    if (/^OUT\b/i.test(argument.trim())) return [];
+    let type = argument.replace(/\s+DEFAULT\b[\s\S]*|=[\s\S]*/i, "").trim()
+      .replace(/^(?:INOUT|IN|VARIADIC)\s+/i, "");
+    if (!/^(?:double\s+precision|(?:timestamp|time)\s+(?:with|without)\s+time\s+zone|(?:character|bit)\s+varying)\b/i.test(type)) {
+      type = type.replace(/^[a-z_][a-z0-9_]*\s+(?=[a-z_"])/i, "");
+    }
+    return [type.replace(/\s+/g, "").toLowerCase()];
+  });
+  return `${name.toLowerCase()}(${types.join(",")})`;
+}
+
+function applyDefinerState(state, tokens, file) {
+  // Keep only the exact allowed literal; bodies and all other strings are opaque.
+  // In particular, EXECUTE/format inside DO blocks cannot prove a config change.
+  const statements = splitStatements(tokens.map((token) => token.type === "string"
+    ? { ...token, type: "code", text: token.text === "'5s'" ? "'5s'" : "'unknown'" }
+    : token));
+  for (const statement of statements) {
+    const event = statement.match(/^(CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION|ALTER\s+FUNCTION|DROP\s+FUNCTION(?:\s+IF\s+EXISTS)?)\s+((?:public|private)\.[a-z_][a-z0-9_]*)\s*\(([^)]*)\)([\s\S]*)$/i);
+    if (!event) continue;
+    const signature = definerSignature(event[2], event[3]);
+    const tail = event[4];
+    if (/^DROP/i.test(event[1])) {
+      state.delete(signature);
+    } else if (/^CREATE/i.test(event[1])) {
+      const configs = [...tail.matchAll(/\bSET\s+statement_timeout\s*(?:=|TO\b|FROM\b)\s*([^\s,]+)/gi)];
+      state.set(signature, {
+        file: file.name,
+        definer: /\bSECURITY\s+DEFINER\b/i.test(tail),
+        pinned: configs.at(-1)?.[1] === "'5s'",
+      });
+    } else {
+      const current = state.get(signature);
+      if (!current) continue;
+      if (/^\s*(?:SET\s+statement_timeout\b|RESET\s+(?:statement_timeout|ALL)\b)/i.test(tail)) {
+        current.pinned = /^\s*SET\s+statement_timeout\s*(?:=|TO)\s*'5s'\s*$/i.test(tail);
+        current.file = file.name;
+      } else if (/^\s*SECURITY\s+(DEFINER|INVOKER)\s*$/i.test(tail)) {
+        current.definer = /DEFINER/i.test(tail);
+        current.file = file.name;
+      }
+    }
+  }
+}
+
 export function databaseInventory(files) {
   const tables = new Set();
   const views = new Set();
@@ -408,14 +523,14 @@ export function databaseInventory(files) {
   const viewModes = new Map();
   const viewOwners = new Map();
   const functionOwners = new Map();
+  const functionSecurity = new Map();
   const tableOwners = new Map();
   const forceRls = new Set();
   const policyDefinitions = [];
   const grantState = new Map();
-  const unsafeLaterDefinerReplacements = [];
+  const finalDefinerState = new Map();
   const objectEventPattern = /\b(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?|CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+|CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+|DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?|DROP\s+VIEW\s+(?:IF\s+EXISTS\s+)?|DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?)((?:public|private)\.[A-Za-z_][A-Za-z0-9_]*)/gi;
   const viewPattern = /\bCREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(public\.[A-Za-z_][A-Za-z0-9_]*)/gi;
-  const functionSignaturePattern = /\bALTER\s+FUNCTION\s+((?:public|private)\.[^;]+?)\s+OWNER\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
   const viewOwnerPattern = /\bALTER\s+VIEW\s+(public\.[A-Za-z_][A-Za-z0-9_]*)\s+OWNER\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
   const tableOwnerPattern = /\bALTER\s+TABLE\s+((?:public|private)\.[A-Za-z_][A-Za-z0-9_]*)\s+OWNER\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
   const policyEventPattern = /\b(CREATE\s+POLICY|DROP\s+POLICY(?:\s+IF\s+EXISTS)?)\s+([A-Za-z_][A-Za-z0-9_]*)\s+ON\s+((?:public|private)\.[A-Za-z_][A-Za-z0-9_]*)/gi;
@@ -426,10 +541,7 @@ export function databaseInventory(files) {
       const name = match[2].toLowerCase();
       if (keyword.startsWith("drop table")) tables.delete(name);
       else if (keyword.startsWith("drop view")) { views.delete(name); viewModes.delete(name); viewOwners.delete(name); }
-      else if (keyword.startsWith("drop function")) {
-        functions.delete(name);
-        for (const signature of functionSignatures) if (signature.startsWith(`${name}(`)) functionSignatures.delete(signature);
-      } else if (keyword.startsWith("create table")) tables.add(name);
+      else if (keyword.startsWith("create table")) tables.add(name);
       else if (keyword.startsWith("create view")) views.add(name);
       else if (keyword.startsWith("create function")) functions.add(name);
     }
@@ -439,11 +551,6 @@ export function databaseInventory(files) {
       const invoker = tail.match(/WITH\s*\(\s*security_invoker\s*=\s*(true|false)/i)?.[1];
       const barrier = tail.match(/security_barrier\s*=\s*(true|false)/i)?.[1];
       if (invoker || barrier) viewModes.set(name, { securityInvoker: invoker === "true", securityBarrier: barrier === "true" });
-    }
-    for (const match of source.matchAll(functionSignaturePattern)) {
-      const signature = match[1].replace(/\s+/g, "").toLowerCase();
-      functionSignatures.add(signature);
-      functionOwners.set(signature, match[2]);
     }
     for (const match of source.matchAll(viewOwnerPattern)) viewOwners.set(match[1].toLowerCase(), match[2]);
     for (const match of source.matchAll(policyEventPattern)) {
@@ -469,18 +576,49 @@ export function databaseInventory(files) {
       if (schema === "public" || schema === "private") forceRls.add(tableKey(match[1], match[2], structure.quotedIdentifiers));
     }
     const { tokens } = lexSql(source);
+    literalRlsFacts(tokens).forceRls.forEach((table)=>forceRls.add(table));
     const statements = splitStatements(tokens);
-    for (const statement of statements) applyGrantRecords(grantState, parseGrantStatement(statement));
-    if (file.timestamp > "20260823110000") {
-      const replacementPattern = /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+((?:public|private)\.[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\))[\s\S]*?\bSECURITY\s+DEFINER\b[\s\S]*?\bAS\s+\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/gi;
-      for (const replacement of source.matchAll(replacementPattern)) {
-        if (!/statement_timeout\s*=\s*'5s'/i.test(replacement[0])) unsafeLaterDefinerReplacements.push({ file: file.name, signature: replacement[1].replace(/\s+/g, "").toLowerCase() });
+    let creationRole = 'postgres';
+    for (const statement of statements) {
+      const role = statement.match(/^SET(?: LOCAL)? ROLE ([a-z_][a-z0-9_]*)$/i);
+      if (role) creationRole = role[1].toLowerCase();
+      if (/^RESET ROLE$/i.test(statement)) creationRole = 'postgres';
+      const definition = statement.match(/^CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+((?:public|private)\.[a-z_][a-z0-9_]*)\s*\(([^)]*)\)([\s\S]*)$/i);
+      if (definition) {
+        const signature = definerSignature(definition[1], definition[2]);
+        functionSignatures.add(signature);
+        if (!functionOwners.has(signature)) functionOwners.set(signature, creationRole);
+        functionSecurity.set(signature, /\bSECURITY\s+DEFINER\b/i.test(definition[3]) ? 'definer' : 'invoker');
+      }
+      const removed = statement.match(/^DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?((?:public|private)\.[a-z_][a-z0-9_]*)\s*\(([^)]*)\)/i);
+      if (removed) {
+        const signature = definerSignature(removed[1], removed[2]);
+        functionSignatures.delete(signature);
+        functionOwners.delete(signature);
+        functionSecurity.delete(signature);
+      }
+      const security = statement.match(/^ALTER\s+FUNCTION\s+((?:public|private)\.[a-z_][a-z0-9_]*)\s*\(([^)]*)\)\s+SECURITY\s+(DEFINER|INVOKER)$/i);
+      if (security) functionSecurity.set(definerSignature(security[1], security[2]), security[3].toLowerCase());
+      const ownership = statement.match(/^ALTER\s+FUNCTION\s+((?:public|private)\.[a-z_][a-z0-9_]*)\s*\(([^)]*)\)\s+OWNER\s+TO\s+("(?:[^"]|"")*"|[a-z_][a-z0-9_]*)$/i);
+      if (ownership) {
+        const signature = definerSignature(ownership[1], ownership[2]);
+        const owner = ownership[3].startsWith('"') ? ownership[3].slice(1, -1).replaceAll('""', '"') : ownership[3].toLowerCase();
+        functionOwners.set(signature, owner);
       }
     }
+    for (const statement of statements) applyGrantRecords(grantState, parseGrantStatement(statement));
+    if (file.timestamp > "20260823110000") {
+      applyDefinerState(finalDefinerState, tokens, file);
+    }
   }
+  const unsafeLaterDefinerReplacements = [...finalDefinerState]
+    .filter(([, config]) => config.definer && !config.pinned)
+    .map(([signature, config]) => ({ file: config.file, signature }));
+  functions.clear();
+  for (const signature of functionSignatures) functions.add(signature.split('(')[0]);
   const grants = [...grantState.values()].sort((left, right) => grantKey(left).localeCompare(grantKey(right)));
   policyDefinitions.sort((left, right) => `${left.table}|${left.name}`.localeCompare(`${right.table}|${right.name}`));
-  return { tables, views, functions, functionSignatures, functionOwners, policies, policyDefinitions, viewModes, viewOwners, tableOwners, forceRls, grants, unsafeLaterDefinerReplacements };
+  return { tables, views, functions, functionSignatures, functionOwners, functionSecurity, policies, policyDefinitions, viewModes, viewOwners, tableOwners, forceRls, grants, unsafeLaterDefinerReplacements };
 }
 
 function checkDataAccessMatrix(root, files, errors) {
@@ -546,8 +684,16 @@ function checkDataAccessMatrix(root, files, errors) {
   for (const signature of internalSignatures) {
     const owner = inventory.functionOwners.get(signature);
     const profile = owner ? matrix.roleProfiles?.[owner] : undefined;
+    if ((matrix.invokerFunctions ?? []).includes(signature)) {
+      if (inventory.functionSecurity.get(signature) !== 'invoker') errors.push(`data-access-matrix.json: ${signature} declared invoker but SQL is not SECURITY INVOKER`);
+      if (!owner || !profile) errors.push(`data-access-matrix.json: ${signature} invoker owner has no role profile`);
+      continue;
+    }
     if (!owner || !profile) errors.push(`data-access-matrix.json: ${signature} owner ${owner ?? "missing"} has no role profile`);
     else if (profile.rolcanlogin || profile.rolbypassrls || ["postgres", "service_role"].includes(owner)) errors.push(`data-access-matrix.json: internal definer ${signature} has unsafe owner ${owner}`);
+  }
+  for (const signature of matrix.invokerFunctions ?? []) {
+    if (!internalSignatures.has(signature)) errors.push(`data-access-matrix.json: stale internal invoker ${signature}`);
   }
   for (const key of ["corsAllowlist", "requestBodyLimit", "turnstile", "secrets", "correlationRedaction", "staticBundle", "credentialBoundary"]) {
     if (!matrix.edgeBoundaryChecklist?.[key]) errors.push(`data-access-matrix.json: missing Edge boundary check ${key}`);
@@ -639,6 +785,45 @@ function checkDataAccessMatrix(root, files, errors) {
   }
 }
 
+function checkAuthBoundary(grants, errors) {
+  // Schema USAGE alone does not permit reading users. These existing projection
+  // owners still require their independently checked object grants and RLS.
+  const usageRoles = new Set([
+    'localens_identity_rpc_owner', 'localens_reviewed_rpc_owner',
+    'localens_guide_profile_rpc_owner', 'localens_research_persist_rpc_owner',
+    'localens_catalog_rpc_owner',
+    'localens_booking_projection_owner', 'localens_cancellation_admin_rpc_owner',
+    'localens_cancellation_customer_projection_owner', 'localens_cancellation_customer_rpc_owner',
+    'localens_cancellation_guard_owner', 'localens_checkout_rpc_owner',
+    'localens_payment_projection_owner', 'localens_payment_rpc_owner',
+    'localens_simulated_payment_projection_owner', 'localens_simulated_payment_rpc_owner',
+  ]);
+  const columnBoundary = {
+    localens_identity_rpc_owner: ['id', 'banned_until'],
+    localens_reviewed_rpc_owner: ['id', 'email'],
+    localens_guide_profile_rpc_owner: ['id', 'email', 'banned_until'],
+    // Only service-role persistence RPCs use this actor-validation role.
+    localens_research_persist_rpc_owner: ['id', 'banned_until'],
+  };
+  for (const grant of grants) {
+    // Do not let quoted Auth identifiers evade the boundary. Unsupported quoted
+    // grant forms fail closed rather than being mistaken for another schema.
+    const authTarget = grant.objectName.replaceAll('"', '');
+    if (authTarget !== 'auth' && !authTarget.startsWith('auth.')) continue;
+    const allowedColumns = columnBoundary[grant.grantee];
+    const allowed = !grant.grantOption && (
+      (grant.objectType === 'schema' && grant.objectName === 'auth'
+        && grant.privilege === 'usage' && usageRoles.has(grant.grantee))
+      || (grant.objectType === 'function' && grant.objectName === 'auth.uid()'
+        && grant.privilege === 'execute' && Boolean(allowedColumns))
+      || (grant.objectType === 'table' && grant.objectName === 'auth.users'
+        && grant.privilege === 'select' && grant.columns.length > 0
+        && grant.columns.every((column) => allowedColumns?.includes(column)))
+    );
+    if (!allowed) errors.push(`Auth boundary: excessive ${grant.privilege} on ${grant.objectName} for ${grant.grantee}`);
+  }
+}
+
 export function scanSupabaseArtifacts({ root = process.cwd(), requireSeed = false } = {}) {
   const resolvedRoot = resolve(root);
   const errors = [];
@@ -648,14 +833,43 @@ export function scanSupabaseArtifacts({ root = process.cwd(), requireSeed = fals
   const rlsTables = new Set();
   const forceRlsTables = new Set();
   const enforceForceRls = existsSync(join(resolvedRoot, "docs", "security", "data-access-matrix.json"));
+  const historyPath = join(resolvedRoot, 'docs/security/migration-history-exceptions.json');
+  let history = {};
+  if (existsSync(historyPath)) {
+    try { history = JSON.parse(readFileSync(historyPath, 'utf8')); }
+    catch { errors.push('Invalid migration history exceptions JSON'); }
+  }
   for (const file of files) {
-    const facts = checkSqlFile(file, errors);
+    let historicalChecks = [];
+    const exception = history[file.name];
+    if (exception) {
+      const digest = createHash('sha256').update(normalizeLineEndings(readFileSync(file.path, 'utf8'))).digest('hex');
+      if (digest !== exception.sha256) errors.push(`${file.name}: historical migration checksum mismatch`);
+      else if (file.timestamp >= '20260929000000' || !exception.reason || !Array.isArray(exception.checks)
+        || exception.checks.some((check) => !['transaction-wrapper', 'session-role'].includes(check))) {
+        errors.push(`${file.name}: invalid historical migration exception`);
+      } else historicalChecks = exception.checks;
+    }
+    const facts = checkSqlFile(file, errors, historicalChecks);
+    // A DO block may conditionally execute explicit grants. Never count these
+    // as proved final grants, but reject any excessive Auth grant it could run.
+    const tokens = lexSql(readFileSync(file.path, 'utf8')).tokens;
+    for (const token of tokens.filter((item) => item.type === 'dollar')) {
+      const delimiter = token.text.match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/)?.[0];
+      if (!delimiter) continue;
+      const body = token.text.slice(delimiter.length, -delimiter.length);
+      const code = splitStatements(lexSql(body).tokens).join(';');
+      for (const match of code.matchAll(/\bGRANT\s+[^;]+/gi)) {
+        checkAuthBoundary(parseGrantStatement(match[0]), errors);
+      }
+    }
     facts.tables.forEach((table) => databaseTables.add(table));
     facts.rls.forEach((table) => rlsTables.add(table));
     facts.forceRls.forEach((table) => forceRlsTables.add(table));
   }
 
   checkDataAccessMatrix(resolvedRoot, files, errors);
+  checkAuthBoundary(databaseInventory(files).grants, errors);
   for (const table of databaseTables) {
     if (!rlsTables.has(table)) errors.push(`${table} is missing ENABLE ROW LEVEL SECURITY`);
     if (enforceForceRls && !forceRlsTables.has(table)) errors.push(`${table} is missing FORCE ROW LEVEL SECURITY`);

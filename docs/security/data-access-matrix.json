@@ -298,6 +298,24 @@
       "rolbypassrls": false,
       "credential": "edge-internal-content-build",
       "bypassJustification": "capability-scoped content build only"
+    },
+    "localens_reviewed_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "Reviewed prototype booking RPCs; bounded ownership candidate 030000"
+    },
+    "localens_guide_profile_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "Own-guide profile RPCs; bounded ownership candidate 040000"
+    },
+    "localens_research_persist_rpc_owner": {
+      "rolcanlogin": false,
+      "rolbypassrls": false,
+      "credential": "database-definer-owner",
+      "bypassJustification": "Service-only research persistence; bounded ownership candidate 040000"
     }
   },
   "defaults": {
@@ -315,184 +333,6 @@
   },
   "tables": [
     {
-      "name": "private.research_demo_booking_cancellations",
-      "owner": "postgres",
-      "apiExposure": "none",
-      "readerRoles": [
-        "localens_checkout_rpc_owner",
-        "localens_cancellation_customer_rpc_owner"
-      ],
-      "writerOperation": "cancellation RPC inserts immutable history; checkout reads projection",
-      "rlsEnabled": true,
-      "forceRls": true,
-      "policies": [
-        "research_checkout_cancellations_select",
-        "research_cancel_cancellations_select",
-        "research_cancel_cancellations_insert"
-      ],
-      "grants": [
-        "SELECT -> localens_checkout_rpc_owner",
-        "SELECT -> localens_cancellation_customer_rpc_owner",
-        "INSERT -> localens_cancellation_customer_rpc_owner"
-      ],
-      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
-    },
-    {
-      "name": "private.research_demo_bookings",
-      "owner": "postgres",
-      "apiExposure": "none",
-      "readerRoles": [
-        "localens_checkout_rpc_owner",
-        "localens_cancellation_customer_rpc_owner"
-      ],
-      "writerOperation": "named checkout/cancellation RPCs create bookings and mutate only permitted columns",
-      "rlsEnabled": true,
-      "forceRls": true,
-      "policies": [
-        "research_checkout_bookings_select",
-        "research_checkout_bookings_insert",
-        "research_checkout_bookings_update",
-        "research_cancel_bookings_select",
-        "research_cancel_bookings_update"
-      ],
-      "grants": [
-        "SELECT -> localens_checkout_rpc_owner",
-        "SELECT -> localens_cancellation_customer_rpc_owner",
-        "INSERT -> localens_checkout_rpc_owner",
-        "UPDATE (checkout_details, paid_at, payment_status, status) -> localens_checkout_rpc_owner",
-        "UPDATE (status) -> localens_cancellation_customer_rpc_owner"
-      ],
-      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
-    },
-    {
-      "name": "private.research_demo_catalog_versions",
-      "owner": "postgres",
-      "apiExposure": "none",
-      "readerRoles": [],
-      "writerOperation": "original postgres-owned catalog path remains outside reviewed permission graph",
-      "rlsEnabled": true,
-      "forceRls": true,
-      "policies": [],
-      "grants": [],
-      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
-    },
-    {
-      "name": "private.research_demo_places",
-      "owner": "postgres",
-      "apiExposure": "none",
-      "readerRoles": [],
-      "writerOperation": "original migration materializes catalog mapping; no named-role policy",
-      "rlsEnabled": true,
-      "forceRls": true,
-      "policies": [],
-      "grants": [],
-      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
-    },
-    {
-      "name": "private.research_demo_quotes",
-      "owner": "postgres",
-      "apiExposure": "none",
-      "readerRoles": [
-        "localens_checkout_rpc_owner"
-      ],
-      "writerOperation": "original postgres-owned quote RPC remains unreviewed; named checkout owner reads",
-      "rlsEnabled": true,
-      "forceRls": true,
-      "policies": [
-        "research_checkout_quotes_select"
-      ],
-      "grants": [
-        "SELECT -> localens_checkout_rpc_owner"
-      ],
-      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
-    },
-    {
-      "name": "private.research_demo_request_events",
-      "owner": "postgres",
-      "apiExposure": "none",
-      "readerRoles": [],
-      "writerOperation": "named checkout owner appends events; original postgres-owned workflow writers remain unreviewed",
-      "rlsEnabled": true,
-      "forceRls": true,
-      "policies": [
-        "research_checkout_events_insert"
-      ],
-      "grants": [
-        "INSERT (actor_id, note, request_id, status) -> localens_checkout_rpc_owner"
-      ],
-      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
-    },
-    {
-      "name": "private.research_demo_requests",
-      "owner": "postgres",
-      "apiExposure": "none",
-      "readerRoles": [
-        "localens_checkout_rpc_owner",
-        "localens_cancellation_customer_rpc_owner"
-      ],
-      "writerOperation": "named checkout/cancellation owners lock with UPDATE(id); original workflow writers remain unreviewed",
-      "rlsEnabled": true,
-      "forceRls": true,
-      "policies": [
-        "research_checkout_requests_select",
-        "research_checkout_requests_lock",
-        "research_cancel_requests_select",
-        "research_cancel_requests_lock"
-      ],
-      "grants": [
-        "SELECT -> localens_checkout_rpc_owner",
-        "UPDATE (id) -> localens_checkout_rpc_owner",
-        "SELECT -> localens_cancellation_customer_rpc_owner",
-        "UPDATE (id) -> localens_cancellation_customer_rpc_owner"
-      ],
-      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
-    },
-    {
-      "name": "private.research_demo_revision_links",
-      "owner": "postgres",
-      "apiExposure": "none",
-      "readerRoles": [],
-      "writerOperation": "original postgres-owned edit RPC remains unreviewed; no named-role policy",
-      "rlsEnabled": true,
-      "forceRls": false,
-      "policies": [],
-      "grants": [],
-      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
-    },
-    {
-      "name": "private.research_demo_revisions",
-      "owner": "postgres",
-      "apiExposure": "none",
-      "readerRoles": [
-        "localens_checkout_rpc_owner",
-        "localens_cancellation_customer_rpc_owner"
-      ],
-      "writerOperation": "original postgres-owned persist RPC remains unreviewed; named owners read",
-      "rlsEnabled": true,
-      "forceRls": true,
-      "policies": [
-        "research_checkout_revisions_select",
-        "research_cancel_revisions_select"
-      ],
-      "grants": [
-        "SELECT -> localens_checkout_rpc_owner",
-        "SELECT -> localens_cancellation_customer_rpc_owner"
-      ],
-      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
-    },
-    {
-      "name": "private.research_demo_stops",
-      "owner": "postgres",
-      "apiExposure": "none",
-      "readerRoles": [],
-      "writerOperation": "original postgres-owned persist RPC remains unreviewed; no named-role policy",
-      "rlsEnabled": true,
-      "forceRls": true,
-      "policies": [],
-      "grants": [],
-      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
-    },
-    {
       "name": "private.audit_events",
       "policies": [
         "audit_events_admin_summary_select",
@@ -505,37 +345,6 @@
         "audit_events_identity_rpc_insert"
       ],
       "writerOperation": "internal audit helper only",
-      "owner": "postgres",
-      "forceRls": true
-    },
-    {
-      "name": "private.capacity_holds",
-      "policies": [
-        "capacity_holds_availability_owner_select",
-        "capacity_holds_owner_all",
-        "capacity_holds_payment_owner_all",
-        "capacity_holds_simulated_payment_owner_all",
-        "holds_cancellation_admin_select",
-        "holds_cancellation_admin_update",
-        "holds_cancellation_customer_lock",
-        "holds_cancellation_customer_select"
-      ],
-      "writerOperation": "checkout/availability RPC only",
-      "owner": "postgres",
-      "forceRls": true
-    },
-    {
-      "name": "private.simulated_payment_receipts",
-      "policies": [
-        "simulated_payment_receipts_checkout_owner_select",
-        "simulated_payment_receipts_payment_guard_select",
-        "simulated_payment_receipts_projection_owner_select",
-        "simulated_payment_receipts_rpc_owner_all",
-        "simulated_receipts_booking_projection_select",
-        "simulated_receipts_cancellation_admin_select",
-        "simulated_receipts_cancellation_customer_select"
-      ],
-      "writerOperation": "fixed-tour simulated-payment RPC only",
       "owner": "postgres",
       "forceRls": true
     },
@@ -554,11 +363,18 @@
       "forceRls": true
     },
     {
-      "name": "private.fixed_tour_cancellation_requests",
+      "name": "private.capacity_holds",
       "policies": [
-        "cancellation_requests_guard_select"
+        "capacity_holds_availability_owner_select",
+        "capacity_holds_owner_all",
+        "capacity_holds_payment_owner_all",
+        "capacity_holds_simulated_payment_owner_all",
+        "holds_cancellation_admin_select",
+        "holds_cancellation_admin_update",
+        "holds_cancellation_customer_lock",
+        "holds_cancellation_customer_select"
       ],
-      "writerOperation": "none; inaccessible immutable legacy archive",
+      "writerOperation": "checkout/availability RPC only",
       "owner": "postgres",
       "forceRls": true
     },
@@ -632,6 +448,15 @@
       "forceRls": true
     },
     {
+      "name": "private.fixed_tour_cancellation_requests",
+      "policies": [
+        "cancellation_requests_guard_select"
+      ],
+      "writerOperation": "none; inaccessible immutable legacy archive",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
       "name": "private.guest_bindings",
       "policies": [
         "guest_bindings_claim_owner_select",
@@ -654,6 +479,28 @@
       "writerOperation": "guest/claim RPC only",
       "owner": "postgres",
       "forceRls": true
+    },
+    {
+      "name": "private.guide_assignment_idempotency",
+      "policies": [
+        "guide_assignment_idempotency_rpc_insert",
+        "guide_assignment_idempotency_rpc_select"
+      ],
+      "writerOperation": "idempotent fixed-departure guide assignment RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "private.guide_demo_schedule",
+      "apiExposure": "RPC-mediated; direct grants subject to RLS",
+      "writerOperation": "Existing runtime only; see explicit grant inventory",
+      "readerRoles": [],
+      "grants": [],
+      "owner": "postgres",
+      "forceRls": true,
+      "policies": [
+        "guide_demo_schedule_projection_select"
+      ]
     },
     {
       "name": "private.quota_buckets",
@@ -700,6 +547,223 @@
       "forceRls": true
     },
     {
+      "name": "private.research_demo_booking_cancellations",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [
+        "localens_checkout_rpc_owner",
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "writerOperation": "cancellation RPC inserts immutable history; checkout reads projection",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "research_cancel_cancellations_insert",
+        "research_cancel_cancellations_select",
+        "research_checkout_cancellations_select"
+      ],
+      "grants": [
+        "SELECT -> localens_checkout_rpc_owner",
+        "SELECT -> localens_cancellation_customer_rpc_owner",
+        "INSERT -> localens_cancellation_customer_rpc_owner"
+      ],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_bookings",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [
+        "localens_checkout_rpc_owner",
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "writerOperation": "named checkout/cancellation RPCs create bookings and mutate only permitted columns",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "remaining_runtime_list_bookings",
+        "research_cancel_bookings_select",
+        "research_cancel_bookings_update",
+        "research_checkout_bookings_insert",
+        "research_checkout_bookings_select",
+        "research_checkout_bookings_update"
+      ],
+      "grants": [
+        "SELECT -> localens_checkout_rpc_owner",
+        "SELECT -> localens_cancellation_customer_rpc_owner",
+        "INSERT -> localens_checkout_rpc_owner",
+        "UPDATE (checkout_details, paid_at, payment_status, status) -> localens_checkout_rpc_owner",
+        "UPDATE (status) -> localens_cancellation_customer_rpc_owner"
+      ],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_catalog_versions",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [],
+      "writerOperation": "original postgres-owned catalog path remains outside reviewed permission graph",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "remaining_runtime_17"
+      ],
+      "grants": [],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_places",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [],
+      "writerOperation": "original migration materializes catalog mapping; no named-role policy",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "remaining_runtime_13"
+      ],
+      "grants": [],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_quotes",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [
+        "localens_checkout_rpc_owner"
+      ],
+      "writerOperation": "original postgres-owned quote RPC remains unreviewed; named checkout owner reads",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "remaining_runtime_22",
+        "remaining_runtime_30",
+        "remaining_runtime_32",
+        "research_checkout_quotes_select"
+      ],
+      "grants": [
+        "SELECT -> localens_checkout_rpc_owner"
+      ],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_request_events",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [],
+      "writerOperation": "named checkout owner appends events; original postgres-owned workflow writers remain unreviewed",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "remaining_runtime_21",
+        "remaining_runtime_27",
+        "remaining_runtime_33",
+        "research_checkout_events_insert"
+      ],
+      "grants": [
+        "INSERT (actor_id, note, request_id, status) -> localens_checkout_rpc_owner"
+      ],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_requests",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [
+        "localens_checkout_rpc_owner",
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "writerOperation": "named checkout/cancellation owners lock with UPDATE(id); original workflow writers remain unreviewed",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "remaining_runtime_12",
+        "remaining_runtime_20",
+        "remaining_runtime_26",
+        "remaining_runtime_28",
+        "remaining_runtime_29",
+        "remaining_runtime_31",
+        "research_cancel_requests_lock",
+        "research_cancel_requests_select",
+        "research_checkout_requests_lock",
+        "research_checkout_requests_select"
+      ],
+      "grants": [
+        "SELECT -> localens_checkout_rpc_owner",
+        "UPDATE (id) -> localens_checkout_rpc_owner",
+        "SELECT -> localens_cancellation_customer_rpc_owner",
+        "UPDATE (id) -> localens_cancellation_customer_rpc_owner"
+      ],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_revision_links",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [],
+      "writerOperation": "original postgres-owned edit RPC remains unreviewed; no named-role policy",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "remaining_runtime_11",
+        "remaining_runtime_16",
+        "remaining_runtime_23"
+      ],
+      "grants": [],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_revisions",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [
+        "localens_checkout_rpc_owner",
+        "localens_cancellation_customer_rpc_owner"
+      ],
+      "writerOperation": "original postgres-owned persist RPC remains unreviewed; named owners read",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "remaining_runtime_10",
+        "remaining_runtime_14",
+        "remaining_runtime_18",
+        "remaining_runtime_24",
+        "remaining_runtime_quote_source",
+        "research_cancel_revisions_select",
+        "research_checkout_revisions_select"
+      ],
+      "grants": [
+        "SELECT -> localens_checkout_rpc_owner",
+        "SELECT -> localens_cancellation_customer_rpc_owner"
+      ],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.research_demo_stops",
+      "owner": "postgres",
+      "apiExposure": "none",
+      "readerRoles": [],
+      "writerOperation": "original postgres-owned persist RPC remains unreviewed; no named-role policy",
+      "rlsEnabled": true,
+      "forceRls": true,
+      "policies": [
+        "remaining_runtime_15",
+        "remaining_runtime_19",
+        "remaining_runtime_25"
+      ],
+      "grants": [],
+      "credential": "database-internal; original postgres-owned baseline RPCs remain unreviewed"
+    },
+    {
+      "name": "private.runtime_planner_operations",
+      "policies": [
+        "runtime_planner_operations_plan_rpc_owner_all"
+      ],
+      "writerOperation": "service-role planner operation RPCs only",
+      "owner": "localens_plan_rpc_owner",
+      "forceRls": true
+    },
+    {
       "name": "private.seo_build_capabilities",
       "policies": [
         "seo_build_capabilities_admin_owner_insert",
@@ -723,6 +787,21 @@
       "forceRls": true
     },
     {
+      "name": "private.simulated_payment_receipts",
+      "policies": [
+        "simulated_payment_receipts_checkout_owner_select",
+        "simulated_payment_receipts_payment_guard_select",
+        "simulated_payment_receipts_projection_owner_select",
+        "simulated_payment_receipts_rpc_owner_all",
+        "simulated_receipts_booking_projection_select",
+        "simulated_receipts_cancellation_admin_select",
+        "simulated_receipts_cancellation_customer_select"
+      ],
+      "writerOperation": "fixed-tour simulated-payment RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
       "name": "private.stripe_test_settings",
       "policies": [
         "stripe_test_settings_payment_owner_lock",
@@ -733,27 +812,9 @@
       "forceRls": true
     },
     {
-      "name": "private.guide_assignment_idempotency",
-      "policies": [
-        "guide_assignment_idempotency_rpc_insert",
-        "guide_assignment_idempotency_rpc_select"
-      ],
-      "writerOperation": "idempotent fixed-departure guide assignment RPC only",
-      "owner": "postgres",
-      "forceRls": true
-    },
-    {
-      "name": "private.runtime_planner_operations",
-      "policies": [
-        "runtime_planner_operations_plan_rpc_owner_all"
-      ],
-      "writerOperation": "service-role planner operation RPCs only",
-      "owner": "localens_plan_rpc_owner",
-      "forceRls": true
-    },
-    {
       "name": "private.thesis_demo_manifest",
       "policies": [
+        "remaining_runtime_9",
         "research_actor_manifest_select",
         "thesis_demo_manifest_migration_owner_all"
       ],
@@ -783,7 +844,10 @@
     {
       "name": "private.user_roles",
       "policies": [
+        "remaining_runtime_2",
+        "remaining_runtime_8",
         "research_actor_user_roles_select",
+        "reviewed_rpc_actor_role",
         "user_roles_admin_guide_runtime_projection_select",
         "user_roles_admin_summary_select",
         "user_roles_auth_trigger_insert",
@@ -880,6 +944,93 @@
       "forceRls": true
     },
     {
+      "name": "public.catalog_snapshot_food_item_supports",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_item_translations",
+      "policies": [
+        "catalog_owner_all",
+        "catalog_snapshot_food_item_translations_request_admin_select"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_items",
+      "policies": [
+        "catalog_owner_all",
+        "catalog_snapshot_food_items_plan_rpc_owner_select",
+        "catalog_snapshot_food_items_request_admin_select"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendor_opening_exception_windows",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendor_opening_exceptions",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendor_opening_hours",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendor_supports",
+      "policies": [
+        "catalog_owner_all"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendor_translations",
+      "policies": [
+        "catalog_owner_all",
+        "catalog_snapshot_food_vendor_translations_request_admin_select"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
+      "name": "public.catalog_snapshot_food_vendors",
+      "policies": [
+        "catalog_owner_all",
+        "catalog_snapshot_food_vendors_plan_rpc_owner_select",
+        "catalog_snapshot_food_vendors_request_admin_select"
+      ],
+      "writerOperation": "catalog snapshot RPC only",
+      "owner": "postgres",
+      "forceRls": true
+    },
+    {
       "name": "public.catalog_snapshot_place_experience_types",
       "policies": [
         "catalog_owner_all",
@@ -939,7 +1090,8 @@
         "catalog_owner_all",
         "catalog_snapshot_place_translations_public_select",
         "catalog_snapshot_place_translations_tour_guard_select",
-        "catalog_snapshot_place_translations_tour_public_select"
+        "catalog_snapshot_place_translations_tour_public_select",
+        "snapshot_translations_guide_schedule_select"
       ],
       "owner": "postgres",
       "forceRls": true
@@ -1140,93 +1292,6 @@
       "forceRls": true
     },
     {
-      "name": "public.catalog_snapshot_food_item_supports",
-      "policies": [
-        "catalog_owner_all"
-      ],
-      "writerOperation": "catalog snapshot RPC only",
-      "owner": "postgres",
-      "forceRls": true
-    },
-    {
-      "name": "public.catalog_snapshot_food_item_translations",
-      "policies": [
-        "catalog_owner_all",
-        "catalog_snapshot_food_item_translations_request_admin_select"
-      ],
-      "writerOperation": "catalog snapshot RPC only",
-      "owner": "postgres",
-      "forceRls": true
-    },
-    {
-      "name": "public.catalog_snapshot_food_items",
-      "policies": [
-        "catalog_owner_all",
-        "catalog_snapshot_food_items_plan_rpc_owner_select",
-        "catalog_snapshot_food_items_request_admin_select"
-      ],
-      "writerOperation": "catalog snapshot RPC only",
-      "owner": "postgres",
-      "forceRls": true
-    },
-    {
-      "name": "public.catalog_snapshot_food_vendor_opening_exception_windows",
-      "policies": [
-        "catalog_owner_all"
-      ],
-      "writerOperation": "catalog snapshot RPC only",
-      "owner": "postgres",
-      "forceRls": true
-    },
-    {
-      "name": "public.catalog_snapshot_food_vendor_opening_exceptions",
-      "policies": [
-        "catalog_owner_all"
-      ],
-      "writerOperation": "catalog snapshot RPC only",
-      "owner": "postgres",
-      "forceRls": true
-    },
-    {
-      "name": "public.catalog_snapshot_food_vendor_opening_hours",
-      "policies": [
-        "catalog_owner_all"
-      ],
-      "writerOperation": "catalog snapshot RPC only",
-      "owner": "postgres",
-      "forceRls": true
-    },
-    {
-      "name": "public.catalog_snapshot_food_vendor_supports",
-      "policies": [
-        "catalog_owner_all"
-      ],
-      "writerOperation": "catalog snapshot RPC only",
-      "owner": "postgres",
-      "forceRls": true
-    },
-    {
-      "name": "public.catalog_snapshot_food_vendor_translations",
-      "policies": [
-        "catalog_owner_all",
-        "catalog_snapshot_food_vendor_translations_request_admin_select"
-      ],
-      "writerOperation": "catalog snapshot RPC only",
-      "owner": "postgres",
-      "forceRls": true
-    },
-    {
-      "name": "public.catalog_snapshot_food_vendors",
-      "policies": [
-        "catalog_owner_all",
-        "catalog_snapshot_food_vendors_plan_rpc_owner_select",
-        "catalog_snapshot_food_vendors_request_admin_select"
-      ],
-      "writerOperation": "catalog snapshot RPC only",
-      "owner": "postgres",
-      "forceRls": true
-    },
-    {
       "name": "public.fx_snapshots",
       "policies": [
         "fx_snapshots_catalog_owner_all",
@@ -1258,7 +1323,9 @@
         "guide_profiles_admin_guide_runtime_projection_select",
         "guide_profiles_admin_summary_select",
         "guide_profiles_guide_assignment_owner_select",
-        "guide_profiles_guide_select"
+        "guide_profiles_guide_select",
+        "remaining_runtime_5",
+        "remaining_runtime_6"
       ],
       "owner": "postgres",
       "forceRls": true
@@ -1266,9 +1333,9 @@
     {
       "name": "public.payments",
       "policies": [
-        "payments_booking_projection_select",
         "payments_admin_reconciliation_update",
         "payments_admin_select",
+        "payments_booking_projection_select",
         "payments_cancellation_admin_select",
         "payments_cancellation_customer_select",
         "payments_checkout_owner_select",
@@ -1367,10 +1434,42 @@
         "profiles_auth_trigger_select",
         "profiles_customer_select",
         "profiles_portal_identity_select",
-        "profiles_request_customer_rpc_language_select"
+        "profiles_request_customer_rpc_language_select",
+        "profiles_self_update",
+        "remaining_runtime_3",
+        "remaining_runtime_4"
       ],
       "owner": "postgres",
       "forceRls": true
+    },
+    {
+      "name": "public.reviewed_demo_bookings",
+      "apiExposure": "RPC-mediated; direct grants subject to RLS",
+      "writerOperation": "Existing runtime only; see explicit grant inventory",
+      "readerRoles": [],
+      "grants": [],
+      "owner": "postgres",
+      "forceRls": true,
+      "policies": [
+        "reviewed_bookings_own_read",
+        "reviewed_rpc_insert",
+        "reviewed_rpc_select",
+        "reviewed_rpc_update"
+      ]
+    },
+    {
+      "name": "public.reviewed_demo_departures",
+      "apiExposure": "RPC-mediated; direct grants subject to RLS",
+      "writerOperation": "Existing runtime only; see explicit grant inventory",
+      "readerRoles": [],
+      "grants": [],
+      "owner": "postgres",
+      "forceRls": true,
+      "policies": [
+        "reviewed_departures_read",
+        "reviewed_rpc_departure_lock",
+        "reviewed_rpc_departures"
+      ]
     },
     {
       "name": "public.seo_releases",
@@ -1399,6 +1498,7 @@
       "policies": [
         "tour_guard_version_stops_select",
         "tour_owner_all",
+        "tour_stops_guide_schedule_select",
         "tour_version_stops_public_select"
       ],
       "owner": "postgres",
@@ -1407,6 +1507,7 @@
     {
       "name": "public.tour_version_translations",
       "policies": [
+        "tour_copy_guide_schedule_select",
         "tour_guard_version_translations_select",
         "tour_owner_all",
         "tour_version_translations_checkout_owner_select",
@@ -1801,36 +1902,6 @@
   ],
   "rpcs": [
     {
-      "name": "public.research_demo_booking",
-      "signature": "public.research_demo_booking(uuid,boolean)",
-      "owner": "localens_checkout_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "owner reads/creates research booking and normalizes expiry",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.research_demo_checkout",
-      "signature": "public.research_demo_checkout(uuid,jsonb)",
-      "owner": "localens_checkout_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "owner validates travelers and records simulated payment",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.research_demo_cancel_booking",
-      "signature": "public.research_demo_cancel_booking(uuid,text)",
-      "owner": "localens_cancellation_customer_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "owner cancels eligible research booking with atomic immutable history",
-      "credential": "browser-jwt"
-    },
-    {
       "name": "public.admin_user_summary",
       "signature": "public.admin_user_summary()",
       "owner": "localens_admin_rpc_owner",
@@ -1861,147 +1932,6 @@
       "credential": "browser-jwt"
     },
     {
-      "name": "public.claim_guest_plan",
-      "signature": "public.claim_guest_plan(uuid,text,smallint)",
-      "owner": "localens_claim_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "owner claims guest plan",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.create_custom_quote",
-      "signature": "public.create_custom_quote(uuid,bigint,public.checkout_currency,text,text,text)",
-      "owner": "localens_request_admin_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "admin creates server-priced quote",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.fail_seo_publish",
-      "signature": "public.fail_seo_publish(uuid,text,text,text)",
-      "owner": "localens_content_build_owner",
-      "readerRoles": [
-        "localens_content_build_executor"
-      ],
-      "writerOperation": "build marks failed",
-      "credential": "edge-internal-content-build"
-    },
-    {
-      "name": "public.finalize_seo_publish",
-      "signature": "public.finalize_seo_publish(uuid,text,text,text,text)",
-      "owner": "localens_content_build_owner",
-      "readerRoles": [
-        "localens_content_build_executor"
-      ],
-      "writerOperation": "build CAS finalizes release",
-      "credential": "edge-internal-content-build"
-    },
-    {
-      "name": "public.get_admin_food_catalog_review_queue",
-      "signature": "public.get_admin_food_catalog_review_queue(integer,integer)",
-      "owner": "localens_admin_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "admin reads bounded food review queue",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.get_admin_eligible_guides",
-      "signature": "public.get_admin_eligible_guides()",
-      "owner": "localens_guide_admin_projection_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "administrator reads pure-guide profile candidates",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.get_admin_guide_assignment_queue",
-      "signature": "public.get_admin_guide_assignment_queue()",
-      "owner": "localens_guide_admin_projection_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "administrator reads confirmed scheduled fixed bookings and active assignments",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.get_guide_assigned_bookings",
-      "signature": "public.get_guide_assigned_bookings()",
-      "owner": "localens_guide_projection_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "guide reads sanitized queue",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.get_live_departure_availability",
-      "signature": "public.get_live_departure_availability()",
-      "owner": "localens_availability_rpc_owner",
-      "readerRoles": [
-        "anon",
-        "authenticated"
-      ],
-      "writerOperation": "hold-aware published availability read",
-      "credential": "browser-anonymous-or-jwt"
-    },
-    {
-      "name": "public.get_portal_identity",
-      "signature": "public.get_portal_identity()",
-      "owner": "localens_identity_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "authenticated owner identity read",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.publish_seo",
-      "signature": "public.publish_seo(text,text)",
-      "owner": "localens_content_admin_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "admin creates one publishing release",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.read_seo_build_release",
-      "signature": "public.read_seo_build_release(uuid,text,text)",
-      "owner": "localens_content_build_owner",
-      "readerRoles": [
-        "localens_content_build_executor"
-      ],
-      "writerOperation": "capability-scoped build read",
-      "credential": "edge-internal-content-build"
-    },
-    {
-      "name": "public.reconcile_payment",
-      "signature": "public.reconcile_payment(uuid,public.booking_status)",
-      "owner": "localens_admin_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "audited admin payment reconciliation",
-      "credential": "browser-jwt"
-    },
-    {
-      "name": "public.complete_simulated_fixed_tour_payment",
-      "signature": "public.complete_simulated_fixed_tour_payment(uuid,text)",
-      "owner": "localens_simulated_payment_rpc_owner",
-      "readerRoles": [
-        "authenticated"
-      ],
-      "writerOperation": "owner completes fixed-tour thesis payment simulation",
-      "credential": "browser-jwt"
-    },
-    {
       "name": "public.cancel_booking",
       "signature": "public.cancel_booking(uuid,text,text,text)",
       "owner": "localens_cancellation_customer_rpc_owner",
@@ -2009,6 +1939,16 @@
         "authenticated"
       ],
       "writerOperation": "exact customer cancels an eligible departure or quote booking",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.claim_guest_plan",
+      "signature": "public.claim_guest_plan(uuid,text,smallint)",
+      "owner": "localens_claim_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner claims guest plan",
       "credential": "browser-jwt"
     },
     {
@@ -2042,6 +1982,137 @@
       "credential": "edge-service-role"
     },
     {
+      "name": "public.complete_simulated_fixed_tour_payment",
+      "signature": "public.complete_simulated_fixed_tour_payment(uuid,text)",
+      "owner": "localens_simulated_payment_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner completes fixed-tour thesis payment simulation",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.create_custom_quote",
+      "signature": "public.create_custom_quote(uuid,bigint,public.checkout_currency,text,text,text)",
+      "owner": "localens_request_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "admin creates server-priced quote",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.fail_seo_publish",
+      "signature": "public.fail_seo_publish(uuid,text,text,text)",
+      "owner": "localens_content_build_owner",
+      "readerRoles": [
+        "localens_content_build_executor"
+      ],
+      "writerOperation": "build marks failed",
+      "credential": "edge-internal-content-build"
+    },
+    {
+      "name": "public.finalize_seo_publish",
+      "signature": "public.finalize_seo_publish(uuid,text,text,text,text)",
+      "owner": "localens_content_build_owner",
+      "readerRoles": [
+        "localens_content_build_executor"
+      ],
+      "writerOperation": "build CAS finalizes release",
+      "credential": "edge-internal-content-build"
+    },
+    {
+      "name": "public.get_admin_eligible_guides",
+      "signature": "public.get_admin_eligible_guides()",
+      "owner": "localens_guide_admin_projection_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "administrator reads pure-guide profile candidates",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.get_admin_food_catalog_review_queue",
+      "signature": "public.get_admin_food_catalog_review_queue(integer,integer)",
+      "owner": "localens_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "admin reads bounded food review queue",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.get_admin_guide_assignment_queue",
+      "signature": "public.get_admin_guide_assignment_queue()",
+      "owner": "localens_guide_admin_projection_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "administrator reads confirmed scheduled fixed bookings and active assignments",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.get_guide_assigned_bookings",
+      "signature": "public.get_guide_assigned_bookings()",
+      "owner": "localens_guide_projection_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "guide reads sanitized queue",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.get_guide_schedule",
+      "signature": "public.get_guide_schedule(uuid)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_guide_projection_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.get_live_departure_availability",
+      "signature": "public.get_live_departure_availability()",
+      "owner": "localens_availability_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated"
+      ],
+      "writerOperation": "hold-aware published availability read",
+      "credential": "browser-anonymous-or-jwt"
+    },
+    {
+      "name": "public.get_own_guide_profile",
+      "signature": "public.get_own_guide_profile()",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_guide_profile_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.get_portal_identity",
+      "signature": "public.get_portal_identity()",
+      "owner": "localens_identity_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "authenticated owner identity read",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.get_research_demo_catalog",
+      "signature": "public.get_research_demo_catalog(text)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_catalog_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
       "name": "public.get_runtime_planner_operation",
       "signature": "public.get_runtime_planner_operation(uuid,uuid,text)",
       "owner": "localens_plan_rpc_owner",
@@ -2052,6 +2123,36 @@
       "credential": "edge-service-role"
     },
     {
+      "name": "public.publish_seo",
+      "signature": "public.publish_seo(text,text)",
+      "owner": "localens_content_admin_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "admin creates one publishing release",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.read_seo_build_release",
+      "signature": "public.read_seo_build_release(uuid,text,text)",
+      "owner": "localens_content_build_owner",
+      "readerRoles": [
+        "localens_content_build_executor"
+      ],
+      "writerOperation": "capability-scoped build read",
+      "credential": "edge-internal-content-build"
+    },
+    {
+      "name": "public.reconcile_payment",
+      "signature": "public.reconcile_payment(uuid,public.booking_status)",
+      "owner": "localens_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "audited admin payment reconciliation",
+      "credential": "browser-jwt"
+    },
+    {
       "name": "public.reject_runtime_planner_operation",
       "signature": "public.reject_runtime_planner_operation(uuid,uuid,text,uuid,text)",
       "owner": "localens_plan_rpc_owner",
@@ -2060,6 +2161,146 @@
       ],
       "writerOperation": "Edge records one allowlisted terminal planner failure",
       "credential": "edge-service-role"
+    },
+    {
+      "name": "public.research_demo_begin_revision",
+      "signature": "public.research_demo_begin_revision(uuid,uuid)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_request_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.research_demo_booking",
+      "signature": "public.research_demo_booking(uuid,boolean)",
+      "owner": "localens_checkout_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner reads/creates research booking and normalizes expiry",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.research_demo_cancel_booking",
+      "signature": "public.research_demo_cancel_booking(uuid,text)",
+      "owner": "localens_cancellation_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner cancels eligible research booking with atomic immutable history",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.research_demo_checkout",
+      "signature": "public.research_demo_checkout(uuid,jsonb)",
+      "owner": "localens_checkout_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ],
+      "writerOperation": "owner validates travelers and records simulated payment",
+      "credential": "browser-jwt"
+    },
+    {
+      "name": "public.research_demo_create_quote",
+      "signature": "public.research_demo_create_quote(uuid,text,numeric,text,text)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_request_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.research_demo_decide",
+      "signature": "public.research_demo_decide(uuid,text,text)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_request_admin_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.research_demo_edit_context",
+      "signature": "public.research_demo_edit_context(uuid)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_request_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.research_demo_list",
+      "signature": "public.research_demo_list(boolean)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_request_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.research_demo_persist",
+      "signature": "public.research_demo_persist(uuid,text,jsonb,jsonb)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_research_persist_rpc_owner",
+      "readerRoles": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "public.research_demo_persist_edit",
+      "signature": "public.research_demo_persist_edit(uuid,uuid,text,text,jsonb,jsonb)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_research_persist_rpc_owner",
+      "readerRoles": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "public.research_demo_resubmit",
+      "signature": "public.research_demo_resubmit(uuid,uuid,uuid)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_request_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.research_demo_resume",
+      "signature": "public.research_demo_resume(uuid)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_request_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.research_demo_resume_latest",
+      "signature": "public.research_demo_resume_latest(uuid)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_request_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.research_demo_submit",
+      "signature": "public.research_demo_submit(uuid)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_request_customer_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
     },
     {
       "name": "public.reserve_ai_quota",
@@ -2092,6 +2333,108 @@
       "credential": "browser-jwt"
     },
     {
+      "name": "public.reviewed_demo_availability",
+      "signature": "public.reviewed_demo_availability()",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_reviewed_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.reviewed_demo_begin",
+      "signature": "public.reviewed_demo_begin(uuid,integer,text)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_reviewed_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.reviewed_demo_cancel",
+      "signature": "public.reviewed_demo_cancel(uuid)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_reviewed_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.reviewed_demo_checkout",
+      "signature": "public.reviewed_demo_checkout(uuid,jsonb)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_reviewed_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.reviewed_demo_expire",
+      "signature": "public.reviewed_demo_expire()",
+      "writerOperation": "Internal scheduled maintenance only",
+      "credential": "migration-maintenance-only",
+      "owner": "localens_reviewed_rpc_owner",
+      "readerRoles": [
+        "postgres"
+      ]
+    },
+    {
+      "name": "public.reviewed_demo_moderate_review",
+      "signature": "public.reviewed_demo_moderate_review(uuid,boolean)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_reviewed_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.reviewed_demo_pay",
+      "signature": "public.reviewed_demo_pay(uuid)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_reviewed_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.reviewed_demo_public_reviews",
+      "signature": "public.reviewed_demo_public_reviews(uuid)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_reviewed_rpc_owner",
+      "readerRoles": [
+        "anon",
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.reviewed_demo_read",
+      "signature": "public.reviewed_demo_read(uuid)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_reviewed_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "public.reviewed_demo_review",
+      "signature": "public.reviewed_demo_review(uuid,integer,text)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_reviewed_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
+    },
+    {
       "name": "public.submit_custom_request",
       "signature": "public.submit_custom_request(uuid,integer)",
       "owner": "localens_request_customer_rpc_owner",
@@ -2100,6 +2443,16 @@
       ],
       "writerOperation": "owner submits request",
       "credential": "browser-jwt"
+    },
+    {
+      "name": "public.update_own_guide_profile",
+      "signature": "public.update_own_guide_profile(text,text)",
+      "writerOperation": "Existing runtime operation; API unchanged",
+      "credential": "existing-runtime-credentials",
+      "owner": "localens_guide_profile_rpc_owner",
+      "readerRoles": [
+        "authenticated"
+      ]
     },
     {
       "name": "public.upsert_content_draft",
@@ -2113,26 +2466,12 @@
     }
   ],
   "internalFunctions": [
-    "private.research_demo_actor(boolean)",
-    "private.research_demo_cancellation_allowed(text,text,timestamptz,timestamptz,timestamptz)",
-    "private.research_demo_trip_start(private.research_demo_bookings)",
-    "private.research_demo_booking_payload(private.research_demo_bookings)",
-    "public.accept_guide_assignment(uuid)",
-    "public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)",
-    "public.advance_trip_plan_revision(uuid,integer,jsonb)",
-    "public.assign_guide(uuid,uuid)",
-    "public.complete_guide_assignment(uuid)",
-    "public.create_authenticated_trip_plan(uuid,jsonb)",
-    "public.decide_fixed_tour_cancellation(uuid,text,text,text)",
-    "public.request_fixed_tour_cancellation(uuid,text,text)",
     "private.accept_guide_assignment(uuid)",
     "private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)",
     "private.advance_trip_plan_revision(uuid,integer,jsonb)",
+    "private.assert_catalog_review_admin()",
     "private.assert_checkout_attempt_mutation()",
     "private.assert_checkout_transition()",
-    "private.assert_fixed_tour_cancellation_request_mutation()",
-    "private.backfill_approved_booking_cancellations()",
-    "private.assert_catalog_review_admin()",
     "private.assert_content_admin()",
     "private.assert_content_json_safe()",
     "private.assert_departure_insert()",
@@ -2140,11 +2479,15 @@
     "private.assert_exception_consistency()",
     "private.assert_exception_window_nonoverlap()",
     "private.assert_exception_window_parent_open()",
+    "private.assert_fixed_tour_cancellation_request_mutation()",
+    "private.assert_food_catalog_review_complete(uuid)",
     "private.assert_food_exception_consistency()",
     "private.assert_food_exception_window_nonoverlap()",
     "private.assert_food_exception_window_parent_open()",
     "private.assert_food_opening_window_nonoverlap()",
-    "private.assert_food_catalog_review_complete(uuid)",
+    "private.assert_guide_assignment_mutation()",
+    "private.assert_opening_window_nonoverlap()",
+    "private.assert_payment_mutation()",
     "private.assert_published_food_item_complete(uuid)",
     "private.assert_published_food_item_row()",
     "private.assert_published_food_item_transition()",
@@ -2152,9 +2495,6 @@
     "private.assert_published_food_vendor_complete(uuid)",
     "private.assert_published_food_vendor_row()",
     "private.assert_published_food_vendor_transition()",
-    "private.assert_guide_assignment_mutation()",
-    "private.assert_opening_window_nonoverlap()",
-    "private.assert_payment_mutation()",
     "private.assert_published_place_complete(uuid)",
     "private.assert_published_place_row()",
     "private.assert_published_place_transition()",
@@ -2164,6 +2504,7 @@
     "private.assert_seo_release_transition()",
     "private.assert_trip_plan_item_snapshot()",
     "private.assign_guide(uuid,uuid)",
+    "private.backfill_approved_booking_cancellations()",
     "private.catalog_set_updated_at()",
     "private.checkout_canonical_payload(uuid,text,uuid,integer,public.locale)",
     "private.checkout_hash_equal(text,text)",
@@ -2175,14 +2516,18 @@
     "private.content_url_is_safe(text)",
     "private.create_catalog_snapshot()",
     "private.create_custom_quote(uuid,bigint,public.checkout_currency,text,text,text)",
-    "private.validate_food_plan_revision_dto(jsonb)",
     "private.create_fx_snapshot(numeric,text,timestamptz,text,boolean)",
     "private.create_guest_plan(jsonb)",
     "private.create_travel_snapshot()",
     "private.finalize_stripe_event(text,text,text,uuid,uuid,bigint,public.checkout_currency,boolean,text,text,text,text,text,text,text)",
+    "private.get_runtime_planner_operation_attestation(uuid,uuid)",
     "private.guard_custom_request_insert()",
     "private.guard_custom_request_mutation()",
-    "private.get_runtime_planner_operation_attestation(uuid,uuid)",
+    "private.guard_guide_company_fields()",
+    "private.guard_personalized_quote_deadline()",
+    "private.guard_personalized_request_deadline()",
+    "private.guard_research_demo_revision_locks()",
+    "private.guard_research_resubmitted_snapshot()",
     "private.guard_runtime_planner_operation_transition()",
     "private.guard_tour_lifecycle()",
     "private.guard_tour_translation_lifecycle()",
@@ -2190,7 +2535,10 @@
     "private.guide_requirement_snapshot(uuid)",
     "private.handle_new_auth_user()",
     "private.lock_tour_parents(uuid,uuid)",
+    "private.normalize_booking_payment_deadline()",
+    "private.normalize_capacity_hold_deadline()",
     "private.persist_trip_plan_revision(uuid,integer,jsonb,uuid,uuid,text,smallint)",
+    "private.prevent_customer_email_change()",
     "private.provision_role(uuid,public.app_role)",
     "private.record_checkout_audit_event(public.audit_event_type,uuid,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)",
     "private.record_checkout_session(uuid,uuid,text,timestamptz)",
@@ -2214,22 +2562,35 @@
     "private.reject_published_tour_child_insert()",
     "private.reject_quota_reservation_mutation()",
     "private.reject_real_payment_after_simulation()",
+    "private.reject_research_demo_catalog_mutation()",
     "private.reject_tour_append_only_change()",
     "private.reject_travel_fx_append_only_change()",
     "private.reject_trip_plan_history_mutation()",
     "private.reject_trip_plan_id_mutation()",
     "private.reject_webhook_mutation()",
+    "private.research_demo_actor(boolean)",
+    "private.research_demo_booking_payload(private.research_demo_bookings)",
+    "private.research_demo_cancellation_allowed(text,text,timestamptz,timestamptz,timestamptz)",
+    "private.research_demo_trip_start(private.research_demo_bookings)",
     "private.reserve_quota(uuid,text,text,text)",
     "private.review_custom_request(uuid,public.request_status,text)",
     "private.set_trip_plan_updated_at()",
     "private.set_updated_at()",
     "private.start_checkout_tx(text,uuid,integer,public.locale,text,text)",
-    "private.normalize_booking_payment_deadline()",
-    "private.normalize_capacity_hold_deadline()",
     "private.submit_custom_request(uuid,integer)",
     "private.valid_guide_requirement_flags(text[],text)",
     "private.valid_tour_copy_array(text[])",
-    "private.validate_trip_plan_revision_dto(jsonb)"
+    "private.validate_food_plan_revision_dto(jsonb)",
+    "private.validate_trip_plan_revision_dto(jsonb)",
+    "public.accept_guide_assignment(uuid)",
+    "public.advance_authenticated_trip_plan_revision(uuid,integer,jsonb)",
+    "public.advance_trip_plan_revision(uuid,integer,jsonb)",
+    "public.assign_guide(uuid,uuid)",
+    "public.complete_guide_assignment(uuid)",
+    "public.create_authenticated_trip_plan(uuid,jsonb)",
+    "public.decide_fixed_tour_cancellation(uuid,text,text,text)",
+    "public.request_fixed_tour_cancellation(uuid,text,text)",
+    "public.reviewed_payment_sync()"
   ],
   "edgeBoundaryChecklist": {
     "corsAllowlist": "fail closed to checked-in production/demo origins; no wildcard with credentials",
@@ -2241,7 +2602,25 @@
     "credentialBoundary": "service_role and internal executor credentials are Edge-only and are not RLS evidence"
   },
   "grantManifest": "docs/security/grants-manifest.json",
-  "grantCount": 695,
+  "grantCount": 811,
   "policyManifest": "docs/security/policies-manifest.json",
-  "policyCount": 45
+  "policyCount": 45,
+  "invokerFunctions": [
+    "private.checkout_canonical_payload(uuid,text,uuid,integer,public.locale)",
+    "private.checkout_hash_equal(text,text)",
+    "private.content_url_is_safe(text)",
+    "private.guard_personalized_quote_deadline()",
+    "private.guard_personalized_request_deadline()",
+    "private.guard_research_demo_revision_locks()",
+    "private.guard_research_resubmitted_snapshot()",
+    "private.reject_research_demo_catalog_mutation()",
+    "private.research_demo_booking_payload(private.research_demo_bookings)",
+    "private.research_demo_cancellation_allowed(text,text,timestamptz,timestamptz,timestamptz)",
+    "private.research_demo_trip_start(private.research_demo_bookings)",
+    "private.set_trip_plan_updated_at()",
+    "private.set_updated_at()",
+    "private.valid_guide_requirement_flags(text[],text)",
+    "private.valid_tour_copy_array(text[])",
+    "public.reviewed_payment_sync()"
+  ]
 }

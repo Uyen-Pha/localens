@@ -1,0 +1,12 @@
+{
+  "20260911120000_reviewed_checkout.sql": {
+    "sha256": "1b0f204089ebbd2f680ccdd676461d4327e42689b0c5e04cf7f46cf8138009e3",
+    "checks": ["transaction-wrapper"],
+    "reason": "Immutable historical checkout migration predates wrapper gate. Not evidence of standalone atomic execution; retain history and test final database state. New migrations still require BEGIN/COMMIT."
+  },
+  "20260913010000_guide_demo_schedule.sql": {
+    "sha256": "7f01e18408fe8d7c62cdb89a18eea79977dc5eb0f91b8c25dba055ee3cc0765c",
+    "checks": ["session-role"],
+    "reason": "Immutable historical guide migration uses RESET ROLE. Retained without rewriting applied SQL; local replay requires postgres session. New migrations must restore SET LOCAL ROLE postgres."
+  }
+}

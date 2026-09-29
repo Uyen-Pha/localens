@@ -46,7 +46,10 @@ describe("static Supabase artifact gate", () => {
     let customRoleCount = 0;
     let dynamicRoleCount = 0;
 
+    const history = JSON.parse(readFileSync(join(repoRoot, 'docs/security/migration-history-exceptions.json'), 'utf8'));
     for (const migration of migrations) {
+      // Exact immutable contents are checked by the artifact gate below.
+      if (history[migration]?.checks.includes('session-role')) continue;
       const source = readFileSync(join(repoRoot, "supabase", "migrations", migration), "utf8");
       expect(source, migration).not.toMatch(/RESET ROLE;/);
       expect(source, migration).not.toMatch(/(?:^|\n)\s*SET ROLE postgres;/);
@@ -64,16 +67,68 @@ describe("static Supabase artifact gate", () => {
     expect(dynamicRoleCount).toBe(2);
   });
 
-  it("keeps LocalLens policies and definers independent from the restricted auth schema", () => {
-    const migrations = readdirSync(join(repoRoot, "supabase", "migrations"))
-      .filter((file) => file.endsWith(".sql"))
-      .sort()
-      .map((file) => readFileSync(join(repoRoot, "supabase", "migrations", file), "utf8"))
-      .join("\n");
+  it("rejects modified history even when its filename has a legacy exception", () => {
+    const name = '20260911120000_reviewed_checkout.sql';
+    const root = fixtureRoot({
+      [`supabase/migrations/${name}`]: 'SELECT 42;',
+      'docs/security/migration-history-exceptions.json': readFileSync(join(repoRoot, 'docs/security/migration-history-exceptions.json'), 'utf8'),
+    });
+    try { expect(runChecker(root).output).toMatch(/historical migration checksum mismatch/); }
+    finally { rmSync(root, { recursive: true, force: true }); }
+  });
 
-    expect(migrations).not.toMatch(/auth\.uid\(\)/i);
-    expect(migrations).not.toMatch(/GRANT (?:USAGE ON SCHEMA auth|EXECUTE ON FUNCTION auth\.uid\(\)) TO localens_/i);
-    expect(migrations).toMatch(/NULLIF\(pg_catalog\.current_setting\('request\.jwt\.claim\.sub', true\), ''\)::uuid/);
+  it("keeps final Auth grants within the approved runtime boundary", () => {
+    expect(runChecker(repoRoot).output).not.toMatch(/Auth boundary:/);
+  });
+
+  it.each([
+    "GRANT SELECT ON auth.users TO localens_reviewed_rpc_owner;",
+    "GRANT SELECT(encrypted_password) ON auth.users TO localens_reviewed_rpc_owner;",
+    "GRANT SELECT(email) ON auth.users TO authenticated;",
+    "GRANT UPDATE(email) ON auth.users TO localens_reviewed_rpc_owner;",
+    "GRANT CREATE ON SCHEMA auth TO localens_reviewed_rpc_owner;",
+    "GRANT EXECUTE ON FUNCTION auth.jwt() TO localens_reviewed_rpc_owner;",
+    "GRANT SELECT(email) ON auth.users TO localens_reviewed_rpc_owner WITH GRANT OPTION;",
+    'GRANT SELECT ON "auth".users TO authenticated;',
+    'GRANT SELECT ON "auth"."users" TO authenticated;',
+    'GRANT EXECUTE ON ROUTINE auth.jwt() TO authenticated;',
+    'DO $$ BEGIN GRANT SELECT(encrypted_password) ON auth.users TO localens_reviewed_rpc_owner; END $$;',
+    'DO $$ BEGIN GRANT SELECT ON "auth"."users" TO authenticated; END $$;',
+  ])("rejects excessive final Auth access: %s", (grant) => {
+    const root = fixtureRoot({
+      "supabase/migrations/20260929090000_auth_boundary.sql": `BEGIN;\n${grant}\nCOMMIT;`,
+    });
+    try {
+      const result = runChecker(root);
+      expect(result.status).toBe(1);
+      expect(result.output).toMatch(/Auth boundary:/);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("permits only bounded runtime Auth columns and respects subsequent revocation", () => {
+    const root = fixtureRoot({
+      "supabase/migrations/20260929090000_auth_boundary.sql": `BEGIN;
+GRANT SELECT(email, id) ON auth.users TO localens_reviewed_rpc_owner;
+GRANT SELECT(id, banned_until) ON auth.users TO localens_identity_rpc_owner;
+GRANT EXECUTE ON FUNCTION auth.uid() TO localens_reviewed_rpc_owner;
+GRANT SELECT(encrypted_password) ON auth.users TO localens_reviewed_rpc_owner;
+REVOKE SELECT(encrypted_password) ON auth.users FROM localens_reviewed_rpc_owner;
+COMMIT;`,
+    });
+    try { expect(runChecker(root)).toMatchObject({ status: 0 }); }
+    finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("tracks separate Auth column grant-option revocations", () => {
+    const root = fixtureRoot({
+      "supabase/migrations/20260929090000_auth_boundary.sql": `BEGIN;
+GRANT SELECT(id,email) ON auth.users TO localens_reviewed_rpc_owner WITH GRANT OPTION;
+REVOKE GRANT OPTION FOR SELECT(id) ON auth.users FROM localens_reviewed_rpc_owner;
+REVOKE GRANT OPTION FOR SELECT(email) ON auth.users FROM localens_reviewed_rpc_owner;
+COMMIT;`,
+    });
+    try { expect(runChecker(root)).toMatchObject({ status: 0 }); }
+    finally { rmSync(root, { recursive: true, force: true }); }
   });
 
   it("requires the Task 2 identity migration and deferred pgTAP artifact", () => {
@@ -476,6 +531,41 @@ describe("static Supabase artifact gate", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it.each([false,true])("handles literal RLS loops without trusting conditional SQL (conditional=%s)", (conditional) => {
+    const root = fixtureRoot({
+      "supabase/migrations/20260823090000_loop.sql": `BEGIN;
+CREATE TABLE private.loop_test (id uuid PRIMARY KEY);
+DO $$ DECLARE t text; BEGIN FOREACH t IN ARRAY ARRAY['loop_test'] LOOP
+${conditional ? 'IF false THEN' : ''}
+EXECUTE format('ALTER TABLE private.%I ENABLE ROW LEVEL SECURITY',t);
+EXECUTE format('ALTER TABLE private.%I FORCE ROW LEVEL SECURITY',t);
+${conditional ? 'END IF;' : ''}
+END LOOP; END $$;
+COMMIT;`,
+    });
+    try {
+      expect(runChecker(root).status).toBe(conditional ? 1 : 0);
+    } finally {
+      rmSync(root, {recursive:true,force:true});
+    }
+  });
+
+  it.each(["'loop_'\n 'test'", "'LOOP_TEST'"])("does not credit ambiguous literal identifiers as RLS: %s", (names) => {
+    const root = fixtureRoot({
+      "supabase/migrations/20260823090000_loop-spoof.sql": `BEGIN;
+CREATE TABLE private.loop_ (id uuid PRIMARY KEY);
+CREATE TABLE private.test (id uuid PRIMARY KEY);
+CREATE TABLE private.loop_test (id uuid PRIMARY KEY);
+${names.includes('LOOP_TEST') ? 'ALTER TABLE private.loop_ ENABLE ROW LEVEL SECURITY; ALTER TABLE private.test ENABLE ROW LEVEL SECURITY; CREATE TABLE private."LOOP_TEST" (id uuid);' : 'ALTER TABLE private.loop_test ENABLE ROW LEVEL SECURITY;'}
+DO $$ DECLARE t text; BEGIN FOREACH t IN ARRAY ARRAY[${names}] LOOP
+EXECUTE format('ALTER TABLE private.%I ENABLE ROW LEVEL SECURITY',t);
+END LOOP; END $$;
+COMMIT;`,
+    });
+    try { expect(runChecker(root).status).toBe(1); }
+    finally { rmSync(root,{recursive:true,force:true}); }
   });
 
   it("does not let near-match schemas or table names bypass the RLS declaration", () => {

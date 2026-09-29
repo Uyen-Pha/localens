@@ -40,6 +40,7 @@ Migration owner for default privileges: postgres
 | localens_guide_admin_projection_owner | false | false | database-definer-owner | administrator fixed-departure guide assignment projections |
 | localens_guide_assignment_guard_owner | false | false | database-definer-owner | guide assignment guard |
 | localens_guide_assignment_rpc_owner | false | false | database-definer-owner | guide assignment transitions |
+| localens_guide_profile_rpc_owner | false | false | database-definer-owner | Own-guide profile RPCs; bounded ownership candidate 040000 |
 | localens_guide_projection_owner | false | false | database-definer-owner | guide sanitized projection |
 | localens_identity_rpc_owner | false | false | database-definer-owner | identity and audit RPCs |
 | localens_payment_guard_owner | false | false | database-definer-owner | payment and webhook guards |
@@ -52,6 +53,8 @@ Migration owner for default privileges: postgres
 | localens_request_admin_rpc_owner | false | false | database-definer-owner | admin review and quote |
 | localens_request_customer_rpc_owner | false | false | database-definer-owner | customer request submission |
 | localens_request_guard_owner | false | false | database-definer-owner | request and quote guards |
+| localens_research_persist_rpc_owner | false | false | database-definer-owner | Service-only research persistence; bounded ownership candidate 040000 |
+| localens_reviewed_rpc_owner | false | false | database-definer-owner | Reviewed prototype booking RPCs; bounded ownership candidate 030000 |
 | localens_simulated_payment_projection_owner | false | false | database-definer-owner | customer simulated-payment projection |
 | localens_simulated_payment_rpc_owner | false | false | database-definer-owner | fixed-tour thesis payment simulation |
 | localens_tour_guard_owner | false | false | database-definer-owner | tour immutable guards |
@@ -76,28 +79,29 @@ Migration owner for default privileges: postgres
 | private.guest_bindings | postgres | none |  | guest/claim RPC only | true | true | guest_bindings_claim_owner_select, guest_bindings_claim_owner_update, guest_bindings_guest_owner_all, guest_owner_guest_binding_plan_read |  | migration-owner-only |
 | private.guest_capabilities | postgres | none |  | guest/claim RPC only | true | true | guest_capabilities_claim_owner_select, guest_capabilities_claim_owner_update, guest_capabilities_guest_owner_all, guest_owner_guest_capability_plan_read |  | migration-owner-only |
 | private.guide_assignment_idempotency | postgres | none |  | idempotent fixed-departure guide assignment RPC only | true | true | guide_assignment_idempotency_rpc_insert, guide_assignment_idempotency_rpc_select |  | migration-owner-only |
+| private.guide_demo_schedule | postgres | RPC-mediated; direct grants subject to RLS |  | Existing runtime only; see explicit grant inventory | true | true | guide_demo_schedule_projection_select |  | migration-owner-only |
 | private.quota_buckets | postgres | none |  | quota RPC only | true | true | guest_owner_quota_plan_denied, quota_buckets_quota_owner_all |  | migration-owner-only |
 | private.quota_global_buckets | postgres | none |  | quota RPC only | true | true | quota_global_quota_owner_all |  | migration-owner-only |
 | private.quota_reservations | postgres | none | localens_quota_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_plan_rpc_owner (login=false, bypassrls=false, database-definer-owner) | quota RPC only | true | true | quota_reservations_plan_rpc_owner_select, quota_reservations_quota_owner_insert, quota_reservations_quota_owner_select |  | migration-owner-only |
 | private.recommendation_runs | postgres | none |  | itinerary RPC only | true | true | recommendation_runs_guest_owner_all, recommendation_runs_plan_rpc_owner_all |  | migration-owner-only |
-| private.research_demo_booking_cancellations | postgres | none | localens_checkout_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_cancellation_customer_rpc_owner (login=false, bypassrls=false, database-definer-owner) | cancellation RPC inserts immutable history; checkout reads projection | true | true | research_checkout_cancellations_select, research_cancel_cancellations_select, research_cancel_cancellations_insert | SELECT -> localens_checkout_rpc_owner, SELECT -> localens_cancellation_customer_rpc_owner, INSERT -> localens_cancellation_customer_rpc_owner | database-internal; original postgres-owned baseline RPCs remain unreviewed |
-| private.research_demo_bookings | postgres | none | localens_checkout_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_cancellation_customer_rpc_owner (login=false, bypassrls=false, database-definer-owner) | named checkout/cancellation RPCs create bookings and mutate only permitted columns | true | true | research_checkout_bookings_select, research_checkout_bookings_insert, research_checkout_bookings_update, research_cancel_bookings_select, research_cancel_bookings_update | SELECT -> localens_checkout_rpc_owner, SELECT -> localens_cancellation_customer_rpc_owner, INSERT -> localens_checkout_rpc_owner, UPDATE (checkout_details, paid_at, payment_status, status) -> localens_checkout_rpc_owner, UPDATE (status) -> localens_cancellation_customer_rpc_owner | database-internal; original postgres-owned baseline RPCs remain unreviewed |
-| private.research_demo_catalog_versions | postgres | none |  | original postgres-owned catalog path remains outside reviewed permission graph | true | true |  |  | database-internal; original postgres-owned baseline RPCs remain unreviewed |
-| private.research_demo_places | postgres | none |  | original migration materializes catalog mapping; no named-role policy | true | true |  |  | database-internal; original postgres-owned baseline RPCs remain unreviewed |
-| private.research_demo_quotes | postgres | none | localens_checkout_rpc_owner (login=false, bypassrls=false, database-definer-owner) | original postgres-owned quote RPC remains unreviewed; named checkout owner reads | true | true | research_checkout_quotes_select | SELECT -> localens_checkout_rpc_owner | database-internal; original postgres-owned baseline RPCs remain unreviewed |
-| private.research_demo_request_events | postgres | none |  | named checkout owner appends events; original postgres-owned workflow writers remain unreviewed | true | true | research_checkout_events_insert | INSERT (actor_id, note, request_id, status) -> localens_checkout_rpc_owner | database-internal; original postgres-owned baseline RPCs remain unreviewed |
-| private.research_demo_requests | postgres | none | localens_checkout_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_cancellation_customer_rpc_owner (login=false, bypassrls=false, database-definer-owner) | named checkout/cancellation owners lock with UPDATE(id); original workflow writers remain unreviewed | true | true | research_checkout_requests_select, research_checkout_requests_lock, research_cancel_requests_select, research_cancel_requests_lock | SELECT -> localens_checkout_rpc_owner, UPDATE (id) -> localens_checkout_rpc_owner, SELECT -> localens_cancellation_customer_rpc_owner, UPDATE (id) -> localens_cancellation_customer_rpc_owner | database-internal; original postgres-owned baseline RPCs remain unreviewed |
-| private.research_demo_revision_links | postgres | none |  | original postgres-owned edit RPC remains unreviewed; no named-role policy | true | false |  |  | database-internal; original postgres-owned baseline RPCs remain unreviewed |
-| private.research_demo_revisions | postgres | none | localens_checkout_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_cancellation_customer_rpc_owner (login=false, bypassrls=false, database-definer-owner) | original postgres-owned persist RPC remains unreviewed; named owners read | true | true | research_checkout_revisions_select, research_cancel_revisions_select | SELECT -> localens_checkout_rpc_owner, SELECT -> localens_cancellation_customer_rpc_owner | database-internal; original postgres-owned baseline RPCs remain unreviewed |
-| private.research_demo_stops | postgres | none |  | original postgres-owned persist RPC remains unreviewed; no named-role policy | true | true |  |  | database-internal; original postgres-owned baseline RPCs remain unreviewed |
+| private.research_demo_booking_cancellations | postgres | none | localens_checkout_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_cancellation_customer_rpc_owner (login=false, bypassrls=false, database-definer-owner) | cancellation RPC inserts immutable history; checkout reads projection | true | true | research_cancel_cancellations_insert, research_cancel_cancellations_select, research_checkout_cancellations_select | SELECT -> localens_checkout_rpc_owner, SELECT -> localens_cancellation_customer_rpc_owner, INSERT -> localens_cancellation_customer_rpc_owner | database-internal; original postgres-owned baseline RPCs remain unreviewed |
+| private.research_demo_bookings | postgres | none | localens_checkout_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_cancellation_customer_rpc_owner (login=false, bypassrls=false, database-definer-owner) | named checkout/cancellation RPCs create bookings and mutate only permitted columns | true | true | remaining_runtime_list_bookings, research_cancel_bookings_select, research_cancel_bookings_update, research_checkout_bookings_insert, research_checkout_bookings_select, research_checkout_bookings_update | SELECT -> localens_checkout_rpc_owner, SELECT -> localens_cancellation_customer_rpc_owner, INSERT -> localens_checkout_rpc_owner, UPDATE (checkout_details, paid_at, payment_status, status) -> localens_checkout_rpc_owner, UPDATE (status) -> localens_cancellation_customer_rpc_owner | database-internal; original postgres-owned baseline RPCs remain unreviewed |
+| private.research_demo_catalog_versions | postgres | none |  | original postgres-owned catalog path remains outside reviewed permission graph | true | true | remaining_runtime_17 |  | database-internal; original postgres-owned baseline RPCs remain unreviewed |
+| private.research_demo_places | postgres | none |  | original migration materializes catalog mapping; no named-role policy | true | true | remaining_runtime_13 |  | database-internal; original postgres-owned baseline RPCs remain unreviewed |
+| private.research_demo_quotes | postgres | none | localens_checkout_rpc_owner (login=false, bypassrls=false, database-definer-owner) | original postgres-owned quote RPC remains unreviewed; named checkout owner reads | true | true | remaining_runtime_22, remaining_runtime_30, remaining_runtime_32, research_checkout_quotes_select | SELECT -> localens_checkout_rpc_owner | database-internal; original postgres-owned baseline RPCs remain unreviewed |
+| private.research_demo_request_events | postgres | none |  | named checkout owner appends events; original postgres-owned workflow writers remain unreviewed | true | true | remaining_runtime_21, remaining_runtime_27, remaining_runtime_33, research_checkout_events_insert | INSERT (actor_id, note, request_id, status) -> localens_checkout_rpc_owner | database-internal; original postgres-owned baseline RPCs remain unreviewed |
+| private.research_demo_requests | postgres | none | localens_checkout_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_cancellation_customer_rpc_owner (login=false, bypassrls=false, database-definer-owner) | named checkout/cancellation owners lock with UPDATE(id); original workflow writers remain unreviewed | true | true | remaining_runtime_12, remaining_runtime_20, remaining_runtime_26, remaining_runtime_28, remaining_runtime_29, remaining_runtime_31, research_cancel_requests_lock, research_cancel_requests_select, research_checkout_requests_lock, research_checkout_requests_select | SELECT -> localens_checkout_rpc_owner, UPDATE (id) -> localens_checkout_rpc_owner, SELECT -> localens_cancellation_customer_rpc_owner, UPDATE (id) -> localens_cancellation_customer_rpc_owner | database-internal; original postgres-owned baseline RPCs remain unreviewed |
+| private.research_demo_revision_links | postgres | none |  | original postgres-owned edit RPC remains unreviewed; no named-role policy | true | true | remaining_runtime_11, remaining_runtime_16, remaining_runtime_23 |  | database-internal; original postgres-owned baseline RPCs remain unreviewed |
+| private.research_demo_revisions | postgres | none | localens_checkout_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_cancellation_customer_rpc_owner (login=false, bypassrls=false, database-definer-owner) | original postgres-owned persist RPC remains unreviewed; named owners read | true | true | remaining_runtime_10, remaining_runtime_14, remaining_runtime_18, remaining_runtime_24, remaining_runtime_quote_source, research_cancel_revisions_select, research_checkout_revisions_select | SELECT -> localens_checkout_rpc_owner, SELECT -> localens_cancellation_customer_rpc_owner | database-internal; original postgres-owned baseline RPCs remain unreviewed |
+| private.research_demo_stops | postgres | none |  | original postgres-owned persist RPC remains unreviewed; no named-role policy | true | true | remaining_runtime_15, remaining_runtime_19, remaining_runtime_25 |  | database-internal; original postgres-owned baseline RPCs remain unreviewed |
 | private.runtime_planner_operations | localens_plan_rpc_owner | none |  | service-role planner operation RPCs only | true | true | runtime_planner_operations_plan_rpc_owner_all |  | migration-owner-only |
 | private.seo_build_capabilities | postgres | none |  | capability RPC only | true | true | seo_build_capabilities_admin_owner_insert, seo_build_capabilities_admin_owner_select, seo_build_capabilities_admin_owner_update, seo_build_capabilities_build_owner_all, seo_build_capabilities_build_owner_update |  | migration-owner-only |
 | private.seo_live_pointer | postgres | none |  | finalize RPC only | true | true | seo_live_pointer_build_owner_all, seo_live_pointer_public_owner_select |  | migration-owner-only |
 | private.simulated_payment_receipts | postgres | none |  | fixed-tour simulated-payment RPC only | true | true | simulated_payment_receipts_checkout_owner_select, simulated_payment_receipts_payment_guard_select, simulated_payment_receipts_projection_owner_select, simulated_payment_receipts_rpc_owner_all, simulated_receipts_booking_projection_select, simulated_receipts_cancellation_admin_select, simulated_receipts_cancellation_customer_select |  | migration-owner-only |
 | private.stripe_test_settings | postgres | none |  | Stripe Test finalizer only | true | true | stripe_test_settings_payment_owner_lock, stripe_test_settings_payment_owner_select |  | migration-owner-only |
-| private.thesis_demo_manifest | postgres | none |  | verified thesis-demo seeder through the migration-owner database connection only | true | true | research_actor_manifest_select, thesis_demo_manifest_migration_owner_all |  | migration-owner-only |
+| private.thesis_demo_manifest | postgres | none |  | verified thesis-demo seeder through the migration-owner database connection only | true | true | remaining_runtime_9, research_actor_manifest_select, thesis_demo_manifest_migration_owner_all |  | migration-owner-only |
 | private.thesis_demo_qa_slots | postgres | none | localens_checkout_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_simulated_payment_rpc_owner (login=false, bypassrls=false, database-definer-owner), localens_cancellation_customer_rpc_owner (login=false, bypassrls=false, database-definer-owner) | verified thesis-demo seeder writes four metadata-only QA slots through the migration-owner database connection | true | true | thesis_demo_qa_slots_cancellation_customer_rpc_owner_select, thesis_demo_qa_slots_checkout_rpc_owner_select, thesis_demo_qa_slots_simulated_payment_rpc_owner_select | column SELECT to the three named terminal-flow definer owners only | migration-owner-only |
-| private.user_roles | postgres | none |  | provision_role RPC only | true | true | research_actor_user_roles_select, user_roles_admin_guide_runtime_projection_select, user_roles_admin_summary_select, user_roles_auth_trigger_insert, user_roles_auth_trigger_select, user_roles_cancellation_admin_projection_select, user_roles_cancellation_admin_rpc_select, user_roles_cancellation_customer_projection_select, user_roles_cancellation_customer_rpc_select, user_roles_catalog_rpc_select, user_roles_checkout_owner_select, user_roles_claim_rpc_select, user_roles_content_admin_select, user_roles_guide_assignment_owner_select, user_roles_identity_rpc_insert, user_roles_identity_rpc_select, user_roles_plan_rpc_select, user_roles_request_admin_rpc_select, user_roles_request_customer_rpc_select, user_roles_simulated_payment_owner_select |  | migration-owner-only |
+| private.user_roles | postgres | none |  | provision_role RPC only | true | true | remaining_runtime_2, remaining_runtime_8, research_actor_user_roles_select, reviewed_rpc_actor_role, user_roles_admin_guide_runtime_projection_select, user_roles_admin_summary_select, user_roles_auth_trigger_insert, user_roles_auth_trigger_select, user_roles_cancellation_admin_projection_select, user_roles_cancellation_admin_rpc_select, user_roles_cancellation_customer_projection_select, user_roles_cancellation_customer_rpc_select, user_roles_catalog_rpc_select, user_roles_checkout_owner_select, user_roles_claim_rpc_select, user_roles_content_admin_select, user_roles_guide_assignment_owner_select, user_roles_identity_rpc_insert, user_roles_identity_rpc_select, user_roles_plan_rpc_select, user_roles_request_admin_rpc_select, user_roles_request_customer_rpc_select, user_roles_simulated_payment_owner_select |  | migration-owner-only |
 | private.webhook_events | postgres | none |  | Stripe webhook finalizer only | true | true | webhook_events_payment_owner_all |  | migration-owner-only |
 | public.area_translations | postgres | none |  | none | true | true | area_translations_public_select, catalog_owner_all |  | migration-owner-only |
 | public.areas | postgres | none |  | none | true | true | areas_public_select, catalog_owner_all |  | migration-owner-only |
@@ -119,7 +123,7 @@ Migration owner for default privileges: postgres
 | public.catalog_snapshot_place_opening_exceptions | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_opening_exceptions_public_select |  | migration-owner-only |
 | public.catalog_snapshot_place_opening_hours | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_opening_hours_public_select |  | migration-owner-only |
 | public.catalog_snapshot_place_supports | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_supports_public_select |  | migration-owner-only |
-| public.catalog_snapshot_place_translations | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_translations_public_select, catalog_snapshot_place_translations_tour_guard_select, catalog_snapshot_place_translations_tour_public_select |  | migration-owner-only |
+| public.catalog_snapshot_place_translations | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_place_translations_public_select, catalog_snapshot_place_translations_tour_guard_select, catalog_snapshot_place_translations_tour_public_select, snapshot_translations_guide_schedule_select |  | migration-owner-only |
 | public.catalog_snapshot_places | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshot_places_plan_rpc_select, catalog_snapshot_places_public_select, catalog_snapshot_places_tour_guard_select, catalog_snapshot_places_tour_public_select |  | migration-owner-only |
 | public.catalog_snapshots | postgres | none |  | none | true | true | catalog_owner_all, catalog_snapshots_availability_owner_select, catalog_snapshots_checkout_owner_select, catalog_snapshots_guard_lock, catalog_snapshots_guard_select, catalog_snapshots_plan_rpc_select, catalog_snapshots_public_select, catalog_snapshots_tour_guard_select |  | migration-owner-only |
 | public.content_drafts | postgres | none |  | content admin RPC only | true | true | content_drafts_admin_owner_all |  | migration-owner-only |
@@ -137,8 +141,8 @@ Migration owner for default privileges: postgres
 | public.food_vendors | postgres | none |  | catalog maintenance RPC only | true | true | catalog_owner_all, food_vendors_admin_review_select, food_vendors_admin_review_update, food_vendors_guard_select |  | migration-owner-only |
 | public.fx_snapshots | postgres | none |  | FX snapshot RPC only | true | true | fx_snapshots_catalog_owner_all, fx_snapshots_checkout_owner_select, fx_snapshots_plan_rpc_select, fx_snapshots_request_admin_rpc_lock, fx_snapshots_request_admin_rpc_select |  | migration-owner-only |
 | public.guide_assignments | postgres | none |  | guide assignment RPC only | true | true | guide_assignments_admin_runtime_projection_select, guide_assignments_projection_owner_select, guide_assignments_rpc_owner_all |  | migration-owner-only |
-| public.guide_profiles | postgres | none |  | none | true | true | guide_profiles_admin_guide_runtime_projection_select, guide_profiles_admin_summary_select, guide_profiles_guide_assignment_owner_select, guide_profiles_guide_select |  | migration-owner-only |
-| public.payments | postgres | none |  | payment/admin RPC only | true | true | payments_booking_projection_select, payments_admin_reconciliation_update, payments_admin_select, payments_cancellation_admin_select, payments_cancellation_customer_select, payments_checkout_owner_select, payments_payment_owner_all, payments_projection_owner_select, payments_simulated_payment_owner_select |  | migration-owner-only |
+| public.guide_profiles | postgres | none |  | none | true | true | guide_profiles_admin_guide_runtime_projection_select, guide_profiles_admin_summary_select, guide_profiles_guide_assignment_owner_select, guide_profiles_guide_select, remaining_runtime_5, remaining_runtime_6 |  | migration-owner-only |
+| public.payments | postgres | none |  | payment/admin RPC only | true | true | payments_admin_reconciliation_update, payments_admin_select, payments_booking_projection_select, payments_cancellation_admin_select, payments_cancellation_customer_select, payments_checkout_owner_select, payments_payment_owner_all, payments_projection_owner_select, payments_simulated_payment_owner_select |  | migration-owner-only |
 | public.place_experience_types | postgres | none |  | none | true | true | catalog_owner_all, place_experience_types_public_select |  | migration-owner-only |
 | public.place_guide_languages | postgres | none |  | none | true | true | catalog_owner_all, place_guide_languages_public_select |  | migration-owner-only |
 | public.place_opening_exception_windows | postgres | none |  | none | true | true | catalog_owner_all, place_opening_exception_windows_public_select |  | migration-owner-only |
@@ -147,11 +151,13 @@ Migration owner for default privileges: postgres
 | public.place_supports | postgres | none |  | none | true | true | catalog_owner_all, place_supports_public_select |  | migration-owner-only |
 | public.place_translations | postgres | none |  | none | true | true | catalog_owner_all, place_translations_public_select |  | migration-owner-only |
 | public.places | postgres | none |  | none | true | true | catalog_owner_all, food_vendor_completeness_place_guard_select, places_public_select |  | migration-owner-only |
-| public.profiles | postgres | none | authenticated (login=false, bypassrls=false, browser-jwt) | none | true | true | profiles_admin_summary_select, profiles_auth_trigger_insert, profiles_auth_trigger_select, profiles_customer_select, profiles_portal_identity_select, profiles_request_customer_rpc_language_select | SELECT -> authenticated | migration-owner-only |
+| public.profiles | postgres | none | authenticated (login=false, bypassrls=false, browser-jwt) | none | true | true | profiles_admin_summary_select, profiles_auth_trigger_insert, profiles_auth_trigger_select, profiles_customer_select, profiles_portal_identity_select, profiles_request_customer_rpc_language_select, profiles_self_update, remaining_runtime_3, remaining_runtime_4 | SELECT -> authenticated | migration-owner-only |
+| public.reviewed_demo_bookings | postgres | RPC-mediated; direct grants subject to RLS |  | Existing runtime only; see explicit grant inventory | true | true | reviewed_bookings_own_read, reviewed_rpc_insert, reviewed_rpc_select, reviewed_rpc_update |  | migration-owner-only |
+| public.reviewed_demo_departures | postgres | RPC-mediated; direct grants subject to RLS |  | Existing runtime only; see explicit grant inventory | true | true | reviewed_departures_read, reviewed_rpc_departure_lock, reviewed_rpc_departures |  | migration-owner-only |
 | public.seo_releases | postgres | none |  | publication RPC only | true | true | seo_releases_admin_owner_all, seo_releases_build_owner_select, seo_releases_build_owner_update, seo_releases_public_owner_select |  | migration-owner-only |
 | public.tour_translations | postgres | none |  | none | true | true | tour_guard_translations_select, tour_owner_all, tour_translations_public_select |  | migration-owner-only |
-| public.tour_version_stops | postgres | none |  | none | true | true | tour_guard_version_stops_select, tour_owner_all, tour_version_stops_public_select |  | migration-owner-only |
-| public.tour_version_translations | postgres | none |  | none | true | true | tour_guard_version_translations_select, tour_owner_all, tour_version_translations_checkout_owner_select, tour_version_translations_public_select |  | migration-owner-only |
+| public.tour_version_stops | postgres | none |  | none | true | true | tour_guard_version_stops_select, tour_owner_all, tour_stops_guide_schedule_select, tour_version_stops_public_select |  | migration-owner-only |
+| public.tour_version_translations | postgres | none |  | none | true | true | tour_copy_guide_schedule_select, tour_guard_version_translations_select, tour_owner_all, tour_version_translations_checkout_owner_select, tour_version_translations_public_select |  | migration-owner-only |
 | public.tour_versions | postgres | none |  | tour lifecycle RPC only | true | true | tour_guard_versions_select, tour_owner_all, tour_versions_availability_owner_select, tour_versions_checkout_owner_lock, tour_versions_checkout_owner_select, tour_versions_guard_lock, tour_versions_public_select |  | migration-owner-only |
 | public.tours | postgres | none |  | tour lifecycle RPC only | true | true | tour_guard_tours_select, tour_owner_all, tours_availability_owner_select, tours_checkout_owner_lock, tours_checkout_owner_select, tours_guard_lock, tours_public_select |  | migration-owner-only |
 | public.travel_edges | postgres | none |  | travel snapshot RPC only | true | true | travel_edges_catalog_owner_all |  | migration-owner-only |
@@ -210,25 +216,67 @@ Migration owner for default privileges: postgres
 | public.get_admin_food_catalog_review_queue | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin reads bounded food review queue | browser-jwt |
 | public.get_admin_guide_assignment_queue | localens_guide_admin_projection_owner | authenticated (login=false, bypassrls=false, browser-jwt) | administrator reads confirmed scheduled fixed bookings and active assignments | browser-jwt |
 | public.get_guide_assigned_bookings | localens_guide_projection_owner | authenticated (login=false, bypassrls=false, browser-jwt) | guide reads sanitized queue | browser-jwt |
+| public.get_guide_schedule | localens_guide_projection_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
 | public.get_live_departure_availability | localens_availability_rpc_owner | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | hold-aware published availability read | browser-anonymous-or-jwt |
+| public.get_own_guide_profile | localens_guide_profile_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
 | public.get_portal_identity | localens_identity_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | authenticated owner identity read | browser-jwt |
+| public.get_research_demo_catalog | localens_catalog_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
 | public.get_runtime_planner_operation | localens_plan_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Edge reads one owner-scoped planner operation status plus bounded non-secret replay attestation counts without mutation | edge-service-role |
 | public.publish_seo | localens_content_admin_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin creates one publishing release | browser-jwt |
 | public.read_seo_build_release | localens_content_build_owner | localens_content_build_executor (login=true, bypassrls=false, edge-internal-content-build) | capability-scoped build read | edge-internal-content-build |
 | public.reconcile_payment | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | audited admin payment reconciliation | browser-jwt |
 | public.reject_runtime_planner_operation | localens_plan_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Edge records one allowlisted terminal planner failure | edge-service-role |
+| public.research_demo_begin_revision | localens_request_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
 | public.research_demo_booking | localens_checkout_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner reads/creates research booking and normalizes expiry | browser-jwt |
 | public.research_demo_cancel_booking | localens_cancellation_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner cancels eligible research booking with atomic immutable history | browser-jwt |
 | public.research_demo_checkout | localens_checkout_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner validates travelers and records simulated payment | browser-jwt |
+| public.research_demo_create_quote | localens_request_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.research_demo_decide | localens_request_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.research_demo_edit_context | localens_request_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.research_demo_list | localens_request_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.research_demo_persist | localens_research_persist_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.research_demo_persist_edit | localens_research_persist_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.research_demo_resubmit | localens_request_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.research_demo_resume | localens_request_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.research_demo_resume_latest | localens_request_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.research_demo_submit | localens_request_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
 | public.reserve_ai_quota | localens_ai_quota_rpc_owner | service_role (login=false, bypassrls=true, edge-service-role) | Edge reserves planner or Gemini quota through the helper-only wrapper | edge-service-role |
 | public.review_custom_request | localens_request_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin reviews request | browser-jwt |
 | public.review_food_catalog_item | localens_admin_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin reviews food evidence | browser-jwt |
+| public.reviewed_demo_availability | localens_reviewed_rpc_owner | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.reviewed_demo_begin | localens_reviewed_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.reviewed_demo_cancel | localens_reviewed_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.reviewed_demo_checkout | localens_reviewed_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.reviewed_demo_expire | localens_reviewed_rpc_owner | postgres (login=true, bypassrls=true, migration-owner-only) | Internal scheduled maintenance only | migration-maintenance-only |
+| public.reviewed_demo_moderate_review | localens_reviewed_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.reviewed_demo_pay | localens_reviewed_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.reviewed_demo_public_reviews | localens_reviewed_rpc_owner | anon (login=false, bypassrls=false, browser-anonymous), authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.reviewed_demo_read | localens_reviewed_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
+| public.reviewed_demo_review | localens_reviewed_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
 | public.submit_custom_request | localens_request_customer_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | owner submits request | browser-jwt |
+| public.update_own_guide_profile | localens_guide_profile_rpc_owner | authenticated (login=false, bypassrls=false, browser-jwt) | Existing runtime operation; API unchanged | existing-runtime-credentials |
 | public.upsert_content_draft | localens_content_admin_owner | authenticated (login=false, bypassrls=false, browser-jwt) | admin writes sanitized draft | browser-jwt |
 
 ## Internal functions
 
-Enumerated internal functions: 117. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.
+Enumerated internal functions: 125. SECURITY DEFINER functions require a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path and final 5s timeout. The following explicitly inventoried SECURITY INVOKER functions execute with the caller's privileges, not their owner's privileges.
+
+- INVOKER: `private.checkout_canonical_payload(uuid,text,uuid,integer,public.locale)`
+- INVOKER: `private.checkout_hash_equal(text,text)`
+- INVOKER: `private.content_url_is_safe(text)`
+- INVOKER: `private.guard_personalized_quote_deadline()`
+- INVOKER: `private.guard_personalized_request_deadline()`
+- INVOKER: `private.guard_research_demo_revision_locks()`
+- INVOKER: `private.guard_research_resubmitted_snapshot()`
+- INVOKER: `private.reject_research_demo_catalog_mutation()`
+- INVOKER: `private.research_demo_booking_payload(private.research_demo_bookings)`
+- INVOKER: `private.research_demo_cancellation_allowed(text,text,timestamptz,timestamptz,timestamptz)`
+- INVOKER: `private.research_demo_trip_start(private.research_demo_bookings)`
+- INVOKER: `private.set_trip_plan_updated_at()`
+- INVOKER: `private.set_updated_at()`
+- INVOKER: `private.valid_guide_requirement_flags(text[],text)`
+- INVOKER: `private.valid_tour_copy_array(text[])`
+- INVOKER: `public.reviewed_payment_sync()`
 
 - `private.accept_guide_assignment(uuid)`
 - `private.advance_guest_trip_plan_revision(uuid,integer,jsonb,jsonb)`
@@ -287,6 +335,11 @@ Enumerated internal functions: 117. All are non-API and must use a named NOLOGIN
 - `private.get_runtime_planner_operation_attestation(uuid,uuid)`
 - `private.guard_custom_request_insert()`
 - `private.guard_custom_request_mutation()`
+- `private.guard_guide_company_fields()`
+- `private.guard_personalized_quote_deadline()`
+- `private.guard_personalized_request_deadline()`
+- `private.guard_research_demo_revision_locks()`
+- `private.guard_research_resubmitted_snapshot()`
 - `private.guard_runtime_planner_operation_transition()`
 - `private.guard_tour_lifecycle()`
 - `private.guard_tour_translation_lifecycle()`
@@ -297,6 +350,7 @@ Enumerated internal functions: 117. All are non-API and must use a named NOLOGIN
 - `private.normalize_booking_payment_deadline()`
 - `private.normalize_capacity_hold_deadline()`
 - `private.persist_trip_plan_revision(uuid,integer,jsonb,uuid,uuid,text,smallint)`
+- `private.prevent_customer_email_change()`
 - `private.provision_role(uuid,public.app_role)`
 - `private.record_checkout_audit_event(public.audit_event_type,uuid,public.audit_target_type,uuid,text,text,public.audit_metadata_key,text,numeric,boolean)`
 - `private.record_checkout_session(uuid,uuid,text,timestamptz)`
@@ -320,6 +374,7 @@ Enumerated internal functions: 117. All are non-API and must use a named NOLOGIN
 - `private.reject_published_tour_child_insert()`
 - `private.reject_quota_reservation_mutation()`
 - `private.reject_real_payment_after_simulation()`
+- `private.reject_research_demo_catalog_mutation()`
 - `private.reject_tour_append_only_change()`
 - `private.reject_travel_fx_append_only_change()`
 - `private.reject_trip_plan_history_mutation()`
@@ -347,10 +402,11 @@ Enumerated internal functions: 117. All are non-API and must use a named NOLOGIN
 - `public.create_authenticated_trip_plan(uuid,jsonb)`
 - `public.decide_fixed_tour_cancellation(uuid,text,text,text)`
 - `public.request_fixed_tour_cancellation(uuid,text,text)`
+- `public.reviewed_payment_sync()`
 
 ## Explicit grants
 
-Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (695 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
+Final explicit GRANT/REVOKE state is enumerated in [docs/security/grants-manifest.json] (811 records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.
 
 ## Dynamic policy semantics
 

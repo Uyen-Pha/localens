@@ -66,7 +66,8 @@ export function renderMatrixMarkdown(matrix = loadMatrix()) {
     lines.push(`| ${item.name} | ${item.owner} | ${escapeCell(item.readerRoles.map((role) => roleLabel(role, matrix)).join(", "))} | ${escapeCell(item.writerOperation)} | ${item.credential} |`);
   }
 
-  lines.push("", "## Internal functions", "", `Enumerated internal functions: ${matrix.internalFunctions.length}. All are non-API and must use a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path, and the final 5s statement timeout.`);
+  lines.push("", "## Internal functions", "", `Enumerated internal functions: ${matrix.internalFunctions.length}. SECURITY DEFINER functions require a named NOLOGIN/NOBYPASSRLS owner, fixed empty search_path and final 5s timeout. The following explicitly inventoried SECURITY INVOKER functions execute with the caller's privileges, not their owner's privileges.`);
+  lines.push("", (matrix.invokerFunctions ?? []).map((name) => `- INVOKER: \`${name}\``).join("\n"));
   lines.push("", matrix.internalFunctions.slice().sort().map((name) => `- \`${name}\``).join("\n"));
 
   lines.push("", "## Explicit grants", "", `Final explicit GRANT/REVOKE state is enumerated in [${matrix.grantManifest ?? "docs/security/grants-manifest.json"}] (${matrix.grantCount ?? "machine-readable"} records). The checker compares object, privilege, column list, and exact grantee bidirectionally after ordered migrations.`);
