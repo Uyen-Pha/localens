@@ -203,7 +203,10 @@ function splitSqlList(value) {
 }
 
 function normalizeGrantRole(role) {
-  return role.trim().replace(/^"|"$/g, "").toLowerCase();
+  const identifier = role.trim();
+  return identifier.startsWith('"') && identifier.endsWith('"')
+    ? identifier.slice(1, -1).replaceAll('""', '"')
+    : identifier.toLowerCase();
 }
 
 function normalizeGrantTarget(target) {
@@ -255,15 +258,21 @@ function grantKey(grant) {
   return [grant.objectType, grant.objectName, grant.privilege, grant.columns.join(","), grant.grantee].join("|");
 }
 
+function mergeGrant(state, grant) {
+  const key = grantKey(grant);
+  state.set(key, { ...grant, ...(state.get(key)?.grantOption ? {grantOption:true} : {}) });
+}
+
 function applyGrantRecords(state, records) {
   for (const record of records) {
     if (record.action === "grant") {
-      const previous = state.get(grantKey(record));
-      state.set(grantKey(record), { ...record, action: undefined,
-        ...(previous?.grantOption ? { grantOption: true } : {}) });
+      mergeGrant(state, { ...record, action: undefined });
       continue;
     }
-    for (const [key, current] of [...state]) {
+    // Compute the whole revoke before merging split records. Otherwise a split
+    // can overwrite an existing column's grant option or revive a revoked one.
+    const next = new Map();
+    for (const current of state.values()) {
       const objectMatches = record.objectType.startsWith("all_")
         ? current.objectType === record.objectType.slice(4, -1) && current.objectName.startsWith(`${record.objectName}.`)
         : current.objectType === record.objectType && current.objectName === record.objectName;
@@ -271,26 +280,30 @@ function applyGrantRecords(state, records) {
       if (objectMatches && privilegeMatches && current.grantee === record.grantee
         && record.columns.length > 0 && current.columns.length > 0) {
         const affected = current.columns.filter((column) => record.columns.includes(column));
-        if (affected.length === 0) continue;
+        if (affected.length === 0) { mergeGrant(next, current); continue; }
         const remaining = current.columns.filter((column) => !record.columns.includes(column));
-        state.delete(key);
         if (remaining.length) {
           const rest = { ...current, columns: remaining };
-          state.set(grantKey(rest), rest);
+          mergeGrant(next, rest);
         }
         if (record.grantOptionOnly) {
           const retained = { ...current, columns: affected };
           delete retained.grantOption;
-          state.set(grantKey(retained), retained);
+          mergeGrant(next, retained);
         }
         continue;
       }
       const columnsMatch = record.columns.length === 0 || current.columns.join(",") === record.columns.join(",");
       if (objectMatches && privilegeMatches && columnsMatch && current.grantee === record.grantee) {
-        if (record.grantOptionOnly) delete current.grantOption;
-        else state.delete(key);
-      }
+        if (record.grantOptionOnly) {
+          const retained = {...current};
+          delete retained.grantOption;
+          mergeGrant(next, retained);
+        }
+      } else mergeGrant(next, current);
     }
+    state.clear();
+    for (const [key, grant] of next) state.set(key, grant);
   }
 }
 

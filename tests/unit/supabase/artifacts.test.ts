@@ -39,6 +39,33 @@ function runChecker(root: string, ...args: string[]): { status: number; output: 
 }
 
 describe("static Supabase artifact gate", () => {
+  it.each([
+    `GRANT SELECT(id) ON auth.users TO localens_reviewed_rpc_owner WITH GRANT OPTION;
+GRANT SELECT(id,email) ON auth.users TO localens_reviewed_rpc_owner;
+REVOKE SELECT(email) ON auth.users FROM localens_reviewed_rpc_owner;`,
+    `GRANT SELECT(id,email) ON auth.users TO localens_reviewed_rpc_owner;
+GRANT SELECT(id) ON auth.users TO localens_reviewed_rpc_owner WITH GRANT OPTION;
+REVOKE SELECT(email) ON auth.users FROM localens_reviewed_rpc_owner;`,
+    `GRANT SELECT(email) ON auth.users TO "Localens_Reviewed_Rpc_Owner";`,
+  ])("rejects surviving grant options or a differently cased quoted role: %s", (sql) => {
+    const root = fixtureRoot({'supabase/migrations/20260929090000_auth_review.sql': `BEGIN; ${sql} COMMIT;`});
+    try {
+      const result = runChecker(root);
+      expect(result.status).toBe(1);
+      expect(result.output).toMatch(/Auth boundary:/);
+    } finally { rmSync(root, {recursive:true, force:true}); }
+  });
+
+  it("accepts an exactly quoted allowed role after explicitly revoking its grant option", () => {
+    const root = fixtureRoot({'supabase/migrations/20260929090000_auth_review.sql': `BEGIN;
+GRANT SELECT(id) ON auth.users TO "localens_reviewed_rpc_owner" WITH GRANT OPTION;
+GRANT SELECT(id,email) ON auth.users TO "localens_reviewed_rpc_owner";
+REVOKE GRANT OPTION FOR SELECT(id) ON auth.users FROM "localens_reviewed_rpc_owner";
+REVOKE SELECT(email) ON auth.users FROM "localens_reviewed_rpc_owner";
+COMMIT;`});
+    try { expect(runChecker(root)).toMatchObject({status:0}); }
+    finally { rmSync(root, {recursive:true, force:true}); }
+  });
   it("restores postgres locally without resetting the hosted CLI session role", () => {
     const migrations = readdirSync(join(repoRoot, "supabase", "migrations"))
       .filter((file) => file.endsWith(".sql") && file >= "20260823093000_")

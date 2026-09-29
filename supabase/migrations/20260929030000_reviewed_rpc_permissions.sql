@@ -14,6 +14,12 @@ BEGIN
      OR member='localens_reviewed_rpc_owner'::regrole) THEN
   RAISE EXCEPTION 'UNSAFE_REVIEWED_MEMBERSHIP';
  END IF;
+ -- Reject effective CREATE, including PUBLIC grants, before adding any grants.
+ IF EXISTS (SELECT 1 FROM pg_catalog.pg_namespace
+  WHERE nspname IN ('public','private','auth')
+   AND pg_catalog.has_schema_privilege('localens_reviewed_rpc_owner',oid,'CREATE')) THEN
+  RAISE EXCEPTION 'EXCESS_REVIEWED_OWNER_SCHEMA_CREATE';
+ END IF;
  IF pg_catalog.has_table_privilege('localens_reviewed_rpc_owner','public.reviewed_demo_bookings','DELETE,TRUNCATE,TRIGGER,REFERENCES,MAINTAIN')
   OR pg_catalog.has_table_privilege('localens_reviewed_rpc_owner','public.reviewed_demo_departures','INSERT,DELETE,TRUNCATE,TRIGGER,REFERENCES,MAINTAIN')
   OR pg_catalog.has_table_privilege('localens_reviewed_rpc_owner','private.user_roles','INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES,MAINTAIN')

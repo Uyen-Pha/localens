@@ -1,5 +1,6 @@
 import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
+import {validateLocalTap} from './validate-local-tap.mjs';
 const container='supabase_db_localens-release-20260929-verified';
 const read=(p)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const unwrap=(sql)=>sql.replace(/^BEGIN;\r?$/gm,'').replace(/^COMMIT;\r?$/gm,'').replace(/^ROLLBACK;\r?$/gm,'');
@@ -7,13 +8,15 @@ const reviewed=unwrap(read('supabase/migrations/20260929030000_reviewed_rpc_perm
 const candidate=process.argv.includes('--baseline')?'':unwrap(read('supabase/migrations/20260929040000_remaining_runtime_permissions.sql'));
 const fixtures=read('supabase/tests/research/fixtures.sql');
 const tests=read('supabase/tests/database/remaining-runtime-permissions.sql');
-function run(label,sql) {
+function run(label,sql,expectedAssertions) {
  let output;
  try {output=execFileSync('docker',['exec','-i',container,'psql','-X','-b','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:sql,encoding:'utf8',maxBuffer:32*1024*1024,stdio:['pipe','pipe','pipe']});}
  catch(error){throw new Error(label+' SQL failed\n'+error.stdout+'\n'+error.stderr);}
- if(/not ok|Looks like you failed|planned \d+ tests but ran/i.test(output)||!output.includes('ROLLBACK')) throw new Error(label+' failed\n'+output);
- const count=(output.match(/\bok \d+ -/g)||[]).length;
- console.log('PASS '+label+'; '+count+' assertions; transaction rolled back');
+ let count;
+ try {count=validateLocalTap(output,expectedAssertions);}
+ catch(error){throw new Error(label+' failed: '+error.message+'\n'+output);}
+ console.log(`${count.skipped || count.todo ? 'COMPLETE WITH DIRECTIVES' : 'PASS'} ${label}; ${count.total} planned/results; ${count.passed} passed; ${count.skipped} skipped; ${count.todo} TODO; transaction rolled back`);
+ for (const directive of count.directives) console.log('  '+directive);
 }
 const snapshot=`
 CREATE TEMP TABLE remaining_api_before AS
@@ -40,7 +43,7 @@ EXECUTE format('SELECT md5(coalesce(string_agg(v, %L ORDER BY v), %L)) FROM (SEL
 IF d IS DISTINCT FROM t.digest THEN RAISE EXCEPTION 'BUSINESS_ROWS_CHANGED: %.%',t.nspname,t.relname; END IF;
 END LOOP; END $$;`;
 run('remaining permissions: apply twice, API/all-existing-role ACL/row invariance and functional pgTAP',
- 'BEGIN;\n'+reviewed+'\n'+snapshot+'\n'+candidate+'\n'+invariance+'\n'+candidate+'\n'+invariance+'\n'+fixtures+'\n'+tests+'\nROLLBACK;');
+ 'BEGIN;\n'+reviewed+'\n'+snapshot+'\n'+candidate+'\n'+invariance+'\n'+candidate+'\n'+invariance+'\n'+fixtures+'\n'+tests+'\nROLLBACK;',35);
 if(!process.argv.includes('--baseline')) {
  const schemaFailures=[];
  for (const owner of ['localens_guide_profile_rpc_owner','localens_research_persist_rpc_owner']) {
@@ -50,13 +53,13 @@ if(!process.argv.includes('--baseline')) {
      'CREATE ROLE '+owner+' NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS; GRANT CREATE ON SCHEMA '+schema+' TO '+owner+';\n'+
      "SELECT plan(3); SELECT ok(has_schema_privilege('"+owner+"','"+schema+"','CREATE'),'fixture has effective schema CREATE');\n"+
      'SELECT throws_ok($candidate$'+candidate+"$candidate$,'P0001','EXCESS_REMAINING_OWNER_SCHEMA_CREATE: "+owner+"','schema CREATE rejected before grants');\n"+
-     "SELECT is((SELECT pg_get_userbyid(proowner)::text FROM pg_proc WHERE oid='public.get_own_guide_profile()'::regprocedure),'postgres','rejection leaves original owner'); SELECT * FROM finish(); ROLLBACK;");
+     "SELECT is((SELECT pg_get_userbyid(proowner)::text FROM pg_proc WHERE oid='public.get_own_guide_profile()'::regprocedure),'postgres','rejection leaves original owner'); SELECT * FROM finish(); ROLLBACK;",3);
    } catch(error) { schemaFailures.push(error.message); }
   }
  }
  if(schemaFailures.length) throw new Error(schemaFailures.join('\n'));
  const guide=unwrap(read('supabase/tests/database/guide_personal_profile_test.sql'));
- run('existing guide profile behavior','BEGIN;\n'+reviewed+'\n'+candidate+'\n'+guide+'\nROLLBACK;');
+ run('existing guide profile behavior','BEGIN;\n'+reviewed+'\n'+candidate+'\n'+guide+'\nROLLBACK;',10);
  // Legacy cancellation cases intentionally use 47h/49h departures, below the
  // newer 72h submission gate. Create through real RPCs at 96h, then bind a
  // separate historical snapshot for cancellation boundaries. No trigger or
@@ -75,7 +78,8 @@ DECLARE b jsonb; child uuid; BEGIN
  PERFORM set_config('role','none',true);
  RETURN b;
 END $$;`;
- for (const file of ['research_permissions_test.sql','research_deadline_integration_test.sql','research_booking_cancellation_test.sql']) {
+ // Fresh full-release deadline suite: 32 checks plus one explicit historical-fixture SKIP.
+ for (const [file,expectedAssertions] of [['research_permissions_test.sql',82],['research_deadline_integration_test.sql',33],['research_booking_cancellation_test.sql',122]]) {
   const adapter=file==='research_booking_cancellation_test.sql'?legacyCancellationFixture:'';
   let suite=read('supabase/tests/research/'+file);
   if(adapter) {
@@ -85,7 +89,7 @@ END $$;`;
    if(!suite.includes(marker)) throw new Error('Legacy actor fixture changed; review adapter');
    suite=suite.replace(marker,'DELETE FROM private.user_roles WHERE user_id IN (SELECT id FROM test_actors);\n'+marker);
   }
-  run('existing '+file+(adapter?' (historical boundary/actor fixtures)':''),'BEGIN;\n'+reviewed+'\n'+candidate+'\n'+fixtures+'\n'+adapter+'\n'+suite+'\nROLLBACK;');
+  run('existing '+file+(adapter?' (historical boundary/actor fixtures)':''),'BEGIN;\n'+reviewed+'\n'+candidate+'\n'+fixtures+'\n'+adapter+'\n'+suite+'\nROLLBACK;',expectedAssertions);
  }
  for (const owner of ['localens_guide_profile_rpc_owner','localens_research_persist_rpc_owner']) {
   for (const [label,setup,error] of [
@@ -98,7 +102,7 @@ END $$;`;
    const safe='CREATE ROLE '+owner+' NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;';
    run(owner+' rejects '+label,'BEGIN; CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions; SET LOCAL search_path=public,extensions;\n'+safe+'\n'+setup+
     '\nSELECT plan(2); SELECT throws_ok($candidate$'+candidate+"$candidate$,'P0001','"+error+"','unsafe role rejected before migration changes');"+
-    "\nSELECT is((SELECT pg_get_userbyid(proowner)::text FROM pg_proc WHERE oid='public.get_own_guide_profile()'::regprocedure),'postgres','rejected candidate leaves original owner'); SELECT * FROM finish(); ROLLBACK;");
+    "\nSELECT is((SELECT pg_get_userbyid(proowner)::text FROM pg_proc WHERE oid='public.get_own_guide_profile()'::regprocedure),'postgres','rejected candidate leaves original owner'); SELECT * FROM finish(); ROLLBACK;",2);
   }
  }
 }

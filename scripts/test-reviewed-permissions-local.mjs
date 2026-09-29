@@ -1,19 +1,19 @@
 import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
+import {validateLocalTap} from './validate-local-tap.mjs';
 
 // Dedicated local Docker target; never accepts a database URL or hosted credentials.
 const container = 'supabase_db_localens-release-20260929-verified';
 const candidate = readFileSync(new URL('../supabase/migrations/20260929030000_reviewed_rpc_permissions.sql', import.meta.url),'utf8')
   .replace(/^BEGIN;\r?$/m,'').replace(/^COMMIT;\r?$/m,'');
 const tests = readFileSync(new URL('../supabase/tests/database/reviewed_permissions_test.sql', import.meta.url),'utf8');
-function run(label, sql, expectedAssertions = 24) {
-  const output = execFileSync('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:sql,encoding:'utf8',stdio:['pipe','pipe','pipe']});
-  if (/not ok|Looks like you failed|planned \d+ tests but ran/i.test(output) || !output.includes('ROLLBACK')) {
-    throw new Error(`${label} failed\n${output}`);
-  }
-  const count = (output.match(/\bok \d+ -/g) || []).length;
-  if (count !== expectedAssertions) throw new Error(`${label}: expected ${expectedAssertions} TAP assertions, got ${count}`);
-  console.log(`PASS ${label}; ${count} assertions; transaction rolled back`);
+function run(label, sql, expectedAssertions = 24, databaseUser = 'postgres') {
+  const output = execFileSync('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U',databaseUser,'-d','postgres'],{input:sql,encoding:'utf8',stdio:['pipe','pipe','pipe']});
+  let count;
+  try { count = validateLocalTap(output, expectedAssertions); }
+  catch (error) { throw new Error(`${label} failed: ${error.message}\n${output}`); }
+  console.log(`${count.skipped || count.todo ? 'COMPLETE WITH DIRECTIVES' : 'PASS'} ${label}; ${count.total} planned/results; ${count.passed} passed; ${count.skipped} skipped; ${count.todo} TODO; transaction rolled back`);
+  for (const directive of count.directives) console.log('  '+directive);
 }
 const snapshot = `CREATE TEMP TABLE reviewed_api_before AS
  SELECT p.oid,p.prosrc,p.proargnames,p.proargtypes::text,p.proargdefaults::text,p.prorettype,p.proretset,
@@ -36,6 +36,23 @@ run('clean role accepted with same TAP setup', `BEGIN; ${tapSetup} ${safeRole}
 SELECT plan(1);
 SELECT lives_ok($candidate_sql$${candidate}$candidate_sql$, 'clean owner accepted under rejection fixture');
 SELECT * FROM finish(); ROLLBACK;`, 1);
+const schemaFailures = [];
+for (const schema of ['public', 'private', 'auth']) {
+  for (const grantee of ['localens_reviewed_rpc_owner', 'PUBLIC']) {
+    try {
+      run(`reject effective CREATE on ${schema} via ${grantee}`, `BEGIN; SET LOCAL ROLE postgres; ${tapSetup} ${safeRole}
+RESET ROLE;
+GRANT CREATE ON SCHEMA ${schema} TO ${grantee};
+SET LOCAL ROLE postgres;
+SELECT plan(3);
+SELECT ok(has_schema_privilege('localens_reviewed_rpc_owner','${schema}','CREATE'), 'fixture has effective schema CREATE');
+SELECT throws_ok($candidate_sql$${candidate}$candidate_sql$, 'P0001', 'EXCESS_REVIEWED_OWNER_SCHEMA_CREATE', 'reject schema CREATE before grants');
+SELECT is((SELECT pg_get_userbyid(proowner)::text FROM pg_proc WHERE oid='public.reviewed_demo_cancel(uuid)'::regprocedure),'postgres','rejection leaves original owner intact');
+SELECT * FROM finish(); ROLLBACK;`, 3, schema === 'auth' ? 'supabase_admin' : 'postgres');
+    } catch (error) { schemaFailures.push(error.message); }
+  }
+}
+if (schemaFailures.length) throw new Error(schemaFailures.join('\n'));
 for (const [name, setup, error, fixture] of [
   ['departure insert column', 'GRANT INSERT(id) ON public.reviewed_demo_departures TO localens_reviewed_rpc_owner;', 'EXCESS_REVIEWED_OWNER_PRIVILEGE', "has_column_privilege('localens_reviewed_rpc_owner','public.reviewed_demo_departures','id','INSERT') AND NOT has_table_privilege('localens_reviewed_rpc_owner','public.reviewed_demo_departures','INSERT')"],
   ['departure references column', 'GRANT REFERENCES(id) ON public.reviewed_demo_departures TO localens_reviewed_rpc_owner;', 'EXCESS_REVIEWED_OWNER_PRIVILEGE', "has_column_privilege('localens_reviewed_rpc_owner','public.reviewed_demo_departures','id','REFERENCES') AND NOT has_table_privilege('localens_reviewed_rpc_owner','public.reviewed_demo_departures','REFERENCES')"],
@@ -47,7 +64,7 @@ for (const [name, setup, error, fixture] of [
   ['delete privilege', 'GRANT DELETE ON public.reviewed_demo_bookings TO localens_reviewed_rpc_owner;', 'EXCESS_REVIEWED_OWNER_PRIVILEGE'],
   ['unrelated table privilege', 'GRANT SELECT ON public.profiles TO localens_reviewed_rpc_owner;', 'EXCESS_REVIEWED_OWNER_PRIVILEGE'],
   ['unrelated column privilege', 'GRANT SELECT(display_name) ON public.profiles TO localens_reviewed_rpc_owner;', 'EXCESS_REVIEWED_OWNER_PRIVILEGE'],
-  ['unrelated owned function', 'GRANT localens_reviewed_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE; CREATE FUNCTION public.reviewed_owner_probe() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$; GRANT CREATE ON SCHEMA public TO localens_reviewed_rpc_owner; ALTER FUNCTION public.reviewed_owner_probe() OWNER TO localens_reviewed_rpc_owner;', 'EXCESS_REVIEWED_OWNER_PRIVILEGE'],
+  ['unrelated owned function', 'GRANT localens_reviewed_rpc_owner TO postgres WITH SET TRUE, INHERIT FALSE; CREATE FUNCTION public.reviewed_owner_probe() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$; GRANT CREATE ON SCHEMA public TO localens_reviewed_rpc_owner; ALTER FUNCTION public.reviewed_owner_probe() OWNER TO localens_reviewed_rpc_owner; REVOKE CREATE ON SCHEMA public FROM localens_reviewed_rpc_owner;', 'EXCESS_REVIEWED_OWNER_PRIVILEGE'],
 ]) {
   run(name, `BEGIN; ${tapSetup} ${safeRole} ${setup}
 SELECT plan(${fixture ? 3 : 2});
