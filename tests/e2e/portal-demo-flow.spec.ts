@@ -5,7 +5,7 @@ type PortalRole = "customer" | "guide" | "admin";
 
 const PORTAL_COPY = {
   en: {
-    signInHeading: "Sign in to your demo account",
+    signInHeading: "Choose an account to continue",
     customerIdentity: "Continue as Customer",
     guideIdentity: "Continue as Guide",
     adminIdentity: "Continue as Administrator",
@@ -20,7 +20,7 @@ const PORTAL_COPY = {
     cancellationReason: "Cancellation reason (optional)",
     confirmCancellation: "Confirm cancellation",
     cancelled: "Cancelled",
-    noPaymentState: "Payment state unavailable",
+    noPaymentState: "Awaiting payment",
     simulatedPayment: "Simulated payment — no card details are entered and no real charge occurs.",
     bookingManagement: "Booking management",
     tripPlanReason: "Trip plan or participation time changed",
@@ -35,12 +35,12 @@ const PORTAL_COPY = {
     saveProfile: "Save profile",
     profileSaved: "Profile saved in this demo session.",
     resetName: "Reset-check traveler",
-    seededName: "Demo Traveler",
-    chooseIdentity: "Choose a demo identity",
+    seededName: "LocalLens Customer",
+    chooseIdentity: "Choose an account",
     openYourPortal: "Open your portal",
-    resetDemo: "Reset LocalLens demo",
-    resetComplete: "LocalLens demo state was reset. Choose an identity to continue.",
-    demoNotice: "Demo-only.",
+    resetDemo: "Reset LocalLens experience",
+    resetComplete: "LocalLens experience was reset. Choose an account to continue.",
+    demoNotice: "This sign-in runs only in this browser. It does not verify a real account or protect live system data.",
     accessDeniedMessage: "This route is limited to the signed-in role.",
     customRequestUnavailable: "Customer portal unavailable",
     adminAccessDenied: "Admin portal unavailable",
@@ -50,7 +50,7 @@ const PORTAL_COPY = {
     signedInAsAdmin: "You are signed in as an Administrator.",
   },
   vi: {
-    signInHeading: "Đăng nhập tài khoản demo",
+    signInHeading: "Chọn tài khoản để tiếp tục",
     customerIdentity: "Tiếp tục với Khách hàng",
     guideIdentity: "Tiếp tục với Hướng dẫn viên",
     adminIdentity: "Tiếp tục với Quản trị viên",
@@ -65,7 +65,7 @@ const PORTAL_COPY = {
     cancellationReason: "Lý do hủy (không bắt buộc)",
     confirmCancellation: "Xác nhận hủy",
     cancelled: "Đã hủy",
-    noPaymentState: "Chưa có trạng thái thanh toán",
+    noPaymentState: "Chờ thanh toán",
     simulatedPayment: "Thanh toán mô phỏng — không nhập thông tin thẻ và không phát sinh giao dịch thật.",
     bookingManagement: "Quản lý đơn đặt tour",
     tripPlanReason: "Kế hoạch hoặc thời gian tham gia thay đổi",
@@ -80,12 +80,12 @@ const PORTAL_COPY = {
     saveProfile: "Lưu hồ sơ",
     profileSaved: "Đã lưu hồ sơ trong phiên demo này.",
     resetName: "Hành khách kiểm tra reset",
-    seededName: "Demo Traveler",
-    chooseIdentity: "Chọn danh tính demo",
+    seededName: "LocalLens Customer",
+    chooseIdentity: "Chọn tài khoản",
     openYourPortal: "Mở cổng của bạn",
-    resetDemo: "Đặt lại demo LocalLens",
-    resetComplete: "Đã đặt lại trạng thái demo LocalLens. Hãy chọn một danh tính để tiếp tục.",
-    demoNotice: "Chỉ là bản demo.",
+    resetDemo: "Đặt lại trải nghiệm LocalLens",
+    resetComplete: "Đã đặt lại trải nghiệm LocalLens. Hãy chọn tài khoản để tiếp tục.",
+    demoNotice: "Chế độ trải nghiệm",
     accessDeniedMessage: "Trang này chỉ dành cho vai trò đang đăng nhập.",
     customRequestUnavailable: "Cổng khách hàng không khả dụng",
     adminAccessDenied: "Cổng quản trị viên không khả dụng",
@@ -116,9 +116,9 @@ const IDENTITY_LABEL: Record<Locale, Record<PortalRole, string>> = {
 };
 
 const IDENTITY_DISPLAY_NAME: Record<PortalRole, string> = {
-  customer: "Demo Traveler",
-  guide: "Demo Guide",
-  admin: "Demo Administrator",
+  customer: "LocalLens Customer",
+  guide: "LocalLens Guide",
+  admin: "LocalLens Administrator",
 };
 
 interface BrowserDiagnostics {
@@ -362,11 +362,20 @@ async function chooseIdentity(page: Page, locale: Locale, role: PortalRole): Pro
 async function enterDemoIdentity(page: Page, locale: Locale, role: PortalRole): Promise<void> {
   await expect(page.getByRole("heading", { name: PORTAL_COPY[locale].signInHeading })).toBeVisible();
   await chooseIdentity(page, locale, role);
+  if (role === "customer") {
+    await page.getByRole("navigation", { name: locale === "vi" ? "Cài đặt tài khoản" : "Account settings" })
+      .getByRole("link", { name: locale === "vi" ? "Đơn đặt tour" : "Bookings", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/${locale}/bookings/?$`));
+  }
+}
+
+async function signOut(page: Page, locale: Locale): Promise<void> {
+  await page.getByRole("button", { name: locale === "vi" ? "Mở menu tài khoản" : "Open account menu", exact: true }).click();
+  await page.getByRole("button", { name: locale === "vi" ? "Đăng xuất" : "Log out", exact: true }).click();
 }
 
 async function switchRole(page: Page, locale: Locale, role: PortalRole): Promise<void> {
-  const copy = PORTAL_COPY[locale];
-  await page.getByRole("button", { name: copy.signOut, exact: true }).click();
+  await signOut(page, locale);
   await enterDemoIdentity(page, locale, role);
 }
 
@@ -387,7 +396,7 @@ test("customer cancellation before simulated payment is immediate, read-only for
 
   const customerBooking = page.getByRole("article", { name: copy.cancellationBooking });
   await expect(customerBooking).toBeVisible();
-  await expect(customerBooking.getByText(copy.noPaymentState, { exact: true })).toBeVisible();
+  await expect(customerBooking.locator("dt").filter({ hasText: /^Payment status$/ }).locator("xpath=..").getByRole("definition")).toHaveText(copy.noPaymentState);
   await expect(customerBooking.getByText(copy.simulatedPayment, { exact: true })).toBeVisible();
   await expect(customerBooking.getByRole("button", { name: /pay|payment|card|charge/i })).toHaveCount(0);
   await customerBooking.getByRole("button", { name: copy.cancelBooking, exact: true }).click();
@@ -458,7 +467,7 @@ test("Vietnamese direct entries deny the wrong role and protect the customer req
   await page.goto("/vi/account/");
   await enterDemoIdentity(page, "vi", "customer");
   const customerBooking = page.getByRole("article", { name: copy.cancellationBooking });
-  await expect(customerBooking.getByText(copy.noPaymentState, { exact: true })).toBeVisible();
+  await expect(customerBooking.locator("dt").filter({ hasText: /^Trạng thái thanh toán$/ }).locator("xpath=..").getByRole("definition")).toHaveText(copy.noPaymentState);
   await expect(customerBooking.getByText(copy.simulatedPayment, { exact: true })).toBeVisible();
   await page.goto("/vi/admin/");
   await expect(page.getByRole("heading", { name: copy.adminAccessDenied, exact: true })).toBeVisible();
@@ -534,13 +543,14 @@ test("bilingual portal entry and a browser reset restore the seeded customer fix
   await expect(page.getByRole("heading", { name: vi.signInHeading })).toBeVisible();
   await expect(page.getByRole("heading", { name: vi.customerPortal })).toHaveCount(0);
   await chooseIdentity(page, "vi", "customer");
-  await expect(page.getByRole("heading", { name: vi.customerPortal })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `Xin chào, ${vi.seededName}!`, exact: true })).toBeVisible();
 
+  await page.getByRole("button", { name: "Chỉnh sửa Họ và tên", exact: true }).click();
   await page.getByLabel(vi.fullName, { exact: true }).fill(vi.resetName);
-  await page.getByRole("button", { name: vi.saveProfile, exact: true }).click();
-  await expect(page.getByText(vi.profileSaved, { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Thông tin đã được cập nhật.");
 
-  await page.getByRole("button", { name: vi.signOut, exact: true }).click();
+  await signOut(page, "vi");
   await expect(page.getByRole("heading", { name: vi.signInHeading })).toBeVisible();
   await page.evaluate(() => {
     window.sessionStorage.setItem("other-app", "keep");
@@ -556,6 +566,8 @@ test("bilingual portal entry and a browser reset restore the seeded customer fix
     ownedBooking: window.localStorage.getItem("locallens.demo.booking.v1:reset-check"),
   }))).toEqual({ sessionOther: "keep", localOther: "keep", ownedBooking: null });
   await enterDemoIdentity(page, "vi", "customer");
+  await page.goto("/vi/account/");
+  await page.getByRole("button", { name: "Chỉnh sửa Họ và tên", exact: true }).click();
   await expect(page.getByLabel(vi.fullName, { exact: true })).toHaveValue(vi.seededName);
   await expect(page.getByText(vi.resetName, { exact: true })).toHaveCount(0);
   await assertPortalAccessibility(page);

@@ -14,7 +14,7 @@ const localizedShells = [
     heading: "Sài Gòn của bạn, được thiết kế quanh bạn",
     navigation: "Điều hướng chính",
     skipLink: "Bỏ qua đến nội dung chính",
-    links: ["Tour", "Hành trình cá nhân hóa", "Cách hoạt động"],
+    links: ["Tour", "Tour cá nhân hóa", "Cách hoạt động"],
     hrefs: ["/vi/tours/", "/vi/planner/", "/vi/#how-it-works"],
   },
 ] as const;
@@ -31,7 +31,7 @@ for (const shell of localizedShells) {
     });
     await expect(primaryNavigation).toBeVisible();
     for (const [index, link] of shell.links.entries()) {
-      await expect(primaryNavigation.getByRole("link", { name: link })).toHaveAttribute("href", shell.hrefs[index]);
+      await expect(primaryNavigation.getByRole("link", { name: link, exact: true })).toHaveAttribute("href", shell.hrefs[index]);
     }
 
     const skipLink = page.getByRole("link", { name: shell.skipLink });

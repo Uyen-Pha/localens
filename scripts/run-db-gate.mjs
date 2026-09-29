@@ -1,8 +1,15 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomBytes } from "node:crypto";
+import { rmSync } from "node:fs";
 
-import { assertNoRemoteMode, requireLocalSupabaseCli } from "./supabase-local.mjs";
+import { assertNoRemoteMode, requireLocalSupabaseCli, runLocalSupabase } from "./supabase-local.mjs";
+import { prepareIsolatedSupabaseProject, reserveRuntimeItineraryPorts, selectRuntimeItineraryBaseEnv, requireLocalDockerContext } from "./run-runtime-itinerary-e2e.mjs";
+import { assertBootstrapDirectory } from "./lib/local-ci-bootstrap.mjs";
+import { ensureDockerCliOnPath } from "./run-runtime-auth-e2e.mjs";
+import { runConcurrencyGate } from "./test-db-concurrency.mjs";
+import { checkGeneratedDatabaseTypes } from "./write-generated-db-types.mjs";
 
 export { assertNoRemoteMode } from "./supabase-local.mjs";
 
@@ -15,7 +22,6 @@ export const DB_GATE_STEPS = [
   "db:types:check",
 ];
 
-const LOCAL_SUPABASE_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 const CONTROLLED_DATABASE_ENVIRONMENT_KEYS = new Set([
   "LOCALENS_DB_URL",
   "LOCALENS_DB_CONCURRENCY",
@@ -35,8 +41,7 @@ export function exitCodeForError(error) {
 function packageScriptSpec(
   name,
   cwd,
-  platform = process.platform,
-  comSpec = process.env.ComSpec ?? "cmd.exe",
+  project,
   baseEnv = process.env,
 ) {
   const env = { ...baseEnv };
@@ -44,28 +49,38 @@ function packageScriptSpec(
     if (CONTROLLED_DATABASE_ENVIRONMENT_KEYS.has(key.toUpperCase())) delete env[key];
   }
   if (name === "db:concurrency") {
-    env.LOCALENS_DB_URL = LOCAL_SUPABASE_DATABASE_URL;
+    env.LOCALENS_DB_URL = `postgresql://postgres:postgres@127.0.0.1:${project.ports.database}/postgres`;
     env.LOCALENS_DB_CONCURRENCY = "1";
   }
-  if (platform === "win32") {
-    return {
-      name,
-      command: comSpec,
-      args: ["/d", "/s", "/c", `corepack.cmd pnpm run ${name}`],
-      cwd,
-      env,
-    };
-  }
+  const commands = {
+    'db:start': ['start', '--exclude', 'realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor'],
+    'db:reset': ['db', 'reset', '--local'],
+    'db:lint': ['db', 'lint', '--local', '--level', 'error', '--fail-on', 'error'],
+    'db:test': ['test', 'db', '--local'],
+    'db:types:check': ['gen', 'types', '--lang', 'typescript', '--local'],
+    'db:concurrency': [],
+    'db:stop': ['stop', '--no-backup'],
+  };
+  const localArgs = ['--workdir', project.root, ...commands[name]];
   return {
     name,
-    command: "pnpm",
-    args: ["run", name],
+    command: process.execPath,
+    args: [path.join(cwd, 'scripts', ['db:start', 'db:reset'].includes(name) ? 'local-ci-bootstrap.mjs' : 'supabase-local.mjs'), ...localArgs],
+    localArgs,
+    databasePort: project.ports.database,
     cwd,
     env,
   };
 }
 
 function runPackageScript(spec) {
+  if (spec.name === 'db:concurrency') return runConcurrencyGate({
+    databaseUrl: spec.env.LOCALENS_DB_URL, expectedPort: spec.databasePort,
+  }).then(() => ({ status: 0 }));
+  if (spec.name === 'db:types:check') return checkGeneratedDatabaseTypes({
+    rootDir: spec.cwd,
+    runner: async () => runLocalSupabase(spec.localArgs, { cwd: spec.cwd, env: spec.env, capture: true }),
+  }).then(() => ({ status: 0 }));
   return new Promise((resolve, reject) => {
     const child = spawn(spec.command, spec.args, {
       cwd: spec.cwd,
@@ -76,6 +91,17 @@ function runPackageScript(spec) {
     child.once("error", reject);
     child.once("close", (status) => resolve({ status: status ?? 1, stdout: "", stderr: "" }));
   });
+}
+
+async function prepareGate({ cwd, env }) {
+  ensureDockerCliOnPath({ env });
+  requireLocalDockerContext({ env });
+  const reservation = await reserveRuntimeItineraryPorts();
+  try {
+    const project = prepareIsolatedSupabaseProject({ cwd, ports: reservation.ports,
+      projectId: `localens-itinerary-${randomBytes(8).toString('hex')}` });
+    return { ...project, dispose: async () => rmSync(assertBootstrapDirectory(project.root), { recursive: true, force: true }) };
+  } finally { await reservation.release(); }
 }
 
 function asStepFailure(spec, result) {
@@ -90,18 +116,18 @@ function asStepFailure(spec, result) {
 export async function runDbGate(options = {}) {
   const cwd = options.cwd ?? process.cwd();
   const platform = options.platform ?? process.platform;
-  const comSpec = options.comSpec ?? process.env.ComSpec ?? "cmd.exe";
-  const env = options.env ?? process.env;
+  const env = selectRuntimeItineraryBaseEnv(options.env ?? process.env);
   const args = options.args ?? [];
   assertNoRemoteMode(args);
   const cliPath = requireLocalSupabaseCli({ cwd, cliPath: options.cliPath, platform });
   const runner = options.runner ?? runPackageScript;
+  const project = await (options.prepare ?? prepareGate)({ cwd, env });
   const calls = [];
   let failure = null;
 
   try {
     for (const name of DB_GATE_STEPS) {
-      const spec = packageScriptSpec(name, cwd, platform, comSpec, env);
+      const spec = packageScriptSpec(name, cwd, project, env);
       calls.push(spec);
       const result = await runner(spec);
       const stepFailure = asStepFailure(spec, result);
@@ -110,7 +136,7 @@ export async function runDbGate(options = {}) {
   } catch (error) {
     failure = error;
   } finally {
-    const stopSpec = packageScriptSpec("db:stop", cwd, platform, comSpec, env);
+    const stopSpec = packageScriptSpec("db:stop", cwd, project, env);
     calls.push(stopSpec);
     try {
       const stopResult = await runner(stopSpec);
@@ -118,7 +144,7 @@ export async function runDbGate(options = {}) {
       if (stopFailure) {
         if (failure) failure.cleanupError = stopFailure;
         else failure = stopFailure;
-      }
+      } else await project.dispose();
     } catch (cleanupError) {
       if (failure) failure.cleanupError = cleanupError;
       else failure = cleanupError;

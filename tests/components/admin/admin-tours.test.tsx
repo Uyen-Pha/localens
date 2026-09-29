@@ -1,4 +1,4 @@
-import {render,screen,fireEvent,within,cleanup} from '@testing-library/react';
+import {render,screen,fireEvent,within,cleanup,waitFor} from '@testing-library/react';
 import {describe,it,expect,afterEach} from 'vitest';
 import {AdminTours} from '@/components/admin/admin-tours';
 import {createDemoAdminToursPort} from '@/lib/infrastructure/demo/admin-tours';
@@ -8,10 +8,13 @@ afterEach(cleanup);
  render(<AdminTours port={createDemoAdminToursPort()}/>);
  await screen.findByRole('button',{name:'Xem Dấu ấn Sài Gòn'});
  const input=screen.getByRole('textbox',{name:'Tên tour'});
+ await waitFor(()=>expect(input).toHaveValue('Dấu ấn Sài Gòn'));
  fireEvent.change(input,{target:{value:'Nội dung đang sửa'}});
+ expect(input).toHaveValue('Nội dung đang sửa');
  fireEvent.click(screen.getByRole('button',{name:'Tạo tour mới'}));
  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button',{name:'Hủy'}));
- expect(input).toHaveValue('Nội dung đang sửa');
+ expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+ expect(screen.getByRole('textbox',{name:'Tên tour'})).toHaveValue('Nội dung đang sửa');
  });
  it('blocks archiving active departures and omits management-rule card',async()=>{
  render(<AdminTours port={createDemoAdminToursPort()}/>);

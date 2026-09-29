@@ -32,8 +32,8 @@ const routes = [
   { name: "custom-request-en", path: "/en/custom-request/", heading: "Request a review and quote" },
   {
     name: "booking-en",
-    path: "/en/booking/?departure=demo-departure-markets-and-street-food-2026-09-05&partySize=1",
-    heading: "Book a fixed tour",
+    path: "/en/booking/?departure=d1700000-0000-4000-8000-000000000421&partySize=1",
+    heading: "Saigon Heritage",
   },
 ] as const;
 
@@ -186,7 +186,8 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
     document.body.append(contrastFixture);
 
     const headingLevels = Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6"), (heading) => Number(heading.tagName.slice(1)));
-    const controlsWithoutLabels = Array.from(document.querySelectorAll("input, select, textarea"))
+    // Hidden form values are not exposed as controls to assistive technology.
+    const controlsWithoutLabels = Array.from(document.querySelectorAll('input:not([type="hidden"]), select, textarea'))
       .filter((control) => {
         const id = control.getAttribute("id");
         return !control.getAttribute("aria-label")
@@ -269,7 +270,7 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
   await page.keyboard.press("Tab");
   await expect(page.locator(".skip-link")).toBeFocused();
   await expect(page.locator(".skip-link")).toBeVisible();
-  const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const focusableSelector = 'a[href], button:not([disabled]), summary, input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
   const focusableCount = await page.evaluate((selector) => {
     const focusableElements = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter((element) => {
     const style = getComputedStyle(element);
@@ -372,7 +373,7 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
     if (!seenBefore) {
       visitedFocusAuditIds.add(focusState.auditId);
       expect(focusState.valid, `focus ${visitedFocusAuditIds.size}/${focusableCount} must be visible, in bounds, and have a 3:1 focus treatment: ${JSON.stringify(focusState)}`).toBe(true);
-      expect(focusState.label, `focus ${visitedFocusAuditIds.size}/${focusableCount} (${focusState.tag}) needs an accessible name`).not.toBe("");
+      await expect(page.locator(`[data-focus-audit-id="${focusState.auditId}"]`), `focus ${visitedFocusAuditIds.size}/${focusableCount} (${focusState.tag}) needs an accessible name`).toHaveAccessibleName(/\S/);
     }
     await page.keyboard.press("Tab");
   }
@@ -384,7 +385,7 @@ async function prepareProtectedCustomerRoute(page: Page, routeName: (typeof rout
 
   await page.goto("/en/sign-in/");
   const customerCard = page.getByRole("article").filter({
-    has: page.getByRole("heading", { name: "Demo Traveler", exact: true }),
+    has: page.getByRole("heading", { name: "LocalLens Customer", exact: true }),
   });
   await expect(customerCard).toHaveCount(1);
   await Promise.all([
@@ -496,6 +497,14 @@ async function assertRouteCtas(page: Page, routeName: (typeof routes)[number]["n
   }
 }
 
+test("home personalization keeps readable text and named keyboard controls", async ({ page }) => {
+  const browserErrors = await preparePage(page);
+  await page.goto("/en/");
+  await waitForDeterministicPage(page);
+  await assertAccessibilitySmoke(page);
+  expect(browserErrors).toEqual([]);
+});
+
 for (const viewport of bookingTotalViewports) {
   test.describe(`${viewport.name} booking total`, () => {
     test.use({ viewport });
@@ -507,18 +516,17 @@ for (const viewport of bookingTotalViewports) {
         await mkdir(bookingTotalEvidenceRoot, { recursive: true });
         await prepareProtectedCustomerRoute(page, "booking-en");
 
-        const bookingPath = `/${locale}/booking/?departure=demo-departure-markets-and-street-food-2026-09-05&partySize=1`;
+        const bookingPath = `/${locale}/booking/?departure=d1700000-0000-4000-8000-000000000421&partySize=1`;
         const response = await page.goto(bookingPath, { waitUntil: "domcontentloaded" });
         expect(response?.status(), `${bookingPath} response`).toBe(200);
         await waitForDeterministicPage(page);
         await expect(page.locator("html")).toHaveAttribute("lang", locale);
 
-        const totalRow = page.locator(".booking-flow__price-summary div").filter({
-          has: page.locator("dt").filter({ hasText: /total|tổng/i }),
-        });
+        const totalRow = page.locator(".tour-booking__total");
         await expect(totalRow).toHaveCount(1);
-        const totalPrice = totalRow.locator("dd");
-        await expect(totalPrice).toHaveText(locale === "vi" ? /VND\s480\.000/ : /VND\s480,000/);
+        const totalPrice = totalRow.getByRole("status", { name: locale === "vi" ? "Tổng tiền" : "Total", exact: true });
+        // Approved Saigon Heritage price: VND 790,000; EN preview uses 26,000 VND/USD.
+        await expect(totalPrice).toHaveText(locale === "vi" ? "790.000 VND" : "$30.38");
 
         await clearFocus(page);
         await page.screenshot({

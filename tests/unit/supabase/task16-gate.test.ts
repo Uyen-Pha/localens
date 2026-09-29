@@ -5,7 +5,6 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-// @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { DB_GATE_STEPS, assertNoRemoteMode, runDbGate } from "@/scripts/run-db-gate.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { checkGeneratedDatabaseTypes, writeGeneratedDatabaseTypes } from "@/scripts/write-generated-db-types.mjs";
@@ -13,7 +12,6 @@ import { checkGeneratedDatabaseTypes, writeGeneratedDatabaseTypes } from "@/scri
 import { CONCURRENCY_SCENARIO_IDS, REQUIRED_CONCURRENCY_SCENARIOS, beginFixedTourBookingForConcurrency, runConcurrencyCheck, runConcurrencyGate } from "@/scripts/test-db-concurrency.mjs";
 // @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { requireLocalSupabaseCli, runLocalSupabase } from "@/scripts/supabase-local.mjs";
-// @ts-expect-error Task16 executable JavaScript boundaries are covered by focused runtime tests.
 import { exitCodeForError } from "@/scripts/run-db-gate.mjs";
 import { resolve as resolvePath } from "node:path";
 
@@ -40,7 +38,6 @@ describe("Task16 database gate", () => {
     const result = await runDbGate({
       cwd: "C:/repo",
       platform: "win32",
-      comSpec: "C:/Windows/System32/cmd.exe",
       cliPath: "C:/repo/node_modules/.bin/supabase.cmd",
       env: {
         LOCALENS_DB_URL: "postgresql://remote-uppercase.invalid:5432/postgres",
@@ -48,6 +45,7 @@ describe("Task16 database gate", () => {
         LOCALENS_DB_CONCURRENCY: "0",
         localens_db_concurrency: "leaked",
       },
+      prepare: async () => ({ root: 'C:/owned-local', ports: { database: 56401 }, dispose: async () => {} }),
       runner: async (spec: { name: string; command: string; args: string[]; env: Record<string, string> }) => {
         calls.push(spec.name);
         commands.push({
@@ -65,10 +63,10 @@ describe("Task16 database gate", () => {
     expect(result.ok).toBe(true);
     expect(calls).toEqual([...DB_GATE_STEPS, "db:stop"]);
     expect(commands).toEqual(calls.map((name) => ({
-      command: "C:/Windows/System32/cmd.exe",
-      args: ["/d", "/s", "/c", `corepack.cmd pnpm run ${name}`],
+      command: process.execPath,
+      args: expect.arrayContaining(['--workdir', 'C:/owned-local']),
       databaseUrl: name === "db:concurrency"
-        ? "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+        ? "postgresql://postgres:postgres@127.0.0.1:56401/postgres"
         : undefined,
       lowercaseDatabaseUrl: undefined,
       concurrencyFlag: name === "db:concurrency" ? "1" : undefined,
@@ -85,6 +83,7 @@ describe("Task16 database gate", () => {
         cwd: "C:/repo",
         platform: "win32",
         cliPath: "C:/repo/node_modules/.bin/supabase.cmd",
+        prepare: async () => ({ root: 'C:/owned-local', ports: { database: 56401 }, dispose: async () => {} }),
         runner: async (spec: { name: string }) => {
           calls.push(spec.name);
           if (spec.name === "db:test") throw firstFailure;

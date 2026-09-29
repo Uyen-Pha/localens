@@ -92,9 +92,9 @@ const ROLE_SEGMENT: Record<DemoRole, string> = {
 };
 
 const IDENTITY_DISPLAY_NAME: Record<DemoRole, string> = {
-  customer: "Demo Traveler",
-  guide: "Demo Guide",
-  admin: "Demo Administrator",
+  customer: "LocalLens Customer",
+  guide: "LocalLens Guide",
+  admin: "LocalLens Administrator",
 };
 
 interface BrowserDiagnostics {
@@ -286,7 +286,7 @@ async function runFixedTourAcceptance(
   const fixedAssignment = guideSelector.locator("xpath=ancestor::li");
   await expect(fixedAssignment).toContainText(departureId);
   await expect(fixedAssignment).toContainText(copy.tourTitle);
-  await guideSelector.selectOption({ label: "Demo Guide" });
+  await guideSelector.selectOption({ label: "LocalLens Guide" });
   await fixedAssignment.getByRole("button", { name: portalCopy.assignGuide, exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: portalCopy.guideAssignmentSaved })).toBeVisible();
 
@@ -324,14 +324,14 @@ test("customer sign-in restores fixed-tour booking intent and rejects an externa
   const signInUrl = new URL(page.url());
   expect(signInUrl.pathname).toBe("/en/sign-in/");
   expect(signInUrl.searchParams.get("returnTo")).toBe(returnTo);
-  await selectDemoIdentity(page, "Demo Traveler", "Continue as Customer");
+  await selectDemoIdentity(page, "LocalLens Customer", "Continue as Customer");
 
   await expect(page).toHaveURL(new RegExp(`${returnTo.replace(/[?]/g, "\\?")}$`));
   await expect(page.getByLabel(FIXED_TOUR_ACCEPTANCE_COPY.en.partySizeLabel, { exact: true })).toHaveValue("2");
 
   const localOrigin = new URL(page.url()).origin;
   await page.goto("/en/sign-in/?returnTo=https%3A%2F%2Fexample.com");
-  await selectDemoIdentity(page, "Demo Traveler", "Continue as Customer");
+  await selectDemoIdentity(page, "LocalLens Customer", "Continue as Customer");
   await expect(page).toHaveURL(/\/en\/account\/?$/);
   expect(new URL(page.url()).origin).toBe(localOrigin);
   await assertHealthyPage(page, diagnostics);

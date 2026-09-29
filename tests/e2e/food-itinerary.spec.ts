@@ -66,7 +66,7 @@ async function seedPlanner(
 
 async function selectDemoRole(page: Page, locale: "en" | "vi", role: "customer" | "admin"): Promise<void> {
   await page.goto(`/${locale}/sign-in`);
-  const displayName = role === "customer" ? "Demo Traveler" : "Demo Administrator";
+  const displayName = role === "customer" ? "LocalLens Customer" : "LocalLens Administrator";
   const card = page.getByRole("article").filter({
     has: page.getByRole("heading", { name: displayName, exact: true }),
   });
@@ -101,6 +101,7 @@ async function assertApprovedFoodFlow(
   await selectDemoRole(page, locale, "customer");
   await expect(page).toHaveURL(new RegExp(`/${locale}/account/?$`));
   await page.goto(`/${locale}/planner`);
+  await page.getByRole("button", { name: locale === "en" ? "Continue saved request" : "Tiếp tục yêu cầu đã lưu", exact: true }).click();
   const copy = getDictionary(locale);
   const planner = plannerRegion(page, copy.planner);
   const food = planner.locator(".planner-food").first();
@@ -188,6 +189,7 @@ test.describe("food itinerary acceptance paths", () => {
   test("research-only food records fail closed without a proposal or invented vendor facts", async ({ page }) => {
     await seedPlanner(page, "en", "research-only");
     await page.goto("/en/planner");
+    await page.getByRole("button", { name: "Continue saved request", exact: true }).click();
     const copy = getDictionary("en").planner;
     const planner = plannerRegion(page, copy);
 
@@ -214,6 +216,7 @@ test.describe("food itinerary acceptance paths", () => {
     expect(state.current.items.filter((item) => item.foodSelection !== null)).toHaveLength(1);
     expect(state.current.items.length).toBeGreaterThanOrEqual(2);
     await page.goto("/en/planner");
+    await page.getByRole("button", { name: "Continue saved request", exact: true }).click();
 
     const copy = getDictionary("en").planner;
     const planner = plannerRegion(page, copy);
@@ -251,6 +254,7 @@ test.describe("food itinerary acceptance paths", () => {
     const foodItem = state.current.items.find((item) => item.foodSelection !== null);
     if (foodItem === undefined) throw new Error("mixed fixture did not produce a food stop");
     await page.goto("/en/planner");
+    await page.getByRole("button", { name: "Continue saved request", exact: true }).click();
 
     const copy = getDictionary("en").planner;
     const planner = plannerRegion(page, copy);
@@ -270,6 +274,7 @@ test.describe("food itinerary acceptance paths", () => {
   test("museum-only route keeps food unselected and reports admission separately", async ({ page }) => {
     await seedPlanner(page, "vi", "museum");
     await page.goto("/vi/planner");
+    await page.getByRole("button", { name: "Tiếp tục yêu cầu đã lưu", exact: true }).click();
     const copy = getDictionary("vi").planner;
     const planner = plannerRegion(page, copy);
     const museum = planner.locator(".planner-timeline__item").first();

@@ -305,6 +305,9 @@ describe("isolated runtime itinerary runner", () => {
       "utf8",
     );
     writeFileSync(join(sourceRoot, "supabase", "tests", "database", "smoke.sql"), "select 1;\n", "utf8");
+    for (const name of ['20260905140000_thesis_demo_manifest.sql', '20260916073000_research_demo_catalog.sql']) {
+      writeFileSync(join(sourceRoot, 'supabase', 'migrations', name), 'SELECT 1;');
+    }
 
     prepareIsolatedSupabaseProject({
       cwd: sourceRoot,

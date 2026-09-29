@@ -31,6 +31,7 @@ import {
 import { seedRuntimeAuth } from "./seed-runtime-auth.mjs";
 import { seedRuntimeFixedTour } from "./seed-runtime-fixed-tour.mjs";
 import { requireLocalSupabaseCli, runLocalSupabase } from "./supabase-local.mjs";
+import { assertBootstrapDirectory, prepareLocalBootstrap } from "./lib/local-ci-bootstrap.mjs";
 
 const { Client } = pg;
 
@@ -375,6 +376,7 @@ export function prepareIsolatedSupabaseProject({
   const ownsRoot = projectRoot === undefined;
   const root = projectRoot ?? createProjectRoot();
   try {
+    assertBootstrapDirectory(root);
     const sourceConfig = path.join(cwd, "supabase", "config.toml");
     const sourceMigrations = path.join(cwd, "supabase", "migrations");
     const sourceFunctions = path.join(cwd, "supabase", "functions");
@@ -408,6 +410,7 @@ export function prepareIsolatedSupabaseProject({
       ports,
     });
     writeFileSync(path.join(targetSupabase, "config.toml"), config, "utf8");
+    prepareLocalBootstrap(root);
     return { root, projectId, ports };
   } catch (error) {
     if (ownsRoot) {
@@ -792,7 +795,7 @@ function stepSpec(name, {
   const supabase = (...args) => ({
     name,
     command: process.execPath,
-    args: [path.join(cwd, "scripts", "supabase-local.mjs"), "--workdir", workdir, ...args],
+    args: [path.join(cwd, "scripts", name === "db:start" || name === "db:reset" ? "local-ci-bootstrap.mjs" : "supabase-local.mjs"), "--workdir", workdir, ...args],
     cwd,
     env,
     stdio: "pipe",

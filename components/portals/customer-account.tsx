@@ -68,7 +68,7 @@ export function CustomerAccount({ locale, section = 'personal' }: { locale: Loca
           async save(p) {
             const invalid = validateProfile(p);
             if (invalid) throw new Error(invalid);
-            await shell.customer.account.updateAccount({displayName:p.displayName.trim(), nationality:p.nationality, phone:p.phone});
+            await shell.customer.account.updateAccount({displayName:p.displayName.trim(), nationality:p.nationality, phone:p.phone === '' ? null : p.phone});
           },
           async changePassword() { throw new Error('demoPassword'); },
         };

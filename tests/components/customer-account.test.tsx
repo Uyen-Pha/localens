@@ -88,7 +88,7 @@ it('uses the updated profile UI for demo sessions instead of the combined portal
   fireEvent.click(screen.getByRole('button',{name:'Chỉnh sửa Họ và tên'}));
   fireEvent.change(screen.getByRole('textbox',{name:'Họ và tên'}),{target:{value:'New Name'}});
   fireEvent.click(screen.getByRole('button',{name:'Lưu thay đổi'}));
-  await waitFor(()=>expect(mocks.save).toHaveBeenCalledWith({displayName:'New Name',nationality:'',phone:''}));
+  await waitFor(()=>expect(mocks.save).toHaveBeenCalledWith({displayName:'New Name',nationality:'',phone:null}));
 });
 it('returns to sign-in after a successful password change', async () => {
   mocks.changePassword.mockResolvedValueOnce(undefined);
