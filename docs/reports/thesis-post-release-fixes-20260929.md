@@ -33,3 +33,14 @@
 - Public unauthenticated access redirects to Vercel login. HTTP checks are not authenticated role or end-to-end mutation tests.
 - Asked permission to add exactly this new Planner origin; no origin configuration change made in this pass.
 - User review and authenticated role checks on this Preview remain pending. Production remains unchanged.
+
+## Follow-up verification — 2026-09-29 08:09 ICT
+
+- Reran the full suite without source edits during execution, four workers: **2,571/2,582 passed; 11 failed**. The Planner cutoff regression passed.
+- Nine failures remain the same SQL baseline. Two additional failures were the guide detail selection assertion and English signed-out portal loading assertion. Rerunning their two complete files with one worker passed **66/66**. This shows run-to-run instability, not proof the full suite is clean; no assertion was weakened and no runtime code was changed in this follow-up.
+- User signed in as Customer on this Preview. Verified profile, booking list (personalized above fixed tours), confirmed-booking filter and confirmed-booking detail using keyboard interaction. No booking/payment/cancellation/profile mutation was submitted.
+- Verified Customer is denied access to both Guide and Admin portals. This does not substitute for signing in as those roles.
+- Verified Planner natural-language entry, switch to detailed form, 72-hour guidance and budget suggestion with no area selected. Did not generate a new itinerary.
+- Read-only OPTIONS check to `research-planner` with this Preview Origin returned **403**, without Access-Control-Allow-Origin. Exact-origin authorization was requested again; no allowlist change has been made.
+- Automated pointer clicks were inconclusive in the in-app browser, while keyboard activation successfully filtered and navigated. Do not report a confirmed website pointer defect based on this evidence alone.
+- Remaining gates: approve exact Planner origin, test generation under authorized scope, and authenticated Guide/Admin checks. No new deployment, main merge or database write.
