@@ -24,7 +24,13 @@ export function ResearchCancelBookingDialog({booking,vi,now,disabled=false,reque
  const keys=requestKeys??localKeys.current;
  const heading=useId();
  async function confirm(){
-  if(lock.current)return;
+  if(lock.current||disabled)return;
+  // A pending retry must retain its key even after the eligibility window closes.
+  // Otherwise recheck at the click, not only at the parent's last timer tick.
+  if(!keys.has(booking.id)&&!canCancelResearchBooking(booking,Math.max(now,Date.now()))){
+   setError(vi?'Đơn không còn đủ điều kiện hủy. Vui lòng quay lại và tải lại thông tin đơn.':'This booking is no longer eligible for cancellation. Go back and reload the booking.');
+   return;
+  }
   lock.current=true;setBusy(true);setError('');onBlockedChange(true);
   let failure:unknown;
   let cancelled=false;
@@ -54,7 +60,7 @@ export function ResearchCancelBookingDialog({booking,vi,now,disabled=false,reque
    <p>{vi?'Bạn có chắc muốn hủy đơn này? Thông tin thanh toán đã ghi nhận được giữ nguyên.':'Cancel this booking? Recorded payment information will be retained.'}</p>
    {error&&<p role="alert" className={styles.error}>{error}</p>}
    <div className={styles.actions}>
-    <button disabled={busy} onClick={()=>void confirm()}>{busy?(vi?'Đang kiểm tra…':'Checking…'):(vi?'Xác nhận hủy':'Confirm cancellation')}</button>
+    <button disabled={busy||disabled} onClick={()=>void confirm()}>{busy?(vi?'Đang kiểm tra…':'Checking…'):(vi?'Xác nhận hủy':'Confirm cancellation')}</button>
     <button className={styles.secondary} disabled={busy} onClick={()=>{setOpen(false);onBlockedChange(uncertain.current);}}>{vi?'Quay lại':'Back'}</button>
    </div>
   </section>}
