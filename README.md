@@ -1,5 +1,22 @@
 # LocalLens
 
+## Bản nộp đồ án — tháng 9/2026
+
+- Website: https://localens-ashen.vercel.app/vi/
+- Mã nguồn: https://github.com/Uyen-Pha/localens
+- Hướng dẫn bàn giao và giới hạn: [Bản nộp](docs/hand-off/thesis-submission-20260929.md).
+- LocalLens là nguyên mẫu: giữ các luồng Supabase hiện có và các màn hình demo/local state. Thanh toán không phải giao dịch tiền thật. Các phần milestone dưới đây là lịch sử, không phải chứng nhận toàn bộ phiên bản hiện tại.
+- Yêu cầu hiện tại: Node.js 24, pnpm **10.17.1** theo `package.json`.
+
+```powershell
+corepack.cmd pnpm install --frozen-lockfile
+corepack.cmd pnpm dev:demo
+```
+
+Để chạy runtime đã kết nối, tạo `.env.local` riêng từ các biến công khai trong `.env.example`, đặt đúng URL và publishable key được cấp, rồi chạy `corepack.cmd pnpm dev:supabase`. Không đưa service-role key vào biến `NEXT_PUBLIC_*`. Không chạy seed/migration trên Supabase thật chỉ để mở website.
+
+## Lịch sử milestone A
+
 LocalLens milestone A is a bilingual, local thesis demo of fixed tours,
 customer-requested personalized tours, role-specific portals, and a simulated
 payment journey.
@@ -8,10 +25,10 @@ This is a local thesis demo. Tour data, AI ranking and payment outcomes are simu
 
 ## Run the accepted demo
 
-Requirements: Node.js `>=24 <25` and pnpm `>=11 <12`.
+Requirements: Node.js `>=24 <25` and pnpm `10.17.1`.
 
 ```powershell
-pnpm install --offline --frozen-lockfile
+pnpm install --frozen-lockfile
 pnpm dev:demo
 ```
 
