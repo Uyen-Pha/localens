@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 // @ts-expect-error Reuse the unchanged release inventory validator.
 import { databaseInventory } from '@/scripts/check-supabase-artifacts.mjs';
 // @ts-expect-error Executable JavaScript harness is tested through its pure boundaries.
@@ -28,8 +29,9 @@ describe('research migration transaction boundary', () => {
     expect(() => extractMigrationTransaction(sql)).toThrow('MIGRATION_WRAPPER_REJECTED');
   });
   it('accepts guarded atomicity mode without permitting combined modes', () => {
-    expect(parseArgs(['--workdir', 'D:/LocalLensSqlAudit/20260928-research-baseline', '--atomicity-test']).mode).toBe('atomicity-test');
-    expect(() => parseArgs(['--workdir', 'D:/LocalLensSqlAudit/20260928-research-baseline', '--atomicity-test', '--upgrade'])).toThrow('ARGUMENT_REJECTED');
+    const workdir = resolve('local-research-argument-fixture');
+    expect(parseArgs(['--workdir', workdir, '--atomicity-test'])).toEqual({ workdir, mode: 'atomicity-test' });
+    expect(() => parseArgs(['--workdir', workdir, '--atomicity-test', '--upgrade'])).toThrow('ARGUMENT_REJECTED');
   });
 });
 describe('research result validation', () => {

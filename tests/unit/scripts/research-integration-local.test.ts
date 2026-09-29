@@ -1,19 +1,22 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
+import { resolve } from 'node:path';
 // @ts-expect-error JavaScript CLI contracts are covered here.
 import { parseIntegrationArgs, assertOriginalRows } from '@/scripts/test-research-integration-local.mjs';
 
 describe('local research integration guard', () => {
-  it('accepts only an explicit existing local target, never a hosted URL', () => {
-    expect(parseIntegrationArgs(['--workdir', 'D:/LocalLensSqlAudit/20260928-research-baseline']).red).toBe(false);
+  const workdir = resolve('local-research-argument-fixture');
+  it('accepts only an explicit absolute local target, never a hosted URL', () => {
+    expect(parseIntegrationArgs(['--workdir', workdir])).toEqual({ workdir, red: false });
     expect(() => parseIntegrationArgs(['--workdir', 'https://host.example'])).toThrow();
-    expect(() => parseIntegrationArgs(['--workdir', 'D:/local', '--apply'])).toThrow();
+    expect(() => parseIntegrationArgs(['--workdir', 'relative/local'])).toThrow('LOCAL_DIRECTORY_REQUIRED');
+    expect(() => parseIntegrationArgs(['--workdir', workdir, '--apply'])).toThrow();
     expect(() => parseIntegrationArgs([])).toThrow();
   });
 
   it('allows a diagnostic red run but not duplicate or unknown options', () => {
-    expect(parseIntegrationArgs(['--workdir', 'D:/local', '--red']).red).toBe(true);
-    expect(() => parseIntegrationArgs(['--workdir', 'D:/local', '--red', '--red'])).toThrow();
+    expect(parseIntegrationArgs(['--workdir', workdir, '--red']).red).toBe(true);
+    expect(() => parseIntegrationArgs(['--workdir', workdir, '--red', '--red'])).toThrow();
   });
 
   it('fails on changed, inserted or removed legacy rows', () => {
