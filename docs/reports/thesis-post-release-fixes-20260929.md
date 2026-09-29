@@ -44,3 +44,10 @@
 - Read-only OPTIONS check to `research-planner` with this Preview Origin returned **403**, without Access-Control-Allow-Origin. Exact-origin authorization was requested again; no allowlist change has been made.
 - Automated pointer clicks were inconclusive in the in-app browser, while keyboard activation successfully filtered and navigated. Do not report a confirmed website pointer defect based on this evidence alone.
 - Remaining gates: approve exact Planner origin, test generation under authorized scope, and authenticated Guide/Admin checks. No new deployment, main merge or database write.
+
+## Approved origin update — 2026-09-29 08:11 ICT
+
+- User explicitly approved adding this Preview origin. Appended only `https://localens-keqx45evy-local-lens2.vercel.app`, preserving the exact previous 15 origins.
+- Verified prior SHA256 `6f2e783d08b19621a854a05393952a0600540791f429862466bcc60af561dfa5` before saving; saved SHA256 matches expected `e97d72c5f3ac2832791e093030c46e2a2794eeb45e7b264ce5540002571d1240`. All five other custom configuration digests remained unchanged.
+- `research-planner` OPTIONS: new Preview, preceding n40 Preview and Production returned 204 with their exact allowed origin; `https://unapproved.example` returned 403 without an allowed-origin header.
+- No SQL, data mutation, function code deployment, website deployment or main merge. This verifies origin access only, not a newly generated itinerary.
