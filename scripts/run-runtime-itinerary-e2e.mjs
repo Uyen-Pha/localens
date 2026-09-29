@@ -32,6 +32,8 @@ import { seedRuntimeAuth } from "./seed-runtime-auth.mjs";
 import { seedRuntimeFixedTour } from "./seed-runtime-fixed-tour.mjs";
 import { requireLocalSupabaseCli, runLocalSupabase } from "./supabase-local.mjs";
 import { assertBootstrapDirectory, prepareLocalBootstrap } from "./lib/local-ci-bootstrap.mjs";
+import { assertNoBootstrapRecovery } from "./lib/bootstrap-recovery-cleanup.mjs";
+import { prepareLocalTapSuite } from "./lib/local-tap-suite.mjs";
 
 const { Client } = pg;
 
@@ -369,7 +371,7 @@ export function prepareIsolatedSupabaseProject({
   ports,
   createProjectRoot = () => mkdtempSync(path.join(tmpdir(), "localens-runtime-itinerary-")),
   removeProjectRoot = (target) => rmSync(
-    requireOwnedTemporaryPath(target, "localens-runtime-itinerary-"),
+    assertNoBootstrapRecovery(requireOwnedTemporaryPath(target, "localens-runtime-itinerary-")),
     { recursive: true, force: true },
   ),
 } = {}) {
@@ -411,6 +413,7 @@ export function prepareIsolatedSupabaseProject({
     });
     writeFileSync(path.join(targetSupabase, "config.toml"), config, "utf8");
     prepareLocalBootstrap(root);
+    prepareLocalTapSuite(root);
     return { root, projectId, ports };
   } catch (error) {
     if (ownsRoot) {
@@ -809,7 +812,7 @@ function stepSpec(name, {
   if (name === "db:lint") {
     return supabase("db", "lint", "--local", "--level", "error", "--fail-on", "error");
   }
-  if (name === "db:test") return supabase("test", "db", "--local");
+  if (name === "db:test") return supabase("test", "db", "--local", path.join(workdir, "supabase/tests-selected"));
   if (name === "db:types:generate") {
     return supabase("gen", "types", "--lang", "typescript", "--local");
   }
@@ -1206,7 +1209,7 @@ export async function runRuntimeItineraryE2E(options = {}) {
   const reservePorts = options.reservePorts ?? reserveRuntimeItineraryPorts;
   const prepareProject = options.prepareProject ?? prepareIsolatedSupabaseProject;
   const removeProject = options.removeProject ?? ((projectRoot) => rmSync(
-    requireOwnedTemporaryPath(projectRoot, "localens-runtime-itinerary-"),
+    assertNoBootstrapRecovery(requireOwnedTemporaryPath(projectRoot, "localens-runtime-itinerary-")),
     { recursive: true, force: true },
   ));
   const status = options.status ?? defaultStatus;
@@ -1412,8 +1415,11 @@ export async function runRuntimeItineraryE2E(options = {}) {
     const clean = async (operation, { preserveProjectOnFailure = false } = {}) => {
       try {
         await operation();
-      } catch {
+      } catch (error) {
         cleanupFailed = true;
+        if (error?.recoveryDirectory) {
+          logger(`[runtime-itinerary] cleanup:recovery-preserved:${error.recoveryDirectory}`);
+        }
         if (preserveProjectOnFailure) projectCleanupUnsafe = true;
       }
     };

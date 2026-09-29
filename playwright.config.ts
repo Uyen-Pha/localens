@@ -23,6 +23,7 @@ export default defineConfig({
     "runtime-itinerary.spec.ts",
     "runtime-fixed-tour.spec.ts",
     "runtime-guide-assignment.spec.ts",
+    "runtime-reviewed-booking.spec.ts",
   ],
   // Keep deterministic visual evidence serial: Next dev can compile several
   // route modules concurrently and surface transient JSON parse overlays.

@@ -8,3 +8,4 @@
 .form button{padding:8px 16px}
 .form .reset{padding:8px 0 0}
 @media(max-width:650px){.form input,.form select,.form button{min-height:44px}}
+.form :focus-visible { outline-color: #136d5a; }

@@ -40,6 +40,7 @@ describe("demo Playwright server isolation", () => {
       "runtime-itinerary.spec.ts",
       "runtime-fixed-tour.spec.ts",
       "runtime-guide-assignment.spec.ts",
+      "runtime-reviewed-booking.spec.ts",
     ]);
     expect(config.timeout).toBe(120_000);
     expect(config.use?.baseURL).toBe("http://127.0.0.1:3300");

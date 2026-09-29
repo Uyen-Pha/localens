@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {validateLocalTap} from './validate-local-tap.mjs';
+import {legacyCancellationFixture, adaptLegacyCancellationActors} from './lib/legacy-cancellation-fixture.mjs';
 const container='supabase_db_localens-release-20260929-verified';
 const read=(p)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const unwrap=(sql)=>sql.replace(/^BEGIN;\r?$/gm,'').replace(/^COMMIT;\r?$/gm,'').replace(/^ROLLBACK;\r?$/gm,'');
@@ -64,20 +65,6 @@ if(!process.argv.includes('--baseline')) {
  // newer 72h submission gate. Create through real RPCs at 96h, then bind a
  // separate historical snapshot for cancellation boundaries. No trigger or
  // production function is replaced, disabled or weakened.
- const legacyCancellationFixture=`
-ALTER FUNCTION pg_temp.research_fixture(timestamptz,text,uuid) RENAME TO research_fixture_current;
-CREATE FUNCTION pg_temp.research_fixture(p_start timestamptz,p_outcome text DEFAULT NULL,p_owner uuid DEFAULT NULL) RETURNS jsonb LANGUAGE plpgsql AS $$
-DECLARE b jsonb; child uuid; BEGIN
- b:=pg_temp.research_fixture_current(greatest(p_start,clock_timestamp()+interval '96 hours'),p_outcome,p_owner);
- INSERT INTO private.research_demo_revisions(owner_id,catalog_version,request,plan)
- SELECT owner_id,catalog_version,jsonb_set(request,'{startAt}',to_jsonb(to_char(p_start AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))),plan
- FROM private.research_demo_revisions WHERE id=(b->>'revision_id')::uuid RETURNING id INTO child;
- UPDATE private.research_demo_bookings SET revision_id=child WHERE id=(b->>'id')::uuid;
- PERFORM pg_temp.research_claims((b->>'owner_id')::uuid);
- b:=public.research_demo_booking((b->>'quote_id')::uuid,false);
- PERFORM set_config('role','none',true);
- RETURN b;
-END $$;`;
  // Fresh full-release deadline suite: 32 checks plus one explicit historical-fixture SKIP.
  for (const [file,expectedAssertions] of [['research_permissions_test.sql',82],['research_deadline_integration_test.sql',33],['research_booking_cancellation_test.sql',122]]) {
   const adapter=file==='research_booking_cancellation_test.sql'?legacyCancellationFixture:'';
@@ -85,9 +72,7 @@ END $$;`;
   if(adapter) {
    // Current auth trigger provisions customer automatically; the old suite
    // explicitly supplies each actor's one intended role. Adjust setup only.
-   const marker='INSERT INTO private.user_roles(user_id,role) SELECT id,kind::public.app_role FROM test_actors;';
-   if(!suite.includes(marker)) throw new Error('Legacy actor fixture changed; review adapter');
-   suite=suite.replace(marker,'DELETE FROM private.user_roles WHERE user_id IN (SELECT id FROM test_actors);\n'+marker);
+   suite=adaptLegacyCancellationActors(suite);
   }
   run('existing '+file+(adapter?' (historical boundary/actor fixtures)':''),'BEGIN;\n'+reviewed+'\n'+candidate+'\n'+fixtures+'\n'+adapter+'\n'+suite+'\nROLLBACK;',expectedAssertions);
  }

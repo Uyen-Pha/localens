@@ -496,6 +496,20 @@ export function NaturalLanguagePersonalizationForm({
               value={description}
               maxLength={1000}
               placeholder={labels.placeholder}
+              onFocus={(event) => {
+                const field = event.currentTarget;
+                const rect = field.getBoundingClientRect();
+                const style = getComputedStyle(field);
+                const ring = style.outlineStyle !== "none"
+                  ? Math.max(0, (Number.parseFloat(style.outlineWidth) || 0) + (Number.parseFloat(style.outlineOffset) || 0))
+                  : 0;
+                const width = document.documentElement.clientWidth || window.innerWidth;
+                const height = document.documentElement.clientHeight || window.innerHeight;
+                if (rect.top - ring < 0 || rect.bottom + ring > height
+                  || rect.left - ring < 0 || rect.right + ring > width) {
+                  field.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+                }
+              }}
               onChange={(event) => {
                 setDescription(event.target.value);
                 if (analysis) setAnalysis(null);

@@ -118,15 +118,32 @@ it('rejects remote Docker context and a mismatched container before reset', () =
 it('passes only the owned workdir to CLI after checking Docker ownership', () => {
   const root = target();
   const args = ['--workdir', root, 'db', 'reset', '--local'];
-  let executed: string[] = [];
+  const executed: string[][] = [];
+  let platformGrant = false;
   const inspected = { Name: '/supabase_db_localens-itinerary-guard', State: { Running: true },
     Config: { Labels: { 'com.supabase.cli.project': 'localens-itinerary-guard', 'com.supabase.cli.workdir': root } },
     NetworkSettings: { Ports: { '5432/tcp': [{ HostIp: '127.0.0.1', HostPort: '56401' }] } } };
-  runLocalBootstrap(args, { env: {}, probe: (_command: string, commandArgs: string[]) => ({ status: 0,
-    stdout: JSON.stringify(commandArgs[0] === 'context' ? [{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }] : [inspected]) }),
-    run: (command: string[]) => { executed = command; return { status: 0 }; },
+  runLocalBootstrap(args, { env: {}, probe: (_command: string, commandArgs: string[]) => {
+    if (commandArgs[0] === 'exec') {
+      expect(executed).toHaveLength(1);
+      expect(commandArgs).toEqual(['exec', 'supabase_db_localens-itinerary-guard', 'psql', '-X', '-U', 'supabase_admin', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-c', 'GRANT USAGE ON SCHEMA auth TO postgres WITH GRANT OPTION;']);
+      platformGrant = true;
+      return { status: 0, stdout: 'GRANT' };
+    }
+    return { status: 0, stdout: JSON.stringify(commandArgs[0] === 'context' ? [{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }] : [inspected]) };
+  },
+    run: (command: string[]) => {
+      executed.push(command);
+      if (executed.length === 1) expect(readdirSync(path.join(root, 'supabase/migrations'))).toEqual([]);
+      else {
+        expect(platformGrant).toBe(true);
+        expect(readdirSync(path.join(root, 'supabase/migrations'))).toHaveLength(4);
+      }
+      return { status: 0 };
+    },
   });
-  expect(executed).toEqual(['--workdir', root, 'db', 'reset', '--local']);
+  expect(executed).toEqual([['--workdir', root, 'db', 'reset', '--local'], ['--workdir', root, 'migration', 'up', '--local']]);
+  expect(platformGrant).toBe(true);
 });
 
 it.each([false, true])('gate preserves first failure and removes project only after confirmed stop (stop failure=%s)', async (stopFails) => {
@@ -140,4 +157,54 @@ it.each([false, true])('gate preserves first failure and removes project only af
   expect(calls).toEqual(['db:start', 'db:stop']);
   expect(disposed).toBe(!stopFails);
   if (stopFails) expect(original).toHaveProperty('cleanupError');
+});
+
+it('restores all migration files if platform startup fails', () => {
+  const root = target();
+  const before = readdirSync(path.join(root, 'supabase/migrations'));
+  expect(() => runLocalBootstrap(['--workdir', root, 'start'], {
+    env: {}, probe: (_command, args) => args[0] === 'context'
+      ? { status: 0, stdout: JSON.stringify([{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }]) }
+      : { status: 1, stderr: 'No such container' },
+    run: () => { throw new Error('startup failed'); },
+  })).toThrow('startup failed');
+  expect(readdirSync(path.join(root, 'supabase/migrations'))).toEqual(before);
+});
+
+it('preserves original CLI error and recovery paths if unexpected files prevent restoration', () => {
+  const root = target();
+  const original = Object.assign(new Error('startup failed'), { status: 17 });
+  let caught: unknown;
+  try {
+    runLocalBootstrap(['--workdir', root, 'start'], {
+      env: {}, probe: (_command, args) => args[0] === 'context'
+        ? { status: 0, stdout: JSON.stringify([{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }]) }
+        : { status: 1, stderr: 'No such container' },
+      run: () => {
+        writeFileSync(path.join(root, 'supabase/migrations/unexpected.sql'), 'SELECT 123;');
+        throw original;
+      },
+    });
+  } catch (error) { caught = error; }
+  expect(caught).toBe(original);
+  expect(caught).toHaveProperty('recoveryDirectory', path.join(root, 'supabase/.local-bootstrap-migrations'));
+  expect(caught).toHaveProperty('cleanupError');
+  expect(readFileSync(path.join(root, 'supabase/migrations/unexpected.sql'), 'utf8')).toBe('SELECT 123;');
+  expect(readdirSync(path.join(root, 'supabase/.local-bootstrap-migrations'))).toHaveLength(4);
+});
+
+it('does not apply application migrations when platform provisioning fails', () => {
+  const root = target();
+  const commands: string[][] = [];
+  const inspected = { Name: '/supabase_db_localens-itinerary-guard', State: { Running: true },
+    Config: { Labels: { 'com.supabase.cli.project': 'localens-itinerary-guard', 'com.supabase.cli.workdir': root } },
+    NetworkSettings: { Ports: { '5432/tcp': [{ HostIp: '127.0.0.1', HostPort: '56401' }] } } };
+  expect(() => runLocalBootstrap(['--workdir', root, 'start'], {
+    env: {}, probe: (_command, args) => args[0] === 'exec' ? { status: 1, stderr: 'permission denied' }
+      : { status: 0, stdout: JSON.stringify(args[0] === 'context'
+        ? [{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }] : [inspected]) },
+    run: (args) => { commands.push(args); return { status: 0 }; },
+  })).toThrow('LOCAL_BOOTSTRAP_PLATFORM_PREREQUISITE_FAILED');
+  expect(commands).toEqual([['--workdir', root, 'start']]);
+  expect(readdirSync(path.join(root, 'supabase/migrations'))).toHaveLength(4);
 });

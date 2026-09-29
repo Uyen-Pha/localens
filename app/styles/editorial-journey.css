@@ -1,4 +1,4 @@
-/* editorial-css-sha256: 29e85332663b4b581cda176e93568d1b00016a2ac4d82a5d86b22c26537fd7f5 */
+/* editorial-css-sha256: 0c523546c0e4b80a486b8f8740bacaaaf56d1dc130c42a99220bdbcdc99f5c86 */
 
 /* Journey pages keep the same quiet, paper-led rhythm as the home and catalog
    while giving long-form planning data enough room to breathe. */
@@ -1027,7 +1027,7 @@
 .natural-language-entry__textarea textarea{min-height:148px;resize:vertical;border:1px solid #9fb9aa;border-radius:14px;background:#fbfdfb;padding:16px 18px;font-size:1rem;line-height:1.65;box-shadow:inset 0 1px 0 #fff}
 .natural-language-entry__textarea textarea::placeholder{color:#7b9184;opacity:1}
 .natural-language-entry__textarea textarea:focus{border-color:#087767;box-shadow:0 0 0 3px #0877671c;outline:0}
-.natural-language-entry__example{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:12px;color:#718077;font-size:.86rem;line-height:1.5}
+.natural-language-entry__example{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:12px;color:var(--color-muted);font-size:.86rem;line-height:1.5}
 .natural-language-link{padding:0;border:0;background:none;color:#087767;font:inherit;font-weight:750;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .natural-language-entry__actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
 .natural-language-entry__disclosure{position:relative;margin:18px 0 0;padding:12px 14px;border-left:3px solid #d39a43;background:#fbf4e6;color:#6d552e;font-size:.86rem;line-height:1.55}
@@ -1061,7 +1061,7 @@
 .natural-language-steps ol{display:grid;gap:16px;margin:0;padding:0;list-style:none;counter-reset:natural-step}
 .natural-language-steps li{position:relative;padding-left:38px;color:#294f42;line-height:1.55;counter-increment:natural-step}
 .natural-language-steps li::before{position:absolute;top:0;left:0;display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#087767;color:#fff;font-size:.78rem;font-weight:800;content:counter(natural-step)}
-.natural-language-steps>p{margin-top:22px;padding-top:16px;border-top:1px solid #d1e3d7;color:#63786b;font-size:.86rem;line-height:1.55}
+.natural-language-steps>p{margin-top:22px;padding-top:16px;border-top:1px solid #d1e3d7;color:var(--color-muted);font-size:.86rem;line-height:1.55}
 @media(max-width:600px){
   .natural-language-entry h2{max-width:none}
   .natural-language-understood__grid,.natural-language-edit__grid{grid-template-columns:1fr}

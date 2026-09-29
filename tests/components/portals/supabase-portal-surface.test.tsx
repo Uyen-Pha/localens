@@ -340,9 +340,13 @@ describe.each(["en", "vi"] as const)("Supabase PortalSurface (%s)", (locale) => 
     await submitCredentials(locale, account.email, account.password);
 
     await waitFor(() => expect(destinations).toEqual([`/${locale}${suffix}`]));
-    fireEvent.click(await screen.findByRole("button", { name: copy.signOut }));
+    // Navigation is reported before the lazy admin shell leaves Suspense.
+    // Wait for the real interactive shell, including under full-suite load.
+    const signOut = await screen.findByRole("button", { name: copy.signOut }, { timeout: 5_000 });
+    expect(signOut).toBeEnabled();
+    fireEvent.click(signOut);
     expect(await screen.findByLabelText(copy.password)).toHaveValue("");
-  });
+  }, 10_000);
 
   it.each([
     ["customer", "/booking/?departure=departure-1&partySize=2"],

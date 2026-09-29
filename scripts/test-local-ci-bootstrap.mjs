@@ -6,6 +6,7 @@ import path from 'node:path';
 import pg from 'pg';
 import { prepareIsolatedSupabaseProject, reserveRuntimeItineraryPorts, selectRuntimeItineraryBaseEnv } from './run-runtime-itinerary-e2e.mjs';
 import { assertBootstrapDirectory } from './lib/local-ci-bootstrap.mjs';
+import { assertNoBootstrapRecovery } from './lib/bootstrap-recovery-cleanup.mjs';
 import { runLocalBootstrap } from './local-ci-bootstrap.mjs';
 import { runLocalSupabase } from './supabase-local.mjs';
 import { bootstrapBody } from './lib/research-bootstrap-transaction.mjs';
@@ -51,7 +52,7 @@ try {
   if (project) {
     try {
       if (attempted) capture(['--workdir', project.root, 'stop', '--no-backup'], { cwd, env });
-      rmSync(assertBootstrapDirectory(project.root), { recursive: true, force: true });
+      rmSync(assertNoBootstrapRecovery(assertBootstrapDirectory(project.root)), { recursive: true, force: true });
       console.log('PASS owned project cleanup');
     } catch {
       console.error(`CLEANUP_FAILED: retained owned project ${project.root}`);

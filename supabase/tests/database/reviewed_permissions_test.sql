@@ -1,5 +1,8 @@
 BEGIN;
-CREATE EXTENSION IF NOT EXISTS pgtap;
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+SET LOCAL search_path = public, extensions;
+-- Test-only pgTAP visibility while exercising the bounded owner; rolled back.
+GRANT USAGE ON SCHEMA extensions TO localens_reviewed_rpc_owner;
 SELECT plan(24);
 SELECT ok(EXISTS(SELECT 1 FROM pg_roles WHERE rolname='localens_reviewed_rpc_owner' AND NOT rolcanlogin AND NOT rolbypassrls AND NOT rolsuper), 'reviewed owner cannot login or bypass RLS');
 SELECT is((SELECT count(*)::integer FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner WHERE n.nspname='public' AND p.proname IN ('reviewed_demo_begin','reviewed_demo_pay','reviewed_demo_availability','reviewed_demo_expire','reviewed_demo_read','reviewed_demo_cancel','reviewed_demo_review','reviewed_demo_checkout','reviewed_demo_public_reviews','reviewed_demo_moderate_review') AND r.rolname='localens_reviewed_rpc_owner'),10,'all ten reviewed RPCs have bounded owner');

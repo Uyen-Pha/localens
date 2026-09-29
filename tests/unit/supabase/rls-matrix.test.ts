@@ -408,7 +408,7 @@ describe("Task 13 RLS/RPC access matrix", () => {
       && grant.privilege === "execute")).toBe(false);
   });
 
-  it("fails closed when generated policies or later definer hardening drift", () => {
+  it("fails closed when generated policies drift", () => {
     const root = checkerFixture();
     const matrixFixturePath = join(root, "docs", "security", "data-access-matrix.json");
     const matrix = JSON.parse(readFileSync(matrixFixturePath, "utf8"));
@@ -421,6 +421,9 @@ describe("Task 13 RLS/RPC access matrix", () => {
       rmSync(root, { recursive: true, force: true });
     }
 
+  }, 15_000);
+
+  it("fails closed when the grant manifest drifts", () => {
     const grantsRoot = checkerFixture();
     const grantManifestPath = join(grantsRoot, "docs", "security", "grants-manifest.json");
     const grantManifest = JSON.parse(readFileSync(grantManifestPath, "utf8"));
@@ -432,6 +435,9 @@ describe("Task 13 RLS/RPC access matrix", () => {
       rmSync(grantsRoot, { recursive: true, force: true });
     }
 
+  }, 15_000);
+
+  it("fails closed when later definer hardening drifts", () => {
     const guardRoot = checkerFixture();
     const guardPath = join(guardRoot, "supabase", "migrations", "20260824100000_guard_lock_privileges.sql");
     const originalGuard = readFileSync(guardPath, "utf8");

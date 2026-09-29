@@ -85,7 +85,8 @@ async function waitForDeterministicPage(page: Page): Promise<void> {
     const images = Array.from(document.images);
     for (const image of images) {
       image.loading = "eager";
-      image.scrollIntoView({ block: "center" });
+      // Eager loading starts offscreen images without scrolling decorative
+      // artwork inside overflow-hidden containers and displacing their controls.
       await new Promise<void>((resolve) => {
         requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
       });
@@ -227,6 +228,17 @@ async function assertAccessibilitySmoke(page: Page): Promise<void> {
         const style = getComputedStyle(element);
         if (rect.width === 0 || rect.height === 0 || style.visibility === "hidden" || style.display === "none") return false;
         if (element.closest("nextjs-portal")) return false;
+        // Only this approved decoration is deliberately cropped. Check the
+        // visible crop, not its off-canvas source bounds; controls stay strict.
+        if (element.matches('img.customer-hero__skyline[alt=""][aria-hidden="true"]')) {
+          const parent = element.parentElement;
+          if (parent && getComputedStyle(parent).overflowX === "hidden") {
+            const clip = parent.getBoundingClientRect();
+            return Math.max(rect.left, clip.left) < -1
+              || Math.min(rect.right, clip.right) > document.documentElement.clientWidth + 1
+              || Math.min(rect.right, clip.right) <= Math.max(rect.left, clip.left);
+          }
+        }
         const scrollContainer = element.closest<HTMLElement>("[class*='localNavLinks']");
         if (scrollContainer && ["auto", "scroll"].includes(getComputedStyle(scrollContainer).overflowX)) return false;
         return rect.left < -1 || rect.right > document.documentElement.clientWidth + 1;
@@ -432,6 +444,15 @@ async function assertTextZoom(page: Page): Promise<void> {
       .filter((element) => {
         const rect = element.getBoundingClientRect();
         const style = getComputedStyle(element);
+        if (element.matches('img.customer-hero__skyline[alt=""][aria-hidden="true"]')) {
+          const parent = element.parentElement;
+          if (parent && getComputedStyle(parent).overflowX === "hidden") {
+            const clip = parent.getBoundingClientRect();
+            return Math.max(rect.left, clip.left) < -1
+              || Math.min(rect.right, clip.right) > document.documentElement.clientWidth + 1
+              || Math.min(rect.right, clip.right) <= Math.max(rect.left, clip.left);
+          }
+        }
         return !element.closest("nextjs-portal") && rect.width > 0 && rect.height > 0
           && style.visibility !== "hidden" && style.display !== "none"
           && (rect.left < -1 || rect.right > window.innerWidth + 1);
@@ -453,24 +474,28 @@ async function clearFocus(page: Page): Promise<void> {
 async function assertDesktopHomeComposition(page: Page): Promise<void> {
   const composition = await page.evaluate(() => {
     const buttons = Array.from(document.querySelectorAll<HTMLElement>(".customer-hero__actions .button"));
-    const categoryHeadings = Array.from(document.querySelectorAll<HTMLElement>(".experience-card h3"));
-    const categoryRules = Array.from(document.querySelectorAll<HTMLElement>(".experience-card .editorial-rule"));
-    const withinViewport = (element: HTMLElement) => {
-      const rect = element.getBoundingClientRect();
-      return rect.top >= 0 && rect.bottom <= window.innerHeight;
-    };
-
     return {
       ctaTopPositions: buttons.map((button) => Math.round(button.getBoundingClientRect().top)),
-      categoryHeadingVisibility: categoryHeadings.map(withinViewport),
-      categoryRuleVisibility: categoryRules.map(withinViewport),
     };
   });
 
   expect.soft(composition.ctaTopPositions).toHaveLength(2);
   expect.soft(composition.ctaTopPositions[0]).toBe(composition.ctaTopPositions[1]);
-  expect.soft(composition.categoryHeadingVisibility).toEqual([true, true, true, true]);
-  expect.soft(composition.categoryRuleVisibility).toEqual([true, true, true, true]);
+  // Discovery follows the route preview in the approved home layout.
+  // Every category must still be readable and reachable by scrolling.
+  const cards = page.locator(".experience-card");
+  await expect(cards).toHaveCount(4);
+  for (const card of await cards.all()) {
+    await card.scrollIntoViewIfNeeded();
+    const heading = card.getByRole("heading", { level: 3 });
+    await expect(heading).toBeVisible();
+    await expect(heading).toBeInViewport({ ratio: 1 });
+    await expect(heading.getByRole("link")).toHaveAttribute("href", "/en/tours/");
+    const rule = card.locator(".editorial-rule");
+    await expect(rule).toBeVisible();
+    await expect(rule).toBeInViewport({ ratio: 1 });
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
 }
 
 async function assertRouteCtas(page: Page, routeName: (typeof routes)[number]["name"]): Promise<void> {
@@ -483,25 +508,109 @@ async function assertRouteCtas(page: Page, routeName: (typeof routes)[number]["n
     await expect(page.getByRole("link", { name: /Xem các tour có sẵn/ })).toHaveAttribute("href", "/vi/tours/");
   }
   if (routeName === "tours-en") {
-    const bookingHref = await page.getByRole("link", { name: /^Book / }).first().getAttribute("href");
-    expect(bookingHref?.startsWith("/en/booking/?")).toBe(true);
+    // Demo catalog has no live capacity: its title opens the reviewed detail
+    // route, where the traveler can inspect the itinerary before booking.
+    const tourLink = page.getByRole("heading", { level: 2, name: "Saigon Heritage", exact: true }).getByRole("link");
+    await expect(tourLink).toHaveAttribute("href", "/en/tours/detail/?tour=demo-heritage-and-market-morning");
+    await tourLink.click();
+    await expect(page).toHaveURL(/\/en\/tours\/detail\/\?tour=demo-heritage-and-market-morning$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Saigon Heritage", exact: true })).toBeVisible();
+    await page.goBack();
+    await waitForDeterministicPage(page);
   }
   if (routeName === "planner-en") {
-    await expect(page.getByRole("link", { name: "Back to LocalLens home" })).toHaveAttribute("href", "/en/");
+    await expect(page.getByRole("banner").getByRole("link", { name: "LocalLens", exact: true })).toHaveAttribute("href", "/en/");
+    await expect(page.getByRole("textbox", { name: "Describe your trip", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Enter details manually", exact: true })).toBeEnabled();
   }
   if (routeName === "custom-request-en") {
     await expect(page.getByRole("link", { name: "Back to planner" })).toHaveAttribute("href", "/en/planner/");
   }
   if (routeName === "booking-en") {
-    await expect(page.getByRole("link", { name: "Back to fixed tours" })).toHaveAttribute("href", "/en/tours/");
+    await expect(page.getByRole("link", { name: "All tours", exact: true })).toHaveAttribute("href", "/en/tours/");
   }
 }
+
+test("planner helper and proposal disclaimer meet normal-text contrast", async ({ page }) => {
+  await page.goto("/en/planner/");
+  for (const selector of [".natural-language-entry__example > span", ".natural-language-steps > p"]) {
+    const label = page.locator(selector);
+    await expect(label).toBeVisible();
+    const colors = await label.evaluate(element => {
+      const rgb = (value: string) => value.match(/[\d.]+/g)!.map(Number);
+      const luminance = (channels: number[]) => channels.slice(0, 3).reduce((total, channel, index) => {
+        const s = channel / 255;
+        return total + (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4) * [0.2126, 0.7152, 0.0722][index];
+      }, 0);
+      let ancestor: Element | null = element;
+      while (ancestor) {
+        const style = getComputedStyle(ancestor);
+        if (style.backgroundImage !== "none") throw new Error("Contrast test requires a solid background");
+        const background = rgb(style.backgroundColor);
+        if (background.length === 3 || background[3] === 1) {
+          const foreground = getComputedStyle(element).color;
+          const a = luminance(rgb(foreground));
+          const b = luminance(background);
+          return { foreground, background: style.backgroundColor, ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) };
+        }
+        ancestor = ancestor.parentElement;
+      }
+      throw new Error("No opaque background found");
+    });
+    expect.soft(colors.ratio, `${selector}: ${JSON.stringify(colors)}`).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
+test("decorative crop guard still rejects an uncropped skyline and off-screen controls", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await preparePage(page);
+  await page.goto("/en/");
+  await waitForDeterministicPage(page);
+  await assertAccessibilitySmoke(page);
+  await assertTextZoom(page);
+
+  // Browser-only mutations prove the guard still detects genuine overflow.
+  const skylineContainer = page.locator(".customer-hero__content");
+  const originalStyle = await skylineContainer.getAttribute("style");
+  await skylineContainer.evaluate(element => { (element as HTMLElement).style.overflow = "visible"; });
+  try {
+    await expect(assertAccessibilitySmoke(page)).rejects.toThrow();
+    await expect(assertTextZoom(page)).rejects.toThrow();
+  } finally {
+    await skylineContainer.evaluate((element, style) => {
+      if (style === null) element.removeAttribute("style");
+      else element.setAttribute("style", style);
+    }, originalStyle);
+  }
+  const cta = page.getByRole("link", { name: /Plan my Saigon day/ });
+  const ctaStyle = await cta.getAttribute("style");
+  await cta.evaluate(element => { (element as HTMLElement).style.transform = "translateX(-200vw)"; });
+  try {
+    await expect(assertAccessibilitySmoke(page)).rejects.toThrow();
+    await expect(assertTextZoom(page)).rejects.toThrow();
+  } finally {
+    await cta.evaluate((element, style) => {
+      if (style === null) element.removeAttribute("style");
+      else element.setAttribute("style", style);
+    }, ctaStyle);
+  }
+  await assertAccessibilitySmoke(page);
+});
 
 test("home personalization keeps readable text and named keyboard controls", async ({ page }) => {
   const browserErrors = await preparePage(page);
   await page.goto("/en/");
   await waitForDeterministicPage(page);
   await assertAccessibilitySmoke(page);
+  expect(browserErrors).toEqual([]);
+});
+
+test("tour search keeps readable keyboard focus and opens approved tour details", async ({ page }) => {
+  const browserErrors = await preparePage(page);
+  await page.goto("/en/tours/");
+  await waitForDeterministicPage(page);
+  await assertAccessibilitySmoke(page);
+  await assertRouteCtas(page, "tours-en");
   expect(browserErrors).toEqual([]);
 });
 
@@ -534,15 +643,23 @@ for (const viewport of bookingTotalViewports) {
           fullPage: true,
         });
 
-        const metrics = await totalPrice.evaluate((element) => ({
-          scrollWidth: element.scrollWidth,
-          clientWidth: element.clientWidth,
-          whiteSpace: getComputedStyle(element).whiteSpace,
-          overflowWrap: getComputedStyle(element).overflowWrap,
-        }));
+        const metrics = await totalPrice.evaluate((element) => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          const textRects = Array.from(range.getClientRects());
+          const bounds = element.getBoundingClientRect();
+          return {
+            scrollWidth: element.scrollWidth,
+            clientWidth: element.clientWidth,
+            lineCount: new Set(textRects.map((rect) => Math.round(rect.top))).size,
+            textFits: textRects.every((rect) =>
+              rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 &&
+              rect.top >= bounds.top - 1 && rect.bottom <= bounds.bottom + 1),
+          };
+        });
         expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
-        expect(metrics.whiteSpace).toBe("nowrap");
-        expect(metrics.overflowWrap).toBe("normal");
+        expect(metrics.lineCount, "amount and currency stay on one line").toBe(1);
+        expect(metrics.textFits, "the complete price fits inside its output").toBe(true);
 
         const pageMetrics = await page.evaluate(() => {
           document.documentElement.style.scrollbarGutter = "stable";

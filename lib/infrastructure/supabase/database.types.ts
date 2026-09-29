@@ -1914,25 +1914,31 @@ export type Database = {
       guide_profiles: {
         Row: {
           bio: string | null
+          contact_address: string | null
           created_at: string
           display_name: string | null
           language: Database["public"]["Enums"]["locale"]
+          operating_area: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           bio?: string | null
+          contact_address?: string | null
           created_at?: string
           display_name?: string | null
           language?: Database["public"]["Enums"]["locale"]
+          operating_area?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           bio?: string | null
+          contact_address?: string | null
           created_at?: string
           display_name?: string | null
           language?: Database["public"]["Enums"]["locale"]
+          operating_area?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -2274,6 +2280,8 @@ export type Database = {
           display_name: string | null
           id: string
           language: Database["public"]["Enums"]["locale"]
+          nationality: string | null
+          phone: string | null
           updated_at: string
         }
         Insert: {
@@ -2281,6 +2289,8 @@ export type Database = {
           display_name?: string | null
           id: string
           language?: Database["public"]["Enums"]["locale"]
+          nationality?: string | null
+          phone?: string | null
           updated_at?: string
         }
         Update: {
@@ -2288,9 +2298,126 @@ export type Database = {
           display_name?: string | null
           id?: string
           language?: Database["public"]["Enums"]["locale"]
+          nationality?: string | null
+          phone?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      reviewed_demo_bookings: {
+        Row: {
+          checkout_details: Json | null
+          completed_at: string | null
+          created_at: string
+          departure_id: string
+          expires_at: string
+          id: string
+          paid_at: string | null
+          party_size: number
+          payment_status: string
+          rating: number | null
+          refund_due_at: string | null
+          refunded_at: string | null
+          request_key: string
+          review_hidden: boolean
+          review_text: string | null
+          reviewed_at: string | null
+          status: string
+          total_vnd: number
+          user_id: string
+        }
+        Insert: {
+          checkout_details?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          departure_id: string
+          expires_at?: string
+          id?: string
+          paid_at?: string | null
+          party_size: number
+          payment_status?: string
+          rating?: number | null
+          refund_due_at?: string | null
+          refunded_at?: string | null
+          request_key: string
+          review_hidden?: boolean
+          review_text?: string | null
+          reviewed_at?: string | null
+          status?: string
+          total_vnd: number
+          user_id: string
+        }
+        Update: {
+          checkout_details?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          departure_id?: string
+          expires_at?: string
+          id?: string
+          paid_at?: string | null
+          party_size?: number
+          payment_status?: string
+          rating?: number | null
+          refund_due_at?: string | null
+          refunded_at?: string | null
+          request_key?: string
+          review_hidden?: boolean
+          review_text?: string | null
+          reviewed_at?: string | null
+          status?: string
+          total_vnd?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviewed_demo_bookings_departure_id_fkey"
+            columns: ["departure_id"]
+            isOneToOne: false
+            referencedRelation: "reviewed_demo_departures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reviewed_demo_departures: {
+        Row: {
+          capacity: number
+          end_at: string
+          id: string
+          review_tour_id: string | null
+          start_at: string
+          title_en: string
+          title_vi: string
+          unit_price: number
+        }
+        Insert: {
+          capacity?: number
+          end_at: string
+          id: string
+          review_tour_id?: string | null
+          start_at: string
+          title_en: string
+          title_vi: string
+          unit_price: number
+        }
+        Update: {
+          capacity?: number
+          end_at?: string
+          id?: string
+          review_tour_id?: string | null
+          start_at?: string
+          title_en?: string
+          title_vi?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviewed_demo_departures_review_tour_id_fkey"
+            columns: ["review_tour_id"]
+            isOneToOne: false
+            referencedRelation: "reviewed_demo_departures"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       seo_releases: {
         Row: {
@@ -3490,9 +3617,9 @@ export type Database = {
           id: string | null
           language: Database["public"]["Enums"]["locale"] | null
           meeting_point: string | null
+          party_size: number | null
           payment_deadline_at: string | null
           payment_status: Database["public"]["Enums"]["payment_status"] | null
-          party_size: number | null
           per_person_vnd_minor: string | null
           quote_id: string | null
           source_id: string | null
@@ -3504,58 +3631,6 @@ export type Database = {
           tour_version_id: string | null
           travel_snapshot_id: string | null
           trip_start_at: string | null
-        }
-        Insert: {
-          cancellation_policy?: string | null
-          catalog_snapshot_id?: string | null
-          checkout_amount_minor?: never
-          checkout_currency?:
-            | Database["public"]["Enums"]["checkout_currency"]
-            | null
-          created_at?: string | null
-          fx_snapshot_id?: string | null
-          fx_vnd_per_usd?: number | null
-          hold_expires_at?: string | null
-          id?: string | null
-          language?: Database["public"]["Enums"]["locale"] | null
-          meeting_point?: string | null
-          party_size?: number | null
-          per_person_vnd_minor?: never
-          quote_id?: string | null
-          source_id?: string | null
-          source_kind?: string | null
-          status?: Database["public"]["Enums"]["booking_status"] | null
-          title_en?: string | null
-          title_vi?: string | null
-          total_vnd_minor?: never
-          tour_version_id?: string | null
-          travel_snapshot_id?: string | null
-        }
-        Update: {
-          cancellation_policy?: string | null
-          catalog_snapshot_id?: string | null
-          checkout_amount_minor?: never
-          checkout_currency?:
-            | Database["public"]["Enums"]["checkout_currency"]
-            | null
-          created_at?: string | null
-          fx_snapshot_id?: string | null
-          fx_vnd_per_usd?: number | null
-          hold_expires_at?: string | null
-          id?: string | null
-          language?: Database["public"]["Enums"]["locale"] | null
-          meeting_point?: string | null
-          party_size?: number | null
-          per_person_vnd_minor?: never
-          quote_id?: string | null
-          source_id?: string | null
-          source_kind?: string | null
-          status?: Database["public"]["Enums"]["booking_status"] | null
-          title_en?: string | null
-          title_vi?: string | null
-          total_vnd_minor?: never
-          tour_version_id?: string | null
-          travel_snapshot_id?: string | null
         }
         Relationships: [
           {
@@ -4166,6 +4241,27 @@ export type Database = {
           tour_version_id: string
         }[]
       }
+      get_guide_schedule: {
+        Args: { p_assignment_id?: string }
+        Returns: {
+          assignment_id: string
+          assignment_status: Database["public"]["Enums"]["assignment_status"]
+          booking_id: string
+          departure_id: string
+          dietary_flags: string[]
+          end_at: string
+          is_demo: boolean
+          itinerary: Json
+          language: Database["public"]["Enums"]["locale"]
+          meeting_point: string
+          mobility_flags: string[]
+          party_size: number
+          start_at: string
+          title: string
+          tour_status: string
+          tour_version_id: string
+        }[]
+      }
       get_live_departure_availability: {
         Args: never
         Returns: {
@@ -4177,6 +4273,7 @@ export type Database = {
           tour_version_id: string
         }[]
       }
+      get_own_guide_profile: { Args: never; Returns: Json }
       get_portal_identity: {
         Args: never
         Returns: {
@@ -4186,6 +4283,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_research_demo_catalog: { Args: { p_version: string }; Returns: Json }
       get_runtime_planner_operation: {
         Args: {
           p_actor_user_id: string
@@ -4248,6 +4346,75 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      research_demo_begin_revision: {
+        Args: { p_expected_revision: string; p_request_id: string }
+        Returns: string
+      }
+      research_demo_booking: {
+        Args: { p_create?: boolean; p_quote: string }
+        Returns: Json
+      }
+      research_demo_cancel_booking: {
+        Args: { p_booking: string; p_idempotency_key: string }
+        Returns: Json
+      }
+      research_demo_checkout: {
+        Args: { p_details: Json; p_quote: string }
+        Returns: Json
+      }
+      research_demo_create_quote: {
+        Args: {
+          p_amount: number
+          p_conditions: string
+          p_currency: string
+          p_request_id: string
+          p_title: string
+        }
+        Returns: string
+      }
+      research_demo_decide: {
+        Args: { p_decision: string; p_note?: string; p_request_id: string }
+        Returns: undefined
+      }
+      research_demo_edit_context: {
+        Args: { p_revision_id: string }
+        Returns: Json
+      }
+      research_demo_list: { Args: { p_admin?: boolean }; Returns: Json }
+      research_demo_persist: {
+        Args: {
+          p_owner: string
+          p_plan: Json
+          p_request: Json
+          p_version: string
+        }
+        Returns: string
+      }
+      research_demo_persist_edit: {
+        Args: {
+          p_edit_key: string
+          p_owner: string
+          p_parent: string
+          p_plan: Json
+          p_request: Json
+          p_version: string
+        }
+        Returns: Json
+      }
+      research_demo_resubmit: {
+        Args: {
+          p_expected_revision: string
+          p_request_id: string
+          p_revision_id: string
+        }
+        Returns: string
+      }
+      research_demo_resume: { Args: { p_revision_id: string }; Returns: Json }
+      research_demo_resume_latest: {
+        Args: { p_revision_id: string }
+        Returns: Json
+      }
+      research_demo_submit: { Args: { p_revision_id: string }; Returns: string }
       reserve_ai_quota: {
         Args: {
           p_device_hash: string
@@ -4297,12 +4464,76 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      reviewed_demo_availability: {
+        Args: never
+        Returns: {
+          departure_id: string
+          remaining: number
+        }[]
+      }
+      reviewed_demo_begin: {
+        Args: { p_departure: string; p_key: string; p_size: number }
+        Returns: Json
+      }
+      reviewed_demo_cancel: { Args: { p_booking: string }; Returns: Json }
+      reviewed_demo_checkout: {
+        Args: { p_booking: string; p_details: Json }
+        Returns: Json
+      }
+      reviewed_demo_expire: { Args: never; Returns: undefined }
+      reviewed_demo_moderate_review: {
+        Args: { p_booking: string; p_hidden: boolean }
+        Returns: undefined
+      }
+      reviewed_demo_pay: { Args: { p_booking: string }; Returns: Json }
+      reviewed_demo_public_reviews: {
+        Args: { p_departure: string }
+        Returns: Json
+      }
+      reviewed_demo_read: {
+        Args: { p_booking?: string }
+        Returns: {
+          checkout_details: Json | null
+          completed_at: string | null
+          created_at: string
+          departure_id: string
+          expires_at: string
+          id: string
+          paid_at: string | null
+          party_size: number
+          payment_status: string
+          rating: number | null
+          refund_due_at: string | null
+          refunded_at: string | null
+          request_key: string
+          review_hidden: boolean
+          review_text: string | null
+          reviewed_at: string | null
+          status: string
+          total_vnd: number
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "reviewed_demo_bookings"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      reviewed_demo_review: {
+        Args: { p_booking: string; p_rating: number; p_text: string }
+        Returns: Json
+      }
       submit_custom_request: {
         Args: { plan_id: string; revision_no: number }
         Returns: {
           request_id: string
           status: Database["public"]["Enums"]["request_status"]
         }[]
+      }
+      update_own_guide_profile: {
+        Args: { p_field: string; p_value: string }
+        Returns: Json
       }
       upsert_content_draft: {
         Args: {

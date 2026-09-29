@@ -7,6 +7,7 @@ import { rmSync } from "node:fs";
 import { assertNoRemoteMode, requireLocalSupabaseCli, runLocalSupabase } from "./supabase-local.mjs";
 import { prepareIsolatedSupabaseProject, reserveRuntimeItineraryPorts, selectRuntimeItineraryBaseEnv, requireLocalDockerContext } from "./run-runtime-itinerary-e2e.mjs";
 import { assertBootstrapDirectory } from "./lib/local-ci-bootstrap.mjs";
+import { assertNoBootstrapRecovery } from "./lib/bootstrap-recovery-cleanup.mjs";
 import { ensureDockerCliOnPath } from "./run-runtime-auth-e2e.mjs";
 import { runConcurrencyGate } from "./test-db-concurrency.mjs";
 import { checkGeneratedDatabaseTypes } from "./write-generated-db-types.mjs";
@@ -56,7 +57,7 @@ function packageScriptSpec(
     'db:start': ['start', '--exclude', 'realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor'],
     'db:reset': ['db', 'reset', '--local'],
     'db:lint': ['db', 'lint', '--local', '--level', 'error', '--fail-on', 'error'],
-    'db:test': ['test', 'db', '--local'],
+    'db:test': ['test', 'db', '--local', path.join(project.root, 'supabase/tests-selected')],
     'db:types:check': ['gen', 'types', '--lang', 'typescript', '--local'],
     'db:concurrency': [],
     'db:stop': ['stop', '--no-backup'],
@@ -144,7 +145,10 @@ export async function runDbGate(options = {}) {
       if (stopFailure) {
         if (failure) failure.cleanupError = stopFailure;
         else failure = stopFailure;
-      } else await project.dispose();
+      } else {
+        assertNoBootstrapRecovery(project.root);
+        await project.dispose();
+      }
     } catch (cleanupError) {
       if (failure) failure.cleanupError = cleanupError;
       else failure = cleanupError;

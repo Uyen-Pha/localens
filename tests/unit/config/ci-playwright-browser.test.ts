@@ -40,6 +40,7 @@ describe("CI Playwright browser contract", () => {
   });
 
   it.each([
+    "Verify approved reviewed booking runtime",
     "Verify runtime authentication",
     "Verify authenticated AI itinerary runtime",
     "Verify runtime fixed-tour booking and payment",
@@ -48,5 +49,10 @@ describe("CI Playwright browser contract", () => {
     expect(step("runtime-local", stepName).env).toMatchObject({
       LOCALENS_RUNTIME_BROWSER: "chrome",
     });
+  });
+
+  it("keeps approved booking acceptance local and records a private log", () => {
+    expect(step("runtime-local", "Verify approved reviewed booking runtime").run)
+      .toBe("pnpm test:e2e:runtime-reviewed-booking > ci-logs/runtime-reviewed-booking.log 2>&1");
   });
 });

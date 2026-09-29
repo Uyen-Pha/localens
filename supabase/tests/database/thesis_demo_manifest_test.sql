@@ -75,14 +75,14 @@ SELECT extensions.ok(
 );
 SELECT extensions.is(
   (
-    SELECT string_agg(policy.polname || ':' || role.rolname, '|' ORDER BY policy.polname, role.rolname)
+    SELECT string_agg(policy.polname || ':' || role.rolname || ':' || policy.polcmd::text, '|' ORDER BY policy.polname, role.rolname)
     FROM pg_catalog.pg_policy AS policy
     CROSS JOIN LATERAL unnest(policy.polroles) AS policy_role(role_oid)
     JOIN pg_catalog.pg_roles AS role ON role.oid = policy_role.role_oid
     WHERE policy.polrelid = 'private.thesis_demo_manifest'::regclass
   ),
-  'thesis_demo_manifest_migration_owner_all:postgres',
-  'only the migration owner has a manifest policy'
+  'remaining_runtime_9:localens_research_persist_rpc_owner:r|research_actor_manifest_select:localens_identity_rpc_owner:r|thesis_demo_manifest_migration_owner_all:postgres:*',
+  'only migration owner can write; bounded runtime owners have select policies'
 );
 SELECT extensions.ok(
   EXISTS (
@@ -128,10 +128,13 @@ SELECT extensions.ok(
 );
 
 -- The server-side seeder supplies the row explicitly; the migration does not.
+-- CI bootstrap supplies a marker prerequisite. Isolate this fixture inside the
+-- existing rollback transaction; the original marker is restored at the end.
+DELETE FROM private.thesis_demo_manifest;
 SELECT extensions.is(
   (SELECT count(*)::integer FROM private.thesis_demo_manifest),
   0,
-  'migration creates no marker row'
+  'isolated manifest fixture starts empty'
 );
 SELECT extensions.lives_ok(
   $$

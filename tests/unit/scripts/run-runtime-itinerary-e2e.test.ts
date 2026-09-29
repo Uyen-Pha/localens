@@ -288,6 +288,7 @@ describe("isolated runtime itinerary runner", () => {
       join(sourceRoot, "supabase", "functions", "recommend-itinerary"),
       join(sourceRoot, "supabase", "functions", "refine-itinerary"),
       join(sourceRoot, "supabase", "tests", "database"),
+      join(sourceRoot, "supabase", "tests", "research"),
       join(sourceRoot, "lib"),
     ]) {
       mkdirSync(directory, { recursive: true });
@@ -305,6 +306,12 @@ describe("isolated runtime itinerary runner", () => {
       "utf8",
     );
     writeFileSync(join(sourceRoot, "supabase", "tests", "database", "smoke.sql"), "select 1;\n", "utf8");
+    writeFileSync(join(sourceRoot, 'supabase/tests/database/remaining-runtime-permissions.sql'), 'SELECT 1;');
+    for (const name of ['fixtures.sql', 'research_permissions_test.sql', 'research_deadline_integration_test.sql', 'research_booking_cancellation_test.sql']) {
+      writeFileSync(join(sourceRoot, 'supabase/tests/research', name), name === 'research_booking_cancellation_test.sql'
+        ? 'INSERT INTO private.user_roles(user_id,role) SELECT id,kind::public.app_role FROM test_actors;'
+        : 'SELECT 1;');
+    }
     for (const name of ['20260905140000_thesis_demo_manifest.sql', '20260916073000_research_demo_catalog.sql']) {
       writeFileSync(join(sourceRoot, 'supabase', 'migrations', name), 'SELECT 1;');
     }
@@ -473,6 +480,8 @@ describe("isolated runtime itinerary runner", () => {
       expectedPort: ports.database,
       logger: expect.any(Function),
     });
+    expect(runStep.mock.calls.find(([spec]) => spec.name === 'db:test')?.[0].args)
+      .toEqual(expect.arrayContaining(['test', 'db', '--local', join(projectRoot, 'supabase/tests-selected')]));
     expect(verifyDatabase).toHaveBeenCalledWith(expect.objectContaining({
       cwd: process.cwd(),
       workdir: projectRoot,

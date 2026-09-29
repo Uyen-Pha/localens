@@ -168,12 +168,12 @@ async function signInAs(page: Page, locale: Locale, role: DemoRole): Promise<voi
 }
 
 async function switchRole(page: Page, locale: Locale, nextRole: DemoRole): Promise<void> {
-  const signOut = page.getByRole("button", { name: PORTAL_COPY[locale].signOut, exact: true });
-  if (await signOut.count() > 0) {
-    await signOut.click();
-  } else {
-    await page.locator("header.site-header").getByRole("link", { name: getDictionary(locale).navigation.signIn, exact: true }).click();
-  }
+  const header = page.locator("header.site-header");
+  const menu = header.getByRole("button", { name: locale === "vi" ? "Mở menu tài khoản" : "Open account menu", exact: true });
+  await menu.click();
+  await expect(menu).toHaveAttribute("aria-expanded", "true");
+  await header.getByRole("button", { name: locale === "vi" ? "Đăng xuất" : "Log out", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/${locale}/sign-in/?$`));
   await enterDemoIdentity(page, locale, nextRole);
 }
 
@@ -195,6 +195,17 @@ async function assertAccessDenied(
       ? copy.guidePortal
       : copy.adminPortal;
   await page.goto(`/${locale}/${ROLE_SEGMENT[expectedRole]}/`);
+  if (expectedRole === "customer") {
+    // The approved account page redirects staff to their own portal.
+    await expect(page).toHaveURL(new RegExp(`/${locale}/${ROLE_SEGMENT[actualRole]}/?$`));
+    await expect(page.getByRole("heading", {
+      name: actualRole === "guide" ? copy.guidePortal : copy.adminPortal,
+      exact: true,
+    })).toBeVisible();
+    await expect(page.getByRole("heading", { name: copy.customerHeading, exact: true })).toHaveCount(0);
+    await expect(page.locator('article[aria-labelledby^="customer-booking-"]')).toHaveCount(0);
+    return;
+  }
   await expect(page.getByRole("heading", { name: accessDeniedTitle, exact: true })).toBeVisible();
   await expect(page.getByText(copy.accessDeniedMessage, { exact: true })).toBeVisible();
   await expect(page.getByText(
@@ -202,6 +213,15 @@ async function assertAccessDenied(
     { exact: true },
   )).toBeVisible();
   await expect(page.getByRole("heading", { name: portalHeading, exact: true })).toHaveCount(0);
+}
+
+async function openCustomerBookings(page: Page, locale: Locale): Promise<void> {
+  const header = page.locator("header.site-header");
+  await header.getByRole("button", { name: locale === "vi" ? "Mở menu tài khoản" : "Open account menu", exact: true }).click();
+  const bookings = header.getByRole("link", { name: locale === "vi" ? "Đơn đặt tour" : "Bookings", exact: true });
+  await expect(bookings).toHaveAttribute("href", `/${locale}/bookings/`);
+  await bookings.click();
+  await expect(page).toHaveURL(new RegExp(`/${locale}/bookings/?$`));
 }
 
 async function inspectFixedTourCatalog(
@@ -316,10 +336,10 @@ test.beforeEach(async ({ page }) => {
 
 test("customer sign-in restores fixed-tour booking intent and rejects an external return-to", async ({ page }) => {
   const diagnostics = installDiagnostics(page);
-  const returnTo = "/en/booking/?departure=demo-departure-markets-and-street-food-2026-09-05&partySize=2";
+  const returnTo = "/en/booking/?departure=d1700000-0000-4000-8000-000000000421&partySize=2";
 
   await page.goto(returnTo);
-  await page.getByRole("link", { name: PORTAL_COPY.en.chooseIdentity, exact: true }).click();
+  await page.getByRole("button", { name: "Book tour", exact: true }).click();
   await expect(page).toHaveURL(/\/en\/sign-in\/\?returnTo=/);
   const signInUrl = new URL(page.url());
   expect(signInUrl.pathname).toBe("/en/sign-in/");
@@ -327,7 +347,7 @@ test("customer sign-in restores fixed-tour booking intent and rejects an externa
   await selectDemoIdentity(page, "LocalLens Customer", "Continue as Customer");
 
   await expect(page).toHaveURL(new RegExp(`${returnTo.replace(/[?]/g, "\\?")}$`));
-  await expect(page.getByLabel(FIXED_TOUR_ACCEPTANCE_COPY.en.partySizeLabel, { exact: true })).toHaveValue("2");
+  await expect(page.getByRole("button", { name: "Travelers 2", exact: true })).toBeVisible();
 
   const localOrigin = new URL(page.url()).origin;
   await page.goto("/en/sign-in/?returnTo=https%3A%2F%2Fexample.com");
@@ -354,21 +374,24 @@ test("personalized route refinement submits for admin quote review and completes
   await page.locator("header.site-header").getByRole("link", { name: "LocalLens", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your Saigon, planned around you", exact: true })).toBeVisible();
   const personalizationForm = page.getByRole("form", { name: "Personalized route preferences", exact: true });
-  await personalizationForm.getByLabel("Hours", { exact: true }).fill("6");
+  await personalizationForm.getByRole("combobox", { name: "Hours", exact: true }).selectOption("6");
+  await expect(personalizationForm.getByRole("combobox", { name: "Hours", exact: true })).toHaveValue("6");
   await expect(personalizationForm.getByLabel("Preferred start date", { exact: true })).not.toHaveValue("");
   await personalizationForm.getByLabel("Budget for your whole group", { exact: true }).fill("2000000");
   await personalizationForm.getByLabel("People in your party", { exact: true }).fill("2");
   await personalizationForm.getByLabel("District 1 & central", { exact: true }).check();
-  await personalizationForm.getByLabel("Food & everyday flavor", { exact: true }).fill("0");
-  await personalizationForm.getByLabel("Markets & neighborhood life", { exact: true }).fill("4");
-  await personalizationForm.getByRole("button", { name: "Preview my route brief", exact: true }).click();
+  await personalizationForm.getByRole("combobox", { name: "Food & everyday flavor", exact: true }).selectOption({ label: "No preference" });
+  await personalizationForm.getByRole("combobox", { name: "Markets & neighborhood life", exact: true }).selectOption({ label: "High priority" });
+  await expect(personalizationForm.getByRole("combobox", { name: "Markets & neighborhood life", exact: true })).toHaveValue("3");
+  await personalizationForm.getByRole("button", { name: "Create suggested itinerary", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your route proposal", exact: true })).toBeVisible();
   await expect(page.getByText("Preview only: your preferences stay on this page and are not sent yet.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open the separate simulated refinement demo", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open the separate itinerary refinement preview", exact: true })).toHaveAttribute("href", "/en/planner/");
 
-  await page.getByRole("link", { name: "Open the separate simulated refinement demo", exact: true }).click();
+  await page.getByRole("link", { name: "Open the separate itinerary refinement preview", exact: true }).click();
   await expect(page).toHaveURL(/\/en\/planner\/?$/);
   await expect(page.getByRole("heading", { name: "Your personalized route proposal", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continue saved request", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Revision 1", exact: true })).toBeVisible();
   await expect(page.getByText("This is a suggestion for discussion. It does not confirm or book a tour automatically.", { exact: true }).first()).toBeVisible();
 
@@ -385,9 +408,9 @@ test("personalized route refinement submits for admin quote review and completes
   const confirmedRevision = page.getByRole("region", { name: "Selected itinerary revision", exact: true });
   await expect(confirmedRevision.getByText("Revision", { exact: true }).locator("xpath=..").getByRole("definition")).toHaveText("2");
   await expect(page.getByRole("heading", { name: "Submit for local admin review", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Submit local demo request", exact: true }).click();
+  await page.getByRole("button", { name: "Submit request locally", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Admin review pending (simulated)", exact: true })).toBeVisible();
-  await expect(page.getByText("Your browser demo request is pending administrator review. The seeded demo admin can now review it.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Your request is saved in this browser and awaits administrator review." })).toBeVisible();
 
   await switchRole(page, "en", "admin");
   await expect(page.getByRole("heading", { name: "Admin portal", exact: true })).toBeVisible();
@@ -400,28 +423,28 @@ test("personalized route refinement submits for admin quote review and completes
   const requestCard = personalizedRegion.getByRole("listitem").filter({ hasText: requestId });
   await requestCard.getByRole("combobox", { name: /^Decision:/ }).selectOption({ label: "Approved" });
   await requestCard.getByRole("button", { name: "Save request decision", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Request decision saved in this demo session." })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Request decision saved in this browser session only." })).toBeVisible();
   await expect(requestCard).toContainText("Approved");
 
-  await expect(requestCard.getByRole("button", { name: "Issue demo quote", exact: true })).toBeVisible();
-  await requestCard.getByRole("button", { name: "Issue demo quote", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Demo quote issued in this session." })).toBeVisible();
-  await expect(requestCard).toContainText("The remaining quote facts come from the seeded demo quote fixture");
+  await expect(requestCard.getByRole("button", { name: "Create quote", exact: true })).toBeVisible();
+  await requestCard.getByRole("button", { name: "Create quote", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Quote created in this browser session." })).toBeVisible();
+  await expect(requestCard).toContainText("Other quote details come from preloaded sample records. A quote is created only when you choose this action.");
 
   await switchRole(page, "en", "customer");
   await page.goto("/en/custom-request/");
   const selectedRevision = page.getByRole("region", { name: "Selected itinerary revision", exact: true });
   await expect(selectedRevision.getByText("Revision", { exact: true }).locator("xpath=..").getByRole("definition")).toHaveText("2");
   await expect(page.getByRole("heading", { name: "Mock quote", exact: true })).toBeVisible();
-  await expect(page.getByText("This amount is the administrator-issued demo quote and remains immutable in this local flow.", { exact: true })).toBeVisible();
+  await expect(page.getByText("This amount is based on sample quote details and remains unchanged in this local flow.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Accept this mock quote", exact: true }).click();
   await expect(page.getByText("You explicitly accepted the mock quote. Payment has not started.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Open Stripe Test/Mock action", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Stripe Test/Mock boundary", exact: true })).toBeVisible();
-  await expect(page.getByText("No Stripe network request, card detail, real charge, or webhook was made; this checkout only updates browser demo state.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Simulated payment — no real charge is made.", { exact: true })).toBeVisible();
 
-  await page.locator("header.site-header").getByRole("link", { name: "Sign in", exact: true }).click();
-  await enterDemoIdentity(page, "en", "customer");
+  await switchRole(page, "en", "customer");
+  await openCustomerBookings(page, "en");
   const personalizedBooking = page.locator(`article[aria-labelledby="customer-booking-demo-booking-${requestId}"]`);
   await expect(personalizedBooking).toBeVisible();
   await expect(personalizedBooking).toContainText("Confirmed");
@@ -443,20 +466,23 @@ test("personalized request runs the complete customer and admin chain in Vietnam
   await page.locator("header.site-header").getByRole("link", { name: "LocalLens", exact: true }).click();
   await expect(page.getByRole("heading", { name: home.title, exact: true })).toBeVisible();
   const personalizationForm = page.getByRole("form", { name: formCopy.formLabel, exact: true });
-  await personalizationForm.getByLabel(formCopy.durationHoursLabel, { exact: true }).fill("6");
+  await personalizationForm.getByRole("combobox", { name: formCopy.durationHoursLabel, exact: true }).selectOption("6");
+  await expect(personalizationForm.getByRole("combobox", { name: formCopy.durationHoursLabel, exact: true })).toHaveValue("6");
   await expect(personalizationForm.getByLabel(formCopy.startDateLabel, { exact: true })).not.toHaveValue("");
   await personalizationForm.getByLabel(formCopy.budgetLabel, { exact: true }).fill("2000000");
   await personalizationForm.getByLabel(formCopy.partySizeLabel, { exact: true }).fill("2");
   await personalizationForm.getByLabel(formCopy.areaOptions.find((option) => option.value === "demo-hcmc-district-1")!.label, { exact: true }).check();
-  await personalizationForm.getByLabel(formCopy.priorities.find((priority) => priority.key === "street_food")!.label, { exact: true }).fill("0");
-  await personalizationForm.getByLabel(formCopy.priorities.find((priority) => priority.key === "traditional_market")!.label, { exact: true }).fill("4");
-  await personalizationForm.getByRole("button", { name: formCopy.submitLabel, exact: true }).click();
+  await personalizationForm.getByRole("combobox", { name: formCopy.priorities.find((priority) => priority.key === "street_food")!.label, exact: true }).selectOption("0");
+  await personalizationForm.getByRole("combobox", { name: formCopy.priorities.find((priority) => priority.key === "traditional_market")!.label, exact: true }).selectOption("3");
+  await expect(personalizationForm.getByRole("combobox", { name: formCopy.priorities.find((priority) => priority.key === "traditional_market")!.label, exact: true })).toHaveValue("3");
+  await personalizationForm.getByRole("button", { name: "Tạo lịch trình gợi ý", exact: true }).click();
   await expect(page.getByRole("heading", { name: formCopy.preview.heading, exact: true })).toBeVisible();
   await expect(page.getByText(formCopy.previewMessage, { exact: true })).toBeVisible();
 
   await page.getByRole("link", { name: formCopy.plannerLinkLabel, exact: true }).click();
   await expect(page).toHaveURL(/\/vi\/planner\/?$/);
   await expect(page.getByRole("heading", { name: plannerCopy.heading, exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Tiếp tục yêu cầu đã lưu", exact: true }).click();
   await expect(page.getByRole("heading", { name: `${plannerCopy.revisionLabel} 1`, exact: true })).toBeVisible();
   await page.getByLabel(plannerCopy.feedbackLabel, { exact: true }).fill("Giữ điểm chợ và đi chậm hơn.");
   await page.getByRole("button", { name: plannerCopy.refineLabel, exact: true }).click();
@@ -497,7 +523,7 @@ test("personalized request runs the complete customer and admin chain in Vietnam
   await expect(page.getByRole("heading", { name: customCopy.stripeMockHeading, exact: true })).toBeVisible();
   await expect(page.getByText(customCopy.noPaymentNetworkDisclosure, { exact: true })).toBeVisible();
 
-  await page.goto(`/${locale}/account/`);
+  await openCustomerBookings(page, locale);
   const personalizedBooking = page.locator(`article[aria-labelledby="customer-booking-demo-booking-${requestId}"]`);
   await expect(personalizedBooking).toBeVisible();
   await expect(personalizedBooking).toContainText(portalCopy.statusLabels.confirmed);

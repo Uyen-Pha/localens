@@ -128,7 +128,13 @@ SELECT set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000
 SELECT is((SELECT count(*)::integer FROM public.profiles WHERE id = '00000000-0000-0000-0000-000000000002'::uuid), 1, 'customer reads own profile');
 SELECT is((SELECT count(*)::integer FROM public.profiles WHERE id IN ('00000000-0000-0000-0000-000000000001'::uuid, '00000000-0000-0000-0000-000000000003'::uuid)), 0, 'customer cannot read cross-user profiles');
 SELECT throws_ok($$INSERT INTO public.profiles (id) VALUES ('00000000-0000-0000-0000-000000000003'::uuid)$$::text, '42501'::character(5), NULL::text, 'customer cannot insert profiles'::text);
-SELECT throws_ok($$UPDATE public.profiles SET display_name = 'cross-user' WHERE id = '00000000-0000-0000-0000-000000000001'::uuid$$::text, '42501'::character(5), NULL::text, 'customer cannot update profiles'::text);
+-- Account editing grants personal columns, while RLS filters other users.
+-- Verify no row is writable rather than expecting a table-level denial.
+WITH changed AS (
+  UPDATE public.profiles SET display_name = 'cross-user'
+  WHERE id = '00000000-0000-0000-0000-000000000001'::uuid RETURNING id
+)
+SELECT is((SELECT count(*)::integer FROM changed), 0, 'customer cannot update another profile');
 SELECT throws_ok($$UPDATE public.guide_profiles SET display_name = 'cross-user' WHERE user_id = '00000000-0000-0000-0000-000000000004'::uuid$$::text, '42501'::character(5), NULL::text, 'customer cannot update guide profiles'::text);
 RESET ROLE;
 

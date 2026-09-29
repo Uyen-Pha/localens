@@ -25,6 +25,7 @@
     "test:e2e:runtime-auth": "node scripts/run-runtime-auth-isolated-e2e.mjs",
     "test:e2e:runtime-itinerary": "node scripts/run-runtime-itinerary-e2e.mjs",
     "test:e2e:runtime-fixed-tour": "node scripts/run-runtime-fixed-tour-e2e.mjs",
+    "test:e2e:runtime-reviewed-booking": "node scripts/run-runtime-reviewed-booking-e2e.mjs",
     "test:e2e:runtime-guide-assignment": "node scripts/run-runtime-guide-assignment-e2e.mjs",
     "db:static": "node scripts/check-supabase-artifacts.mjs",
     "db:static:seed": "node scripts/generate-supabase-seed.mjs --check-readiness",
