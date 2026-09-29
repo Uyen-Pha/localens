@@ -604,6 +604,27 @@ describe("complete inventory and stable graph comparison", () => {
     for (const relation of THESIS_DEMO_RELATIONS) {
       expect(countSql).toContain(`'${relation}' AS relation`);
     }
+    // These separate demo datasets have no ownership proof in thesis-demo.v2.
+    for (const relation of [
+      "private.guide_demo_schedule",
+      "private.research_demo_booking_cancellations",
+      "private.research_demo_bookings",
+      "private.research_demo_catalog_versions",
+      "private.research_demo_places",
+      "private.research_demo_quotes",
+      "private.research_demo_request_events",
+      "private.research_demo_requests",
+      "private.research_demo_revision_links",
+      "private.research_demo_revisions",
+      "private.research_demo_stops",
+      "public.reviewed_demo_bookings",
+      "public.reviewed_demo_departures",
+    ]) {
+      const arm = countSql.split("UNION ALL").find((sql) =>
+        sql.includes(`'${relation}' AS relation`));
+      expect(arm).toContain("FILTER (WHERE FALSE)::integer AS demo_rows");
+      expect(arm).toContain("FILTER (WHERE FALSE)::integer AS baseline_rows");
+    }
     expect(countSql).not.toMatch(/LIKE\s+['"]%.*demo/i);
     expect(countSql).not.toMatch(/position\s*\(/i);
   });
