@@ -9,11 +9,27 @@ test('accepts no_plan with its final plan emitted by finish', () => {
   assert.deepEqual(validateLocalTap('BEGIN\n ok 1 - first\n ok 2 - second\n 1..2\n(1 row)\nROLLBACK\n', 2), {total: 2, passed: 2, skipped: 0, todo: 0, directives: []});
 });
 test('counts pgTAP SKIP results without a description dash toward the plan', () => {
-  assert.deepEqual(validateLocalTap('ok 1 - first\nok 2 # SKIP historical fixture unavailable\n1..2\nROLLBACK\n', 2), {total: 2, passed: 1, skipped: 1, todo: 0, directives: ['SKIP 2: historical fixture unavailable']});
+  assert.deepEqual(validateLocalTap('BEGIN\nok 1 - first\nok 2 # SKIP historical fixture unavailable\n1..2\nROLLBACK\n', 2), {total: 2, passed: 1, skipped: 1, todo: 0, directives: ['SKIP 2: historical fixture unavailable']});
 });
 test('reports TODO separately even when its assertion is ok', () => {
-  assert.deepEqual(validateLocalTap('1..2\nok 1 - first\nok 2 - pending # TODO pending coverage\nROLLBACK\n', 2), {total: 2, passed: 1, skipped: 0, todo: 1, directives: ['TODO 2: pending coverage']});
+  assert.deepEqual(validateLocalTap('BEGIN\n1..2\nok 1 - first\nok 2 - pending # TODO pending coverage\nROLLBACK\n', 2), {total: 2, passed: 1, skipped: 0, todo: 1, directives: ['TODO 2: pending coverage']});
 });
+test('counts failing TODO separately without masking a real failure', () => {
+  const output = 'BEGIN\n1..2\nok 1 - first\nnot ok 2 - pending # TODO pending coverage\nROLLBACK\n';
+  assert.deepEqual(validateLocalTap(output, 2), {total: 2, passed: 1, skipped: 0, todo: 1, directives: ['TODO 2: pending coverage']});
+  assert.throws(() => validateLocalTap(output.replace('ok 1 - first', 'not ok 1 - first'), 2));
+});
+for (const output of [
+  'BEGIN\n1..1\nok 1 - check\nCOMMIT\nROLLBACK\n',
+  '1..1\nok 1 - check\nROLLBACK\n',
+  '1..1\nBEGIN\nok 1 - check\nROLLBACK\n',
+  'BEGIN\nBEGIN\n1..1\nok 1 - check\nROLLBACK\n',
+  'BEGIN\n1..1\nok 1 - check\nROLLBACK\nBEGIN\n',
+]) {
+  test(`rejects unsafe transaction envelope ${JSON.stringify(output)}`, () => {
+    assert.throws(() => validateLocalTap(output, 1));
+  });
+}
 for (const [name, output, expected = 2] of [
   ['empty output', ''],
   ['rollback without TAP', 'BEGIN\nROLLBACK\n'],
@@ -38,6 +54,7 @@ for (const [name, output, expected = 2] of [
   ['zero expected count', '1..0\nROLLBACK\n', 0],
 ]) {
   test(`rejects ${name}`, () => {
-    assert.throws(() => validateLocalTap(output, name === 'missing expected count' ? undefined : expected));
+    const transactionOutput = output.startsWith('BEGIN\n') ? output : `BEGIN\n${output}`;
+    assert.throws(() => validateLocalTap(transactionOutput, name === 'missing expected count' ? undefined : expected));
   });
 }

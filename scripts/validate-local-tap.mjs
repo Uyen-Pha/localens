@@ -2,7 +2,7 @@ export function validateLocalTap(output, expectedAssertions) {
   if (!Number.isSafeInteger(expectedAssertions) || expectedAssertions <= 0) {
     throw new Error('Expected TAP assertion count must be a positive integer');
   }
-  if (/^\s*(?:not ok\b|Bail out!)|Looks like you failed|planned \d+ tests but ran/im.test(output)) {
+  if (/^\s*Bail out!|Looks like you failed|planned \d+ tests but ran/im.test(output)) {
     throw new Error('TAP failure, bailout or plan mismatch');
   }
   // Accept psql aligned output as well as plain TAP. no_plan emits its plan
@@ -11,13 +11,19 @@ export function validateLocalTap(output, expectedAssertions) {
   const assertions = [];
   const plans = [];
   const rollbacks = [];
+  const begins = [];
   for (const [index, line] of lines.entries()) {
-    const assertion = /^ok\s+(\d+)\b(?:\s.*)?$/.exec(line);
+    const assertion = /^(not ok|ok)\s+(\d+)\b(?:\s.*)?$/.exec(line);
     const plan = /^1\.\.(\d+)(?:\s+#.*)?$/.exec(line);
     if (assertion) {
       const directive = /#\s*(SKIP|TODO)\b\s*(.*)$/i.exec(line);
-      assertions.push({number: Number(assertion[1]), index, directive: directive?.[1].toUpperCase(), reason: directive?.[2]});
+      if (assertion[1] === 'not ok' && directive?.[1].toUpperCase() !== 'TODO') {
+        throw new Error('TAP assertion failed');
+      }
+      assertions.push({number: Number(assertion[2]), index, directive: directive?.[1].toUpperCase(), reason: directive?.[2]});
     }
+    if (line === 'COMMIT') throw new Error('Unexpected COMMIT in rollback-only test');
+    if (line === 'BEGIN') begins.push(index);
     if (plan) plans.push({count: Number(plan[1]), index});
     if (line === 'ROLLBACK') rollbacks.push(index);
   }
@@ -32,6 +38,9 @@ export function validateLocalTap(output, expectedAssertions) {
   }
   const first = assertions[0].index;
   const last = assertions.at(-1).index;
+  if (begins.length !== 1 || begins[0] >= Math.min(first, plans[0].index)) {
+    throw new Error('Expected one transaction BEGIN before TAP');
+  }
   if (plans[0].index > first && plans[0].index < last) {
     throw new Error('TAP plan must precede or follow all assertions');
   }

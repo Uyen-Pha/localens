@@ -6,7 +6,9 @@ import {validateLocalTap} from './validate-local-tap.mjs';
 const container = 'supabase_db_localens-release-20260929-verified';
 const candidate = readFileSync(new URL('../supabase/migrations/20260929030000_reviewed_rpc_permissions.sql', import.meta.url),'utf8')
   .replace(/^BEGIN;\r?$/m,'').replace(/^COMMIT;\r?$/m,'');
-const tests = readFileSync(new URL('../supabase/tests/database/reviewed_permissions_test.sql', import.meta.url),'utf8');
+// The runner owns BEGIN; retain the suite's final ROLLBACK only.
+const tests = readFileSync(new URL('../supabase/tests/database/reviewed_permissions_test.sql', import.meta.url),'utf8')
+  .replace(/^BEGIN;\r?$/m, '');
 function run(label, sql, expectedAssertions = 24, databaseUser = 'postgres') {
   const output = execFileSync('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U',databaseUser,'-d','postgres'],{input:sql,encoding:'utf8',stdio:['pipe','pipe','pipe']});
   let count;
